@@ -18,6 +18,9 @@
 - DevOps: GitHub Actions → Vercel (FE) / Supabase Cloud (BE).
 - Observability: Sentry, Grafana Cloud, OTEL.
 
+## Структура базы данных
+- Структура БД описана в `database_structure.json`; при создании портала необходимо учитывать эту модель.
+
 ## Требования по файлам
 - Загрузка файлов drag‑and‑drop до 250 МБ.
 - Предпросмотр PDF, изображений, XLS, DOC/TXT/RTF/ODT.
