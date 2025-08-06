@@ -1,4 +1,17 @@
 body {
   margin: 0;
   font-family: system-ui, sans-serif;
+  background: linear-gradient(180deg, #ffffff 0%, #e6f7ff 50%, #91d5ff 100%);
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16px;
+  background: linear-gradient(90deg, #ffffff 0%, #e6f7ff 100%);
+}
+
+.app-sider {
+  background: linear-gradient(180deg, #ffffff 0%, #e6f7ff 50%, #91d5ff 100%);
 }
