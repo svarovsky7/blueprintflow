@@ -1,35 +1,33 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { Routes, Route } from 'react-router-dom';
+import MainLayout from './layout/MainLayout';
+import Dashboard from './pages/Dashboard';
+import Estimate from './pages/Estimate';
+import EstimateMonolith from './pages/EstimateMonolith';
+import WorkVolume from './pages/WorkVolume';
+import Smeta from './pages/Smeta';
+import Documentation from './pages/Documentation';
+import BlueprintsRD from './pages/BlueprintsRD';
+import BlueprintsPD from './pages/BlueprintsPD';
+import References from './pages/References';
+import Reports from './pages/Reports';
+import Admin from './pages/Admin';
 
-function App() {
-  const [count, setCount] = useState(0)
-
+export default function App() {
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <MainLayout>
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/documents/estimate" element={<Estimate />} />
+        <Route path="/documents/estimate-monolith" element={<EstimateMonolith />} />
+        <Route path="/documents/work-volume" element={<WorkVolume />} />
+        <Route path="/documents/cost" element={<Smeta />} />
+        <Route path="/library/docs" element={<Documentation />} />
+        <Route path="/library/rd-codes" element={<BlueprintsRD />} />
+        <Route path="/library/pd-codes" element={<BlueprintsPD />} />
+        <Route path="/references" element={<References />} />
+        <Route path="/reports" element={<Reports />} />
+        <Route path="/admin" element={<Admin />} />
+      </Routes>
+    </MainLayout>
+  );
 }
-
-export default App
