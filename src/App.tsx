@@ -12,6 +12,7 @@ import References from './pages/References';
 import Reports from './pages/Reports';
 import Admin from './pages/Admin';
 import Users from './pages/Users';
+import Departments from './pages/Departments';
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/reports" element={<Reports />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/admin/users" element={<Users />} />
+        <Route path="/admin/departments" element={<Departments />} />
       </Routes>
     </MainLayout>
   );
