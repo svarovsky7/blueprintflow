@@ -59,6 +59,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     '/reports': 'Отчёты',
     '/admin': 'Администрирование',
     '/admin/users': 'Пользователи',
+    '/admin/departments': 'Подразделения',
   };
 
   const handleLogout = async () => {
