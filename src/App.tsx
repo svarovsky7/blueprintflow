@@ -11,6 +11,7 @@ import BlueprintsPD from './pages/BlueprintsPD';
 import References from './pages/References';
 import Reports from './pages/Reports';
 import Admin from './pages/Admin';
+import Users from './pages/Users';
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/references" element={<References />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/admin/users" element={<Users />} />
       </Routes>
     </MainLayout>
   );

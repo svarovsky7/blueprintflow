@@ -1,13 +1,13 @@
 import { Button, Space } from 'antd';
 import { Link } from 'react-router-dom';
 
-export default function Admin() {
+export default function Users() {
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <Space>
           <Link to="/admin/users">
-            <Button>Пользователи</Button>
+            <Button type="primary">Пользователи</Button>
           </Link>
           <Button>Роли</Button>
           <Button>Привилегии</Button>
@@ -18,7 +18,7 @@ export default function Admin() {
           <Button>Редактировать</Button>
         </Space>
       </div>
-      <div>Настройки и управление пользователями.</div>
+      <div>Список пользователей</div>
     </>
   );
 }
