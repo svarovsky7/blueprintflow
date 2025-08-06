@@ -10,6 +10,7 @@ export default function Users() {
             <Button type="primary">Пользователи</Button>
           </Link>
           <Button>Роли</Button>
+          <Button>Подразделения</Button>
           <Button>Привилегии</Button>
           <Button>Настройки</Button>
         </Space>
