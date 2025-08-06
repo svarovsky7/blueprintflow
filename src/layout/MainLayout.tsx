@@ -58,6 +58,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     '/references': 'Справочники',
     '/reports': 'Отчёты',
     '/admin': 'Администрирование',
+    '/admin/users': 'Пользователи',
   };
 
   const handleLogout = async () => {
@@ -71,7 +72,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <Menu
           theme="light"
           mode="inline"
-          selectedKeys={[location.pathname]}
+          selectedKeys={[location.pathname.startsWith('/admin') ? '/admin' : location.pathname]}
           items={items}
         />
       </Sider>
