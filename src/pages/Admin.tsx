@@ -10,9 +10,7 @@ export default function Admin() {
             <Button>Пользователи</Button>
           </Link>
           <Button>Роли</Button>
-          <Link to="/admin/departments">
-            <Button>Подразделения</Button>
-          </Link>
+          <Button>Подразделения</Button>
           <Button>Привилегии</Button>
           <Button>Настройки</Button>
         </Space>
