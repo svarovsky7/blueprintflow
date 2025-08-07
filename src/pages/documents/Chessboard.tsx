@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Input, Space, Table, message } from 'antd'
+import { Button, Input, Modal, Space, Table, message } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { supabase } from '../../lib/supabase'
 
@@ -41,7 +41,14 @@ export default function Chessboard() {
   }
 
   const handleSave = async () => {
-    if (!supabase) return
+    const tableName = 'chessboard'
+    if (!supabase) {
+      Modal.info({
+        title: 'Сохранение данных',
+        content: `Клиент базы данных не настроен. Таблица: ${tableName}`,
+      })
+      return
+    }
     const payload = rows.map(({ key, quantityPd, quantitySpec, quantityRd, ...rest }) => {
       void key
       return {
@@ -57,13 +64,17 @@ export default function Chessboard() {
       messageApi.error('Не удалось сохранить единицы измерения')
       return
     }
-    const { error } = await supabase.from('chessboard').insert(payload)
-    if (error) {
-      messageApi.error('Не удалось сохранить данные')
-      return
+    const { data, error } = await supabase.from(tableName).insert(payload).select()
+    Modal.info({
+      title: 'Сохранение данных',
+      content: error
+        ? `Не удалось сохранить данные в таблицу ${tableName}: ${error.message}`
+        : `Данные успешно сохранены в таблицу ${tableName}`,
+    })
+    if (!error) {
+      setViewData((data as RowData[]) ?? [])
+      setEditing(false)
     }
-    messageApi.success('Данные сохранены')
-    setEditing(false)
   }
 
   const handleShow = async () => {
