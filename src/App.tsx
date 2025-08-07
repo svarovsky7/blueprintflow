@@ -5,8 +5,9 @@ import Documents from './pages/Documents'
 import Chessboard from './pages/documents/Chessboard'
 import Vor from './pages/documents/Vor'
 import References from './pages/References'
+import PortalHeader from './components/PortalHeader'
 
-const { Header, Sider, Content } = Layout
+const { Sider, Content } = Layout
 
 const App = () => {
   const items = [
@@ -24,11 +25,11 @@ const App = () => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider collapsible>
-        <Menu theme="dark" mode="inline" items={items} />
+      <Sider theme="light" style={{ background: '#fafafa' }} collapsible>
+        <Menu theme="light" mode="inline" items={items} />
       </Sider>
       <Layout>
-        <Header style={{ background: '#fff' }} />
+        <PortalHeader />
         <Content style={{ margin: 16 }}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
