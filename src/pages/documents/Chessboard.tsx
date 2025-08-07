@@ -42,14 +42,6 @@ export default function Chessboard() {
 
   const handleSave = async () => {
     const tableName = 'chessboard'
-    if (!supabase) {
-      console.error('Supabase client is not configured')
-      modal.info({
-        title: 'Сохранение данных',
-        content: `Клиент базы данных не настроен. Таблица: ${tableName}`,
-      })
-      return
-    }
     console.log('Saving rows:', rows)
     const payload = rows.map(({ key, quantityPd, quantitySpec, quantityRd, ...rest }) => {
       void key
@@ -80,7 +72,6 @@ export default function Chessboard() {
   }
 
   const handleShow = async () => {
-    if (!supabase) return
     const { data, error } = await supabase.from('chessboard').select('*')
     if (error) {
       console.error('Error fetching chessboard data:', error)
