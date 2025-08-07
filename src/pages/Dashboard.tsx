@@ -6,12 +6,13 @@ const Dashboard = () => {
   const { data: completedWorks = 0 } = useQuery({
     queryKey: ['completedWorksCount'],
     queryFn: async () => {
-      const { count, error } = await supabase
+      const { count, error } = await supabase!
         .from('work_progress')
         .select('*', { head: true, count: 'exact' })
       if (error) throw error
       return count ?? 0
     },
+    enabled: !!supabase,
   })
 
   return (
