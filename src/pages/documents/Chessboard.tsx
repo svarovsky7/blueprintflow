@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Input, Space, Table } from 'antd'
+import { Button, Input, Space, Table, message } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { supabase } from '../../lib/supabase'
 
@@ -27,6 +27,7 @@ export default function Chessboard() {
   const [rows, setRows] = useState<RowData[]>([])
   const [viewData, setViewData] = useState<RowData[]>([])
   const [editing, setEditing] = useState(false)
+  const [messageApi, contextHolder] = message.useMessage()
 
   const addRow = () => setRows([...rows, emptyRow()])
 
@@ -41,17 +42,31 @@ export default function Chessboard() {
 
   const handleSave = async () => {
     if (!supabase) return
-    const payload = rows.map(({ key, ...rest }) => {
+    const payload = rows.map(({ key, quantityPd, quantitySpec, quantityRd, ...rest }) => {
       void key
-      return rest
+      return {
+        ...rest,
+        quantityPd: quantityPd ? Number(quantityPd) : null,
+        quantitySpec: quantitySpec ? Number(quantitySpec) : null,
+        quantityRd: quantityRd ? Number(quantityRd) : null,
+      }
     })
-    await supabase.from('chessboard').insert(payload)
+    const { error } = await supabase.from('chessboard').insert(payload)
+    if (error) {
+      messageApi.error('Не удалось сохранить данные')
+      return
+    }
+    messageApi.success('Данные сохранены')
     setEditing(false)
   }
 
   const handleShow = async () => {
     if (!supabase) return
-    const { data } = await supabase.from('chessboard').select('*')
+    const { data, error } = await supabase.from('chessboard').select('*')
+    if (error) {
+      messageApi.error('Не удалось загрузить данные')
+      return
+    }
     setViewData((data as RowData[]) ?? [])
   }
 
@@ -119,6 +134,7 @@ export default function Chessboard() {
 
   return (
     <div>
+      {contextHolder}
       <Space style={{ marginBottom: 16 }}>
         <Button onClick={editing ? handleSave : handleAdd}>{editing ? 'Сохранить' : 'Добавить'}</Button>
         <Button onClick={handleShow}>Показать</Button>

@@ -21,6 +21,17 @@ create table estimate_items (
   created_at timestamptz default now()
 );
 
+create table chessboard (
+  id uuid primary key default gen_random_uuid(),
+  project text,
+  material text,
+  "quantityPd" numeric,
+  "quantitySpec" numeric,
+  "quantityRd" numeric,
+  unit text,
+  created_at timestamptz default now()
+);
+
 create table references (
   id uuid primary key default gen_random_uuid(),
   name text not null,
