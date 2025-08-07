@@ -18,6 +18,3 @@ npm run dev
 
 ## Supabase
 Схема базы данных находится в файле `supabase.sql`. Для дополнительных требований см. `tech_task.md`.
-
-### Конфигурация
-Перед запуском скопируйте `.env.example` в `.env` и укажите значения `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY`.
