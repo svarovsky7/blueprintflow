@@ -51,6 +51,12 @@ export default function Chessboard() {
         quantityRd: quantityRd ? Number(quantityRd) : null,
       }
     })
+    const units = Array.from(new Set(payload.map((r) => r.unit).filter(Boolean))).map((name) => ({ name }))
+    const { error: unitError } = await supabase.from('units').upsert(units, { onConflict: 'name' })
+    if (unitError) {
+      messageApi.error('Не удалось сохранить единицы измерения')
+      return
+    }
     const { error } = await supabase.from('chessboard').insert(payload)
     if (error) {
       messageApi.error('Не удалось сохранить данные')

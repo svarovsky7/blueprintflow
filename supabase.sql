@@ -59,3 +59,9 @@ create table if not exists work_progress (
   unit text,
   completed_at timestamptz default now()
 );
+
+create table if not exists units (
+  id uuid primary key default gen_random_uuid(),
+  name text unique not null,
+  created_at timestamptz default now()
+);
