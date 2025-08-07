@@ -1,33 +1,47 @@
-import { Routes, Route } from 'react-router-dom';
-import MainLayout from './layout/MainLayout';
-import Dashboard from './pages/Dashboard';
-import Estimate from './pages/Estimate';
-import EstimateMonolith from './pages/EstimateMonolith';
-import WorkVolume from './pages/WorkVolume';
-import Smeta from './pages/Smeta';
-import Documentation from './pages/Documentation';
-import BlueprintsRD from './pages/BlueprintsRD';
-import BlueprintsPD from './pages/BlueprintsPD';
-import References from './pages/References';
-import Reports from './pages/Reports';
-import Admin from './pages/Admin';
+import { Layout, Menu } from 'antd'
+import { Link, Route, Routes } from 'react-router-dom'
+import Dashboard from './pages/Dashboard'
+import Documents from './pages/Documents'
+import Chessboard from './pages/documents/Chessboard'
+import Vor from './pages/documents/Vor'
+import References from './pages/References'
 
-export default function App() {
+const { Header, Sider, Content } = Layout
+
+const App = () => {
+  const items = [
+    { key: 'dashboard', label: <Link to="/">Dashboard</Link> },
+    {
+      key: 'documents',
+      label: 'Документы',
+      children: [
+        { key: 'chessboard', label: <Link to="/documents/chessboard">Шахматка</Link> },
+        { key: 'vor', label: <Link to="/documents/vor">ВОР</Link> },
+      ],
+    },
+    { key: 'references', label: <Link to="/references">Справочники</Link> },
+  ]
+
   return (
-    <MainLayout>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/documents/estimate" element={<Estimate />} />
-        <Route path="/documents/estimate-monolith" element={<EstimateMonolith />} />
-        <Route path="/documents/work-volume" element={<WorkVolume />} />
-        <Route path="/documents/cost" element={<Smeta />} />
-        <Route path="/library/docs" element={<Documentation />} />
-        <Route path="/library/rd-codes" element={<BlueprintsRD />} />
-        <Route path="/library/pd-codes" element={<BlueprintsPD />} />
-        <Route path="/references" element={<References />} />
-        <Route path="/reports" element={<Reports />} />
-        <Route path="/admin" element={<Admin />} />
-      </Routes>
-    </MainLayout>
-  );
+    <Layout style={{ minHeight: '100vh' }}>
+      <Sider collapsible>
+        <Menu theme="dark" mode="inline" items={items} />
+      </Sider>
+      <Layout>
+        <Header style={{ background: '#fff' }} />
+        <Content style={{ margin: 16 }}>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/documents" element={<Documents />}>
+              <Route path="chessboard" element={<Chessboard />} />
+              <Route path="vor" element={<Vor />} />
+            </Route>
+            <Route path="/references" element={<References />} />
+          </Routes>
+        </Content>
+      </Layout>
+    </Layout>
+  )
 }
+
+export default App

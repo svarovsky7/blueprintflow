@@ -1,25 +1,28 @@
-import { List, Card } from 'antd';
+import { Card, Col, Row, Statistic } from 'antd'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '../lib/supabase'
 
-const notifications = [
-  { id: 1, text: 'Новая версия сметы загружена' },
-  { id: 2, text: 'Срок сдачи шахматки истекает завтра' },
-  { id: 3, text: 'Подписан новый договор с подрядчиком' },
-];
+const Dashboard = () => {
+  const { data: completedWorks = 0 } = useQuery({
+    queryKey: ['completedWorksCount'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('work_progress')
+        .select('*', { head: true, count: 'exact' })
+      if (error) throw error
+      return count ?? 0
+    },
+  })
 
-export default function Dashboard() {
   return (
-    <>
-      <List
-        bordered
-        dataSource={notifications}
-        renderItem={(item) => <List.Item>{item.text}</List.Item>}
-        style={{ marginBottom: 16 }}
-      />
-      <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
-        <Card title="Всего шахматок">0</Card>
-        <Card title="Всего ВОР">0</Card>
-        <Card title="Общая сумма смет">0 ₽</Card>
-      </div>
-    </>
-  );
+    <Row gutter={16}>
+      <Col span={8}>
+        <Card>
+          <Statistic title="Выполненные работы" value={completedWorks} />
+        </Card>
+      </Col>
+    </Row>
+  )
 }
+
+export default Dashboard
