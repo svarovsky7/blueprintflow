@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Input, Modal, Space, Table, message } from 'antd'
+import { App, Button, Input, Space, Table } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { supabase } from '../../lib/supabase'
 
@@ -27,7 +27,7 @@ export default function Chessboard() {
   const [rows, setRows] = useState<RowData[]>([])
   const [viewData, setViewData] = useState<RowData[]>([])
   const [editing, setEditing] = useState(false)
-  const [messageApi, contextHolder] = message.useMessage()
+  const { message, modal } = App.useApp()
 
   const addRow = () => setRows([...rows, emptyRow()])
 
@@ -43,7 +43,7 @@ export default function Chessboard() {
   const handleSave = async () => {
     const tableName = 'chessboard'
     if (!supabase) {
-      Modal.info({
+      modal.info({
         title: 'Сохранение данных',
         content: `Клиент базы данных не настроен. Таблица: ${tableName}`,
       })
@@ -58,14 +58,8 @@ export default function Chessboard() {
         quantityRd: quantityRd ? Number(quantityRd) : null,
       }
     })
-    const units = Array.from(new Set(payload.map((r) => r.unit).filter(Boolean))).map((name) => ({ name }))
-    const { error: unitError } = await supabase.from('units').upsert(units, { onConflict: 'name' })
-    if (unitError) {
-      messageApi.error('Не удалось сохранить единицы измерения')
-      return
-    }
     const { data, error } = await supabase.from(tableName).insert(payload).select()
-    Modal.info({
+    modal.info({
       title: 'Сохранение данных',
       content: error
         ? `Не удалось сохранить данные в таблицу ${tableName}: ${error.message}`
@@ -81,7 +75,7 @@ export default function Chessboard() {
     if (!supabase) return
     const { data, error } = await supabase.from('chessboard').select('*')
     if (error) {
-      messageApi.error('Не удалось загрузить данные')
+      message.error('Не удалось загрузить данные')
       return
     }
     setViewData((data as RowData[]) ?? [])
@@ -151,7 +145,6 @@ export default function Chessboard() {
 
   return (
     <div>
-      {contextHolder}
       <Space style={{ marginBottom: 16 }}>
         <Button onClick={editing ? handleSave : handleAdd}>{editing ? 'Сохранить' : 'Добавить'}</Button>
         <Button onClick={handleShow}>Показать</Button>
