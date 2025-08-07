@@ -1,7 +1,3 @@
-import { Typography } from 'antd'
-
-const References = () => (
-  <Typography.Title level={2}>Справочники</Typography.Title>
-)
+const References = () => <div />
 
 export default References

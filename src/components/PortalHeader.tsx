@@ -6,21 +6,12 @@ import { supabase } from '../lib/supabase';
 
 const { Header } = Layout;
 
-const pageTitles: Record<string, string> = {
-  '/': 'Dashboard',
-  '/documents': 'Документы',
-  '/documents/chessboard': 'Шахматка',
-  '/documents/vor': 'ВОР',
-  '/documents/estimate': 'Шахматка',
-  '/documents/estimate-monolith': 'Шахматка монолит',
-  '/documents/work-volume': 'ВОР для подрядчиков',
-  '/documents/cost': 'Смета',
-  '/library/docs': 'Документация',
-  '/library/rd-codes': 'Шифры РД',
-  '/library/pd-codes': 'Шифры ПД',
-  '/references': 'Справочники',
-  '/reports': 'Отчёты',
-  '/admin': 'Администрирование',
+const breadcrumbs: Record<string, string[]> = {
+  '/': ['Dashboard'],
+  '/documents': ['Документы'],
+  '/documents/chessboard': ['Документы', 'Шахматка'],
+  '/documents/vor': ['Документы', 'ВОР'],
+  '/references': ['Справочники'],
 };
 
 export default function PortalHeader() {
@@ -37,14 +28,14 @@ export default function PortalHeader() {
   return (
     <Header
       style={{
-        background: '#f5f5f5',
+        background: '#e6f7ff',
         padding: '0 16px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
       }}
     >
-      <span>{pageTitles[pathname] || ''}</span>
+      <span>{breadcrumbs[pathname]?.join(' / ') || ''}</span>
       <Space size="middle">
         <Button type="text" icon={<BellOutlined />} />
         <Space>
