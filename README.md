@@ -13,8 +13,9 @@
 ## Разработка
 ```bash
 npm install
+cp .env.example .env # заполните значениями Supabase
 npm run dev
 ```
 
 ## Supabase
-Схема базы данных находится в файле `supabase.sql`. Для дополнительных требований см. `tech_task.md`.
+Схема базы данных находится в файле `supabase.sql`. Для подключения создайте файл `.env` с переменными `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` (см. `.env.example`). Для дополнительных требований см. `tech_task.md`.
