@@ -1,9 +1,8 @@
 import { Layout, Menu } from 'antd';
 import { Link, useLocation } from 'react-router-dom';
 import type { MenuProps } from 'antd';
-import PortalHeader from '../components/PortalHeader';
 
-const { Sider, Content } = Layout;
+const { Sider, Content, Header } = Layout;
 
 const items: MenuProps['items'] = [
   {
@@ -38,17 +37,17 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const location = useLocation();
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider theme="light" style={{ background: '#fafafa' }} collapsible>
-        <div style={{ color: '#000', padding: 16, fontWeight: 600 }}>Blueprintflow</div>
+      <Sider collapsible>
+        <div style={{ color: '#fff', padding: 16, fontWeight: 600 }}>Blueprintflow</div>
         <Menu
-          theme="light"
+          theme="dark"
           mode="inline"
           selectedKeys={[location.pathname]}
           items={items}
         />
       </Sider>
       <Layout>
-        <PortalHeader />
+        <Header style={{ background: '#fff', padding: 0 }} />
         <Content style={{ margin: '16px' }}>{children}</Content>
       </Layout>
     </Layout>
