@@ -42,13 +42,6 @@ export default function Chessboard() {
 
   const handleSave = async () => {
     const tableName = 'chessboard'
-    if (!supabase) {
-      modal.info({
-        title: 'Сохранение данных',
-        content: `Клиент базы данных не настроен. Таблица: ${tableName}`,
-      })
-      return
-    }
     const payload = rows.map(({ key, quantityPd, quantitySpec, quantityRd, ...rest }) => {
       void key
       return {
@@ -72,7 +65,6 @@ export default function Chessboard() {
   }
 
   const handleShow = async () => {
-    if (!supabase) return
     const { data, error } = await supabase.from('chessboard').select('*')
     if (error) {
       message.error('Не удалось загрузить данные')
