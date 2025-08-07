@@ -1,10 +1,10 @@
-create table projects (
+create table if not exists projects (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   created_at timestamptz default now()
 );
 
-create table estimates (
+create table if not exists estimates (
   id uuid primary key default gen_random_uuid(),
   project_id uuid references projects on delete cascade,
   type text check (type in ('chessboard', 'vor')) not null,
@@ -12,7 +12,7 @@ create table estimates (
   created_at timestamptz default now()
 );
 
-create table estimate_items (
+create table if not exists estimate_items (
   id uuid primary key default gen_random_uuid(),
   estimate_id uuid references estimates on delete cascade,
   description text,
@@ -32,14 +32,26 @@ create table chessboard (
   created_at timestamptz default now()
 );
 
-create table references (
+create table if not exists chessboard (
+  id uuid primary key default gen_random_uuid(),
+  project text,
+  material text,
+  "quantityPd" numeric,
+  "quantitySpec" numeric,
+  "quantityRd" numeric,
+  unit text,
+  created_at timestamptz default now()
+);
+
+-- reference data (renamed from reserved keyword "references")
+create table if not exists reference_data (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   data jsonb,
   created_at timestamptz default now()
 );
 
-create table work_progress (
+create table if not exists work_progress (
   id uuid primary key default gen_random_uuid(),
   project_id uuid references projects on delete cascade,
   description text,
