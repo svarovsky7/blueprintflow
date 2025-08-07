@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Table } from 'antd';
-import { supabase } from '../supabaseClient';
+import { supabase } from '../lib/supabase';
 import FilePreview from './FilePreview';
 
 interface DataTableProps {
@@ -11,6 +11,7 @@ export default function DataTable({ table }: DataTableProps) {
   const [data, setData] = useState<Record<string, unknown>[]>([]);
 
   useEffect(() => {
+    if (!supabase) return;
     supabase
       .from(table)
       .select('*')
