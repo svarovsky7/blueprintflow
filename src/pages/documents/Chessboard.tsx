@@ -41,10 +41,6 @@ export default function Chessboard() {
   }
 
   const handleSave = async () => {
-    if (!supabase) {
-      message.error('Supabase не настроен')
-      return
-    }
     const tableName = 'chessboard'
     const payload = rows.map(({ key, quantityPd, quantitySpec, quantityRd, ...rest }) => {
       void key
@@ -69,10 +65,6 @@ export default function Chessboard() {
   }
 
   const handleShow = async () => {
-    if (!supabase) {
-      message.error('Supabase не настроен')
-      return
-    }
     const { data, error } = await supabase.from('chessboard').select('*')
     if (error) {
       message.error('Не удалось загрузить данные')
