@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { App, Button, Input, Space, Table } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { supabase } from '../../lib/supabase'
@@ -13,6 +13,16 @@ interface RowData {
   unit: string
 }
 
+interface DbRow {
+  id: string
+  project: string | null
+  material: string | null
+  quantityPd: number | null
+  quantitySpec: number | null
+  quantityRd: number | null
+  unit: string | null
+}
+
 const emptyRow = (): RowData => ({
   key: Math.random().toString(36).slice(2),
   project: '',
@@ -25,9 +35,7 @@ const emptyRow = (): RowData => ({
 
 export default function Chessboard() {
   const [rows, setRows] = useState<RowData[]>([])
-  const [viewData, setViewData] = useState<RowData[]>([])
-  const [editing, setEditing] = useState(false)
-  const { message, modal } = App.useApp()
+  const { message } = App.useApp()
 
   const addRow = () => setRows([...rows, emptyRow()])
 
@@ -35,22 +43,54 @@ export default function Chessboard() {
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, [field]: value } : r)))
   }
 
-  const handleAdd = () => {
-    setEditing(true)
-    if (rows.length === 0) addRow()
-  }
+  useEffect(() => {
+    const loadData = async () => {
+      if (!supabase) {
+        setRows([emptyRow()])
+        return
+      }
+      const { data, error } = await supabase.from('chessboard').select('*').limit(10)
+      if (error) {
+        console.error('Error fetching chessboard data:', error)
+        message.error('Не удалось загрузить данные')
+        setRows([emptyRow()])
+        return
+      }
+      if (!data || data.length === 0) {
+        setRows([emptyRow()])
+        return
+      }
+      setRows(
+        (data as DbRow[]).map((item) => ({
+          key: item.id ? String(item.id) : Math.random().toString(36).slice(2),
+          project: item.project ?? '',
+          material: item.material ?? '',
+          quantityPd:
+            item.quantityPd !== null && item.quantityPd !== undefined
+              ? String(item.quantityPd)
+              : '',
+          quantitySpec:
+            item.quantitySpec !== null && item.quantitySpec !== undefined
+              ? String(item.quantitySpec)
+              : '',
+          quantityRd:
+            item.quantityRd !== null && item.quantityRd !== undefined
+              ? String(item.quantityRd)
+              : '',
+          unit: item.unit ?? '',
+        }))
+      )
+    }
+
+    void loadData()
+  }, [message])
 
   const handleSave = async () => {
     const tableName = 'chessboard'
     if (!supabase) {
       console.error('Supabase client is not configured')
-      modal.info({
-        title: 'Сохранение данных',
-        content: `Клиент базы данных не настроен. Таблица: ${tableName}`,
-      })
       return
     }
-    console.log('Saving rows:', rows)
     const payload = rows.map(({ key, quantityPd, quantitySpec, quantityRd, ...rest }) => {
       void key
       return {
@@ -60,35 +100,13 @@ export default function Chessboard() {
         quantityRd: quantityRd ? Number(quantityRd) : null,
       }
     })
-    console.log('Insert payload:', payload)
-    const { data, error } = await supabase.from(tableName).insert(payload).select()
+    const { error } = await supabase.from(tableName).insert(payload)
     if (error) {
       console.error('Error inserting into chessboard:', error)
+      message.error(`Не удалось сохранить данные: ${error.message}`)
     } else {
-      console.log('Inserted data:', data)
+      message.success('Данные успешно сохранены')
     }
-    modal.info({
-      title: 'Сохранение данных',
-      content: error
-        ? `Не удалось сохранить данные в таблицу ${tableName}: ${error.message}`
-        : `Данные успешно сохранены в таблицу ${tableName}`,
-    })
-    if (!error) {
-      setViewData((data as RowData[]) ?? [])
-      setEditing(false)
-    }
-  }
-
-  const handleShow = async () => {
-    if (!supabase) return
-    const { data, error } = await supabase.from('chessboard').select('*')
-    if (error) {
-      console.error('Error fetching chessboard data:', error)
-      message.error('Не удалось загрузить данные')
-      return
-    }
-    console.log('Fetched chessboard data:', data)
-    setViewData((data as RowData[]) ?? [])
   }
 
   const columns = [
@@ -144,27 +162,12 @@ export default function Chessboard() {
     },
   ]
 
-  const viewColumns = [
-    { title: 'проект', dataIndex: 'project' },
-    { title: 'материал', dataIndex: 'material' },
-    { title: 'количество материала по проектной документации', dataIndex: 'quantityPd' },
-    { title: 'количество материала по спецификации', dataIndex: 'quantitySpec' },
-    { title: 'количество материала по рабочей документации', dataIndex: 'quantityRd' },
-    { title: 'единица измерения', dataIndex: 'unit' },
-  ]
-
   return (
     <div>
       <Space style={{ marginBottom: 16 }}>
-        <Button onClick={editing ? handleSave : handleAdd}>{editing ? 'Сохранить' : 'Добавить'}</Button>
-        <Button onClick={handleShow}>Показать</Button>
+        <Button onClick={handleSave}>Сохранить</Button>
       </Space>
-      {editing && (
-        <Table<RowData> dataSource={rows} columns={columns} pagination={false} rowKey="key" />
-      )}
-      {!editing && viewData.length > 0 && (
-        <Table<RowData> dataSource={viewData} columns={viewColumns} pagination={false} rowKey="id" />
-      )}
+      <Table<RowData> dataSource={rows} columns={columns} pagination={false} rowKey="key" />
     </div>
   )
 }
