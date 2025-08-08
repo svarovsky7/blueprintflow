@@ -68,9 +68,13 @@ Dashboard
 ```ts
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY, {
-  auth: { persistSession: true }
-})
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY,
+  {
+    auth: { persistSession: true }
+  }
+)
 ```
 - Realtime: канал `Blueprintflow:{id}` для совместного редактирования с optimistic locking по `updated_at`.
 
