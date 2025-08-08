@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { App, Button, Input, Space, Table } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { supabase } from '../../lib/supabase'
@@ -34,7 +34,9 @@ const emptyRow = (): RowData => ({
 })
 
 export default function Chessboard() {
+  const [mode, setMode] = useState<'add' | 'show' | null>(null)
   const [rows, setRows] = useState<RowData[]>([])
+  const [viewRows, setViewRows] = useState<RowData[]>([])
   const { message } = App.useApp()
 
   const addRow = () => setRows([...rows, emptyRow()])
@@ -43,47 +45,50 @@ export default function Chessboard() {
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, [field]: value } : r)))
   }
 
-  useEffect(() => {
-    const loadData = async () => {
-      if (!supabase) {
-        setRows([emptyRow()])
-        return
-      }
-      const { data, error } = await supabase.from('chessboard').select('*').limit(10)
-      if (error) {
-        console.error('Error fetching chessboard data:', error)
-        message.error('Не удалось загрузить данные')
-        setRows([emptyRow()])
-        return
-      }
-      if (!data || data.length === 0) {
-        setRows([emptyRow()])
-        return
-      }
-      setRows(
-        (data as DbRow[]).map((item) => ({
-          key: item.id ? String(item.id) : Math.random().toString(36).slice(2),
-          project: item.project ?? '',
-          material: item.material ?? '',
-          quantityPd:
-            item.quantityPd !== null && item.quantityPd !== undefined
-              ? String(item.quantityPd)
-              : '',
-          quantitySpec:
-            item.quantitySpec !== null && item.quantitySpec !== undefined
-              ? String(item.quantitySpec)
-              : '',
-          quantityRd:
-            item.quantityRd !== null && item.quantityRd !== undefined
-              ? String(item.quantityRd)
-              : '',
-          unit: item.unit ?? '',
-        }))
-      )
-    }
+  const handleAddClick = () => {
+    setMode('add')
+    setRows([emptyRow()])
+  }
 
-    void loadData()
-  }, [message])
+  const handleShow = async () => {
+    setMode('show')
+    if (!supabase) {
+      setViewRows([emptyRow()])
+      return
+    }
+    const { data, error } = await supabase.from('chessboard').select('*').limit(1)
+    if (error) {
+      console.error('Error fetching chessboard data:', error)
+      message.error('Не удалось загрузить данные')
+      setViewRows([emptyRow()])
+      return
+    }
+    if (!data || data.length === 0) {
+      setViewRows([emptyRow()])
+      return
+    }
+    const item = (data as DbRow[])[0]
+    setViewRows([
+      {
+        key: item.id ? String(item.id) : Math.random().toString(36).slice(2),
+        project: item.project ?? '',
+        material: item.material ?? '',
+        quantityPd:
+          item.quantityPd !== null && item.quantityPd !== undefined
+            ? String(item.quantityPd)
+            : '',
+        quantitySpec:
+          item.quantitySpec !== null && item.quantitySpec !== undefined
+            ? String(item.quantitySpec)
+            : '',
+        quantityRd:
+          item.quantityRd !== null && item.quantityRd !== undefined
+            ? String(item.quantityRd)
+            : '',
+        unit: item.unit ?? '',
+      },
+    ])
+  }
 
   const handleSave = async () => {
     const tableName = 'chessboard'
@@ -162,12 +167,34 @@ export default function Chessboard() {
     },
   ]
 
+  const viewColumns = [
+    { title: 'проект', dataIndex: 'project' },
+    { title: 'материал', dataIndex: 'material' },
+    { title: 'количество материала по проектной документации', dataIndex: 'quantityPd' },
+    { title: 'количество материала по спецификации', dataIndex: 'quantitySpec' },
+    { title: 'количество материала по рабочей документации', dataIndex: 'quantityRd' },
+    { title: 'единица измерения', dataIndex: 'unit' },
+  ]
+
   return (
     <div>
-      <Space style={{ marginBottom: 16 }}>
-        <Button onClick={handleSave}>Сохранить</Button>
-      </Space>
-      <Table<RowData> dataSource={rows} columns={columns} pagination={false} rowKey="key" />
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <Space>
+          <Button onClick={handleAddClick}>Добавить</Button>
+          <Button onClick={handleShow}>Показать</Button>
+        </Space>
+      </div>
+      {mode === 'add' && (
+        <>
+          <Space style={{ marginBottom: 16 }}>
+            <Button onClick={handleSave}>Сохранить</Button>
+          </Space>
+          <Table<RowData> dataSource={rows} columns={columns} pagination={false} rowKey="key" />
+        </>
+      )}
+      {mode === 'show' && (
+        <Table<RowData> dataSource={viewRows} columns={viewColumns} pagination={false} rowKey="key" />
+      )}
     </div>
   )
 }
