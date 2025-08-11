@@ -198,33 +198,38 @@ export default function Chessboard() {
     {
       title: 'материал',
       dataIndex: 'material',
+      width: 400,
       render: (_: unknown, record: RowData) => (
-        <Input value={record.material} onChange={(e) => handleChange(record.key, 'material', e.target.value)} />
+        <Input
+          style={{ width: 400 }}
+          value={record.material}
+          onChange={(e) => handleChange(record.key, 'material', e.target.value)}
+        />
       ),
     },
     {
-      title: 'количество материала по проектной документации',
+      title: 'Кол-во по ПД',
       dataIndex: 'quantityPd',
       render: (_: unknown, record: RowData) => (
         <Input value={record.quantityPd} onChange={(e) => handleChange(record.key, 'quantityPd', e.target.value)} />
       ),
     },
     {
-      title: 'количество материала по спецификации',
+      title: 'Кол-во по спеке РД',
       dataIndex: 'quantitySpec',
       render: (_: unknown, record: RowData) => (
         <Input value={record.quantitySpec} onChange={(e) => handleChange(record.key, 'quantitySpec', e.target.value)} />
       ),
     },
     {
-      title: 'количество материала по рабочей документации',
+      title: 'Кол-во по пересчету РД',
       dataIndex: 'quantityRd',
       render: (_: unknown, record: RowData) => (
         <Input value={record.quantityRd} onChange={(e) => handleChange(record.key, 'quantityRd', e.target.value)} />
       ),
     },
     {
-      title: 'единица измерения',
+      title: 'ед.изм.',
       dataIndex: 'unitId',
       render: (_: unknown, record: RowData) => (
         <Select
@@ -259,11 +264,11 @@ export default function Chessboard() {
 
   const viewColumns = [
     { title: 'проект', dataIndex: 'project' },
-    { title: 'материал', dataIndex: 'material' },
-    { title: 'количество материала по проектной документации', dataIndex: 'quantityPd' },
-    { title: 'количество материала по спецификации', dataIndex: 'quantitySpec' },
-    { title: 'количество материала по рабочей документации', dataIndex: 'quantityRd' },
-    { title: 'единица измерения', dataIndex: 'unit' },
+    { title: 'материал', dataIndex: 'material', width: 400 },
+    { title: 'Кол-во по ПД', dataIndex: 'quantityPd' },
+    { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec' },
+    { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd' },
+    { title: 'ед.изм.', dataIndex: 'unit' },
     { title: 'категория затрат', dataIndex: 'costCategory' },
   ]
 
