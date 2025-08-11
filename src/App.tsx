@@ -5,6 +5,8 @@ import Documents from './pages/Documents'
 import Chessboard from './pages/documents/Chessboard'
 import Vor from './pages/documents/Vor'
 import References from './pages/References'
+import Units from './pages/references/Units'
+import Projects from './pages/references/Projects'
 import PortalHeader from './components/PortalHeader'
 
 const { Sider, Content } = Layout
@@ -20,7 +22,14 @@ const App = () => {
         { key: 'vor', label: <Link to="/documents/vor">ВОР</Link> },
       ],
     },
-    { key: 'references', label: <Link to="/references">Справочники</Link> },
+    {
+      key: 'references',
+      label: 'Справочники',
+      children: [
+        { key: 'units', label: <Link to="/references">Единицы измерения</Link> },
+        { key: 'projects', label: <Link to="/references/projects">Проекты</Link> },
+      ],
+    },
   ]
 
   return (
@@ -34,11 +43,14 @@ const App = () => {
         <Content style={{ margin: 16 }}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
-            <Route path="/documents" element={<Documents />}>
+            <Route path="/documents" element={<Documents />}> 
               <Route path="chessboard" element={<Chessboard />} />
               <Route path="vor" element={<Vor />} />
             </Route>
-            <Route path="/references" element={<References />} />
+            <Route path="/references" element={<References />}> 
+              <Route index element={<Units />} />
+              <Route path="projects" element={<Projects />} />
+            </Route>
           </Routes>
         </Content>
       </Layout>
