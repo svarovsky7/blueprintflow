@@ -73,3 +73,13 @@ create table if not exists units (
 
 alter table if exists units
 add column if not exists description text;
+
+create table if not exists cost_categories (
+  id uuid primary key default gen_random_uuid(),
+  parent_id uuid references cost_categories on delete set null,
+  code text unique not null,
+  name text not null,
+  level int check (level in (1, 2, 3)) not null,
+  description text,
+  created_at timestamptz default now()
+);
