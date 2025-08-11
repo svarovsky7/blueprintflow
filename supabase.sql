@@ -27,23 +27,23 @@ create table if not exists estimate_items (
 
 create table chessboard (
   id uuid primary key default gen_random_uuid(),
-  project text,
+  project_id uuid references projects on delete cascade,
   material text,
   "quantityPd" numeric,
   "quantitySpec" numeric,
   "quantityRd" numeric,
-  unit text,
+  unit_id uuid references units on delete set null,
   created_at timestamptz default now()
 );
 
 create table if not exists chessboard (
   id uuid primary key default gen_random_uuid(),
-  project text,
+  project_id uuid references projects on delete cascade,
   material text,
   "quantityPd" numeric,
   "quantitySpec" numeric,
   "quantityRd" numeric,
-  unit text,
+  unit_id uuid references units on delete set null,
   created_at timestamptz default now()
 );
 

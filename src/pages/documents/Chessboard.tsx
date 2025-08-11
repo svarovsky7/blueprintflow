@@ -10,7 +10,7 @@ interface RowData {
   quantityPd: string
   quantitySpec: string
   quantityRd: string
-  unit: string
+  unitId: string
 }
 
 interface ViewRow {
@@ -28,15 +28,21 @@ interface ProjectOption {
   name: string
 }
 
+interface UnitOption {
+  id: string
+  name: string
+}
+
 interface DbRow {
   id: string
   material: string | null
   quantityPd: number | null
   quantitySpec: number | null
   quantityRd: number | null
-  unit: string | null
+  unit_id: string | null
   project_id: string | null
   projects?: { name: string | null } | null
+  units?: { name: string | null } | null
 }
 
 const emptyRow = (): RowData => ({
@@ -46,7 +52,7 @@ const emptyRow = (): RowData => ({
   quantityPd: '',
   quantitySpec: '',
   quantityRd: '',
-  unit: '',
+  unitId: '',
 })
 
 export default function Chessboard() {
@@ -54,6 +60,7 @@ export default function Chessboard() {
   const [rows, setRows] = useState<RowData[]>([])
   const [viewRows, setViewRows] = useState<ViewRow[]>([])
   const [projects, setProjects] = useState<ProjectOption[]>([])
+  const [units, setUnits] = useState<UnitOption[]>([])
   const { message } = App.useApp()
 
   useEffect(() => {
@@ -62,6 +69,10 @@ export default function Chessboard() {
       .from('projects')
       .select('id, name')
       .then(({ data }) => setProjects((data as ProjectOption[]) ?? []))
+    supabase
+      .from('units')
+      .select('id, name')
+      .then(({ data }) => setUnits((data as UnitOption[]) ?? []))
   }, [])
 
   const addRow = () => setRows([...rows, emptyRow()])
@@ -83,7 +94,7 @@ export default function Chessboard() {
     }
     const { data, error } = await supabase
       .from('chessboard')
-      .select('id, material, quantityPd, quantitySpec, quantityRd, unit, project_id, projects(name)')
+      .select('id, material, quantityPd, quantitySpec, quantityRd, unit_id, project_id, projects(name), units(name)')
       .limit(100)
     if (error) {
       console.error('Error fetching chessboard data:', error)
@@ -109,7 +120,7 @@ export default function Chessboard() {
           item.quantityRd !== null && item.quantityRd !== undefined
             ? String(item.quantityRd)
             : '',
-        unit: item.unit ?? '',
+        unit: item.units?.name ?? '',
       }))
     )
   }
@@ -120,7 +131,7 @@ export default function Chessboard() {
       console.error('Supabase client is not configured')
       return
     }
-    const payload = rows.map(({ key, projectId, quantityPd, quantitySpec, quantityRd, material, unit }) => {
+    const payload = rows.map(({ key, projectId, quantityPd, quantitySpec, quantityRd, material, unitId }) => {
       void key
       return {
         project_id: projectId || null,
@@ -128,7 +139,7 @@ export default function Chessboard() {
         quantityPd: quantityPd ? Number(quantityPd) : null,
         quantitySpec: quantitySpec ? Number(quantitySpec) : null,
         quantityRd: quantityRd ? Number(quantityRd) : null,
-        unit,
+        unit_id: unitId || null,
       }
     })
     const { error } = await supabase.from(tableName).insert(payload)
@@ -183,9 +194,14 @@ export default function Chessboard() {
     },
     {
       title: 'единица измерения',
-      dataIndex: 'unit',
+      dataIndex: 'unitId',
       render: (_: unknown, record: RowData) => (
-        <Input value={record.unit} onChange={(e) => handleChange(record.key, 'unit', e.target.value)} />
+        <Select
+          style={{ width: 200 }}
+          value={record.unitId}
+          onChange={(value) => handleChange(record.key, 'unitId', value)}
+          options={units.map((u) => ({ value: u.id, label: u.name }))}
+        />
       ),
     },
     {
