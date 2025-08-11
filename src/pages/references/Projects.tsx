@@ -5,21 +5,31 @@ import { supabase } from '../../lib/supabase'
 
 interface RowData {
   key: string
+  id?: string
   name: string
+  description: string
 }
 
-const emptyRow = (): RowData => ({ key: Math.random().toString(36).slice(2), name: '' })
+const emptyRow = (): RowData => ({
+  key: Math.random().toString(36).slice(2),
+  name: '',
+  description: '',
+})
 
 export default function Projects() {
-  const [mode, setMode] = useState<'add' | 'show' | null>(null)
+  const [mode, setMode] = useState<'add' | 'show' | 'edit' | null>(null)
   const [rows, setRows] = useState<RowData[]>([])
   const [viewRows, setViewRows] = useState<RowData[]>([])
   const { message } = App.useApp()
 
   const addRow = () => setRows([...rows, emptyRow()])
 
-  const handleChange = (key: string, value: string) => {
-    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, name: value } : r)))
+  const handleChange = (
+    key: string,
+    field: keyof Pick<RowData, 'name' | 'description'>,
+    value: string
+  ) => {
+    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, [field]: value } : r)))
   }
 
   const handleAddClick = () => {
@@ -33,7 +43,10 @@ export default function Projects() {
       setViewRows([])
       return
     }
-    const { data, error } = await supabase.from('projects').select('id, name').limit(100)
+    const { data, error } = await supabase
+      .from('projects')
+      .select('id, name, description')
+      .limit(100)
     if (error) {
       console.error('Error fetching projects:', error)
       message.error('Не удалось загрузить данные')
@@ -41,10 +54,41 @@ export default function Projects() {
       return
     }
     setViewRows(
-      (data as { id: string; name: string }[] | null)?.map((p) => ({
-        key: p.id,
-        name: p.name,
-      })) ?? []
+      (data as { id: string; name: string; description: string | null }[] | null)?.map(
+        (p) => ({
+          key: p.id,
+          name: p.name,
+          description: p.description ?? '',
+        })
+      ) ?? []
+    )
+  }
+
+  const handleEdit = async () => {
+    setMode('edit')
+    if (!supabase) {
+      setRows([])
+      return
+    }
+    const { data, error } = await supabase
+      .from('projects')
+      .select('id, name, description')
+      .limit(100)
+    if (error) {
+      console.error('Error fetching projects for edit:', error)
+      message.error('Не удалось загрузить данные')
+      setRows([])
+      return
+    }
+    setRows(
+      (data as { id: string; name: string; description: string | null }[] | null)?.map(
+        (p) => ({
+          key: p.id,
+          id: p.id,
+          name: p.name,
+          description: p.description ?? '',
+        })
+      ) ?? []
     )
   }
 
@@ -53,8 +97,12 @@ export default function Projects() {
       console.error('Supabase client is not configured')
       return
     }
-    const payload = rows.map(({ name }) => ({ name }))
-    const { error } = await supabase.from('projects').insert(payload)
+    const payload = rows.map(({ id, name, description }) => ({
+      name,
+      description,
+      ...(id ? { id } : {}),
+    }))
+    const { error } = await supabase.from('projects').upsert(payload)
     if (error) {
       console.error('Error inserting projects:', error)
       message.error(`Не удалось сохранить данные: ${error.message}`)
@@ -68,20 +116,36 @@ export default function Projects() {
       title: 'название',
       dataIndex: 'name',
       render: (_: unknown, record: RowData) => (
-        <Input value={record.name} onChange={(e) => handleChange(record.key, e.target.value)} />
+        <Input
+          value={record.name}
+          onChange={(e) => handleChange(record.key, 'name', e.target.value)}
+        />
+      ),
+    },
+    {
+      title: 'описание',
+      dataIndex: 'description',
+      render: (_: unknown, record: RowData) => (
+        <Input
+          value={record.description}
+          onChange={(e) => handleChange(record.key, 'description', e.target.value)}
+        />
       ),
     },
     {
       title: '',
       dataIndex: 'actions',
       render: (_: unknown, __: RowData, index: number) =>
-        index === rows.length - 1 ? (
+        mode === 'add' && index === rows.length - 1 ? (
           <Button type="text" icon={<PlusOutlined />} onClick={addRow} />
         ) : null,
     },
   ]
 
-  const viewColumns = [{ title: 'название', dataIndex: 'name' }]
+  const viewColumns = [
+    { title: 'название', dataIndex: 'name' },
+    { title: 'описание', dataIndex: 'description' },
+  ]
 
   return (
     <div>
@@ -89,6 +153,7 @@ export default function Projects() {
         <Space>
           <Button onClick={handleAddClick}>Добавить</Button>
           <Button onClick={handleShow}>Показать</Button>
+          <Button onClick={handleEdit}>Редактировать</Button>
         </Space>
       </div>
       {mode === 'add' && (
@@ -101,6 +166,14 @@ export default function Projects() {
       )}
       {mode === 'show' && (
         <Table<RowData> dataSource={viewRows} columns={viewColumns} pagination={false} rowKey="key" />
+      )}
+      {mode === 'edit' && (
+        <>
+          <Space style={{ marginBottom: 16 }}>
+            <Button onClick={handleSave}>Сохранить</Button>
+          </Space>
+          <Table<RowData> dataSource={rows} columns={columns} pagination={false} rowKey="key" />
+        </>
       )}
     </div>
   )

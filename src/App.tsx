@@ -59,7 +59,3 @@ const App = () => {
 }
 
 export default App
-console.log(
-    'URL:', import.meta.env.VITE_SUPABASE_URL,
-    'KEY:', import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY
-)
