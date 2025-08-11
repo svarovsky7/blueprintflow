@@ -1,9 +1,19 @@
-import { useState } from 'react'
-import { App, Button, Input, Space, Table } from 'antd'
+import { useEffect, useState } from 'react'
+import { App, Button, Input, Select, Space, Table } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { supabase } from '../../lib/supabase'
 
 interface RowData {
+  key: string
+  projectId: string
+  material: string
+  quantityPd: string
+  quantitySpec: string
+  quantityRd: string
+  unit: string
+}
+
+interface ViewRow {
   key: string
   project: string
   material: string
@@ -13,19 +23,25 @@ interface RowData {
   unit: string
 }
 
+interface ProjectOption {
+  id: string
+  name: string
+}
+
 interface DbRow {
   id: string
-  project: string | null
   material: string | null
   quantityPd: number | null
   quantitySpec: number | null
   quantityRd: number | null
   unit: string | null
+  project_id: string | null
+  projects?: { name: string | null } | null
 }
 
 const emptyRow = (): RowData => ({
   key: Math.random().toString(36).slice(2),
-  project: '',
+  projectId: '',
   material: '',
   quantityPd: '',
   quantitySpec: '',
@@ -36,8 +52,17 @@ const emptyRow = (): RowData => ({
 export default function Chessboard() {
   const [mode, setMode] = useState<'add' | 'show' | null>(null)
   const [rows, setRows] = useState<RowData[]>([])
-  const [viewRows, setViewRows] = useState<RowData[]>([])
+  const [viewRows, setViewRows] = useState<ViewRow[]>([])
+  const [projects, setProjects] = useState<ProjectOption[]>([])
   const { message } = App.useApp()
+
+  useEffect(() => {
+    if (!supabase) return
+    supabase
+      .from('projects')
+      .select('id, name')
+      .then(({ data }) => setProjects((data as ProjectOption[]) ?? []))
+  }, [])
 
   const addRow = () => setRows([...rows, emptyRow()])
 
@@ -53,25 +78,24 @@ export default function Chessboard() {
   const handleShow = async () => {
     setMode('show')
     if (!supabase) {
-      setViewRows([emptyRow()])
+      setViewRows([])
       return
     }
-    const { data, error } = await supabase.from('chessboard').select('*').limit(1)
+    const { data, error } = await supabase
+      .from('chessboard')
+      .select('id, material, quantityPd, quantitySpec, quantityRd, unit, project_id, projects(name)')
+      .limit(100)
     if (error) {
       console.error('Error fetching chessboard data:', error)
       message.error('Не удалось загрузить данные')
-      setViewRows([emptyRow()])
+      setViewRows([])
       return
     }
-    if (!data || data.length === 0) {
-      setViewRows([emptyRow()])
-      return
-    }
-    const item = (data as DbRow[])[0]
-    setViewRows([
-      {
+    const rows = (data as unknown as DbRow[] | null) ?? []
+    setViewRows(
+      rows.map((item) => ({
         key: item.id ? String(item.id) : Math.random().toString(36).slice(2),
-        project: item.project ?? '',
+        project: item.projects?.name ?? '',
         material: item.material ?? '',
         quantityPd:
           item.quantityPd !== null && item.quantityPd !== undefined
@@ -86,8 +110,8 @@ export default function Chessboard() {
             ? String(item.quantityRd)
             : '',
         unit: item.unit ?? '',
-      },
-    ])
+      }))
+    )
   }
 
   const handleSave = async () => {
@@ -96,13 +120,15 @@ export default function Chessboard() {
       console.error('Supabase client is not configured')
       return
     }
-    const payload = rows.map(({ key, quantityPd, quantitySpec, quantityRd, ...rest }) => {
+    const payload = rows.map(({ key, projectId, quantityPd, quantitySpec, quantityRd, material, unit }) => {
       void key
       return {
-        ...rest,
+        project_id: projectId || null,
+        material,
         quantityPd: quantityPd ? Number(quantityPd) : null,
         quantitySpec: quantitySpec ? Number(quantitySpec) : null,
         quantityRd: quantityRd ? Number(quantityRd) : null,
+        unit,
       }
     })
     const { error } = await supabase.from(tableName).insert(payload)
@@ -117,9 +143,14 @@ export default function Chessboard() {
   const columns = [
     {
       title: 'проект',
-      dataIndex: 'project',
+      dataIndex: 'projectId',
       render: (_: unknown, record: RowData) => (
-        <Input value={record.project} onChange={(e) => handleChange(record.key, 'project', e.target.value)} />
+        <Select
+          style={{ width: 200 }}
+          value={record.projectId}
+          onChange={(value) => handleChange(record.key, 'projectId', value)}
+          options={projects.map((p) => ({ value: p.id, label: p.name }))}
+        />
       ),
     },
     {
@@ -193,7 +224,7 @@ export default function Chessboard() {
         </>
       )}
       {mode === 'show' && (
-        <Table<RowData> dataSource={viewRows} columns={viewColumns} pagination={false} rowKey="key" />
+        <Table<ViewRow> dataSource={viewRows} columns={viewColumns} pagination={false} rowKey="key" />
       )}
     </div>
   )

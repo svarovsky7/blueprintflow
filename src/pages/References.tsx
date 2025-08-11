@@ -1,5 +1,5 @@
-import DataTable from '../components/DataTable'
+import { Outlet } from 'react-router-dom'
 
-const References = () => <DataTable table="units" />
+const References = () => <Outlet />
 
 export default References
