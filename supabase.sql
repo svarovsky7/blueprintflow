@@ -33,6 +33,7 @@ create table chessboard (
   "quantitySpec" numeric,
   "quantityRd" numeric,
   unit_id uuid references units on delete set null,
+  cost_category_code text references cost_categories(code),
   created_at timestamptz default now()
 );
 
@@ -44,6 +45,7 @@ create table if not exists chessboard (
   "quantitySpec" numeric,
   "quantityRd" numeric,
   unit_id uuid references units on delete set null,
+  cost_category_code text references cost_categories(code),
   created_at timestamptz default now()
 );
 
@@ -83,3 +85,19 @@ create table if not exists cost_categories (
   description text,
   created_at timestamptz default now()
 );
+
+create view if not exists cost_categories_sorted as
+select *
+from cost_categories
+order by code asc;
+
+alter table if exists chessboard
+add column if not exists cost_category_code text references cost_categories(code);
+
+insert into cost_categories (code, name, level)
+values ('99', 'Прочее', 1)
+on conflict (code) do nothing;
+
+update chessboard
+set cost_category_code = '99'
+where cost_category_code is null;
