@@ -161,6 +161,20 @@
     "column_default": null
   },
   {
+    "table_name": "projects",
+    "column_name": "address",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null
+  },
+  {
+    "table_name": "projects",
+    "column_name": "building_name",
+    "data_type": "character varying",
+    "is_nullable": "YES",
+    "column_default": null
+  },
+  {
     "table_name": "reference_data",
     "column_name": "id",
     "data_type": "uuid",
