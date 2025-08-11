@@ -211,33 +211,21 @@ export default function Chessboard() {
       title: 'Кол-во по ПД',
       dataIndex: 'quantityPd',
       render: (_: unknown, record: RowData) => (
-        <Input
-          style={{ minWidth: '8ch' }}
-          value={record.quantityPd}
-          onChange={(e) => handleChange(record.key, 'quantityPd', e.target.value)}
-        />
+        <Input value={record.quantityPd} onChange={(e) => handleChange(record.key, 'quantityPd', e.target.value)} />
       ),
     },
     {
       title: 'Кол-во по спеке РД',
       dataIndex: 'quantitySpec',
       render: (_: unknown, record: RowData) => (
-        <Input
-          style={{ minWidth: '8ch' }}
-          value={record.quantitySpec}
-          onChange={(e) => handleChange(record.key, 'quantitySpec', e.target.value)}
-        />
+        <Input value={record.quantitySpec} onChange={(e) => handleChange(record.key, 'quantitySpec', e.target.value)} />
       ),
     },
     {
       title: 'Кол-во по пересчету РД',
       dataIndex: 'quantityRd',
       render: (_: unknown, record: RowData) => (
-        <Input
-          style={{ minWidth: '8ch' }}
-          value={record.quantityRd}
-          onChange={(e) => handleChange(record.key, 'quantityRd', e.target.value)}
-        />
+        <Input value={record.quantityRd} onChange={(e) => handleChange(record.key, 'quantityRd', e.target.value)} />
       ),
     },
     {
