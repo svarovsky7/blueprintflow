@@ -8,8 +8,8 @@
   },
   {
     "table_name": "chessboard",
-    "column_name": "project",
-    "data_type": "text",
+    "column_name": "project_id",
+    "data_type": "uuid",
     "is_nullable": "YES",
     "column_default": null
   },
@@ -43,8 +43,8 @@
   },
   {
     "table_name": "chessboard",
-    "column_name": "unit",
-    "data_type": "text",
+    "column_name": "unit_id",
+    "data_type": "uuid",
     "is_nullable": "YES",
     "column_default": null
   },
@@ -52,7 +52,7 @@
     "table_name": "chessboard",
     "column_name": "created_at",
     "data_type": "timestamp with time zone",
-    "is_nullable": "YES",
+    "is_nullable": "NO",
     "column_default": "now()"
   },
   {
@@ -94,7 +94,7 @@
     "table_name": "estimate_items",
     "column_name": "created_at",
     "data_type": "timestamp with time zone",
-    "is_nullable": "YES",
+    "is_nullable": "NO",
     "column_default": "now()"
   },
   {
@@ -114,7 +114,7 @@
   {
     "table_name": "estimates",
     "column_name": "type",
-    "data_type": "text",
+    "data_type": "USER-DEFINED",
     "is_nullable": "NO",
     "column_default": null
   },
@@ -129,7 +129,7 @@
     "table_name": "estimates",
     "column_name": "created_at",
     "data_type": "timestamp with time zone",
-    "is_nullable": "YES",
+    "is_nullable": "NO",
     "column_default": "now()"
   },
   {
@@ -150,7 +150,7 @@
     "table_name": "projects",
     "column_name": "created_at",
     "data_type": "timestamp with time zone",
-    "is_nullable": "YES",
+    "is_nullable": "NO",
     "column_default": "now()"
   },
   {
@@ -178,7 +178,7 @@
     "table_name": "reference_data",
     "column_name": "created_at",
     "data_type": "timestamp with time zone",
-    "is_nullable": "YES",
+    "is_nullable": "NO",
     "column_default": "now()"
   },
   {
@@ -199,7 +199,7 @@
     "table_name": "units",
     "column_name": "created_at",
     "data_type": "timestamp with time zone",
-    "is_nullable": "YES",
+    "is_nullable": "NO",
     "column_default": "now()"
   },
   {
@@ -232,8 +232,8 @@
   },
   {
     "table_name": "work_progress",
-    "column_name": "unit",
-    "data_type": "text",
+    "column_name": "unit_id",
+    "data_type": "uuid",
     "is_nullable": "YES",
     "column_default": null
   },
@@ -241,29 +241,7 @@
     "table_name": "work_progress",
     "column_name": "completed_at",
     "data_type": "timestamp with time zone",
-    "is_nullable": "YES",
-    "column_default": "now()"
-  }
-  ,
-  {
-    "table_name": "units",
-    "column_name": "id",
-    "data_type": "uuid",
     "is_nullable": "NO",
-    "column_default": "gen_random_uuid()"
-  },
-  {
-    "table_name": "units",
-    "column_name": "name",
-    "data_type": "text",
-    "is_nullable": "NO",
-    "column_default": null
-  },
-  {
-    "table_name": "units",
-    "column_name": "created_at",
-    "data_type": "timestamp with time zone",
-    "is_nullable": "YES",
     "column_default": "now()"
   }
 ]
