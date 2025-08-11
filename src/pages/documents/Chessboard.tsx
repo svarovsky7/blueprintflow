@@ -11,6 +11,7 @@ interface RowData {
   quantitySpec: string
   quantityRd: string
   unitId: string
+  costCategoryCode: string
 }
 
 interface ViewRow {
@@ -21,6 +22,7 @@ interface ViewRow {
   quantitySpec: string
   quantityRd: string
   unit: string
+  costCategory: string
 }
 
 interface ProjectOption {
@@ -33,6 +35,11 @@ interface UnitOption {
   name: string
 }
 
+interface CostCategoryOption {
+  code: string
+  name: string
+}
+
 interface DbRow {
   id: string
   material: string | null
@@ -41,6 +48,7 @@ interface DbRow {
   quantityRd: number | null
   unit_id: string | null
   project_id: string | null
+  cost_category_code: string | null
   projects?: { name: string | null } | null
   units?: { name: string | null } | null
 }
@@ -53,6 +61,7 @@ const emptyRow = (): RowData => ({
   quantitySpec: '',
   quantityRd: '',
   unitId: '',
+  costCategoryCode: '',
 })
 
 export default function Chessboard() {
@@ -61,6 +70,7 @@ export default function Chessboard() {
   const [viewRows, setViewRows] = useState<ViewRow[]>([])
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [units, setUnits] = useState<UnitOption[]>([])
+  const [costCategories, setCostCategories] = useState<CostCategoryOption[]>([])
   const { message } = App.useApp()
 
   useEffect(() => {
@@ -73,6 +83,10 @@ export default function Chessboard() {
       .from('units')
       .select('id, name')
       .then(({ data }) => setUnits((data as UnitOption[]) ?? []))
+    supabase
+      .from('cost_categories_sorted')
+      .select('code, name')
+      .then(({ data }) => setCostCategories((data as CostCategoryOption[]) ?? []))
   }, [])
 
   const addRow = () => setRows([...rows, emptyRow()])
@@ -94,7 +108,9 @@ export default function Chessboard() {
     }
     const { data, error } = await supabase
       .from('chessboard')
-      .select('id, material, quantityPd, quantitySpec, quantityRd, unit_id, project_id, projects(name), units(name)')
+      .select(
+        'id, material, quantityPd, quantitySpec, quantityRd, unit_id, project_id, cost_category_code, projects(name), units(name)'
+      )
       .limit(100)
     if (error) {
       console.error('Error fetching chessboard data:', error)
@@ -121,6 +137,7 @@ export default function Chessboard() {
             ? String(item.quantityRd)
             : '',
         unit: item.units?.name ?? '',
+        costCategory: item.cost_category_code ?? '',
       }))
     )
   }
@@ -131,17 +148,20 @@ export default function Chessboard() {
       console.error('Supabase client is not configured')
       return
     }
-    const payload = rows.map(({ key, projectId, quantityPd, quantitySpec, quantityRd, material, unitId }) => {
-      void key
-      return {
-        project_id: projectId || null,
-        material,
-        quantityPd: quantityPd ? Number(quantityPd) : null,
-        quantitySpec: quantitySpec ? Number(quantitySpec) : null,
-        quantityRd: quantityRd ? Number(quantityRd) : null,
-        unit_id: unitId || null,
+    const payload = rows.map(
+      ({ key, projectId, quantityPd, quantitySpec, quantityRd, material, unitId, costCategoryCode }) => {
+        void key
+        return {
+          project_id: projectId || null,
+          material,
+          quantityPd: quantityPd ? Number(quantityPd) : null,
+          quantitySpec: quantitySpec ? Number(quantitySpec) : null,
+          quantityRd: quantityRd ? Number(quantityRd) : null,
+          unit_id: unitId || null,
+          cost_category_code: costCategoryCode || '99',
+        }
       }
-    })
+    )
     const { error } = await supabase.from(tableName).insert(payload)
     if (error) {
       console.error('Error inserting into chessboard:', error)
@@ -205,6 +225,18 @@ export default function Chessboard() {
       ),
     },
     {
+      title: 'категория затрат',
+      dataIndex: 'costCategoryCode',
+      render: (_: unknown, record: RowData) => (
+        <Select
+          style={{ width: 200 }}
+          value={record.costCategoryCode}
+          onChange={(value) => handleChange(record.key, 'costCategoryCode', value)}
+          options={costCategories.map((c) => ({ value: c.code, label: `${c.code} ${c.name}` }))}
+        />
+      ),
+    },
+    {
       title: '',
       dataIndex: 'actions',
       render: (_: unknown, __: RowData, index: number) =>
@@ -221,6 +253,7 @@ export default function Chessboard() {
     { title: 'количество материала по спецификации', dataIndex: 'quantitySpec' },
     { title: 'количество материала по рабочей документации', dataIndex: 'quantityRd' },
     { title: 'единица измерения', dataIndex: 'unit' },
+    { title: 'категория затрат', dataIndex: 'costCategory' },
   ]
 
   return (
