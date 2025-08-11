@@ -15,6 +15,7 @@ import { supabase } from '../../lib/supabase'
 interface Unit {
   id: string
   name: string
+  description: string | null
   created_at: string
 }
 
@@ -52,7 +53,7 @@ export default function Units() {
 
   const openEditModal = (record: Unit) => {
     setCurrentUnit(record)
-    form.setFieldsValue({ name: record.name })
+    form.setFieldsValue({ name: record.name, description: record.description })
     setModalMode('edit')
   }
 
@@ -61,14 +62,16 @@ export default function Units() {
       const values = await form.validateFields()
       if (!supabase) return
       if (modalMode === 'add') {
-        const { error } = await supabase.from('units').insert({ name: values.name })
+        const { error } = await supabase
+          .from('units')
+          .insert({ name: values.name, description: values.description })
         if (error) throw error
         message.success('Запись добавлена')
       }
       if (modalMode === 'edit' && currentUnit) {
         const { error } = await supabase
           .from('units')
-          .update({ name: values.name })
+          .update({ name: values.name, description: values.description })
           .eq('id', currentUnit.id)
         if (error) throw error
         message.success('Запись обновлена')
@@ -94,6 +97,7 @@ export default function Units() {
 
   const columns = [
     { title: 'Название', dataIndex: 'name' },
+    { title: 'Описание', dataIndex: 'description' },
     {
       title: 'Действия',
       dataIndex: 'actions',
@@ -141,7 +145,10 @@ export default function Units() {
         cancelText="Отмена"
       >
         {modalMode === 'view' ? (
-          <p>{currentUnit?.name}</p>
+          <div>
+            <p>Название: {currentUnit?.name}</p>
+            <p>Описание: {currentUnit?.description}</p>
+          </div>
         ) : (
           <Form form={form} layout="vertical">
             <Form.Item
@@ -149,6 +156,9 @@ export default function Units() {
               name="name"
               rules={[{ required: true, message: 'Введите название' }]}
             >
+              <Input />
+            </Form.Item>
+            <Form.Item label="Описание" name="description">
               <Input />
             </Form.Item>
           </Form>

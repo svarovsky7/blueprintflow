@@ -67,5 +67,9 @@ create table if not exists work_progress (
 create table if not exists units (
   id uuid primary key default gen_random_uuid(),
   name text unique not null,
+  description text,
   created_at timestamptz default now()
 );
+
+alter table if exists units
+add column if not exists description text;
