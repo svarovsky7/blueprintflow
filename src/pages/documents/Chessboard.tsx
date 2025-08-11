@@ -65,12 +65,14 @@ const emptyRow = (): RowData => ({
 })
 
 export default function Chessboard() {
-  const [mode, setMode] = useState<'add' | 'show' | null>(null)
+  const [mode, setMode] = useState<'add' | 'show'>('show')
   const [rows, setRows] = useState<RowData[]>([])
   const [viewRows, setViewRows] = useState<ViewRow[]>([])
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [units, setUnits] = useState<UnitOption[]>([])
   const [costCategories, setCostCategories] = useState<CostCategoryOption[]>([])
+  const [selectedProject, setSelectedProject] = useState<string>()
+  const [selectedCategory, setSelectedCategory] = useState<string>()
   const { message } = App.useApp()
 
   useEffect(() => {
@@ -100,47 +102,55 @@ export default function Chessboard() {
     setRows([emptyRow()])
   }
 
-  const handleShow = async () => {
-    setMode('show')
-    if (!supabase) {
+  useEffect(() => {
+    if (mode !== 'show' || !supabase || !selectedProject || !selectedCategory) {
       setViewRows([])
       return
     }
-    const { data, error } = await supabase
-      .from('chessboard')
-      .select(
-        'id, material, quantityPd, quantitySpec, quantityRd, unit_id, project_id, cost_category_code, projects(name), units(name)'
+    const load = async () => {
+      if (!supabase) {
+        setViewRows([])
+        return
+      }
+      const { data, error } = await supabase
+        .from('chessboard')
+        .select(
+          'id, material, quantityPd, quantitySpec, quantityRd, unit_id, project_id, cost_category_code, projects(name), units(name)'
+        )
+        .eq('project_id', selectedProject)
+        .eq('cost_category_code', selectedCategory)
+        .limit(100)
+      if (error) {
+        console.error('Error fetching chessboard data:', error)
+        message.error('Не удалось загрузить данные')
+        setViewRows([])
+        return
+      }
+      const rows = (data as unknown as DbRow[] | null) ?? []
+      setViewRows(
+        rows.map((item) => ({
+          key: item.id ? String(item.id) : Math.random().toString(36).slice(2),
+          project: item.projects?.name ?? '',
+          material: item.material ?? '',
+          quantityPd:
+            item.quantityPd !== null && item.quantityPd !== undefined
+              ? String(item.quantityPd)
+              : '',
+          quantitySpec:
+            item.quantitySpec !== null && item.quantitySpec !== undefined
+              ? String(item.quantitySpec)
+              : '',
+          quantityRd:
+            item.quantityRd !== null && item.quantityRd !== undefined
+              ? String(item.quantityRd)
+              : '',
+          unit: item.units?.name ?? '',
+          costCategory: item.cost_category_code ?? '',
+        }))
       )
-      .limit(100)
-    if (error) {
-      console.error('Error fetching chessboard data:', error)
-      message.error('Не удалось загрузить данные')
-      setViewRows([])
-      return
     }
-    const rows = (data as unknown as DbRow[] | null) ?? []
-    setViewRows(
-      rows.map((item) => ({
-        key: item.id ? String(item.id) : Math.random().toString(36).slice(2),
-        project: item.projects?.name ?? '',
-        material: item.material ?? '',
-        quantityPd:
-          item.quantityPd !== null && item.quantityPd !== undefined
-            ? String(item.quantityPd)
-            : '',
-        quantitySpec:
-          item.quantitySpec !== null && item.quantitySpec !== undefined
-            ? String(item.quantitySpec)
-            : '',
-        quantityRd:
-          item.quantityRd !== null && item.quantityRd !== undefined
-            ? String(item.quantityRd)
-            : '',
-        unit: item.units?.name ?? '',
-        costCategory: item.cost_category_code ?? '',
-      }))
-    )
-  }
+    void load()
+  }, [mode, selectedProject, selectedCategory, message])
 
   const handleSave = async () => {
     const tableName = 'chessboard'
@@ -168,6 +178,7 @@ export default function Chessboard() {
       message.error(`Не удалось сохранить данные: ${error.message}`)
     } else {
       message.success('Данные успешно сохранены')
+      setMode('show')
     }
   }
 
@@ -258,11 +269,28 @@ export default function Chessboard() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <Space>
-          <Button onClick={handleAddClick}>Добавить</Button>
-          <Button onClick={handleShow}>Показать</Button>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span>Объект</span>
+            <Select
+              style={{ width: 200 }}
+              value={selectedProject}
+              onChange={setSelectedProject}
+              options={projects.map((p) => ({ value: p.id, label: p.name }))}
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span>Категория затрат</span>
+            <Select
+              style={{ width: 200 }}
+              value={selectedCategory}
+              onChange={setSelectedCategory}
+              options={costCategories.map((c) => ({ value: c.code, label: `${c.code} ${c.name}` }))}
+            />
+          </div>
         </Space>
+        <Button onClick={handleAddClick}>Добавить</Button>
       </div>
       {mode === 'add' && (
         <>
