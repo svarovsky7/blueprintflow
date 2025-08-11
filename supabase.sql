@@ -3,7 +3,8 @@ create table if not exists projects (
   name text not null,
   description text,
   address text,
-  building_name varchar(50),
+  building_count integer,
+  building_names text[],
   created_at timestamptz default now()
 );
 
