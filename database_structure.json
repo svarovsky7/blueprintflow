@@ -169,8 +169,15 @@
   },
   {
     "table_name": "projects",
-    "column_name": "building_name",
-    "data_type": "character varying",
+    "column_name": "building_count",
+    "data_type": "integer",
+    "is_nullable": "YES",
+    "column_default": null
+  },
+  {
+    "table_name": "projects",
+    "column_name": "building_names",
+    "data_type": "ARRAY",
     "is_nullable": "YES",
     "column_default": null
   },
