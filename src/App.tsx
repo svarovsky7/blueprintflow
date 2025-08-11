@@ -7,6 +7,7 @@ import Vor from './pages/documents/Vor'
 import References from './pages/References'
 import Units from './pages/references/Units'
 import Projects from './pages/references/Projects'
+import CostCategories from './pages/references/CostCategories'
 import PortalHeader from './components/PortalHeader'
 
 const { Sider, Content } = Layout
@@ -28,6 +29,10 @@ const App = () => {
       children: [
         { key: 'units', label: <Link to="/references">Единицы измерения</Link> },
         { key: 'projects', label: <Link to="/references/projects">Проекты</Link> },
+        {
+          key: 'cost-categories',
+          label: <Link to="/references/cost-categories">Категории затрат</Link>,
+        },
       ],
     },
   ]
@@ -47,9 +52,10 @@ const App = () => {
               <Route path="chessboard" element={<Chessboard />} />
               <Route path="vor" element={<Vor />} />
             </Route>
-            <Route path="/references" element={<References />}> 
+            <Route path="/references" element={<References />}>
               <Route index element={<Units />} />
               <Route path="projects" element={<Projects />} />
+              <Route path="cost-categories" element={<CostCategories />} />
             </Route>
           </Routes>
         </Content>
