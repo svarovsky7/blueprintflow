@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   App,
   Button,
   Form,
   Input,
-  InputNumber,
   Modal,
   Popconfirm,
   Space,
@@ -18,8 +17,7 @@ interface Project {
   name: string
   description: string
   address: string
-  buildingCount: number
-  buildingNames: string[]
+  buildingName: string
   created_at: string
 }
 
@@ -28,22 +26,6 @@ export default function Projects() {
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view' | null>(null)
   const [currentProject, setCurrentProject] = useState<Project | null>(null)
   const [form] = Form.useForm()
-
-  const buildingCount = Form.useWatch('buildingCount', form)
-  const buildingNames = Form.useWatch('buildingNames', form) || []
-
-  useEffect(() => {
-    if (typeof buildingCount === 'number') {
-      const names: string[] = form.getFieldValue('buildingNames') || []
-      const next = [...names]
-      if (buildingCount > names.length) {
-        for (let i = names.length; i < buildingCount; i++) next.push('')
-      } else if (buildingCount < names.length) {
-        next.length = buildingCount
-      }
-      form.setFieldsValue({ buildingNames: next })
-    }
-  }, [buildingCount, form])
 
   const { data: projects, isLoading, refetch } = useQuery({
     queryKey: ['projects'],
@@ -62,20 +44,18 @@ export default function Projects() {
         name: string
         description: string
         address: string
-        building_count: number | null
-        building_names: string[] | null
+        building_name: string
         created_at: string
       }[]).map((p) => ({
-          id: p.id,
-          name: p.name,
-          description: p.description,
-          address: p.address,
-          buildingCount: p.building_count ?? 0,
-          buildingNames: p.building_names ?? [],
-          created_at: p.created_at,
-        }))
-      },
-    })
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        address: p.address,
+        buildingName: p.building_name,
+        created_at: p.created_at,
+      }))
+    },
+  })
 
   const openAddModal = () => {
     form.resetFields()
@@ -93,8 +73,7 @@ export default function Projects() {
       name: record.name,
       description: record.description,
       address: record.address,
-      buildingCount: record.buildingCount,
-      buildingNames: record.buildingNames,
+      buildingName: record.buildingName,
     })
     setModalMode('edit')
   }
@@ -108,8 +87,7 @@ export default function Projects() {
           name: values.name,
           description: values.description,
           address: values.address,
-          building_count: values.buildingCount,
-          building_names: values.buildingNames,
+          building_name: values.buildingName,
         })
         if (error) throw error
         message.success('Запись добавлена')
@@ -121,8 +99,7 @@ export default function Projects() {
             name: values.name,
             description: values.description,
             address: values.address,
-            building_count: values.buildingCount,
-            building_names: values.buildingNames,
+            building_name: values.buildingName,
           })
           .eq('id', currentProject.id)
         if (error) throw error
@@ -151,12 +128,7 @@ export default function Projects() {
     { title: 'Название', dataIndex: 'name' },
     { title: 'Описание', dataIndex: 'description' },
     { title: 'Адрес', dataIndex: 'address' },
-    { title: 'Количество корпусов', dataIndex: 'buildingCount' },
-    {
-      title: 'Корпуса',
-      dataIndex: 'buildingNames',
-      render: (names: string[]) => names.join(', '),
-    },
+    { title: 'Корпус', dataIndex: 'buildingName' },
     {
       title: 'Действия',
       dataIndex: 'actions',
@@ -208,10 +180,7 @@ export default function Projects() {
             <p><strong>Название:</strong> {currentProject?.name}</p>
             <p><strong>Описание:</strong> {currentProject?.description}</p>
             <p><strong>Адрес:</strong> {currentProject?.address}</p>
-            <p><strong>Количество корпусов:</strong> {currentProject?.buildingCount}</p>
-            <p>
-              <strong>Корпуса:</strong> {currentProject?.buildingNames.join(', ')}
-            </p>
+            <p><strong>Корпус:</strong> {currentProject?.buildingName}</p>
           </div>
         ) : (
           <Form form={form} layout="vertical">
@@ -237,25 +206,15 @@ export default function Projects() {
               <Input />
             </Form.Item>
             <Form.Item
-              label="Количество корпусов"
-              name="buildingCount"
-              rules={[{ required: true, message: 'Введите количество корпусов' }]}
+              label="Название корпуса"
+              name="buildingName"
+              rules={[
+                { required: true, message: 'Введите название корпуса' },
+                { max: 50, message: 'Максимум 50 символов' },
+              ]}
             >
-              <InputNumber min={1} />
+              <Input />
             </Form.Item>
-            {buildingNames.map((_: string, index: number) => (
-              <Form.Item
-                key={index}
-                label={`Название корпуса ${index + 1}`}
-                name={['buildingNames', index]}
-                rules={[
-                  { required: true, message: 'Введите название корпуса' },
-                  { max: 50, message: 'Максимум 50 символов' },
-                ]}
-              >
-                <Input />
-              </Form.Item>
-            ))}
           </Form>
         )}
       </Modal>
