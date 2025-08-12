@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Table } from 'antd';
 import { supabase } from '../lib/supabase';
 import FilePreview from './FilePreview';
@@ -19,38 +19,16 @@ export default function DataTable({ table }: DataTableProps) {
       .then(({ data }) => setData((data as Record<string, unknown>[]) ?? []));
   }, [table]);
 
-  const columns = useMemo(
-    () =>
-      Object.keys(data[0] ?? {}).map((key) => {
-        const values = Array.from(
-          new Set(data.map((row) => row[key]).filter((v) => v !== null && v !== undefined)),
-        );
-        return {
-          title: key,
-          dataIndex: key,
-          sorter: (a: Record<string, unknown>, b: Record<string, unknown>) => {
-            const aValue = a[key];
-            const bValue = b[key];
-            if (typeof aValue === 'number' && typeof bValue === 'number') {
-              return aValue - bValue;
-            }
-            return String(aValue ?? '').localeCompare(String(bValue ?? ''));
-          },
-          filters: values.map((v) => ({ text: String(v), value: String(v) })),
-          onFilter: (
-            value: string | number | boolean | bigint,
-            record: Record<string, unknown>,
-          ) => String(record[key]) === String(value),
-          render: (value: unknown) =>
-            typeof value === 'string' && value.startsWith('http') ? (
-              <FilePreview url={value} name={value.split('/').pop()!} />
-            ) : (
-              value as React.ReactNode
-            ),
-        };
-      }),
-    [data],
-  );
+  const columns = Object.keys(data[0] ?? {}).map((key) => ({
+    title: key,
+    dataIndex: key,
+    render: (value: unknown) =>
+      typeof value === 'string' && value.startsWith('http') ? (
+        <FilePreview url={value} name={value.split('/').pop()!} />
+      ) : (
+        value as React.ReactNode
+      ),
+  }));
 
   return <Table dataSource={data} columns={columns} rowKey={columns[0]?.dataIndex || 'id'} />;
 }
