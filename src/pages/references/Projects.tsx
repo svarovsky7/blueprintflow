@@ -25,7 +25,6 @@ interface Project {
   buildingNames: string[]
   created_at: string
 }
-
 interface ProjectRow {
   id: string
   name: string
@@ -34,7 +33,11 @@ interface ProjectRow {
   bottom_underground_floor: number | null
   top_ground_floor: number | null
   created_at: string
-  projects_blocks: { blocks: { name: string | null } | null }[] | null
+}
+
+interface ProjectBlockRow {
+  project_id: string
+  blocks: { name: string | null } | null
 }
 
 export default function Projects() {
@@ -49,30 +52,55 @@ export default function Projects() {
     queryKey: ['projects'],
     queryFn: async () => {
       if (!supabase) return []
-      const { data, error } = await supabase
+
+      const { data: projectRows, error: projectError } = await supabase
         .from('projects')
         .select(
-          'id, name, description, address, bottom_underground_floor, top_ground_floor, created_at, projects_blocks(blocks(name))',
+          'id, name, description, address, bottom_underground_floor, top_ground_floor, created_at',
         )
         .order('created_at', { ascending: false })
-      if (error) {
+
+      if (projectError) {
         message.error('Не удалось загрузить данные')
-        throw error
+        throw projectError
       }
-      return ((data ?? []) as unknown as ProjectRow[]).map((p) => ({
+
+      const ids = (projectRows ?? []).map((p: ProjectRow) => p.id)
+      const { data: blockRows, error: blockError } = ids.length
+        ? await supabase
+            .from('projects_blocks')
+            .select('project_id, blocks(name)')
+            .in('project_id', ids)
+        : { data: [], error: null }
+
+      if (blockError) {
+        message.error('Не удалось загрузить данные')
+        throw blockError
+      }
+
+      const map = new Map<string, string[]>()
+      ;(blockRows as ProjectBlockRow[]).forEach((row) => {
+        const arr = map.get(row.project_id) ?? []
+        if (row.blocks?.name) arr.push(row.blocks.name)
+        map.set(row.project_id, arr)
+      })
+
+      return ((projectRows ?? []) as ProjectRow[]).map((p) => {
+        const names = map.get(p.id) ?? []
+        return {
           id: p.id,
           name: p.name,
           description: p.description,
           address: p.address,
           bottomUndergroundFloor: p.bottom_underground_floor ?? 0,
           topGroundFloor: p.top_ground_floor ?? 0,
-          buildingNames:
-            p.projects_blocks?.map((pb) => pb.blocks?.name ?? '').filter(Boolean) ?? [],
-          buildingCount: p.projects_blocks?.length ?? 0,
+          buildingNames: names,
+          buildingCount: names.length,
           created_at: p.created_at,
-        }))
-      },
-    })
+        }
+      })
+    },
+  })
 
   const openAddModal = () => {
     form.resetFields()
