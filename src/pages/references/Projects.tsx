@@ -34,7 +34,7 @@ interface ProjectRow {
   bottom_underground_floor: number | null
   top_ground_floor: number | null
   created_at: string
-  blocks: { name: string | null }[] | null
+  projects_blocks: { blocks: { name: string | null } | null }[] | null
 }
 
 export default function Projects() {
@@ -52,7 +52,7 @@ export default function Projects() {
       const { data, error } = await supabase
         .from('projects')
         .select(
-          'id, name, description, address, bottom_underground_floor, top_ground_floor, created_at, blocks(name)',
+          'id, name, description, address, bottom_underground_floor, top_ground_floor, created_at, projects_blocks(blocks(name))',
         )
         .order('created_at', { ascending: false })
       if (error) {
@@ -67,8 +67,8 @@ export default function Projects() {
           bottomUndergroundFloor: p.bottom_underground_floor ?? 0,
           topGroundFloor: p.top_ground_floor ?? 0,
           buildingNames:
-            p.blocks?.map((b) => b.name ?? '').filter(Boolean) ?? [],
-          buildingCount: p.blocks?.length ?? 0,
+            p.projects_blocks?.map((pb) => pb.blocks?.name ?? '').filter(Boolean) ?? [],
+          buildingCount: p.projects_blocks?.length ?? 0,
           created_at: p.created_at,
         }))
       },
@@ -109,8 +109,8 @@ export default function Projects() {
             name: values.name,
             description: values.description,
             address: values.address,
-            bottom_underground_floor: Number(values.bottomUndergroundFloor),
-            top_ground_floor: Number(values.topGroundFloor),
+            bottom_underground_floor: values.bottomUndergroundFloor,
+            top_ground_floor: values.topGroundFloor,
           })
           .select()
           .single()
@@ -141,8 +141,8 @@ export default function Projects() {
             name: values.name,
             description: values.description,
             address: values.address,
-            bottom_underground_floor: Number(values.bottomUndergroundFloor),
-            top_ground_floor: Number(values.topGroundFloor),
+            bottom_underground_floor: values.bottomUndergroundFloor,
+            top_ground_floor: values.topGroundFloor,
           })
           .eq('id', currentProject.id)
         if (projectError) throw projectError
