@@ -85,15 +85,6 @@ create table if not exists work_progress (
   completed_at timestamptz default now()
 );
 
-create table if not exists work_types (
-  id uuid primary key default gen_random_uuid(),
-  uid text unique not null,
-  name text not null,
-  unit text not null,
-  cost numeric not null,
-  created_at timestamptz default now()
-);
-
 create table if not exists units (
   id uuid primary key default gen_random_uuid(),
   name text unique not null,
