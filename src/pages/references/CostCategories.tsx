@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   App,
   Button,
@@ -158,17 +158,101 @@ export default function CostCategories() {
     }
   }
 
+  const codeFilters = useMemo(
+    () =>
+      Array.from(new Set((categories ?? []).map((c) => c.code))).map((c) => ({
+        text: c,
+        value: c,
+      })),
+    [categories],
+  )
+
+  const nameFilters = useMemo(
+    () =>
+      Array.from(new Set((categories ?? []).map((c) => c.name))).map((n) => ({
+        text: n,
+        value: n,
+      })),
+    [categories],
+  )
+
+  const levelFilters = useMemo(
+    () =>
+      Array.from(new Set((categories ?? []).map((c) => c.level))).map((l) => ({
+        text: String(l),
+        value: l,
+      })),
+    [categories],
+  )
+
+  const parentFilters = useMemo(
+    () =>
+      Array.from(
+        new Set((categories ?? []).map((c) => c.parentId).filter((p): p is string => !!p)),
+      ).map((pid) => ({
+        text: categories?.find((c) => c.id === pid)?.name || '-',
+        value: pid,
+      })),
+    [categories],
+  )
+
+  const descriptionFilters = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (categories ?? [])
+            .map((c) => c.description)
+            .filter((d): d is string => !!d),
+        ),
+      ).map((d) => ({
+        text: d,
+        value: d,
+      })),
+    [categories],
+  )
+
   const columns = [
-    { title: 'Номер', dataIndex: 'code' },
-    { title: 'Название', dataIndex: 'name' },
-    { title: 'Уровень', dataIndex: 'level' },
+    {
+      title: 'Номер',
+      dataIndex: 'code',
+      sorter: (a: CostCategory, b: CostCategory) => a.code.localeCompare(b.code),
+      filters: codeFilters,
+      onFilter: (value: unknown, record: CostCategory) => record.code === value,
+    },
+    {
+      title: 'Название',
+      dataIndex: 'name',
+      sorter: (a: CostCategory, b: CostCategory) => a.name.localeCompare(b.name),
+      filters: nameFilters,
+      onFilter: (value: unknown, record: CostCategory) => record.name === value,
+    },
+    {
+      title: 'Уровень',
+      dataIndex: 'level',
+      sorter: (a: CostCategory, b: CostCategory) => a.level - b.level,
+      filters: levelFilters,
+      onFilter: (value: unknown, record: CostCategory) => record.level === value,
+    },
     {
       title: 'Родитель',
       dataIndex: 'parentId',
       render: (pid: string | null) =>
-        categories?.find((c) => c.id === pid)?.name || '-'
+        categories?.find((c) => c.id === pid)?.name || '-',
+      sorter: (a: CostCategory, b: CostCategory) =>
+        (categories?.find((c) => c.id === a.parentId)?.name || '').localeCompare(
+          categories?.find((c) => c.id === b.parentId)?.name || '',
+        ),
+      filters: parentFilters,
+      onFilter: (value: unknown, record: CostCategory) => record.parentId === value,
     },
-    { title: 'Описание', dataIndex: 'description' },
+    {
+      title: 'Описание',
+      dataIndex: 'description',
+      sorter: (a: CostCategory, b: CostCategory) =>
+        (a.description ?? '').localeCompare(b.description ?? ''),
+      filters: descriptionFilters,
+      onFilter: (value: unknown, record: CostCategory) => record.description === value,
+    },
     {
       title: 'Действия',
       dataIndex: 'actions',

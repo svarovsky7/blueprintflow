@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   App,
   Button,
@@ -133,15 +133,86 @@ export default function Projects() {
     }
   }
 
+  const nameFilters = useMemo(
+    () =>
+      Array.from(new Set((projects ?? []).map((p) => p.name))).map((n) => ({
+        text: n,
+        value: n,
+      })),
+    [projects],
+  )
+
+  const descriptionFilters = useMemo(
+    () =>
+      Array.from(new Set((projects ?? []).map((p) => p.description))).map((d) => ({
+        text: d,
+        value: d,
+      })),
+    [projects],
+  )
+
+  const addressFilters = useMemo(
+    () =>
+      Array.from(new Set((projects ?? []).map((p) => p.address))).map((a) => ({
+        text: a,
+        value: a,
+      })),
+    [projects],
+  )
+
+  const buildingCountFilters = useMemo(
+    () =>
+      Array.from(new Set((projects ?? []).map((p) => p.buildingCount))).map((c) => ({
+        text: String(c),
+        value: c,
+      })),
+    [projects],
+  )
+
+  const buildingNameFilters = useMemo(() => {
+    const names = new Set<string>()
+    ;(projects ?? []).forEach((p) => p.buildingNames.forEach((n) => names.add(n)))
+    return Array.from(names).map((n) => ({ text: n, value: n }))
+  }, [projects])
+
   const columns = [
-    { title: 'Название', dataIndex: 'name' },
-    { title: 'Описание', dataIndex: 'description' },
-    { title: 'Адрес', dataIndex: 'address' },
-    { title: 'Количество корпусов', dataIndex: 'buildingCount' },
+    {
+      title: 'Название',
+      dataIndex: 'name',
+      sorter: (a: Project, b: Project) => a.name.localeCompare(b.name),
+      filters: nameFilters,
+      onFilter: (value: unknown, record: Project) => record.name === value,
+    },
+    {
+      title: 'Описание',
+      dataIndex: 'description',
+      sorter: (a: Project, b: Project) => a.description.localeCompare(b.description),
+      filters: descriptionFilters,
+      onFilter: (value: unknown, record: Project) => record.description === value,
+    },
+    {
+      title: 'Адрес',
+      dataIndex: 'address',
+      sorter: (a: Project, b: Project) => a.address.localeCompare(b.address),
+      filters: addressFilters,
+      onFilter: (value: unknown, record: Project) => record.address === value,
+    },
+    {
+      title: 'Количество корпусов',
+      dataIndex: 'buildingCount',
+      sorter: (a: Project, b: Project) => a.buildingCount - b.buildingCount,
+      filters: buildingCountFilters,
+      onFilter: (value: unknown, record: Project) => record.buildingCount === value,
+    },
     {
       title: 'Корпуса',
       dataIndex: 'buildingNames',
       render: (names: string[]) => names.join(', '),
+      sorter: (a: Project, b: Project) =>
+        a.buildingNames.join(', ').localeCompare(b.buildingNames.join(', ')),
+      filters: buildingNameFilters,
+      onFilter: (value: unknown, record: Project) =>
+        record.buildingNames.includes(value as string),
     },
     {
       title: 'Действия',
