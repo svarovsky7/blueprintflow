@@ -8,7 +8,6 @@ import Vor from './pages/documents/Vor'
 import References from './pages/References'
 import Units from './pages/references/Units'
 import CostCategories from './pages/references/CostCategories'
-import Projects from './pages/references/Projects'
 import PortalHeader from './components/PortalHeader'
 import { SunOutlined, MoonOutlined } from '@ant-design/icons'
 
@@ -39,7 +38,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           key: 'cost-categories',
           label: <Link to="/references/cost-categories">Категории затрат</Link>,
         },
-        { key: 'projects', label: <Link to="/references/projects">Проекты</Link> },
       ],
     },
   ]
@@ -62,7 +60,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             <Route path="/references" element={<References />}>
               <Route index element={<Units />} />
               <Route path="cost-categories" element={<CostCategories />} />
-              <Route path="projects" element={<Projects />} />
             </Route>
           </Routes>
         </Content>
