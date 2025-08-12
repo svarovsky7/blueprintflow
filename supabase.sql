@@ -3,21 +3,9 @@ create table if not exists projects (
   name text not null,
   description text,
   address text,
-  underground_floor integer,
-  aboveground_floor integer,
+  bottom_underground_floor integer,
+  top_ground_floor integer,
   created_at timestamptz default now()
-);
-
-create table if not exists blocks (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  created_at timestamptz default now()
-);
-
-create table if not exists projects_blocks (
-  project_id uuid references projects on delete cascade,
-  block_id uuid references blocks on delete cascade,
-  primary key (project_id, block_id)
 );
 
 create table if not exists floors (
@@ -26,7 +14,18 @@ create table if not exists floors (
 
 insert into floors (number)
 select generate_series(-3, 120)
-on conflict (number) do nothing;
+on conflict do nothing;
+
+create table if not exists blocks (
+  id uuid primary key default gen_random_uuid(),
+  name text not null
+);
+
+create table if not exists projects_blocks (
+  project_id uuid references projects on delete cascade,
+  block_id uuid references blocks on delete cascade,
+  primary key (project_id, block_id)
+);
 
 create table if not exists estimates (
   id uuid primary key default gen_random_uuid(),
