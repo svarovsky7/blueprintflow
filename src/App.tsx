@@ -1,4 +1,5 @@
-import { Layout, Menu, Button, theme } from 'antd'
+
+import { Layout, Menu, Switch, theme } from 'antd'
 import { Link, Route, Routes } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Documents from './pages/Documents'
@@ -9,6 +10,7 @@ import Units from './pages/references/Units'
 import Projects from './pages/references/Projects'
 import CostCategories from './pages/references/CostCategories'
 import PortalHeader from './components/PortalHeader'
+import { SunOutlined, MoonOutlined } from '@ant-design/icons'
 
 const { Sider, Content, Footer } = Layout
 
@@ -45,7 +47,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-
       <Sider theme="dark" style={{ background: '#000000' }} collapsible>
         <div style={{ color: '#fff', padding: 16, fontWeight: 600 }}>BlueprintFlow</div>
         <Menu theme="dark" mode="inline" items={items} />
@@ -67,7 +68,14 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           </Routes>
         </Content>
         <Footer style={{ textAlign: 'center' }}>
-          <Button onClick={toggleTheme}>{isDark ? 'Светлая тема' : 'Тёмная тема'}</Button>
+
+          <Switch
+            checked={isDark}
+            onChange={toggleTheme}
+            checkedChildren={<MoonOutlined />}
+            unCheckedChildren={<SunOutlined />}
+          />
+
         </Footer>
       </Layout>
     </Layout>
