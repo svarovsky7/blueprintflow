@@ -32,9 +32,9 @@ export function Root() {
           ? {
               algorithm: theme.darkAlgorithm,
               token: {
-                colorPrimary: '#ffffff',
+                colorPrimary: '#1677ff',
                 colorBgLayout: '#000000',
-                colorBgContainer: '#000000',
+                colorBgContainer: '#141414',
                 colorText: '#ffffff',
               },
             }
