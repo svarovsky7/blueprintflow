@@ -1,5 +1,5 @@
 
-import { Layout, Menu, Switch } from 'antd'
+import { Layout, Menu, Switch, theme } from 'antd'
 import { Link, Route, Routes } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Documents from './pages/Documents'
@@ -20,6 +20,7 @@ interface AppProps {
 }
 
 const App = ({ isDark, toggleTheme }: AppProps) => {
+  const { token } = theme.useToken()
   const items = [
     { key: 'dashboard', label: <Link to="/">Dashboard</Link> },
     {
