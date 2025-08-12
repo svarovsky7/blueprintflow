@@ -10,6 +10,7 @@ import {
   Space,
   Table,
 } from 'antd'
+import type { TableProps } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { EyeOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
@@ -22,11 +23,11 @@ interface Project {
   top_ground_floor: number | null
   blocks_count: number | null
   created_at: string
+  projects_blocks?: { block_id: string; blocks: { name: string } | null }[] | null
 }
 
-interface ProjectBlockJoin {
-  block_id: string
-  blocks: { name: string } | null
+interface ProjectRow extends Project {
+  blockNames: string[]
 }
 
 interface BlockRow {
@@ -36,7 +37,7 @@ interface BlockRow {
 export default function Projects() {
   const { message } = App.useApp()
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view' | null>(null)
-  const [currentProject, setCurrentProject] = useState<Project | null>(null)
+  const [currentProject, setCurrentProject] = useState<ProjectRow | null>(null)
   const [blocksCount, setBlocksCount] = useState(0)
   const [existingBlockIds, setExistingBlockIds] = useState<string[]>([])
   const [form] = Form.useForm()
@@ -47,7 +48,7 @@ export default function Projects() {
       if (!supabase) return []
       const { data, error } = await supabase
         .from('projects')
-        .select('*')
+        .select('*, projects_blocks(block_id, blocks(name))')
         .order('created_at', { ascending: false })
       if (error) {
         message.error('Не удалось загрузить данные')
@@ -57,6 +58,16 @@ export default function Projects() {
     },
   })
 
+  const projectRows = useMemo<ProjectRow[]>(
+    () =>
+      (projects ?? []).map((p) => ({
+        ...p,
+        blockNames:
+          p.projects_blocks?.map((b) => b.blocks?.name).filter((n): n is string => !!n) ?? [],
+      })),
+    [projects],
+  )
+
   const openAddModal = () => {
     form.resetFields()
     setBlocksCount(0)
@@ -64,24 +75,15 @@ export default function Projects() {
     setModalMode('add')
   }
 
-  const openViewModal = (record: Project) => {
+  const openViewModal = (record: ProjectRow) => {
     setCurrentProject(record)
     setModalMode('view')
   }
 
-  const openEditModal = async (record: Project) => {
+  const openEditModal = (record: ProjectRow) => {
     setCurrentProject(record)
-    let blockNames: string[] = []
-    let blockIds: string[] = []
-    if (supabase) {
-      const { data } = await supabase
-        .from('projects_blocks')
-        .select('block_id, blocks(name)')
-        .eq('project_id', record.id)
-      const joinData = data as ProjectBlockJoin[] | null
-      blockNames = joinData?.map((b) => b.blocks?.name ?? '') ?? []
-      blockIds = joinData?.map((b) => b.block_id) ?? []
-    }
+    const blockNames = record.blockNames
+    const blockIds = record.projects_blocks?.map((b) => b.block_id) ?? []
     setExistingBlockIds(blockIds)
     setBlocksCount(blockNames.length)
     form.setFieldsValue({
@@ -182,7 +184,7 @@ export default function Projects() {
     }
   }
 
-  const handleDelete = async (record: Project) => {
+  const handleDelete = async (record: ProjectRow) => {
     if (!supabase) return
     const { data } = await supabase
       .from('projects_blocks')
@@ -258,49 +260,70 @@ export default function Projects() {
     [projects],
   )
 
-  const columns = [
+  const blockNameFilters = useMemo(
+    () =>
+      Array.from(new Set(projectRows.flatMap((p) => p.blockNames))).map((n) => ({
+        text: n,
+        value: n,
+      })),
+    [projectRows],
+  )
+
+  const columns: TableProps<ProjectRow>['columns'] = [
     {
       title: 'Название',
       dataIndex: 'name',
-      sorter: (a: Project, b: Project) => a.name.localeCompare(b.name),
+      sorter: (a: ProjectRow, b: ProjectRow) => a.name.localeCompare(b.name),
       filters: nameFilters,
-      onFilter: (value: unknown, record: Project) => record.name === value,
+      onFilter: (value: unknown, record: ProjectRow) => record.name === value,
     },
     {
       title: 'Адрес',
       dataIndex: 'address',
-      sorter: (a: Project, b: Project) => (a.address ?? '').localeCompare(b.address ?? ''),
+      sorter: (a: ProjectRow, b: ProjectRow) =>
+        (a.address ?? '').localeCompare(b.address ?? ''),
       filters: addressFilters,
-      onFilter: (value: unknown, record: Project) => record.address === value,
+      onFilter: (value: unknown, record: ProjectRow) => record.address === value,
     },
     {
       title: 'Нижний этаж',
       dataIndex: 'bottom_underground_floor',
-      sorter: (a: Project, b: Project) =>
+      sorter: (a: ProjectRow, b: ProjectRow) =>
         (a.bottom_underground_floor ?? 0) - (b.bottom_underground_floor ?? 0),
       filters: bottomFilters,
-      onFilter: (value: unknown, record: Project) =>
+      onFilter: (value: unknown, record: ProjectRow) =>
         record.bottom_underground_floor === value,
     },
     {
       title: 'Верхний этаж',
       dataIndex: 'top_ground_floor',
-      sorter: (a: Project, b: Project) =>
+      sorter: (a: ProjectRow, b: ProjectRow) =>
         (a.top_ground_floor ?? 0) - (b.top_ground_floor ?? 0),
       filters: topFilters,
-      onFilter: (value: unknown, record: Project) => record.top_ground_floor === value,
+      onFilter: (value: unknown, record: ProjectRow) => record.top_ground_floor === value,
+    },
+    {
+      title: 'Кол-во корпусов',
+      dataIndex: 'blocks_count',
+      sorter: (a: ProjectRow, b: ProjectRow) =>
+        (a.blocks_count ?? 0) - (b.blocks_count ?? 0),
+      filters: blockCountFilters,
+      onFilter: (value: unknown, record: ProjectRow) => record.blocks_count === value,
     },
     {
       title: 'Корпуса',
-      dataIndex: 'blocks_count',
-      sorter: (a: Project, b: Project) => (a.blocks_count ?? 0) - (b.blocks_count ?? 0),
-      filters: blockCountFilters,
-      onFilter: (value: unknown, record: Project) => record.blocks_count === value,
+      dataIndex: 'blockNames',
+      sorter: (a: ProjectRow, b: ProjectRow) =>
+        a.blockNames.join(';').localeCompare(b.blockNames.join(';')),
+      filters: blockNameFilters,
+      onFilter: (value: unknown, record: ProjectRow) =>
+        record.blockNames.includes(value as string),
+      render: (names: string[]) => names.join('; '),
     },
     {
       title: 'Действия',
       dataIndex: 'actions',
-      render: (_: unknown, record: Project) => (
+      render: (_: unknown, record: ProjectRow) => (
         <Space>
           <Button
             icon={<EyeOutlined />}
@@ -327,8 +350,8 @@ export default function Projects() {
           Добавить
         </Button>
       </div>
-      <Table<Project>
-        dataSource={projects ?? []}
+      <Table<ProjectRow>
+        dataSource={projectRows}
         columns={columns}
         rowKey="id"
         loading={isLoading}
