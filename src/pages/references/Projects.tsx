@@ -28,7 +28,6 @@ export default function Projects() {
   const { message } = App.useApp()
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view' | null>(null)
   const [currentProject, setCurrentProject] = useState<Project | null>(null)
-  const [currentBlocks, setCurrentBlocks] = useState<string[]>([])
   const [form] = Form.useForm()
 
   const { data: projects, isLoading, refetch } = useQuery({
@@ -49,44 +48,23 @@ export default function Projects() {
 
   const openAddModal = () => {
     form.resetFields()
-    setCurrentBlocks([])
     setModalMode('add')
   }
 
-  const fetchBlocks = async (projectId: string) => {
-    if (!supabase) return []
-    const { data, error } = await supabase
-      .from('projects_blocks')
-      .select('blocks(name)')
-      .eq('project_id', projectId)
-    if (error) {
-      message.error('Не удалось загрузить данные корпусов')
-      return []
-    }
-    return (data ?? []).map(
-      (b) => (b as unknown as { blocks: { name: string } }).blocks.name,
-    )
-  }
-
-  const openViewModal = async (record: Project) => {
-    const blocks = await fetchBlocks(record.id)
-    setCurrentBlocks(blocks)
+  const openViewModal = (record: Project) => {
     setCurrentProject(record)
     setModalMode('view')
   }
 
-  const openEditModal = async (record: Project) => {
-    const blocks = await fetchBlocks(record.id)
-    setCurrentBlocks(blocks)
+  const openEditModal = (record: Project) => {
+    setCurrentProject(record)
     form.setFieldsValue({
       name: record.name,
       address: record.address,
       bottom_underground_floor: record.bottom_underground_floor,
       top_ground_floor: record.top_ground_floor,
-      blocks_count: blocks.length,
-      blocks,
+      blocks_count: record.blocks_count,
     })
-    setCurrentProject(record)
     setModalMode('edit')
   }
 
@@ -94,7 +72,6 @@ export default function Projects() {
     try {
       const values = await form.validateFields()
       if (!supabase) return
-      const blockNames: string[] = values.blocks || []
       const projectData = {
         name: values.name,
         address: values.address,
@@ -103,62 +80,20 @@ export default function Projects() {
         blocks_count: values.blocks_count,
       }
       if (modalMode === 'add') {
-        const { data: projectInsert, error: projectError } = await supabase
-          .from('projects')
-          .insert(projectData)
-          .select()
-          .single()
-        if (projectError || !projectInsert) throw projectError
-        if (blockNames.length) {
-          const { data: blocksInsert, error: blocksError } = await supabase
-            .from('blocks')
-            .insert(blockNames.map((name: string) => ({ name })))
-            .select()
-          if (blocksError || !blocksInsert) throw blocksError
-          await supabase.from('projects_blocks').insert(
-            (blocksInsert as { id: string }[]).map((b) => ({
-              project_id: projectInsert.id,
-              block_id: b.id,
-            })),
-          )
-        }
+        const { error } = await supabase.from('projects').insert(projectData)
+        if (error) throw error
         message.success('Проект добавлен')
       }
       if (modalMode === 'edit' && currentProject) {
-        const { data: oldMappings } = await supabase
-          .from('projects_blocks')
-          .select('block_id')
-          .eq('project_id', currentProject.id)
-        await supabase
+        const { error } = await supabase
           .from('projects')
           .update(projectData)
           .eq('id', currentProject.id)
-        if (oldMappings && oldMappings.length) {
-          const blockIds = oldMappings.map((m) => m.block_id as string)
-          await supabase
-            .from('projects_blocks')
-            .delete()
-            .eq('project_id', currentProject.id)
-          await supabase.from('blocks').delete().in('id', blockIds)
-        }
-        if (blockNames.length) {
-          const { data: blocksInsert, error: blocksError } = await supabase
-            .from('blocks')
-            .insert(blockNames.map((name: string) => ({ name })))
-            .select()
-          if (blocksError || !blocksInsert) throw blocksError
-          await supabase.from('projects_blocks').insert(
-            (blocksInsert as { id: string }[]).map((b) => ({
-              project_id: currentProject.id,
-              block_id: b.id,
-            })),
-          )
-        }
-        message.success('Проект обновлен')
+        if (error) throw error
+        message.success('Проект обновлён')
       }
       setModalMode(null)
       setCurrentProject(null)
-      setCurrentBlocks([])
       await refetch()
     } catch {
       message.error('Не удалось сохранить')
@@ -167,17 +102,13 @@ export default function Projects() {
 
   const handleDelete = async (record: Project) => {
     if (!supabase) return
-    const { data: mappings } = await supabase
-      .from('projects_blocks')
-      .select('block_id')
-      .eq('project_id', record.id)
-    await supabase.from('projects').delete().eq('id', record.id)
-    if (mappings && mappings.length) {
-      const blockIds = mappings.map((m) => m.block_id as string)
-      await supabase.from('blocks').delete().in('id', blockIds)
+    const { error } = await supabase.from('projects').delete().eq('id', record.id)
+    if (error) {
+      message.error('Не удалось удалить')
+    } else {
+      message.success('Проект удалён')
+      refetch()
     }
-    message.success('Проект удален')
-    refetch()
   }
 
   const nameFilters = useMemo(
@@ -247,8 +178,7 @@ export default function Projects() {
     {
       title: 'Адрес',
       dataIndex: 'address',
-      sorter: (a: Project, b: Project) =>
-        (a.address ?? '').localeCompare(b.address ?? ''),
+      sorter: (a: Project, b: Project) => (a.address ?? '').localeCompare(b.address ?? ''),
       filters: addressFilters,
       onFilter: (value: unknown, record: Project) => record.address === value,
     },
@@ -272,8 +202,7 @@ export default function Projects() {
     {
       title: 'Корпуса',
       dataIndex: 'blocks_count',
-      sorter: (a: Project, b: Project) =>
-        (a.blocks_count ?? 0) - (b.blocks_count ?? 0),
+      sorter: (a: Project, b: Project) => (a.blocks_count ?? 0) - (b.blocks_count ?? 0),
       filters: blockCountFilters,
       onFilter: (value: unknown, record: Project) => record.blocks_count === value,
     },
@@ -299,8 +228,6 @@ export default function Projects() {
       ),
     },
   ]
-
-  const blocksCount = Form.useWatch('blocks_count', form) || 0
 
   return (
     <div>
@@ -328,7 +255,6 @@ export default function Projects() {
         onCancel={() => {
           setModalMode(null)
           setCurrentProject(null)
-          setCurrentBlocks([])
         }}
         onOk={modalMode === 'view' ? () => setModalMode(null) : handleSave}
         okText={modalMode === 'view' ? 'Закрыть' : 'Сохранить'}
@@ -338,16 +264,9 @@ export default function Projects() {
           <div>
             <p>Название: {currentProject?.name}</p>
             <p>Адрес: {currentProject?.address}</p>
-            <p>
-              Нижний этаж: {currentProject?.bottom_underground_floor ?? ''}
-            </p>
+            <p>Нижний этаж: {currentProject?.bottom_underground_floor ?? ''}</p>
             <p>Верхний этаж: {currentProject?.top_ground_floor ?? ''}</p>
-            <p>Корпуса:</p>
-            <ul>
-              {currentBlocks.map((b, i) => (
-                <li key={i}>{b}</li>
-              ))}
-            </ul>
+            <p>Количество корпусов: {currentProject?.blocks_count ?? ''}</p>
           </div>
         ) : (
           <Form form={form} layout="vertical">
@@ -358,13 +277,25 @@ export default function Projects() {
             >
               <Input />
             </Form.Item>
-            <Form.Item label="Адрес" name="address">
+            <Form.Item
+              label="Адрес"
+              name="address"
+              rules={[{ required: true, message: 'Введите адрес' }]}
+            >
               <Input />
             </Form.Item>
-            <Form.Item label="Нижний этаж" name="bottom_underground_floor">
+            <Form.Item
+              label="Нижний этаж"
+              name="bottom_underground_floor"
+              rules={[{ required: true, message: 'Введите нижний этаж' }]}
+            >
               <InputNumber />
             </Form.Item>
-            <Form.Item label="Верхний этаж" name="top_ground_floor">
+            <Form.Item
+              label="Верхний этаж"
+              name="top_ground_floor"
+              rules={[{ required: true, message: 'Введите верхний этаж' }]}
+            >
               <InputNumber />
             </Form.Item>
             <Form.Item
@@ -372,25 +303,8 @@ export default function Projects() {
               name="blocks_count"
               rules={[{ required: true, message: 'Введите количество корпусов' }]}
             >
-              <InputNumber
-                min={1}
-                onChange={(value) => {
-                  const count = value ?? 0
-                  const current = form.getFieldValue('blocks') || []
-                  form.setFieldsValue({ blocks: current.slice(0, count) })
-                }}
-              />
+              <InputNumber min={1} />
             </Form.Item>
-            {Array.from({ length: blocksCount }).map((_, index) => (
-              <Form.Item
-                key={index}
-                label={`Название корпуса ${index + 1}`}
-                name={['blocks', index]}
-                rules={[{ required: true, message: 'Введите название корпуса' }]}
-              >
-                <Input />
-              </Form.Item>
-            ))}
           </Form>
         )}
       </Modal>
