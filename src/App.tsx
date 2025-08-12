@@ -46,22 +46,9 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider
-        theme={isDark ? 'dark' : 'light'}
-        style={{ background: isDark ? '#000000' : '#ffffff' }}
-        collapsible
-      >
-        <div
-          style={{ color: isDark ? '#ffffff' : '#000000', padding: 16, fontWeight: 600 }}
-        >
-          BlueprintFlow
-        </div>
-        <Menu
-          theme={isDark ? 'dark' : 'light'}
-          mode="inline"
-          items={items}
-          style={{ background: isDark ? '#000000' : '#ffffff' }}
-        />
+      <Sider theme="dark" style={{ background: '#000000' }} collapsible>
+        <div style={{ color: '#fff', padding: 16, fontWeight: 600 }}>BlueprintFlow</div>
+        <Menu theme="dark" mode="inline" items={items} />
       </Sider>
       <Layout>
         <PortalHeader />
