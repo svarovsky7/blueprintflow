@@ -39,8 +39,8 @@ const App = () => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider theme="light" style={{ background: '#f9f0ff' }} collapsible>
-        <div style={{ color: '#722ed1', padding: 16, fontWeight: 600 }}>BlueprintFlow</div>
+      <Sider theme="light" style={{ background: '#e6f7ff' }} collapsible>
+        <div style={{ color: '#000', padding: 16, fontWeight: 600 }}>BlueprintFlow</div>
         <Menu theme="light" mode="inline" items={items} />
       </Sider>
       <Layout>
