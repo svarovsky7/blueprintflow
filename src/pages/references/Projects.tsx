@@ -26,6 +26,17 @@ interface Project {
   created_at: string
 }
 
+interface ProjectRow {
+  id: string
+  name: string
+  description: string | null
+  address: string | null
+  bottom_underground_floor: number | null
+  top_ground_floor: number | null
+  created_at: string
+  projects_blocks: { blocks: { name: string | null } | null }[] | null
+}
+
 export default function Projects() {
   const { message } = App.useApp()
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view' | null>(null)
@@ -48,18 +59,23 @@ export default function Projects() {
         message.error('Не удалось загрузить данные')
         throw error
       }
-      return (data as any[]).map((p) => ({
-          id: p.id,
-          name: p.name,
-          description: p.description,
-          address: p.address,
-          bottomUndergroundFloor: p.bottom_underground_floor ?? 0,
-          topGroundFloor: p.top_ground_floor ?? 0,
+      return ((data ?? []) as unknown[]).map((p) => {
+        const row = p as ProjectRow
+        return {
+          id: row.id,
+          name: row.name,
+          description: row.description ?? '',
+          address: row.address ?? '',
+          bottomUndergroundFloor: row.bottom_underground_floor ?? 0,
+          topGroundFloor: row.top_ground_floor ?? 0,
           buildingNames:
-            p.projects_blocks?.map((pb: any) => pb.blocks?.name ?? '').filter(Boolean) ?? [],
-          buildingCount: p.projects_blocks?.length ?? 0,
-          created_at: p.created_at,
-        }))
+            row.projects_blocks
+              ?.map((pb) => pb.blocks?.name ?? '')
+              .filter((n): n is string => !!n) ?? [],
+          buildingCount: row.projects_blocks?.length ?? 0,
+          created_at: row.created_at,
+        }
+      })
       },
     })
 
@@ -204,7 +220,13 @@ export default function Projects() {
 
   const descriptionFilters = useMemo(
     () =>
-      Array.from(new Set((projects ?? []).map((p) => p.description))).map((d) => ({
+      Array.from(
+        new Set(
+          (projects ?? [])
+            .map((p) => p.description)
+            .filter((d): d is string => !!d),
+        ),
+      ).map((d) => ({
         text: d,
         value: d,
       })),
@@ -213,7 +235,13 @@ export default function Projects() {
 
   const addressFilters = useMemo(
     () =>
-      Array.from(new Set((projects ?? []).map((p) => p.address))).map((a) => ({
+      Array.from(
+        new Set(
+          (projects ?? [])
+            .map((p) => p.address)
+            .filter((a): a is string => !!a),
+        ),
+      ).map((a) => ({
         text: a,
         value: a,
       })),
