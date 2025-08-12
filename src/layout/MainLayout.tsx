@@ -38,10 +38,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const location = useLocation();
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider theme="light" style={{ background: '#e6f7ff' }} collapsible>
-        <div style={{ color: '#000', padding: 16, fontWeight: 600 }}>BlueprintFlow</div>
+      <Sider theme="dark" style={{ background: '#000000' }} collapsible>
+        <div style={{ color: '#fff', padding: 16, fontWeight: 600 }}>BlueprintFlow</div>
         <Menu
-          theme="light"
+          theme="dark"
           mode="inline"
           selectedKeys={[location.pathname]}
           items={items}
