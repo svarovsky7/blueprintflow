@@ -7,7 +7,6 @@ import Chessboard from './pages/documents/Chessboard'
 import Vor from './pages/documents/Vor'
 import References from './pages/References'
 import Units from './pages/references/Units'
-import Projects from './pages/references/Projects'
 import CostCategories from './pages/references/CostCategories'
 import PortalHeader from './components/PortalHeader'
 import { SunOutlined, MoonOutlined } from '@ant-design/icons'
@@ -35,7 +34,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
       label: 'Справочники',
       children: [
         { key: 'units', label: <Link to="/references">Единицы измерения</Link> },
-        { key: 'projects', label: <Link to="/references/projects">Проекты</Link> },
         {
           key: 'cost-categories',
           label: <Link to="/references/cost-categories">Категории затрат</Link>,
@@ -61,7 +59,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             </Route>
             <Route path="/references" element={<References />}>
               <Route index element={<Units />} />
-              <Route path="projects" element={<Projects />} />
               <Route path="cost-categories" element={<CostCategories />} />
             </Route>
           </Routes>
