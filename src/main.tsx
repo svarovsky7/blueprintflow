@@ -27,6 +27,7 @@ export function Root() {
 
   return (
     <ConfigProvider
+
       theme={
         isDark
           ? {

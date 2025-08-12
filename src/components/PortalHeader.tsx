@@ -29,12 +29,12 @@ export default function PortalHeader() {
   return (
     <Header
       style={{
-        background: token.colorBgContainer,
+        background: '#141414',
         padding: '0 16px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        color: token.colorText,
+        color: '#fff',
       }}
     >
       <span>{breadcrumbs[pathname]?.join(' / ') || ''}</span>
