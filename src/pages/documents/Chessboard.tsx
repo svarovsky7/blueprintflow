@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { App, Button, Input, Select, Space, Table } from 'antd'
+import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined } from '@ant-design/icons'
 import { supabase } from '../../lib/supabase'
 
@@ -274,15 +275,37 @@ export default function Chessboard() {
     },
   ]
 
-  const viewColumns = [
-    { title: 'проект', dataIndex: 'project' },
-    { title: 'материал', dataIndex: 'material', width: 400 },
-    { title: 'Кол-во по ПД', dataIndex: 'quantityPd' },
-    { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec' },
-    { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd' },
-    { title: 'ед.изм.', dataIndex: 'unit' },
-    { title: 'категория затрат', dataIndex: 'costCategory' },
-  ]
+  const viewColumns: ColumnsType<ViewRow> = useMemo(() => {
+    const base: Array<{ title: string; dataIndex: keyof ViewRow; width?: number }> = [
+      { title: 'проект', dataIndex: 'project' },
+      { title: 'материал', dataIndex: 'material', width: 400 },
+      { title: 'Кол-во по ПД', dataIndex: 'quantityPd' },
+      { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec' },
+      { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd' },
+      { title: 'ед.изм.', dataIndex: 'unit' },
+      { title: 'категория затрат', dataIndex: 'costCategory' },
+    ]
+
+    return base.map((col) => {
+      const values = Array.from(
+        new Set(viewRows.map((row) => row[col.dataIndex]).filter((v) => v !== undefined && v !== '')),
+      )
+
+      return {
+        ...col,
+        sorter: (a: ViewRow, b: ViewRow) => {
+          const aVal = a[col.dataIndex]
+          const bVal = b[col.dataIndex]
+          const aNum = Number(aVal)
+          const bNum = Number(bVal)
+          if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum
+          return String(aVal ?? '').localeCompare(String(bVal ?? ''))
+        },
+        filters: values.map((v) => ({ text: String(v), value: String(v) })),
+        onFilter: (value, record) => String(record[col.dataIndex]) === String(value),
+      }
+    })
+  }, [viewRows])
 
   return (
     <div>
