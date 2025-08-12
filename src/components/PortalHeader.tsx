@@ -28,8 +28,7 @@ export default function PortalHeader() {
   return (
     <Header
       style={{
-        background: '#f9f0ff',
-        color: '#722ed1',
+        background: '#e6f7ff',
         padding: '0 16px',
         display: 'flex',
         justifyContent: 'space-between',
