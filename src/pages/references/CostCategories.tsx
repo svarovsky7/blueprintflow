@@ -12,6 +12,7 @@ import {
 } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
+import { EyeOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 
 interface CostCategory {
   id: string
@@ -258,10 +259,18 @@ export default function CostCategories() {
       dataIndex: 'actions',
       render: (_: unknown, record: CostCategory) => (
         <Space>
-          <Button onClick={() => openViewModal(record)}>Просмотр</Button>
-          <Button onClick={() => openEditModal(record)}>Редактировать</Button>
+          <Button
+            icon={<EyeOutlined />}
+            onClick={() => openViewModal(record)}
+            aria-label="Просмотр"
+          />
+          <Button
+            icon={<EditOutlined />}
+            onClick={() => openEditModal(record)}
+            aria-label="Редактировать"
+          />
           <Popconfirm title="Удалить запись?" onConfirm={() => handleDelete(record)}>
-            <Button danger>Удалить</Button>
+            <Button danger icon={<DeleteOutlined />} aria-label="Удалить" />
           </Popconfirm>
         </Space>
       ),
