@@ -33,8 +33,9 @@ interface ProjectRow {
   address: string
   bottom_underground_floor: number | null
   top_ground_floor: number | null
+  building_count: number | null
+  building_names: string[] | null
   created_at: string
-  projects_blocks: { blocks: { name: string | null } | null }[] | null
 }
 
 export default function Projects() {
@@ -52,7 +53,7 @@ export default function Projects() {
       const { data, error } = await supabase
         .from('projects')
         .select(
-          'id, name, description, address, bottom_underground_floor, top_ground_floor, created_at, projects_blocks(blocks(name))',
+          'id, name, description, address, bottom_underground_floor, top_ground_floor, building_count, building_names, created_at',
         )
         .order('created_at', { ascending: false })
       if (error) {
@@ -66,9 +67,8 @@ export default function Projects() {
           address: p.address,
           bottomUndergroundFloor: p.bottom_underground_floor ?? 0,
           topGroundFloor: p.top_ground_floor ?? 0,
-          buildingNames:
-            p.projects_blocks?.map((pb) => pb.blocks?.name ?? '').filter(Boolean) ?? [],
-          buildingCount: p.projects_blocks?.length ?? 0,
+          buildingNames: p.building_names ?? [],
+          buildingCount: p.building_count ?? 0,
           created_at: p.created_at,
         }))
       },
@@ -92,7 +92,7 @@ export default function Projects() {
       address: record.address,
       bottomUndergroundFloor: record.bottomUndergroundFloor,
       topGroundFloor: record.topGroundFloor,
-      buildingCount: record.buildingNames.length,
+      buildingCount: record.buildingCount,
       buildingNames: record.buildingNames,
     })
     setModalMode('edit')
@@ -103,35 +103,16 @@ export default function Projects() {
       const values = await form.validateFields()
       if (!supabase) return
       if (modalMode === 'add') {
-        const { data: project, error: projectError } = await supabase
-          .from('projects')
-          .insert({
-            name: values.name,
-            description: values.description,
-            address: values.address,
-            bottom_underground_floor: values.bottomUndergroundFloor,
-            top_ground_floor: values.topGroundFloor,
-          })
-          .select('id')
-          .single()
+        const { error: projectError } = await supabase.from('projects').insert({
+          name: values.name,
+          description: values.description,
+          address: values.address,
+          bottom_underground_floor: values.bottomUndergroundFloor,
+          top_ground_floor: values.topGroundFloor,
+          building_count: values.buildingCount,
+          building_names: (values.buildingNames || []).slice(0, values.buildingCount),
+        })
         if (projectError) throw projectError
-        const blockNames = (values.buildingNames || []).slice(0, values.buildingCount)
-        if (blockNames.length) {
-          const { data: blocks, error: blocksError } = await supabase
-            .from('blocks')
-            .insert(blockNames.map((name: string) => ({ name })))
-            .select()
-          if (blocksError) throw blocksError
-          const { error: mapError } = await supabase
-            .from('projects_blocks')
-            .insert(
-              (blocks as { id: string }[]).map((b) => ({
-                project_id: project.id,
-                block_id: b.id,
-              })),
-            )
-          if (mapError) throw mapError
-        }
         message.success('Запись добавлена')
       }
       if (modalMode === 'edit' && currentProject) {
@@ -143,38 +124,11 @@ export default function Projects() {
             address: values.address,
             bottom_underground_floor: values.bottomUndergroundFloor,
             top_ground_floor: values.topGroundFloor,
+            building_count: values.buildingCount,
+            building_names: (values.buildingNames || []).slice(0, values.buildingCount),
           })
           .eq('id', currentProject.id)
         if (projectError) throw projectError
-
-        const { data: existing, error: existingError } = await supabase
-          .from('projects_blocks')
-          .select('block_id')
-          .eq('project_id', currentProject.id)
-        if (existingError) throw existingError
-        const existingIds = existing?.map((e: { block_id: string }) => e.block_id) ?? []
-        if (existingIds.length) {
-          await supabase.from('projects_blocks').delete().eq('project_id', currentProject.id)
-          await supabase.from('blocks').delete().in('id', existingIds)
-        }
-
-        const blockNames = (values.buildingNames || []).slice(0, values.buildingCount)
-        if (blockNames.length) {
-          const { data: blocks, error: blocksError } = await supabase
-            .from('blocks')
-            .insert(blockNames.map((name: string) => ({ name })))
-            .select()
-          if (blocksError) throw blocksError
-          const { error: mapError } = await supabase
-            .from('projects_blocks')
-            .insert(
-              (blocks as { id: string }[]).map((b) => ({
-                project_id: currentProject.id,
-                block_id: b.id,
-              })),
-            )
-          if (mapError) throw mapError
-        }
         message.success('Запись обновлена')
       }
       setModalMode(null)
@@ -187,18 +141,10 @@ export default function Projects() {
 
   const handleDelete = async (record: Project) => {
     if (!supabase) return
-    const { data: mappings } = await supabase
-      .from('projects_blocks')
-      .select('block_id')
-      .eq('project_id', record.id)
-    const blockIds = (mappings || []).map((m: { block_id: string }) => m.block_id)
     const { error } = await supabase.from('projects').delete().eq('id', record.id)
     if (error) {
       message.error('Не удалось удалить')
     } else {
-      if (blockIds.length) {
-        await supabase.from('blocks').delete().in('id', blockIds)
-      }
       message.success('Запись удалена')
       refetch()
     }
