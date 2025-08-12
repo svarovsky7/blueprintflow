@@ -1,3 +1,4 @@
+
 import { Layout, Menu, Switch, theme } from 'antd'
 import { Link, Route, Routes } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
@@ -46,9 +47,9 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider theme={isDark ? 'dark' : 'light'} style={{ background: token.colorBgContainer }} collapsible>
-        <div style={{ color: token.colorText, padding: 16, fontWeight: 600 }}>BlueprintFlow</div>
-        <Menu theme={isDark ? 'dark' : 'light'} mode="inline" items={items} />
+      <Sider theme="dark" style={{ background: '#000000' }} collapsible>
+        <div style={{ color: '#fff', padding: 16, fontWeight: 600 }}>BlueprintFlow</div>
+        <Menu theme="dark" mode="inline" items={items} />
       </Sider>
       <Layout>
         <PortalHeader />
@@ -67,12 +68,14 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           </Routes>
         </Content>
         <Footer style={{ textAlign: 'center' }}>
+
           <Switch
             checked={isDark}
             onChange={toggleTheme}
             checkedChildren={<MoonOutlined />}
             unCheckedChildren={<SunOutlined />}
           />
+
         </Footer>
       </Layout>
     </Layout>

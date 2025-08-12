@@ -34,7 +34,9 @@ export default function PortalHeader() {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
+
         color: token.colorText,
+
       }}
     >
       <span>{breadcrumbs[pathname]?.join(' / ') || ''}</span>
