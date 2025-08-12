@@ -5,6 +5,7 @@ create table if not exists projects (
   address text,
   bottom_underground_floor integer,
   top_ground_floor integer,
+  blocks_count integer,
   created_at timestamptz default now()
 );
 
