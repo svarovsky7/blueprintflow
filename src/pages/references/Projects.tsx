@@ -24,10 +24,21 @@ interface Project {
   created_at: string
 }
 
+interface ProjectBlockJoin {
+  block_id: string
+  blocks: { name: string } | null
+}
+
+interface BlockRow {
+  id: string
+}
+
 export default function Projects() {
   const { message } = App.useApp()
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view' | null>(null)
   const [currentProject, setCurrentProject] = useState<Project | null>(null)
+  const [blocksCount, setBlocksCount] = useState(0)
+  const [existingBlockIds, setExistingBlockIds] = useState<string[]>([])
   const [form] = Form.useForm()
 
   const { data: projects, isLoading, refetch } = useQuery({
@@ -48,6 +59,8 @@ export default function Projects() {
 
   const openAddModal = () => {
     form.resetFields()
+    setBlocksCount(0)
+    setExistingBlockIds([])
     setModalMode('add')
   }
 
@@ -56,22 +69,45 @@ export default function Projects() {
     setModalMode('view')
   }
 
-  const openEditModal = (record: Project) => {
+  const openEditModal = async (record: Project) => {
     setCurrentProject(record)
+    let blockNames: string[] = []
+    let blockIds: string[] = []
+    if (supabase) {
+      const { data } = await supabase
+        .from('projects_blocks')
+        .select('block_id, blocks(name)')
+        .eq('project_id', record.id)
+      const joinData = data as ProjectBlockJoin[] | null
+      blockNames = joinData?.map((b) => b.blocks?.name ?? '') ?? []
+      blockIds = joinData?.map((b) => b.block_id) ?? []
+    }
+    setExistingBlockIds(blockIds)
+    setBlocksCount(blockNames.length)
     form.setFieldsValue({
       name: record.name,
       address: record.address,
       bottom_underground_floor: record.bottom_underground_floor,
       top_ground_floor: record.top_ground_floor,
-      blocks_count: record.blocks_count,
+      blocks_count: blockNames.length || record.blocks_count,
+      blockNames,
     })
     setModalMode('edit')
+  }
+
+  const handleBlocksCountChange = (value: number | null) => {
+    const count = value ?? 0
+    const current = form.getFieldValue('blockNames') || []
+    const updated = Array.from({ length: count }, (_, i) => current[i] || '')
+    form.setFieldsValue({ blockNames: updated })
+    setBlocksCount(count)
   }
 
   const handleSave = async () => {
     try {
       const values = await form.validateFields()
       if (!supabase) return
+      const blockNames: string[] = values.blockNames ?? []
       const projectData = {
         name: values.name,
         address: values.address,
@@ -80,20 +116,66 @@ export default function Projects() {
         blocks_count: values.blocks_count,
       }
       if (modalMode === 'add') {
-        const { error } = await supabase.from('projects').insert(projectData)
-        if (error) throw error
+        const { data: project, error: projectError } = await supabase
+          .from('projects')
+          .insert(projectData)
+          .select('id')
+          .single()
+        if (projectError) throw projectError
+        const projectRow = project as { id: string }
+        if (blockNames.length) {
+          const { data: blocksData, error: blocksError } = await supabase
+            .from('blocks')
+            .insert(blockNames.map((name) => ({ name })))
+            .select('id')
+          if (blocksError) throw blocksError
+          const rows = blocksData as BlockRow[] | null
+          const projectBlocks = (rows ?? []).map((b) => ({
+            project_id: projectRow.id,
+            block_id: b.id,
+          }))
+          const { error: linkError } = await supabase
+            .from('projects_blocks')
+            .insert(projectBlocks)
+          if (linkError) throw linkError
+        }
         message.success('Проект добавлен')
       }
       if (modalMode === 'edit' && currentProject) {
-        const { error } = await supabase
+        const { error: projectError } = await supabase
           .from('projects')
           .update(projectData)
           .eq('id', currentProject.id)
-        if (error) throw error
+        if (projectError) throw projectError
+        if (existingBlockIds.length) {
+          const { error: delError } = await supabase
+            .from('blocks')
+            .delete()
+            .in('id', existingBlockIds)
+          if (delError) throw delError
+        }
+        if (blockNames.length) {
+          const { data: blocksData, error: blocksError } = await supabase
+            .from('blocks')
+            .insert(blockNames.map((name) => ({ name })))
+            .select('id')
+          if (blocksError) throw blocksError
+          const rows = blocksData as BlockRow[] | null
+          const projectBlocks = (rows ?? []).map((b) => ({
+            project_id: currentProject.id,
+            block_id: b.id,
+          }))
+          const { error: linkError } = await supabase
+            .from('projects_blocks')
+            .insert(projectBlocks)
+          if (linkError) throw linkError
+        }
         message.success('Проект обновлён')
       }
       setModalMode(null)
       setCurrentProject(null)
+      setBlocksCount(0)
+      setExistingBlockIds([])
       await refetch()
     } catch {
       message.error('Не удалось сохранить')
@@ -102,10 +184,19 @@ export default function Projects() {
 
   const handleDelete = async (record: Project) => {
     if (!supabase) return
+    const { data } = await supabase
+      .from('projects_blocks')
+      .select('block_id')
+      .eq('project_id', record.id)
+    const idsData = data as { block_id: string }[] | null
+    const blockIds = idsData?.map((b) => b.block_id) ?? []
     const { error } = await supabase.from('projects').delete().eq('id', record.id)
     if (error) {
       message.error('Не удалось удалить')
     } else {
+      if (blockIds.length) {
+        await supabase.from('blocks').delete().in('id', blockIds)
+      }
       message.success('Проект удалён')
       refetch()
     }
@@ -255,6 +346,9 @@ export default function Projects() {
         onCancel={() => {
           setModalMode(null)
           setCurrentProject(null)
+          setBlocksCount(0)
+          setExistingBlockIds([])
+          form.resetFields()
         }}
         onOk={modalMode === 'view' ? () => setModalMode(null) : handleSave}
         okText={modalMode === 'view' ? 'Закрыть' : 'Сохранить'}
@@ -303,8 +397,18 @@ export default function Projects() {
               name="blocks_count"
               rules={[{ required: true, message: 'Введите количество корпусов' }]}
             >
-              <InputNumber min={1} />
+              <InputNumber min={1} onChange={handleBlocksCountChange} />
             </Form.Item>
+            {Array.from({ length: blocksCount }).map((_, index) => (
+              <Form.Item
+                key={index}
+                label={`Название корпуса ${index + 1}`}
+                name={['blockNames', index]}
+                rules={[{ required: true, message: 'Введите название корпуса' }]}
+              >
+                <Input />
+              </Form.Item>
+            ))}
           </Form>
         )}
       </Modal>
