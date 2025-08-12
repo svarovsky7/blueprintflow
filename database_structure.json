@@ -418,47 +418,5 @@
     "data_type": "timestamp with time zone",
     "is_nullable": "NO",
     "column_default": "now()"
-  },
-  {
-    "table_name": "work_types",
-    "column_name": "id",
-    "data_type": "uuid",
-    "is_nullable": "NO",
-    "column_default": "gen_random_uuid()"
-  },
-  {
-    "table_name": "work_types",
-    "column_name": "uid",
-    "data_type": "text",
-    "is_nullable": "NO",
-    "column_default": null
-  },
-  {
-    "table_name": "work_types",
-    "column_name": "name",
-    "data_type": "text",
-    "is_nullable": "NO",
-    "column_default": null
-  },
-  {
-    "table_name": "work_types",
-    "column_name": "unit",
-    "data_type": "text",
-    "is_nullable": "NO",
-    "column_default": null
-  },
-  {
-    "table_name": "work_types",
-    "column_name": "cost",
-    "data_type": "numeric",
-    "is_nullable": "NO",
-    "column_default": null
-  },
-  {
-    "table_name": "work_types",
-    "column_name": "created_at",
-    "data_type": "timestamp with time zone",
-    "is_nullable": "NO",
-    "column_default": "now()"
   }
 ]
