@@ -11,27 +11,27 @@ import {
   Table,
 } from 'antd'
 import { useQuery } from '@tanstack/react-query'
-import { supabase } from '../../lib/supabase'
 import { EyeOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { supabase } from '../../lib/supabase'
 
 interface Project {
   id: string
   name: string
-  description: string
   address: string
-  bottomUndergroundFloor: number
-  topGroundFloor: number
+  bottomFloor: number
+  topFloor: number
   buildingCount: number
-  buildingNames: string[]
+  blockNames: string[]
   created_at: string
 }
+
 interface ProjectRow {
   id: string
   name: string
-  description: string
-  address: string
-  bottom_underground_floor: number | null
-  top_ground_floor: number | null
+  address?: string | null
+  bottom_underground_floor?: number | null
+  top_ground_floor?: number | null
+  building_count?: number | null
   created_at: string
 }
 
@@ -46,7 +46,7 @@ export default function Projects() {
   const [currentProject, setCurrentProject] = useState<Project | null>(null)
   const [form] = Form.useForm()
 
-  const buildingCount = Form.useWatch('buildingCount', form) || 0
+  const blockCount = Form.useWatch('buildingCount', form) || 0
 
   const { data: projects, isLoading, refetch } = useQuery({
     queryKey: ['projects'],
@@ -55,9 +55,7 @@ export default function Projects() {
 
       const { data: projectRows, error: projectError } = await supabase
         .from('projects')
-        .select(
-          'id, name, description, address, bottom_underground_floor, top_ground_floor, created_at',
-        )
+        .select('*')
         .order('created_at', { ascending: false })
 
       if (projectError) {
@@ -90,12 +88,11 @@ export default function Projects() {
         return {
           id: p.id,
           name: p.name,
-          description: p.description,
-          address: p.address,
-          bottomUndergroundFloor: p.bottom_underground_floor ?? 0,
-          topGroundFloor: p.top_ground_floor ?? 0,
-          buildingNames: names,
-          buildingCount: names.length,
+          address: p.address ?? '',
+          bottomFloor: p.bottom_underground_floor ?? 0,
+          topFloor: p.top_ground_floor ?? 0,
+          buildingCount: p.building_count ?? names.length,
+          blockNames: names,
           created_at: p.created_at,
         }
       })
@@ -116,12 +113,11 @@ export default function Projects() {
     setCurrentProject(record)
     form.setFieldsValue({
       name: record.name,
-      description: record.description,
       address: record.address,
-      bottomUndergroundFloor: record.bottomUndergroundFloor,
-      topGroundFloor: record.topGroundFloor,
-      buildingCount: record.buildingNames.length,
-      buildingNames: record.buildingNames,
+      bottomFloor: record.bottomFloor,
+      topFloor: record.topFloor,
+      buildingCount: record.buildingCount,
+      blocks: record.blockNames,
     })
     setModalMode('edit')
   }
@@ -133,17 +129,20 @@ export default function Projects() {
       if (modalMode === 'add') {
         const { data: project, error: projectError } = await supabase
           .from('projects')
-          .insert({
-            name: values.name,
-            description: values.description,
-            address: values.address,
-            bottom_underground_floor: values.bottomUndergroundFloor,
-            top_ground_floor: values.topGroundFloor,
-          })
+          .insert([
+            {
+              name: values.name,
+              address: values.address,
+              bottom_underground_floor: values.bottomFloor,
+              top_ground_floor: values.topFloor,
+              building_count: values.buildingCount,
+            },
+          ])
           .select('id')
           .single()
         if (projectError) throw projectError
-        const blockNames = (values.buildingNames || []).slice(0, values.buildingCount)
+
+        const blockNames = (values.blocks || []).slice(0, values.buildingCount)
         if (blockNames.length) {
           const { data: blocks, error: blocksError } = await supabase
             .from('blocks')
@@ -160,17 +159,19 @@ export default function Projects() {
             )
           if (mapError) throw mapError
         }
-        message.success('Запись добавлена')
+
+        message.success('Проект добавлен')
       }
+
       if (modalMode === 'edit' && currentProject) {
         const { error: projectError } = await supabase
           .from('projects')
           .update({
             name: values.name,
-            description: values.description,
             address: values.address,
-            bottom_underground_floor: values.bottomUndergroundFloor,
-            top_ground_floor: values.topGroundFloor,
+            bottom_underground_floor: values.bottomFloor,
+            top_ground_floor: values.topFloor,
+            building_count: values.buildingCount,
           })
           .eq('id', currentProject.id)
         if (projectError) throw projectError
@@ -186,7 +187,7 @@ export default function Projects() {
           await supabase.from('blocks').delete().in('id', existingIds)
         }
 
-        const blockNames = (values.buildingNames || []).slice(0, values.buildingCount)
+        const blockNames = (values.blocks || []).slice(0, values.buildingCount)
         if (blockNames.length) {
           const { data: blocks, error: blocksError } = await supabase
             .from('blocks')
@@ -203,8 +204,10 @@ export default function Projects() {
             )
           if (mapError) throw mapError
         }
-        message.success('Запись обновлена')
+
+        message.success('Проект обновлён')
       }
+
       setModalMode(null)
       setCurrentProject(null)
       await refetch()
@@ -227,7 +230,7 @@ export default function Projects() {
       if (blockIds.length) {
         await supabase.from('blocks').delete().in('id', blockIds)
       }
-      message.success('Запись удалена')
+      message.success('Проект удалён')
       refetch()
     }
   }
@@ -241,15 +244,6 @@ export default function Projects() {
     [projects],
   )
 
-  const descriptionFilters = useMemo(
-    () =>
-      Array.from(new Set((projects ?? []).map((p) => p.description))).map((d) => ({
-        text: d,
-        value: d,
-      })),
-    [projects],
-  )
-
   const addressFilters = useMemo(
     () =>
       Array.from(new Set((projects ?? []).map((p) => p.address))).map((a) => ({
@@ -259,21 +253,11 @@ export default function Projects() {
     [projects],
   )
 
-  const bottomFloorFilters = useMemo(
+  const floorFilters = useMemo(
     () =>
-      Array.from(new Set((projects ?? []).map((p) => p.bottomUndergroundFloor))).map((f) => ({
-        text: String(f),
-        value: f,
-      })),
-    [projects],
-  )
-
-  const topFloorFilters = useMemo(
-    () =>
-      Array.from(new Set((projects ?? []).map((p) => p.topGroundFloor))).map((f) => ({
-        text: String(f),
-        value: f,
-      })),
+      Array.from(
+        new Set((projects ?? []).map((p) => `${p.bottomFloor}:${p.topFloor}`)),
+      ).map((f) => ({ text: f, value: f })),
     [projects],
   )
 
@@ -286,28 +270,19 @@ export default function Projects() {
     [projects],
   )
 
-    const buildingNameFilters = useMemo(() => {
-      const names = new Set<string>()
-      ;(projects ?? []).forEach((p) =>
-        p.buildingNames.forEach((n: string) => names.add(n)),
-      )
-      return Array.from(names).map((n) => ({ text: n, value: n }))
-    }, [projects])
+  const blockNameFilters = useMemo(() => {
+    const names = new Set<string>()
+    ;(projects ?? []).forEach((p) => p.blockNames.forEach((n) => names.add(n)))
+    return Array.from(names).map((n) => ({ text: n, value: n }))
+  }, [projects])
 
   const columns = [
     {
-      title: 'Название',
+      title: 'Проект',
       dataIndex: 'name',
       sorter: (a: Project, b: Project) => a.name.localeCompare(b.name),
       filters: nameFilters,
       onFilter: (value: unknown, record: Project) => record.name === value,
-    },
-    {
-      title: 'Описание',
-      dataIndex: 'description',
-      sorter: (a: Project, b: Project) => a.description.localeCompare(b.description),
-      filters: descriptionFilters,
-      onFilter: (value: unknown, record: Project) => record.description === value,
     },
     {
       title: 'Адрес',
@@ -317,23 +292,17 @@ export default function Projects() {
       onFilter: (value: unknown, record: Project) => record.address === value,
     },
     {
-      title: 'Нижний подземный этаж',
-      dataIndex: 'bottomUndergroundFloor',
+      title: 'Этажи',
+      dataIndex: 'floors',
+      render: (_: unknown, record: Project) => `${record.bottomFloor}:${record.topFloor}`,
       sorter: (a: Project, b: Project) =>
-        a.bottomUndergroundFloor - b.bottomUndergroundFloor,
-      filters: bottomFloorFilters,
+        a.bottomFloor - b.bottomFloor || a.topFloor - b.topFloor,
+      filters: floorFilters,
       onFilter: (value: unknown, record: Project) =>
-        record.bottomUndergroundFloor === value,
+        `${record.bottomFloor}:${record.topFloor}` === value,
     },
     {
-      title: 'Верхний надземный этаж',
-      dataIndex: 'topGroundFloor',
-      sorter: (a: Project, b: Project) => a.topGroundFloor - b.topGroundFloor,
-      filters: topFloorFilters,
-      onFilter: (value: unknown, record: Project) => record.topGroundFloor === value,
-    },
-    {
-      title: 'Количество корпусов',
+      title: 'Кол-во корпусов',
       dataIndex: 'buildingCount',
       sorter: (a: Project, b: Project) => a.buildingCount - b.buildingCount,
       filters: buildingCountFilters,
@@ -341,13 +310,13 @@ export default function Projects() {
     },
     {
       title: 'Корпуса',
-      dataIndex: 'buildingNames',
-      render: (names: string[]) => names.join(', '),
+      dataIndex: 'blockNames',
+      render: (names: string[]) => names.join('; '),
       sorter: (a: Project, b: Project) =>
-        a.buildingNames.join(', ').localeCompare(b.buildingNames.join(', ')),
-      filters: buildingNameFilters,
+        a.blockNames.join('; ').localeCompare(b.blockNames.join('; ')),
+      filters: blockNameFilters,
       onFilter: (value: unknown, record: Project) =>
-        record.buildingNames.includes(value as string),
+        record.blockNames.includes(value as string),
     },
     {
       title: 'Действия',
@@ -364,7 +333,7 @@ export default function Projects() {
             onClick={() => openEditModal(record)}
             aria-label="Редактировать"
           />
-          <Popconfirm title="Удалить запись?" onConfirm={() => handleDelete(record)}>
+          <Popconfirm title="Удалить проект?" onConfirm={() => handleDelete(record)}>
             <Button danger icon={<DeleteOutlined />} aria-label="Удалить" />
           </Popconfirm>
         </Space>
@@ -405,58 +374,51 @@ export default function Projects() {
       >
         {modalMode === 'view' ? (
           <div>
-            <p><strong>Название:</strong> {currentProject?.name}</p>
-            <p><strong>Описание:</strong> {currentProject?.description}</p>
-            <p><strong>Адрес:</strong> {currentProject?.address}</p>
             <p>
-              <strong>Нижний подземный этаж:</strong>{' '}
-              {currentProject?.bottomUndergroundFloor}
+              <strong>Проект:</strong> {currentProject?.name}
             </p>
             <p>
-              <strong>Верхний надземный этаж:</strong>{' '}
-              {currentProject?.topGroundFloor}
+              <strong>Адрес:</strong> {currentProject?.address}
             </p>
-            <p><strong>Количество корпусов:</strong> {currentProject?.buildingCount}</p>
             <p>
-              <strong>Корпуса:</strong> {currentProject?.buildingNames.join(', ')}
+              <strong>Этажи:</strong> {currentProject?.bottomFloor}:{currentProject?.topFloor}
+            </p>
+            <p>
+              <strong>Кол-во корпусов:</strong> {currentProject?.buildingCount}
+            </p>
+            <p>
+              <strong>Корпуса:</strong> {currentProject?.blockNames.join('; ')}
             </p>
           </div>
         ) : (
           <Form form={form} layout="vertical">
             <Form.Item
-              label="Название"
+              label="Название проекта"
               name="name"
-              rules={[{ required: true, message: 'Введите название' }]}
+              rules={[{ required: true, message: 'Введите название проекта' }]}
             >
               <Input />
             </Form.Item>
             <Form.Item
-              label="Описание"
-              name="description"
-              rules={[{ required: true, message: 'Введите описание' }]}
-            >
-              <Input />
-            </Form.Item>
-            <Form.Item
-              label="Адрес"
+              label="Адрес проекта"
               name="address"
-              rules={[{ required: true, message: 'Введите адрес' }]}
+              rules={[{ required: true, message: 'Введите адрес проекта' }]}
             >
               <Input />
             </Form.Item>
             <Form.Item
-              label="Нижний подземный этаж"
-              name="bottomUndergroundFloor"
-              rules={[{ required: true, message: 'Введите нижний подземный этаж' }]}
+              label="Нижний этаж"
+              name="bottomFloor"
+              rules={[{ required: true, message: 'Введите нижний этаж' }]}
             >
-              <InputNumber min={-3} max={0} />
+              <InputNumber />
             </Form.Item>
             <Form.Item
-              label="Верхний надземный этаж"
-              name="topGroundFloor"
-              rules={[{ required: true, message: 'Введите верхний надземный этаж' }]}
+              label="Верхний этаж"
+              name="topFloor"
+              rules={[{ required: true, message: 'Введите верхний этаж' }]}
             >
-              <InputNumber min={1} max={120} />
+              <InputNumber />
             </Form.Item>
             <Form.Item
               label="Количество корпусов"
@@ -465,15 +427,12 @@ export default function Projects() {
             >
               <InputNumber min={1} />
             </Form.Item>
-            {Array.from({ length: buildingCount }).map((_, index) => (
+            {Array.from({ length: blockCount }).map((_, index) => (
               <Form.Item
                 key={index}
-                label={`Название корпуса ${index + 1}`}
-                name={['buildingNames', index]}
-                rules={[
-                  { required: true, message: 'Введите название корпуса' },
-                  { max: 50, message: 'Максимум 50 символов' },
-                ]}
+                label={`Корпус ${index + 1}`}
+                name={['blocks', index]}
+                rules={[{ required: true, message: 'Введите название корпуса' }]}
               >
                 <Input />
               </Form.Item>
