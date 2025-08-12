@@ -169,15 +169,15 @@
   },
   {
     "table_name": "projects",
-    "column_name": "building_count",
+    "column_name": "bottom_underground_floor",
     "data_type": "integer",
     "is_nullable": "YES",
     "column_default": null
   },
   {
     "table_name": "projects",
-    "column_name": "building_names",
-    "data_type": "ARRAY",
+    "column_name": "top_ground_floor",
+    "data_type": "integer",
     "is_nullable": "YES",
     "column_default": null
   },
@@ -327,5 +327,40 @@
     "data_type": "timestamp with time zone",
     "is_nullable": "NO",
     "column_default": "now()"
+  },
+  {
+    "table_name": "floors",
+    "column_name": "number",
+    "data_type": "integer",
+    "is_nullable": "NO",
+    "column_default": null
+  },
+  {
+    "table_name": "blocks",
+    "column_name": "id",
+    "data_type": "uuid",
+    "is_nullable": "NO",
+    "column_default": "gen_random_uuid()"
+  },
+  {
+    "table_name": "blocks",
+    "column_name": "name",
+    "data_type": "text",
+    "is_nullable": "NO",
+    "column_default": null
+  },
+  {
+    "table_name": "projects_blocks",
+    "column_name": "project_id",
+    "data_type": "uuid",
+    "is_nullable": "NO",
+    "column_default": null
+  },
+  {
+    "table_name": "projects_blocks",
+    "column_name": "block_id",
+    "data_type": "uuid",
+    "is_nullable": "NO",
+    "column_default": null
   }
 ]
