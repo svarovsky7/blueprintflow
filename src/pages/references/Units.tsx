@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   App,
   Button,
@@ -95,9 +95,42 @@ export default function Units() {
     }
   }
 
+  const nameFilters = useMemo(
+    () =>
+      Array.from(new Set((units ?? []).map((u) => u.name))).map((n) => ({
+        text: n,
+        value: n,
+      })),
+    [units],
+  )
+
+  const descriptionFilters = useMemo(
+    () =>
+      Array.from(
+        new Set((units ?? []).map((u) => u.description).filter((d): d is string => !!d)),
+      ).map((d) => ({
+        text: d,
+        value: d,
+      })),
+    [units],
+  )
+
   const columns = [
-    { title: 'Название', dataIndex: 'name' },
-    { title: 'Описание', dataIndex: 'description' },
+    {
+      title: 'Название',
+      dataIndex: 'name',
+      sorter: (a: Unit, b: Unit) => a.name.localeCompare(b.name),
+      filters: nameFilters,
+      onFilter: (value: unknown, record: Unit) => record.name === value,
+    },
+    {
+      title: 'Описание',
+      dataIndex: 'description',
+      sorter: (a: Unit, b: Unit) =>
+        (a.description ?? '').localeCompare(b.description ?? ''),
+      filters: descriptionFilters,
+      onFilter: (value: unknown, record: Unit) => record.description === value,
+    },
     {
       title: 'Действия',
       dataIndex: 'actions',
