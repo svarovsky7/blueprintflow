@@ -52,7 +52,7 @@ export default function Projects() {
       const { data, error } = await supabase
         .from('projects')
         .select(
-          'id, name, description, address, bottom_underground_floor, top_ground_floor, created_at, projects_blocks!left(blocks(name))',
+          'id, name, description, address, bottom_underground_floor, top_ground_floor, created_at, projects_blocks(blocks(name))',
         )
         .order('created_at', { ascending: false })
       if (error) {
