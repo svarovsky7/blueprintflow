@@ -32,16 +32,16 @@ export function Root() {
           ? {
               algorithm: theme.darkAlgorithm,
               token: {
-                colorPrimary: '#1677ff',
+                colorPrimary: '#ffffff',
                 colorBgLayout: '#000000',
-                colorBgContainer: '#141414',
+                colorBgContainer: '#000000',
                 colorText: '#ffffff',
               },
             }
           : {
               algorithm: theme.defaultAlgorithm,
               token: {
-                colorPrimary: '#1677ff',
+                colorPrimary: '#000000',
                 colorBgLayout: '#ffffff',
                 colorBgContainer: '#ffffff',
                 colorText: '#000000',
