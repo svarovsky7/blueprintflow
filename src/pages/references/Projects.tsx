@@ -19,9 +19,22 @@ interface Project {
   name: string
   description: string
   address: string
+  bottomUndergroundFloor: number
+  topGroundFloor: number
   buildingCount: number
   buildingNames: string[]
   created_at: string
+}
+
+interface ProjectQuery {
+  id: string
+  name: string
+  description: string | null
+  address: string | null
+  bottom_underground_floor: number | null
+  top_ground_floor: number | null
+  created_at: string
+  projects_blocks: { blocks: { name: string | null } | null }[] | null
 }
 
 export default function Projects() {
@@ -38,27 +51,24 @@ export default function Projects() {
       if (!supabase) return []
       const { data, error } = await supabase
         .from('projects')
-        .select('*')
+        .select(
+          'id, name, description, address, bottom_underground_floor, top_ground_floor, created_at, projects_blocks(blocks(name))',
+        )
         .order('created_at', { ascending: false })
       if (error) {
         message.error('Не удалось загрузить данные')
         throw error
       }
-      return (data as {
-        id: string
-        name: string
-        description: string
-        address: string
-        building_count: number | null
-        building_names: string[] | null
-        created_at: string
-      }[]).map((p) => ({
+      return (data as unknown as ProjectQuery[]).map((p) => ({
           id: p.id,
           name: p.name,
-          description: p.description,
-          address: p.address,
-          buildingCount: p.building_count ?? 0,
-          buildingNames: p.building_names ?? [],
+          description: p.description ?? '',
+          address: p.address ?? '',
+          bottomUndergroundFloor: p.bottom_underground_floor ?? 0,
+          topGroundFloor: p.top_ground_floor ?? 0,
+          buildingNames:
+            p.projects_blocks?.map((pb) => pb.blocks?.name ?? '').filter(Boolean) ?? [],
+          buildingCount: p.projects_blocks?.length ?? 0,
           created_at: p.created_at,
         }))
       },
@@ -80,7 +90,9 @@ export default function Projects() {
       name: record.name,
       description: record.description,
       address: record.address,
-      buildingCount: record.buildingCount,
+      bottomUndergroundFloor: record.bottomUndergroundFloor,
+      topGroundFloor: record.topGroundFloor,
+      buildingCount: record.buildingNames.length,
       buildingNames: record.buildingNames,
     })
     setModalMode('edit')
@@ -91,28 +103,78 @@ export default function Projects() {
       const values = await form.validateFields()
       if (!supabase) return
       if (modalMode === 'add') {
-        const { error } = await supabase.from('projects').insert({
-          name: values.name,
-          description: values.description,
-          address: values.address,
-          building_count: values.buildingCount,
-          building_names: (values.buildingNames || []).slice(0, values.buildingCount),
-        })
-        if (error) throw error
+        const { data: project, error: projectError } = await supabase
+          .from('projects')
+          .insert({
+            name: values.name,
+            description: values.description,
+            address: values.address,
+            bottom_underground_floor: values.bottomUndergroundFloor,
+            top_ground_floor: values.topGroundFloor,
+          })
+          .select()
+          .single()
+        if (projectError) throw projectError
+        const blockNames = (values.buildingNames || []).slice(0, values.buildingCount)
+        if (blockNames.length) {
+          const { data: blocks, error: blocksError } = await supabase
+            .from('blocks')
+            .insert(blockNames.map((name: string) => ({ name })))
+            .select()
+          if (blocksError) throw blocksError
+          const { error: mapError } = await supabase
+            .from('projects_blocks')
+            .insert(
+              (blocks as { id: string }[]).map((b) => ({
+                project_id: project.id,
+                block_id: b.id,
+              })),
+            )
+          if (mapError) throw mapError
+        }
         message.success('Запись добавлена')
       }
       if (modalMode === 'edit' && currentProject) {
-        const { error } = await supabase
+        const { error: projectError } = await supabase
           .from('projects')
           .update({
             name: values.name,
             description: values.description,
             address: values.address,
-            building_count: values.buildingCount,
-            building_names: (values.buildingNames || []).slice(0, values.buildingCount),
+            bottom_underground_floor: values.bottomUndergroundFloor,
+            top_ground_floor: values.topGroundFloor,
           })
           .eq('id', currentProject.id)
-        if (error) throw error
+        if (projectError) throw projectError
+
+        const { data: existing, error: existingError } = await supabase
+          .from('projects_blocks')
+          .select('block_id')
+          .eq('project_id', currentProject.id)
+        if (existingError) throw existingError
+        const existingIds = existing?.map((e: { block_id: string }) => e.block_id) ?? []
+        if (existingIds.length) {
+          await supabase.from('projects_blocks').delete().eq('project_id', currentProject.id)
+          await supabase.from('blocks').delete().in('id', existingIds)
+        }
+
+        const blockNames = (values.buildingNames || []).slice(0, values.buildingCount)
+        if (blockNames.length) {
+          const { data: blocks, error: blocksError } = await supabase
+            .from('blocks')
+            .insert(blockNames.map((name: string) => ({ name })))
+            .select()
+          if (blocksError) throw blocksError
+          const { error: mapError } = await supabase
+            .from('projects_blocks')
+            .insert(
+              (blocks as { id: string }[]).map((b) => ({
+                project_id: currentProject.id,
+                block_id: b.id,
+              })),
+            )
+          if (mapError) throw mapError
+        }
         message.success('Запись обновлена')
       }
       setModalMode(null)
@@ -125,10 +187,18 @@ export default function Projects() {
 
   const handleDelete = async (record: Project) => {
     if (!supabase) return
+    const { data: mappings } = await supabase
+      .from('projects_blocks')
+      .select('block_id')
+      .eq('project_id', record.id)
+    const blockIds = (mappings || []).map((m: { block_id: string }) => m.block_id)
     const { error } = await supabase.from('projects').delete().eq('id', record.id)
     if (error) {
       message.error('Не удалось удалить')
     } else {
+      if (blockIds.length) {
+        await supabase.from('blocks').delete().in('id', blockIds)
+      }
       message.success('Запись удалена')
       refetch()
     }
@@ -161,6 +231,24 @@ export default function Projects() {
     [projects],
   )
 
+  const bottomFloorFilters = useMemo(
+    () =>
+      Array.from(new Set((projects ?? []).map((p) => p.bottomUndergroundFloor))).map((f) => ({
+        text: String(f),
+        value: f,
+      })),
+    [projects],
+  )
+
+  const topFloorFilters = useMemo(
+    () =>
+      Array.from(new Set((projects ?? []).map((p) => p.topGroundFloor))).map((f) => ({
+        text: String(f),
+        value: f,
+      })),
+    [projects],
+  )
+
   const buildingCountFilters = useMemo(
     () =>
       Array.from(new Set((projects ?? []).map((p) => p.buildingCount))).map((c) => ({
@@ -170,11 +258,13 @@ export default function Projects() {
     [projects],
   )
 
-  const buildingNameFilters = useMemo(() => {
-    const names = new Set<string>()
-    ;(projects ?? []).forEach((p) => p.buildingNames.forEach((n) => names.add(n)))
-    return Array.from(names).map((n) => ({ text: n, value: n }))
-  }, [projects])
+    const buildingNameFilters = useMemo(() => {
+      const names = new Set<string>()
+      ;(projects ?? []).forEach((p) =>
+        p.buildingNames.forEach((n: string) => names.add(n)),
+      )
+      return Array.from(names).map((n) => ({ text: n, value: n }))
+    }, [projects])
 
   const columns = [
     {
@@ -197,6 +287,22 @@ export default function Projects() {
       sorter: (a: Project, b: Project) => a.address.localeCompare(b.address),
       filters: addressFilters,
       onFilter: (value: unknown, record: Project) => record.address === value,
+    },
+    {
+      title: 'Нижний подземный этаж',
+      dataIndex: 'bottomUndergroundFloor',
+      sorter: (a: Project, b: Project) =>
+        a.bottomUndergroundFloor - b.bottomUndergroundFloor,
+      filters: bottomFloorFilters,
+      onFilter: (value: unknown, record: Project) =>
+        record.bottomUndergroundFloor === value,
+    },
+    {
+      title: 'Верхний надземный этаж',
+      dataIndex: 'topGroundFloor',
+      sorter: (a: Project, b: Project) => a.topGroundFloor - b.topGroundFloor,
+      filters: topFloorFilters,
+      onFilter: (value: unknown, record: Project) => record.topGroundFloor === value,
     },
     {
       title: 'Количество корпусов',
@@ -274,6 +380,14 @@ export default function Projects() {
             <p><strong>Название:</strong> {currentProject?.name}</p>
             <p><strong>Описание:</strong> {currentProject?.description}</p>
             <p><strong>Адрес:</strong> {currentProject?.address}</p>
+            <p>
+              <strong>Нижний подземный этаж:</strong>{' '}
+              {currentProject?.bottomUndergroundFloor}
+            </p>
+            <p>
+              <strong>Верхний надземный этаж:</strong>{' '}
+              {currentProject?.topGroundFloor}
+            </p>
             <p><strong>Количество корпусов:</strong> {currentProject?.buildingCount}</p>
             <p>
               <strong>Корпуса:</strong> {currentProject?.buildingNames.join(', ')}
@@ -301,6 +415,20 @@ export default function Projects() {
               rules={[{ required: true, message: 'Введите адрес' }]}
             >
               <Input />
+            </Form.Item>
+            <Form.Item
+              label="Нижний подземный этаж"
+              name="bottomUndergroundFloor"
+              rules={[{ required: true, message: 'Введите нижний подземный этаж' }]}
+            >
+              <InputNumber min={-3} max={0} />
+            </Form.Item>
+            <Form.Item
+              label="Верхний надземный этаж"
+              name="topGroundFloor"
+              rules={[{ required: true, message: 'Введите верхний надземный этаж' }]}
+            >
+              <InputNumber min={1} max={120} />
             </Form.Item>
             <Form.Item
               label="Количество корпусов"
