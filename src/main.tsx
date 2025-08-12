@@ -1,4 +1,4 @@
-import { StrictMode } from 'react'
+import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -17,26 +17,52 @@ unstableSetRender((node, container) => {
 
 const queryClient = new QueryClient()
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
+export function Root() {
+  const [isDark, setIsDark] = useState(false)
+
+  useEffect(() => {
+    document.body.style.backgroundColor = isDark ? '#000000' : '#ffffff'
+    document.body.style.color = isDark ? '#ffffff' : '#000000'
+  }, [isDark])
+
+  return (
     <ConfigProvider
-      theme={{
-        algorithm: theme.darkAlgorithm,
-        token: {
-          colorPrimary: '#1677ff',
-          colorBgLayout: '#000000',
-          colorBgContainer: '#141414',
-          colorText: '#ffffff',
-        },
-      }}
+
+      theme={
+        isDark
+          ? {
+              algorithm: theme.darkAlgorithm,
+              token: {
+                colorPrimary: '#1677ff',
+                colorBgLayout: '#000000',
+                colorBgContainer: '#141414',
+                colorText: '#ffffff',
+              },
+            }
+          : {
+              algorithm: theme.defaultAlgorithm,
+              token: {
+                colorPrimary: '#1677ff',
+                colorBgLayout: '#ffffff',
+                colorBgContainer: '#ffffff',
+                colorText: '#000000',
+              },
+            }
+      }
     >
       <AntdApp>
         <QueryClientProvider client={queryClient}>
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <App />
+            <App isDark={isDark} toggleTheme={() => setIsDark((v) => !v)} />
           </BrowserRouter>
         </QueryClientProvider>
       </AntdApp>
     </ConfigProvider>
+  )
+}
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <Root />
   </StrictMode>,
 )

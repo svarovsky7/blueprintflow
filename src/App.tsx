@@ -1,4 +1,4 @@
-import { Layout, Menu } from 'antd'
+import { Layout, Menu, Button, theme } from 'antd'
 import { Link, Route, Routes } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Documents from './pages/Documents'
@@ -10,9 +10,15 @@ import Projects from './pages/references/Projects'
 import CostCategories from './pages/references/CostCategories'
 import PortalHeader from './components/PortalHeader'
 
-const { Sider, Content } = Layout
+const { Sider, Content, Footer } = Layout
 
-const App = () => {
+interface AppProps {
+  isDark: boolean
+  toggleTheme: () => void
+}
+
+const App = ({ isDark, toggleTheme }: AppProps) => {
+  const { token } = theme.useToken()
   const items = [
     { key: 'dashboard', label: <Link to="/">Dashboard</Link> },
     {
@@ -39,6 +45,7 @@ const App = () => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
+
       <Sider theme="dark" style={{ background: '#000000' }} collapsible>
         <div style={{ color: '#fff', padding: 16, fontWeight: 600 }}>BlueprintFlow</div>
         <Menu theme="dark" mode="inline" items={items} />
@@ -48,7 +55,7 @@ const App = () => {
         <Content style={{ margin: 16 }}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
-            <Route path="/documents" element={<Documents />}> 
+            <Route path="/documents" element={<Documents />}>
               <Route path="chessboard" element={<Chessboard />} />
               <Route path="vor" element={<Vor />} />
             </Route>
@@ -59,13 +66,12 @@ const App = () => {
             </Route>
           </Routes>
         </Content>
+        <Footer style={{ textAlign: 'center' }}>
+          <Button onClick={toggleTheme}>{isDark ? 'Светлая тема' : 'Тёмная тема'}</Button>
+        </Footer>
       </Layout>
     </Layout>
   )
 }
 
 export default App
-console.log(
-    'URL:', import.meta.env.VITE_SUPABASE_URL,
-    'KEY:', import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY
-)

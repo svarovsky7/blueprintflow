@@ -1,4 +1,4 @@
-import { Layout, Button, Space } from 'antd';
+import { Layout, Button, Space, theme } from 'antd';
 import { BellOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import { useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
@@ -17,6 +17,7 @@ const breadcrumbs: Record<string, string[]> = {
 export default function PortalHeader() {
   const { pathname } = useLocation();
   const [userEmail, setUserEmail] = useState<string>('');
+  const { token } = theme.useToken();
 
   useEffect(() => {
     if (!supabase) return;
