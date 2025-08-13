@@ -3,6 +3,7 @@ import { App, Button, Input, Select, Space, Table } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined } from '@ant-design/icons'
 import { supabase } from '../../lib/supabase'
+import TopBar from '../../components/TopBar'
 
 interface RowData {
   key: string
@@ -309,39 +310,55 @@ export default function Chessboard() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Space>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span>Объект</span>
-            <Select
-              style={{ width: 200 }}
-              value={selectedProject}
-              onChange={setSelectedProject}
-              options={projects.map((p) => ({ value: p.id, label: p.name }))}
-            />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span>Категория затрат</span>
-            <Select
-              style={{ width: 200 }}
-              value={selectedCategory}
-              onChange={setSelectedCategory}
-              options={costCategories.map((c) => ({ value: c.code, label: `${c.code} ${c.name}` }))}
-            />
-          </div>
-        </Space>
-        <Button onClick={handleAddClick}>Добавить</Button>
-      </div>
+      <TopBar>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Space>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span>Объект</span>
+              <Select
+                style={{ width: 200 }}
+                value={selectedProject}
+                onChange={setSelectedProject}
+                options={projects.map((p) => ({ value: p.id, label: p.name }))}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span>Категория затрат</span>
+              <Select
+                style={{ width: 200 }}
+                value={selectedCategory}
+                onChange={setSelectedCategory}
+                options={costCategories.map((c) => ({ value: c.code, label: `${c.code} ${c.name}` }))}
+              />
+            </div>
+          </Space>
+          <Button onClick={handleAddClick}>Добавить</Button>
+        </div>
+      </TopBar>
       {mode === 'add' && (
         <>
-          <Space style={{ marginBottom: 16 }}>
-            <Button onClick={handleSave}>Сохранить</Button>
-          </Space>
-          <Table<RowData> dataSource={rows} columns={columns} pagination={false} rowKey="key" />
+          <TopBar>
+            <Space>
+              <Button onClick={handleSave}>Сохранить</Button>
+            </Space>
+          </TopBar>
+          <Table<RowData>
+            dataSource={rows}
+            columns={columns}
+            pagination={false}
+            rowKey="key"
+            sticky={{ offsetHeader: 64 }}
+          />
         </>
       )}
       {mode === 'show' && (
-        <Table<ViewRow> dataSource={viewRows} columns={viewColumns} pagination={false} rowKey="key" />
+        <Table<ViewRow>
+          dataSource={viewRows}
+          columns={viewColumns}
+          pagination={false}
+          rowKey="key"
+          sticky={{ offsetHeader: 64 }}
+        />
       )}
     </div>
   )
