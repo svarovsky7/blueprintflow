@@ -32,14 +32,12 @@ export default function PortalHeader({ isDark }: PortalHeaderProps) {
   return (
     <Header
       style={{
-        background: isDark
-          ? '#333333'
-          : 'linear-gradient(135deg, #add8e6, #800080)',
+        background: isDark ? '#555555' : '#0000ff',
         padding: '0 16px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        color: isDark ? '#ffffff' : '#000000',
+        color: '#ffffff',
       }}
     >
       <span>{breadcrumbs[pathname]?.join(' / ') || ''}</span>
