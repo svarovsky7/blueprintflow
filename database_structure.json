@@ -140,6 +140,13 @@
     "column_default": "now()"
   },
   {
+    "table_name": "cost_categories",
+    "column_name": "number",
+    "data_type": "integer",
+    "is_nullable": "YES",
+    "column_default": null
+  },
+  {
     "table_name": "detail_cost_categories",
     "column_name": "id",
     "data_type": "integer",
