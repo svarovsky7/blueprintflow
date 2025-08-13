@@ -47,20 +47,26 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
-        theme="dark"
+        theme={isDark ? 'dark' : 'light'}
         style={{
-          background: isDark ? '#555555' : '#0000ff',
+          background: isDark ? '#555555' : '#EEF0F1',
         }}
         collapsible
       >
-        <div style={{ color: '#ffffff', padding: 16, fontWeight: 600 }}>
+        <div
+          style={{
+            color: isDark ? '#ffffff' : '#000000',
+            padding: 16,
+            fontWeight: 600,
+          }}
+        >
           BlueprintFlow
         </div>
         <Menu
-          theme="dark"
+          theme={isDark ? 'dark' : 'light'}
           mode="inline"
           items={items}
-          style={{ background: isDark ? '#555555' : '#0000ff' }}
+          style={{ background: isDark ? '#555555' : '#EEF0F1' }}
         />
       </Sider>
       <Layout>
@@ -68,7 +74,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         <Content
           style={{
             margin: 16,
-            background: isDark ? '#555555' : '#ffffff',
+            background: isDark ? '#555555' : '#EEF0F1',
             color: isDark ? '#ffffff' : '#000000',
           }}
         >
@@ -88,18 +94,16 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         <Footer
           style={{
             textAlign: 'center',
-            background: isDark ? '#555555' : '#0000ff',
-            color: '#ffffff',
+            background: isDark ? '#555555' : '#EEF0F1',
+            color: isDark ? '#ffffff' : '#000000',
           }}
         >
-
           <Switch
             checked={isDark}
             onChange={toggleTheme}
             checkedChildren={<MoonOutlined />}
             unCheckedChildren={<SunOutlined />}
           />
-
         </Footer>
       </Layout>
     </Layout>
