@@ -38,6 +38,9 @@ export default function PortalHeader({ isDark }: PortalHeaderProps) {
         justifyContent: 'space-between',
         alignItems: 'center',
         color: isDark ? '#ffffff' : '#000000',
+        position: 'sticky',
+        top: 0,
+        zIndex: 1,
       }}
     >
       <span>{breadcrumbs[pathname]?.join(' / ') || ''}</span>
