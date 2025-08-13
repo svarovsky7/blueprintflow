@@ -96,6 +96,12 @@ create table if not exists units (
 alter table if exists units
 add column if not exists description text;
 
+create table if not exists locations (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  created_at timestamptz default now()
+);
+
 create table if not exists cost_categories (
   id uuid primary key default gen_random_uuid(),
   parent_id uuid references cost_categories on delete set null,
