@@ -47,8 +47,8 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
+        className={isDark ? 'sider-dark' : 'sider-light'}
         theme={isDark ? 'dark' : 'light'}
-        style={{ background: isDark ? '#000000' : '#ffffff' }}
         collapsible
       >
         <div
@@ -56,7 +56,12 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         >
           BlueprintFlow
         </div>
-        <Menu theme={isDark ? 'dark' : 'light'} mode="inline" items={items} />
+        <Menu
+          className={isDark ? 'menu-dark' : 'menu-light'}
+          theme={isDark ? 'dark' : 'light'}
+          mode="inline"
+          items={items}
+        />
       </Sider>
       <Layout>
         <PortalHeader />
