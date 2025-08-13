@@ -288,7 +288,7 @@ export default function Projects() {
         record.blocks
           .map(
             (b) =>
-              `${b.name} (${b.bottom_underground_floor ?? ''}–${b.top_ground_floor ?? ''})`,
+              `${b.name} (${b.bottom_underground_floor ?? ''}; ${b.top_ground_floor ?? ''})`,
           )
           .join('; '),
     },
