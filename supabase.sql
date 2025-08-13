@@ -97,10 +97,10 @@ alter table if exists units
 add column if not exists description text;
 
 create table if not exists locations (
-  id integer primary key generated always as identity,
+  id uuid primary key default gen_random_uuid(),
   name text not null,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
+  unit_id uuid references units,
+  created_at timestamptz default now()
 );
 
 create table if not exists cost_categories (
