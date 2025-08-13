@@ -1,32 +1,20 @@
 body {
   margin: 0;
   font-family: system-ui, sans-serif;
+  background-color: #fff;
+  color: #000;
 }
 
 body[data-theme='light'] {
-  --menu-bg: #EEF0F1;
-  --text-color: #000000;
-  background-color: #EEF0F1;
-  color: #000000;
+  --menu-bg: #0000ff;
 }
 
 body[data-theme='dark'] {
   --menu-bg: #555555;
-  --text-color: #ffffff;
-  background-color: #555555;
-  color: #ffffff;
 }
 
 .ant-menu-dark,
 .ant-menu-dark .ant-menu-sub,
-.ant-menu-dark .ant-menu-submenu-popup,
-.ant-menu-light,
-.ant-menu-light .ant-menu-sub,
-.ant-menu-light .ant-menu-submenu-popup {
+.ant-menu-dark .ant-menu-submenu-popup {
   background: var(--menu-bg) !important;
-}
-
-.ant-layout-sider-trigger {
-  background: var(--menu-bg) !important;
-  color: var(--text-color) !important;
 }
