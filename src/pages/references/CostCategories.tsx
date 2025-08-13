@@ -7,8 +7,15 @@ import {
   Select,
   Space,
   Table,
+  Popconfirm,
 } from 'antd'
-import { PlusOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons'
+import {
+  PlusOutlined,
+  CheckOutlined,
+  CloseOutlined,
+  EditOutlined,
+  DeleteOutlined,
+} from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 
@@ -77,6 +84,9 @@ interface DetailCategoryRowDB {
 export default function CostCategories() {
   const { message } = App.useApp()
   const [addMode, setAddMode] = useState<'category' | 'detail' | null>(null)
+  const [editing, setEditing] = useState<
+    { type: 'category' | 'detail'; key: string; id: number } | null
+  >(null)
   const [form] = Form.useForm()
 
   const {
@@ -268,7 +278,38 @@ export default function CostCategories() {
 
   const startAdd = (mode: 'category' | 'detail') => {
     form.resetFields()
+    setEditing(null)
     setAddMode(mode)
+  }
+
+  const startEdit = (record: TableRow) => {
+    if (addMode) return
+    form.resetFields()
+    if (record.detailId) {
+      const detail = details?.find((d) => d.id === record.detailId)
+      form.setFieldsValue({
+        costCategoryId: detail?.costCategoryId,
+        detailName: detail?.name,
+        detailDescription: detail?.description,
+        detailUnitId: detail?.unitId,
+        locationId: detail?.locationId,
+      })
+      setEditing({ type: 'detail', key: record.key, id: record.detailId })
+    } else if (record.categoryId) {
+      const category = categories?.find((c) => c.id === record.categoryId)
+      form.setFieldsValue({
+        number: category?.number,
+        categoryName: category?.name,
+        categoryDescription: category?.description,
+        categoryUnitId: category?.unitId,
+      })
+      setEditing({ type: 'category', key: record.key, id: record.categoryId })
+    }
+  }
+
+  const cancelEdit = () => {
+    setEditing(null)
+    form.resetFields()
   }
 
   const handleSave = async () => {
@@ -303,6 +344,66 @@ export default function CostCategories() {
     }
   }
 
+  const handleUpdate = async () => {
+    try {
+      const values = await form.validateFields()
+      if (!supabase || !editing) return
+      if (editing.type === 'category') {
+        const { error } = await supabase
+          .from('cost_categories')
+          .update({
+            number: values.number,
+            name: values.categoryName,
+            description: values.categoryDescription,
+            unit_id: values.categoryUnitId,
+          })
+          .eq('id', editing.id)
+        if (error) throw error
+      }
+      if (editing.type === 'detail') {
+        const { error } = await supabase
+          .from('detail_cost_categories')
+          .update({
+            cost_category_id: values.costCategoryId,
+            name: values.detailName,
+            description: values.detailDescription,
+            unit_id: values.detailUnitId,
+            location_id: values.locationId,
+          })
+          .eq('id', editing.id)
+        if (error) throw error
+      }
+      message.success('Запись обновлена')
+      cancelEdit()
+      await Promise.all([refetchCategories(), refetchDetails()])
+    } catch {
+      message.error('Не удалось сохранить')
+    }
+  }
+
+  const handleDelete = async (record: TableRow) => {
+    try {
+      if (!supabase) return
+      if (record.detailId) {
+        const { error } = await supabase
+          .from('detail_cost_categories')
+          .delete()
+          .eq('id', record.detailId)
+        if (error) throw error
+      } else if (record.categoryId) {
+        const { error } = await supabase
+          .from('cost_categories')
+          .delete()
+          .eq('id', record.categoryId)
+        if (error) throw error
+      }
+      message.success('Запись удалена')
+      await Promise.all([refetchCategories(), refetchDetails()])
+    } catch {
+      message.error('Не удалось удалить')
+    }
+  }
+
   const columns = [
     {
       title: '№',
@@ -326,18 +427,22 @@ export default function CostCategories() {
               ) : (
                 <span>{selectedCategory?.number ?? ''}</span>
               )}
-              <Button
-                icon={<CheckOutlined />}
-                onClick={handleSave}
-                aria-label="Сохранить"
-              />
-              <Button
-                icon={<CloseOutlined />}
-                onClick={() => setAddMode(null)}
-                aria-label="Отменить"
-              />
             </Space>
           )
+        }
+        if (editing?.key === record.key) {
+          if (editing.type === 'category') {
+            return (
+              <Form.Item
+                name="number"
+                rules={[{ required: true, message: 'Введите номер' }]}
+                style={{ margin: 0 }}
+              >
+                <Input style={{ width: 80 }} />
+              </Form.Item>
+            )
+          }
+          return <span>{selectedCategory?.number ?? ''}</span>
         }
         return record.number
       },
@@ -396,6 +501,42 @@ export default function CostCategories() {
             )
           }
         }
+        if (editing?.key === record.key) {
+          if (editing.type === 'category') {
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <Form.Item
+                  name="categoryName"
+                  rules={[{ required: true, message: 'Введите название' }]}
+                  style={{ marginBottom: 8 }}
+                >
+                  <Input />
+                </Form.Item>
+                <Form.Item name="categoryDescription" style={{ margin: 0 }}>
+                  <Input placeholder="Описание" />
+                </Form.Item>
+              </div>
+            )
+          }
+          if (editing.type === 'detail') {
+            return (
+              <Form.Item
+                name="costCategoryId"
+                rules={[{ required: true, message: 'Выберите категорию' }]}
+                style={{ margin: 0 }}
+              >
+                <Select
+                  options={
+                    categories?.map((c) => ({
+                      value: c.id,
+                      label: `${c.number ?? ''} ${c.name}`,
+                    })) ?? []
+                  }
+                />
+              </Form.Item>
+            )
+          }
+        }
         return value
       },
     },
@@ -423,6 +564,24 @@ export default function CostCategories() {
             )
           }
           if (addMode === 'detail') {
+            return selectedCategory?.unitName ?? ''
+          }
+        }
+        if (editing?.key === record.key) {
+          if (editing.type === 'category') {
+            return (
+              <Form.Item
+                name="categoryUnitId"
+                rules={[{ required: true, message: 'Выберите единицу' }]}
+                style={{ margin: 0 }}
+              >
+                <Select
+                  options={units?.map((u) => ({ value: u.id, label: u.name })) ?? []}
+                />
+              </Form.Item>
+            )
+          }
+          if (editing.type === 'detail') {
             return selectedCategory?.unitName ?? ''
           }
         }
@@ -464,6 +623,22 @@ export default function CostCategories() {
             )
           }
         }
+        if (editing?.key === record.key && editing.type === 'detail') {
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <Form.Item
+                name="detailName"
+                rules={[{ required: true, message: 'Введите название' }]}
+                style={{ marginBottom: 8 }}
+              >
+                <Input />
+              </Form.Item>
+              <Form.Item name="detailDescription" style={{ margin: 0 }}>
+                <Input placeholder="Описание" />
+              </Form.Item>
+            </div>
+          )
+        }
         return value
       },
     },
@@ -477,6 +652,19 @@ export default function CostCategories() {
         record.detailUnit === value,
       render: (value: string | null, record: TableRow) => {
         if (record.key === 'new' && addMode === 'detail') {
+          return (
+            <Form.Item
+              name="detailUnitId"
+              rules={[{ required: true, message: 'Выберите единицу' }]}
+              style={{ margin: 0 }}
+            >
+              <Select
+                options={units?.map((u) => ({ value: u.id, label: u.name })) ?? []}
+              />
+            </Form.Item>
+          )
+        }
+        if (editing?.key === record.key && editing.type === 'detail') {
           return (
             <Form.Item
               name="detailUnitId"
@@ -515,7 +703,79 @@ export default function CostCategories() {
             </Form.Item>
           )
         }
+        if (editing?.key === record.key && editing.type === 'detail') {
+          return (
+            <Form.Item
+              name="locationId"
+              rules={[{ required: true, message: 'Выберите локализацию' }]}
+              style={{ margin: 0 }}
+            >
+              <Select
+                options={
+                  locations?.map((l) => ({ value: l.id, label: l.name })) ?? []
+                }
+              />
+            </Form.Item>
+          )
+        }
         return value
+      },
+    },
+    {
+      key: 'actions',
+      render: (_: unknown, record: TableRow) => {
+        if (record.key === 'new') {
+          return (
+            <Space>
+              <Button
+                icon={<CheckOutlined />}
+                onClick={handleSave}
+                aria-label="Сохранить"
+              />
+              <Button
+                icon={<CloseOutlined />}
+                onClick={() => {
+                  setAddMode(null)
+                  form.resetFields()
+                }}
+                aria-label="Отменить"
+              />
+            </Space>
+          )
+        }
+        if (editing?.key === record.key) {
+          return (
+            <Space>
+              <Button
+                icon={<CheckOutlined />}
+                onClick={handleUpdate}
+                aria-label="Сохранить"
+              />
+              <Button
+                icon={<CloseOutlined />}
+                onClick={cancelEdit}
+                aria-label="Отменить"
+              />
+            </Space>
+          )
+        }
+        return (
+          <Space>
+            <Button
+              icon={<EditOutlined />}
+              onClick={() => startEdit(record)}
+              aria-label="Редактировать"
+            />
+            <Popconfirm
+              title="Удалить?"
+              onConfirm={() => handleDelete(record)}
+              okText="Да"
+              cancelText="Нет"
+            >
+              <Button icon={<DeleteOutlined />} aria-label="Удалить" />
+            </Popconfirm>
+          </Space>
+        )
       },
     },
   ]
