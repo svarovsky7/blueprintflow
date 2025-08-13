@@ -8,8 +8,6 @@ import {
   Space,
   Table,
   Popconfirm,
-  Modal,
-  Upload,
 } from 'antd'
 import {
   PlusOutlined,
@@ -17,9 +15,7 @@ import {
   CloseOutlined,
   EditOutlined,
   DeleteOutlined,
-  UploadOutlined,
 } from '@ant-design/icons'
-import * as XLSX from 'xlsx'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 
@@ -173,192 +169,6 @@ export default function CostCategories() {
     },
   })
 
-  type ConflictAction = 'write' | 'skip' | 'writeAll' | 'skipAll'
-
-  const resolveConflict = (title: string): Promise<ConflictAction> =>
-    new Promise((resolve) => {
-      const modal = Modal.confirm({
-        title,
-        okText: 'Записать',
-        cancelText: 'Не записывать',
-        onOk: () => resolve('write'),
-        onCancel: () => resolve('skip'),
-        content: (
-          <Space>
-            <Button
-              onClick={() => {
-                resolve('writeAll')
-                modal.destroy()
-              }}
-            >
-              Записать все
-            </Button>
-            <Button
-              onClick={() => {
-                resolve('skipAll')
-                modal.destroy()
-              }}
-            >
-              Не записывать все
-            </Button>
-          </Space>
-        ),
-      })
-    })
-
-  const handleImport = async (file: File) => {
-    if (!supabase) return false
-    try {
-      const data = await file.arrayBuffer()
-      const workbook = XLSX.read(data, { type: 'array' })
-      const sheet = workbook.Sheets[workbook.SheetNames[0]]
-      const rows = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, {
-        header: 1,
-      })
-      let imported = 0
-      let errors = 0
-      let global: 'writeAll' | 'skipAll' | null = null
-      const categoryMap = new Map<string, number>()
-      ;(categories ?? []).forEach((c) => categoryMap.set(c.name, c.id))
-      const detailMap = new Map<string, number>()
-      ;(details ?? []).forEach((d) =>
-        detailMap.set(`${d.costCategoryId}|${d.name}|${d.locationName ?? ''}`, d.id),
-      )
-
-      for (let i = 1; i < rows.length; i += 1) {
-        const row = rows[i]
-        if (!row) continue
-        const number = row[0] !== undefined && row[0] !== null ? Number(row[0]) : null
-        const categoryName = row[1]?.toString().trim()
-        if (!categoryName) continue
-        const categoryUnitName = row[2]?.toString().trim()
-        const detailName = row[3]?.toString().trim()
-        const detailUnitName = row[4]?.toString().trim()
-        const locationName = row[5]?.toString().trim()
-
-        const categoryUnitId =
-          units?.find((u) => u.name === categoryUnitName)?.id ?? null
-        const detailUnitId =
-          units?.find((u) => u.name === detailUnitName)?.id ?? null
-        const locationId =
-          locations?.find((l) => l.name === locationName)?.id ?? null
-
-        let categoryId = categoryMap.get(categoryName) ?? null
-        if (categoryId) {
-          if (global !== 'writeAll' && global !== 'skipAll') {
-            const res = await resolveConflict(
-              `Категория "${categoryName}" уже существует`,
-            )
-            if (res === 'writeAll') global = 'writeAll'
-            if (res === 'skipAll') global = 'skipAll'
-            if (res === 'write' || res === 'writeAll') {
-              const { error } = await supabase
-                .from('cost_categories')
-                .update({ number, unit_id: categoryUnitId })
-                .eq('id', categoryId)
-              if (error) {
-                errors += 1
-                continue
-              }
-            } else if (res === 'skip' || res === 'skipAll') {
-              continue
-            }
-          } else if (global === 'writeAll') {
-            const { error } = await supabase
-              .from('cost_categories')
-              .update({ number, unit_id: categoryUnitId })
-              .eq('id', categoryId)
-            if (error) {
-              errors += 1
-              continue
-            }
-          } else if (global === 'skipAll') {
-            continue
-          }
-        } else {
-          const { data: inserted, error } = await supabase
-            .from('cost_categories')
-            .insert({ number, name: categoryName, unit_id: categoryUnitId })
-            .select('id')
-            .single()
-          if (error) {
-            errors += 1
-            continue
-          }
-          categoryId = inserted.id
-          categoryMap.set(categoryName, categoryId!)
-        }
-
-        if (detailName) {
-          const key = `${categoryId}|${detailName}|${locationName ?? ''}`
-          const existingDetailId = detailMap.get(key)
-          if (existingDetailId) {
-            if (global !== 'writeAll' && global !== 'skipAll') {
-              const res = await resolveConflict(
-                `Вид затрат "${detailName}" уже существует`,
-              )
-              if (res === 'writeAll') global = 'writeAll'
-              if (res === 'skipAll') global = 'skipAll'
-              if (res === 'write' || res === 'writeAll') {
-                const { error } = await supabase
-                  .from('detail_cost_categories')
-                  .update({
-                    unit_id: detailUnitId,
-                    location_id: locationId,
-                    cost_category_id: categoryId,
-                  })
-                  .eq('id', existingDetailId)
-                if (error) {
-                  errors += 1
-                  continue
-                }
-              } else if (res === 'skip' || res === 'skipAll') {
-                continue
-              }
-            } else if (global === 'writeAll') {
-              const { error } = await supabase
-                .from('detail_cost_categories')
-                .update({
-                  unit_id: detailUnitId,
-                  location_id: locationId,
-                  cost_category_id: categoryId,
-                })
-                .eq('id', existingDetailId)
-              if (error) {
-                errors += 1
-                continue
-              }
-            } else if (global === 'skipAll') {
-              continue
-            }
-          } else {
-            const { data: insertedDetail, error } = await supabase
-              .from('detail_cost_categories')
-              .insert({
-                cost_category_id: categoryId,
-                name: detailName,
-                unit_id: detailUnitId,
-                location_id: locationId,
-              })
-              .select('id')
-              .single()
-            if (error) {
-              errors += 1
-              continue
-            }
-            detailMap.set(key, insertedDetail.id)
-          }
-        }
-        imported += 1
-      }
-      console.log(`Импортировано строк: ${imported}, ошибок: ${errors}`)
-      await Promise.all([refetchCategories(), refetchDetails()])
-    } catch (e) {
-      console.log('Ошибка импорта', e)
-    }
-    return false
-  }
-
   const selectedCategoryId = Form.useWatch('costCategoryId', form)
   const selectedCategory = categories?.find((c) => c.id === selectedCategoryId)
 
@@ -507,10 +317,6 @@ export default function CostCategories() {
       const values = await form.validateFields()
       if (!supabase) return
       if (addMode === 'category') {
-        if (categories?.some((c) => c.name === values.categoryName)) {
-          message.error('Категория уже существует')
-          return
-        }
         const { error } = await supabase.from('cost_categories').insert({
           number: values.number,
           name: values.categoryName,
@@ -543,14 +349,6 @@ export default function CostCategories() {
       const values = await form.validateFields()
       if (!supabase || !editing) return
       if (editing.type === 'category') {
-        if (
-          categories?.some(
-            (c) => c.name === values.categoryName && c.id !== editing.id,
-          )
-        ) {
-          message.error('Категория уже существует')
-          return
-        }
         const { error } = await supabase
           .from('cost_categories')
           .update({
@@ -658,13 +456,6 @@ export default function CostCategories() {
             onClick={() => startAdd('category')}
             aria-label="Добавить категорию"
           />
-          <Upload
-            beforeUpload={handleImport}
-            showUploadList={false}
-            accept=".xlsx,.xls"
-          >
-            <Button icon={<UploadOutlined />} aria-label="Импорт из Excel" />
-          </Upload>
         </Space>
       ),
       dataIndex: 'categoryName',
