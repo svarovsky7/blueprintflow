@@ -74,7 +74,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         <Content
           style={{
             margin: 16,
-            background: isDark ? '#555555' : '#EEF0F1',
+            background: isDark ? '#555555' : '#FCFCFC',
             color: isDark ? '#ffffff' : '#000000',
           }}
         >
