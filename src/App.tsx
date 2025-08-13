@@ -48,11 +48,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
         theme={isDark ? 'dark' : 'light'}
-        style={{
-          background: isDark
-            ? '#333333'
-            : 'linear-gradient(135deg, #add8e6, #800080)',
-        }}
+        style={{ background: isDark ? '#000000' : '#ffffff' }}
         collapsible
       >
         <div
@@ -60,27 +56,11 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         >
           BlueprintFlow
         </div>
-        <Menu
-          theme={isDark ? 'dark' : 'light'}
-          mode="inline"
-          items={items}
-          style={{
-            background: isDark
-              ? '#333333'
-              : 'linear-gradient(135deg, #add8e6, #800080)',
-          }}
-        />
+        <Menu theme={isDark ? 'dark' : 'light'} mode="inline" items={items} />
       </Sider>
       <Layout>
-        <PortalHeader isDark={isDark} />
-        <Content
-          style={{
-            margin: 16,
-            background: isDark
-              ? '#333333'
-              : 'linear-gradient(135deg, #add8e6, #800080)',
-          }}
-        >
+        <PortalHeader />
+        <Content style={{ margin: 16 }}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/documents" element={<Documents />}>
@@ -94,14 +74,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             </Route>
           </Routes>
         </Content>
-        <Footer
-          style={{
-            textAlign: 'center',
-            background: isDark
-              ? '#333333'
-              : 'linear-gradient(135deg, #add8e6, #800080)',
-          }}
-        >
+        <Footer style={{ textAlign: 'center' }}>
 
           <Switch
             checked={isDark}

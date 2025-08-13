@@ -36,24 +36,20 @@ const items: MenuProps['items'] = [
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const isDark = true;
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider theme="dark" style={{ background: '#333333' }} collapsible>
-        <div style={{ color: '#ffffff', padding: 16, fontWeight: 600 }}>BlueprintFlow</div>
+      <Sider theme="dark" style={{ background: '#000000' }} collapsible>
+        <div style={{ color: '#fff', padding: 16, fontWeight: 600 }}>BlueprintFlow</div>
         <Menu
           theme="dark"
           mode="inline"
           selectedKeys={[location.pathname]}
           items={items}
-          style={{ background: '#333333' }}
         />
       </Sider>
       <Layout>
-        <PortalHeader isDark={isDark} />
-        <Content style={{ margin: '16px', background: '#333333', color: '#ffffff' }}>
-          {children}
-        </Content>
+        <PortalHeader />
+        <Content style={{ margin: '16px' }}>{children}</Content>
       </Layout>
     </Layout>
   );
