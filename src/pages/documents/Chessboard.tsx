@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { App, Button, Input, Select, Space, Table } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined } from '@ant-design/icons'
+import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 
 interface RowData {
@@ -13,17 +14,20 @@ interface RowData {
   quantityRd: string
   unitId: string
   costCategoryCode: string
+  costTypeCode: string
+  localization: string
 }
 
 interface ViewRow {
   key: string
-  project: string
   material: string
   quantityPd: string
   quantitySpec: string
   quantityRd: string
   unit: string
   costCategory: string
+  costType: string
+  localization: string
 }
 
 interface ProjectOption {
@@ -36,9 +40,17 @@ interface UnitOption {
   name: string
 }
 
-interface CostCategoryOption {
+interface CategoryOption {
+  id: string
   code: string
   name: string
+}
+
+interface CostTypeOption {
+  id: string
+  code: string
+  name: string
+  parentId: string | null
 }
 
 interface DbRow {
@@ -48,220 +60,340 @@ interface DbRow {
   quantitySpec: number | null
   quantityRd: number | null
   unit_id: string | null
-  project_id: string | null
   cost_category_code: string | null
-  projects?: { name: string | null } | null
+  cost_type_code: string | null
+  localization: string | null
   units?: { name: string | null } | null
 }
 
-const emptyRow = (): RowData => ({
+const emptyRow = (
+  projectId: string,
+  category?: string,
+  type?: string,
+): RowData => ({
   key: Math.random().toString(36).slice(2),
-  projectId: '',
+  projectId,
   material: '',
   quantityPd: '',
   quantitySpec: '',
   quantityRd: '',
   unitId: '',
-  costCategoryCode: '',
+  costCategoryCode: category ?? '',
+  costTypeCode: type ?? '',
+  localization: '',
 })
 
 export default function Chessboard() {
-  const [mode, setMode] = useState<'add' | 'show'>('show')
+  const { message } = App.useApp()
+  const [mode, setMode] = useState<'init' | 'add' | 'show'>('init')
   const [rows, setRows] = useState<RowData[]>([])
-  const [viewRows, setViewRows] = useState<ViewRow[]>([])
-  const [projects, setProjects] = useState<ProjectOption[]>([])
-  const [units, setUnits] = useState<UnitOption[]>([])
-  const [costCategories, setCostCategories] = useState<CostCategoryOption[]>([])
   const [selectedProject, setSelectedProject] = useState<string>()
   const [selectedCategory, setSelectedCategory] = useState<string>()
-  const { message } = App.useApp()
+  const [selectedType, setSelectedType] = useState<string>()
+  const [filters, setFilters] = useState<{
+    project: string
+    category?: string
+    type?: string
+  } | null>(null)
 
-  useEffect(() => {
-    if (!supabase) return
-    supabase
-      .from('projects')
-      .select('id, name')
-      .then(({ data }) => setProjects((data as ProjectOption[]) ?? []))
-    supabase
-      .from('units')
-      .select('id, name')
-      .then(({ data }) => setUnits((data as UnitOption[]) ?? []))
-    supabase
-      .from('cost_categories_sorted')
-      .select('code, name')
-      .then(({ data }) => setCostCategories((data as CostCategoryOption[]) ?? []))
-  }, [])
+  const { data: projects = [] } = useQuery<ProjectOption[]>({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      if (!supabase) return []
+      const { data, error } = await supabase.from('projects').select('id, name')
+      if (error) {
+        message.error('Не удалось загрузить проекты')
+        throw error
+      }
+      return data as ProjectOption[]
+    },
+  })
 
-  const addRow = () => setRows([...rows, emptyRow()])
+  const { data: units = [] } = useQuery<UnitOption[]>({
+    queryKey: ['units'],
+    queryFn: async () => {
+      if (!supabase) return []
+      const { data, error } = await supabase.from('units').select('id, name')
+      if (error) {
+        message.error('Не удалось загрузить единицы измерения')
+        throw error
+      }
+      return data as UnitOption[]
+    },
+  })
 
-  const handleChange = (key: string, field: keyof RowData, value: string) => {
-    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, [field]: value } : r)))
+  const { data: categories = [] } = useQuery<CategoryOption[]>({
+    queryKey: ['cost-categories'],
+    queryFn: async () => {
+      if (!supabase) return []
+      const { data, error } = await supabase
+        .from('cost_categories')
+        .select('id, code, name')
+        .eq('level', 1)
+        .order('code', { ascending: true })
+      if (error) {
+        message.error('Не удалось загрузить категории затрат')
+        throw error
+      }
+      return data as CategoryOption[]
+    },
+  })
+
+  const { data: costTypes = [] } = useQuery<CostTypeOption[]>({
+    queryKey: ['cost-types'],
+    queryFn: async () => {
+      if (!supabase) return []
+      const { data, error } = await supabase
+        .from('cost_categories')
+        .select('id, code, name, parent_id')
+        .eq('level', 2)
+        .order('code', { ascending: true })
+      if (error) {
+        message.error('Не удалось загрузить виды затрат')
+        throw error
+      }
+      return (data as (CostTypeOption & { parent_id: string | null })[]).map(
+        (t) => ({ ...t, parentId: t.parent_id }),
+      )
+    },
+  })
+
+  const categoriesMap = useMemo(
+    () => new Map(categories.map((c) => [c.code, c.id])),
+    [categories],
+  )
+
+  const filterTypeOptions = useMemo(() => {
+    if (!selectedCategory) return []
+    const parentId = categoriesMap.get(selectedCategory)
+    return costTypes
+      .filter((t) => t.parentId === parentId)
+      .map((t) => ({ value: t.code, label: `${t.code} ${t.name}` }))
+  }, [selectedCategory, categoriesMap, costTypes])
+
+  const { data: viewRows = [], refetch } = useQuery<ViewRow[]>({
+    queryKey: ['chessboard', filters],
+    enabled: mode === 'show' && !!filters,
+    queryFn: async () => {
+      if (!supabase || !filters) return []
+      const { project, category, type } = filters
+      let query = supabase
+        .from('chessboard')
+        .select(
+          'id, material, quantityPd, quantitySpec, quantityRd, unit_id, cost_category_code, cost_type_code, localization, units(name)',
+        )
+        .eq('project_id', project)
+      if (category) query = query.eq('cost_category_code', category)
+      if (type) query = query.eq('cost_type_code', type)
+      query = query.limit(100)
+      const { data, error } = await query
+      if (error) {
+        message.error('Не удалось загрузить данные')
+        throw error
+      }
+      const rows = (data as unknown as DbRow[]) ?? []
+      return rows.map((item) => ({
+        key: String(item.id),
+        material: item.material ?? '',
+        quantityPd:
+          item.quantityPd !== null && item.quantityPd !== undefined
+            ? String(item.quantityPd)
+            : '',
+        quantitySpec:
+          item.quantitySpec !== null && item.quantitySpec !== undefined
+            ? String(item.quantitySpec)
+            : '',
+        quantityRd:
+          item.quantityRd !== null && item.quantityRd !== undefined
+            ? String(item.quantityRd)
+            : '',
+        unit: item.units?.name ?? '',
+        costCategory: item.cost_category_code ?? '',
+        costType: item.cost_type_code ?? '',
+        localization: item.localization ?? '',
+      }))
+    },
+  })
+
+  const handleApply = () => {
+    if (!selectedProject) {
+      message.error('Выберите проект')
+      return
+    }
+    setFilters({ project: selectedProject, category: selectedCategory, type: selectedType })
+    setMode('show')
+  }
+
+  const addRow = () => {
+    if (!filters) return
+    setRows([...rows, emptyRow(filters.project, filters.category, filters.type)])
+  }
+
+  const handleRowChange = (key: string, field: keyof RowData, value: string) => {
+    setRows((prev) =>
+      prev.map((r) =>
+        r.key === key
+          ? {
+              ...r,
+              [field]: value,
+              ...(field === 'costCategoryCode' ? { costTypeCode: '' } : {}),
+            }
+          : r,
+      ),
+    )
   }
 
   const handleAddClick = () => {
+    if (!filters) return
     setMode('add')
-    setRows([emptyRow()])
+    setRows([emptyRow(filters.project, filters.category, filters.type)])
   }
 
-  useEffect(() => {
-    if (mode !== 'show' || !supabase || !selectedProject || !selectedCategory) {
-      setViewRows([])
-      return
-    }
-    const load = async () => {
-      if (!supabase) {
-        setViewRows([])
-        return
-      }
-      const { data, error } = await supabase
-        .from('chessboard')
-        .select(
-          'id, material, quantityPd, quantitySpec, quantityRd, unit_id, project_id, cost_category_code, projects(name), units(name)'
-        )
-        .eq('project_id', selectedProject)
-        .eq('cost_category_code', selectedCategory)
-        .limit(100)
-      if (error) {
-        console.error('Error fetching chessboard data:', error)
-        message.error('Не удалось загрузить данные')
-        setViewRows([])
-        return
-      }
-      const rows = (data as unknown as DbRow[] | null) ?? []
-      setViewRows(
-        rows.map((item) => ({
-          key: item.id ? String(item.id) : Math.random().toString(36).slice(2),
-          project: item.projects?.name ?? '',
-          material: item.material ?? '',
-          quantityPd:
-            item.quantityPd !== null && item.quantityPd !== undefined
-              ? String(item.quantityPd)
-              : '',
-          quantitySpec:
-            item.quantitySpec !== null && item.quantitySpec !== undefined
-              ? String(item.quantitySpec)
-              : '',
-          quantityRd:
-            item.quantityRd !== null && item.quantityRd !== undefined
-              ? String(item.quantityRd)
-              : '',
-          unit: item.units?.name ?? '',
-          costCategory: item.cost_category_code ?? '',
-        }))
-      )
-    }
-    void load()
-  }, [mode, selectedProject, selectedCategory, message])
-
   const handleSave = async () => {
-    const tableName = 'chessboard'
-    if (!supabase) {
-      console.error('Supabase client is not configured')
-      return
+    if (!filters) return
+    for (const row of rows) {
+      if (!row.material || !row.unitId || !row.costCategoryCode) {
+        message.error('Заполните обязательные поля')
+        return
+      }
     }
     const payload = rows.map(
-      ({ key, projectId, quantityPd, quantitySpec, quantityRd, material, unitId, costCategoryCode }) => {
+      ({
+        key,
+        material,
+        quantityPd,
+        quantitySpec,
+        quantityRd,
+        unitId,
+        costCategoryCode,
+        costTypeCode,
+        localization,
+      }) => {
         void key
         return {
-          project_id: projectId || null,
+          project_id: filters.project,
           material,
           quantityPd: quantityPd ? Number(quantityPd) : null,
           quantitySpec: quantitySpec ? Number(quantitySpec) : null,
           quantityRd: quantityRd ? Number(quantityRd) : null,
           unit_id: unitId || null,
-          cost_category_code: costCategoryCode || '99',
+          cost_category_code: costCategoryCode,
+          cost_type_code: costTypeCode || null,
+          localization: localization || null,
         }
-      }
+      },
     )
-    const { error } = await supabase.from(tableName).insert(payload)
-    if (error) {
-      console.error('Error inserting into chessboard:', error)
-      message.error(`Не удалось сохранить данные: ${error.message}`)
-    } else {
-      message.success('Данные успешно сохранены')
-      setMode('show')
+    if (!supabase) {
+      message.error('Клиент базы данных не настроен')
+      return
     }
+    const { error } = await supabase.from('chessboard').insert(payload)
+    if (error) {
+      message.error(`Не удалось сохранить данные: ${error.message}`)
+      return
+    }
+    message.success('Данные успешно сохранены')
+    setMode('show')
+    setRows([])
+    void refetch()
   }
 
-  const columns = [
+  const addColumns: ColumnsType<RowData> = [
     {
-      title: 'проект',
-      dataIndex: 'projectId',
-      render: (_: unknown, record: RowData) => (
-        <Select
-          style={{ width: 200 }}
-          value={record.projectId}
-          onChange={(value) => handleChange(record.key, 'projectId', value)}
-          options={projects.map((p) => ({ value: p.id, label: p.name }))}
-        />
-      ),
-    },
-    {
-      title: 'материал',
+      title: 'Материал',
       dataIndex: 'material',
-      width: 400,
-      render: (_: unknown, record: RowData) => (
+      render: (_: unknown, record) => (
         <Input
-          style={{ width: 400 }}
+          style={{ width: 300 }}
           value={record.material}
-          onChange={(e) => handleChange(record.key, 'material', e.target.value)}
+          onChange={(e) => handleRowChange(record.key, 'material', e.target.value)}
         />
       ),
     },
     {
       title: 'Кол-во по ПД',
       dataIndex: 'quantityPd',
-      render: (_: unknown, record: RowData) => (
+      render: (_: unknown, record) => (
         <Input
           style={{ width: '10ch' }}
           value={record.quantityPd}
-          onChange={(e) => handleChange(record.key, 'quantityPd', e.target.value)}
+          onChange={(e) => handleRowChange(record.key, 'quantityPd', e.target.value)}
         />
       ),
     },
     {
       title: 'Кол-во по спеке РД',
       dataIndex: 'quantitySpec',
-      render: (_: unknown, record: RowData) => (
+      render: (_: unknown, record) => (
         <Input
           style={{ width: '10ch' }}
           value={record.quantitySpec}
-          onChange={(e) => handleChange(record.key, 'quantitySpec', e.target.value)}
+          onChange={(e) => handleRowChange(record.key, 'quantitySpec', e.target.value)}
         />
       ),
     },
     {
       title: 'Кол-во по пересчету РД',
       dataIndex: 'quantityRd',
-      render: (_: unknown, record: RowData) => (
+      render: (_: unknown, record) => (
         <Input
           style={{ width: '10ch' }}
           value={record.quantityRd}
-          onChange={(e) => handleChange(record.key, 'quantityRd', e.target.value)}
+          onChange={(e) => handleRowChange(record.key, 'quantityRd', e.target.value)}
         />
       ),
     },
     {
-      title: 'ед.изм.',
+      title: 'Ед.изм.',
       dataIndex: 'unitId',
-      render: (_: unknown, record: RowData) => (
+      render: (_: unknown, record) => (
         <Select
           style={{ width: 200 }}
           value={record.unitId}
-          onChange={(value) => handleChange(record.key, 'unitId', value)}
+          onChange={(value) => handleRowChange(record.key, 'unitId', value)}
           options={units.map((u) => ({ value: u.id, label: u.name }))}
         />
       ),
     },
     {
-      title: 'категория затрат',
+      title: 'Категория затрат',
       dataIndex: 'costCategoryCode',
-      render: (_: unknown, record: RowData) => (
+      render: (_: unknown, record) => (
         <Select
           style={{ width: 200 }}
           value={record.costCategoryCode}
-          onChange={(value) => handleChange(record.key, 'costCategoryCode', value)}
-          options={costCategories.map((c) => ({ value: c.code, label: `${c.code} ${c.name}` }))}
+          onChange={(value) => handleRowChange(record.key, 'costCategoryCode', value)}
+          options={categories.map((c) => ({ value: c.code, label: `${c.code} ${c.name}` }))}
+        />
+      ),
+    },
+    {
+      title: 'Вид затрат',
+      dataIndex: 'costTypeCode',
+      render: (_: unknown, record) => {
+        const parentId = categoriesMap.get(record.costCategoryCode)
+        const options = costTypes
+          .filter((t) => t.parentId === parentId)
+          .map((t) => ({ value: t.code, label: `${t.code} ${t.name}` }))
+        return (
+          <Select
+            style={{ width: 200 }}
+            value={record.costTypeCode}
+            onChange={(value) => handleRowChange(record.key, 'costTypeCode', value)}
+            options={options}
+            allowClear
+          />
+        )
+      },
+    },
+    {
+      title: 'Локализация',
+      dataIndex: 'localization',
+      render: (_: unknown, record) => (
+        <Input
+          style={{ width: 200 }}
+          value={record.localization}
+          onChange={(e) => handleRowChange(record.key, 'localization', e.target.value)}
         />
       ),
     },
@@ -277,13 +409,14 @@ export default function Chessboard() {
 
   const viewColumns: ColumnsType<ViewRow> = useMemo(() => {
     const base: Array<{ title: string; dataIndex: keyof ViewRow; width?: number }> = [
-      { title: 'проект', dataIndex: 'project' },
-      { title: 'материал', dataIndex: 'material', width: 400 },
+      { title: 'Материал', dataIndex: 'material', width: 400 },
       { title: 'Кол-во по ПД', dataIndex: 'quantityPd' },
       { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec' },
       { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd' },
-      { title: 'ед.изм.', dataIndex: 'unit' },
-      { title: 'категория затрат', dataIndex: 'costCategory' },
+      { title: 'Ед.изм.', dataIndex: 'unit' },
+      { title: 'Категория затрат', dataIndex: 'costCategory' },
+      { title: 'Вид затрат', dataIndex: 'costType' },
+      { title: 'Локализация', dataIndex: 'localization' },
     ]
 
     return base.map((col) => {
@@ -307,42 +440,59 @@ export default function Chessboard() {
     })
   }, [viewRows])
 
+  const handleCategoryChange = (value: string | undefined) => {
+    setSelectedCategory(value)
+    setSelectedType(undefined)
+  }
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Space>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span>Объект</span>
-            <Select
-              style={{ width: 200 }}
-              value={selectedProject}
-              onChange={setSelectedProject}
-              options={projects.map((p) => ({ value: p.id, label: p.name }))}
-            />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span>Категория затрат</span>
-            <Select
-              style={{ width: 200 }}
-              value={selectedCategory}
-              onChange={setSelectedCategory}
-              options={costCategories.map((c) => ({ value: c.code, label: `${c.code} ${c.name}` }))}
-            />
-          </div>
-        </Space>
-        <Button onClick={handleAddClick}>Добавить</Button>
-      </div>
+      <Space style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <span>Проект</span>
+          <Select
+            style={{ width: 200 }}
+            value={selectedProject}
+            onChange={setSelectedProject}
+            options={projects.map((p) => ({ value: p.id, label: p.name }))}
+          />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <span>Категория затрат</span>
+          <Select
+            style={{ width: 200 }}
+            value={selectedCategory}
+            onChange={handleCategoryChange}
+            options={categories.map((c) => ({ value: c.code, label: `${c.code} ${c.name}` }))}
+            allowClear
+          />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <span>Вид затрат</span>
+          <Select
+            style={{ width: 200 }}
+            value={selectedType}
+            onChange={setSelectedType}
+            options={filterTypeOptions}
+            disabled={!selectedCategory}
+            allowClear
+          />
+        </div>
+        <Button onClick={handleApply}>Применить</Button>
+        {filters && mode !== 'add' && <Button onClick={handleAddClick}>Добавить</Button>}
+      </Space>
       {mode === 'add' && (
         <>
           <Space style={{ marginBottom: 16 }}>
             <Button onClick={handleSave}>Сохранить</Button>
           </Space>
-          <Table<RowData> dataSource={rows} columns={columns} pagination={false} rowKey="key" />
+          <Table<RowData> dataSource={rows} columns={addColumns} pagination={false} rowKey="key" />
         </>
       )}
-      {mode === 'show' && (
+      {mode === 'show' && filters && (
         <Table<ViewRow> dataSource={viewRows} columns={viewColumns} pagination={false} rowKey="key" />
       )}
     </div>
   )
 }
+

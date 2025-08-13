@@ -54,7 +54,10 @@ create table chessboard (
   "quantityRd" numeric,
   unit_id uuid references units on delete set null,
   cost_category_code text references cost_categories(code),
-  created_at timestamptz default now()
+  cost_type_code text references cost_categories(code),
+  localization text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 create table if not exists chessboard (
@@ -66,7 +69,10 @@ create table if not exists chessboard (
   "quantityRd" numeric,
   unit_id uuid references units on delete set null,
   cost_category_code text references cost_categories(code),
-  created_at timestamptz default now()
+  cost_type_code text references cost_categories(code),
+  localization text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 -- reference data (renamed from reserved keyword "references")
