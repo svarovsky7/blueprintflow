@@ -21,8 +21,8 @@ export function Root() {
   const [isDark, setIsDark] = useState(false)
 
   useEffect(() => {
-    document.body.style.backgroundColor = isDark ? '#000000' : '#ffffff'
-    document.body.style.color = isDark ? '#ffffff' : '#000000'
+    document.body.classList.toggle('dark-theme', isDark)
+    document.body.classList.toggle('light-theme', !isDark)
   }, [isDark])
 
   return (
@@ -33,17 +33,18 @@ export function Root() {
               algorithm: theme.darkAlgorithm,
               token: {
                 colorPrimary: '#ffffff',
-                colorBgLayout: '#000000',
-                colorBgContainer: '#000000',
+                colorBgLayout: '#1f1f1f',
+                colorBgContainer: '#1f1f1f',
                 colorText: '#ffffff',
               },
             }
           : {
               algorithm: theme.defaultAlgorithm,
               token: {
-                colorPrimary: '#000000',
+                colorPrimary: '#6a5acd',
                 colorBgLayout: '#ffffff',
-                colorBgContainer: '#ffffff',
+                colorBgContainer:
+                  'linear-gradient(to bottom, #add8e6, #ee82ee)',
                 colorText: '#000000',
               },
             }
