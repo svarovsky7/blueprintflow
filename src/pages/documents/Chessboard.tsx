@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
-import { App, Button, Input, Select, Space, Table } from 'antd'
-import type { ColumnsType } from 'antd/es/table'
-import { PlusOutlined } from '@ant-design/icons'
+import { useCallback, useMemo, useState, type Key } from 'react'
+import { App, Button, Input, Popconfirm, Select, Space, Table } from 'antd'
+import type { ColumnType, ColumnsType } from 'antd/es/table'
+import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 
@@ -71,7 +71,7 @@ export default function Chessboard() {
   const [appliedFilters, setAppliedFilters] = useState<{ projectId: string; categoryId?: string; typeId?: string } | null>(
     null,
   )
-  const [mode, setMode] = useState<'view' | 'add'>('view')
+  const [mode, setMode] = useState<'view' | 'add' | 'edit'>('view')
   const [rows, setRows] = useState<RowData[]>([])
 
   const { data: projects } = useQuery<ProjectOption[]>({
@@ -178,7 +178,7 @@ export default function Chessboard() {
     setMode('view')
   }
 
-  const addRow = () => {
+  const addRow = useCallback(() => {
     if (!appliedFilters) return
     setRows((prev) => [
       ...prev,
@@ -187,13 +187,13 @@ export default function Chessboard() {
         costTypeId: appliedFilters.typeId ?? '',
       }),
     ])
-  }
+  }, [appliedFilters])
 
-  const handleRowChange = (key: string, field: keyof RowData, value: string) => {
+  const handleRowChange = useCallback((key: string, field: keyof RowData, value: string) => {
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, [field]: value } : r)))
-  }
+  }, [])
 
-  const startAdd = () => {
+  const startAdd = useCallback(() => {
     if (!appliedFilters) return
     setRows([
       emptyRow({
@@ -202,7 +202,90 @@ export default function Chessboard() {
       }),
     ])
     setMode('add')
-  }
+  }, [appliedFilters])
+
+  const startEdit = useCallback(
+    (id: string) => {
+      const dbRow = tableData?.find((r) => r.id === id)
+      if (!dbRow) return
+      setRows([
+        {
+          key: id,
+          material: dbRow.material ?? '',
+          quantityPd: dbRow.quantityPd !== null && dbRow.quantityPd !== undefined ? String(dbRow.quantityPd) : '',
+          quantitySpec: dbRow.quantitySpec !== null && dbRow.quantitySpec !== undefined ? String(dbRow.quantitySpec) : '',
+          quantityRd: dbRow.quantityRd !== null && dbRow.quantityRd !== undefined ? String(dbRow.quantityRd) : '',
+          unitId: dbRow.unit_id ?? '',
+          costCategoryId: dbRow.chessboard_mapping?.cost_category_id
+            ? String(dbRow.chessboard_mapping.cost_category_id)
+            : '',
+          costTypeId: dbRow.chessboard_mapping?.cost_type_id
+            ? String(dbRow.chessboard_mapping.cost_type_id)
+            : '',
+          locationId: dbRow.chessboard_mapping?.location_id
+            ? String(dbRow.chessboard_mapping.location_id)
+            : '',
+        },
+      ])
+      setMode('edit')
+    },
+    [tableData],
+  )
+
+  const handleUpdate = useCallback(async () => {
+    if (!supabase || rows.length !== 1) return
+    const r = rows[0]
+    const { error } = await supabase
+      .from('chessboard')
+      .update({
+        material: r.material,
+        quantityPd: r.quantityPd ? Number(r.quantityPd) : null,
+        quantitySpec: r.quantitySpec ? Number(r.quantitySpec) : null,
+        quantityRd: r.quantityRd ? Number(r.quantityRd) : null,
+        unit_id: r.unitId || null,
+      })
+      .eq('id', r.key)
+    if (error) {
+      message.error(`Не удалось обновить данные: ${error.message}`)
+      return
+    }
+    const { error: mapError } = await supabase.from('chessboard_mapping').upsert(
+      {
+        chessboard_id: r.key,
+        cost_category_id: Number(r.costCategoryId),
+        cost_type_id: r.costTypeId ? Number(r.costTypeId) : null,
+        location_id: r.locationId ? Number(r.locationId) : null,
+      },
+      { onConflict: 'chessboard_id' },
+    )
+    if (mapError) {
+      message.error(`Не удалось обновить связи: ${mapError.message}`)
+      return
+    }
+    message.success('Строка обновлена')
+    setMode('view')
+    setRows([])
+    await refetch()
+  }, [rows, message, refetch])
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      if (!supabase) return
+      const { error: mapError } = await supabase.from('chessboard_mapping').delete().eq('chessboard_id', id)
+      if (mapError) {
+        message.error(`Не удалось удалить связи: ${mapError.message}`)
+        return
+      }
+      const { error } = await supabase.from('chessboard').delete().eq('id', id)
+      if (error) {
+        message.error(`Не удалось удалить строку: ${error.message}`)
+        return
+      }
+      message.success('Строка удалена')
+      await refetch()
+    },
+    [message, refetch],
+  )
 
   const handleSave = async () => {
     if (!supabase || !appliedFilters) return
@@ -236,7 +319,7 @@ export default function Chessboard() {
     await refetch()
   }
 
-  const columns: ColumnsType<RowData> = [
+  const columns: ColumnType<RowData>[] = [
     {
       title: 'Материал',
       dataIndex: 'material',
@@ -352,6 +435,8 @@ export default function Chessboard() {
     },
   ]
 
+  const editColumns = columns.filter((c) => c.dataIndex !== 'actions')
+
   const viewColumns: ColumnsType<ViewRow> = useMemo(() => {
     const base: Array<{ title: string; dataIndex: keyof ViewRow; width?: number }> = [
       { title: 'Материал', dataIndex: 'material', width: 300 },
@@ -364,7 +449,7 @@ export default function Chessboard() {
       { title: 'Локализация', dataIndex: 'location' },
     ]
 
-    return base.map((col) => {
+    const dataColumns = base.map((col) => {
       const values = Array.from(new Set(viewRows.map((row) => row[col.dataIndex]).filter((v) => v)))
       return {
         ...col,
@@ -377,10 +462,27 @@ export default function Chessboard() {
           return String(aVal ?? '').localeCompare(String(bVal ?? ''))
         },
         filters: values.map((v) => ({ text: String(v), value: String(v) })),
-        onFilter: (value, record) => String(record[col.dataIndex]) === String(value),
+        onFilter: (value: boolean | Key, record: ViewRow) =>
+          String(record[col.dataIndex]) === String(value),
       }
     })
-  }, [viewRows])
+
+    return [
+      ...dataColumns,
+      {
+        title: '',
+        dataIndex: 'actions',
+        render: (_, record) => (
+          <Space>
+            <Button type="text" icon={<EditOutlined />} onClick={() => startEdit(record.key)} />
+            <Popconfirm title="Удалить строку?" onConfirm={() => handleDelete(record.key)}>
+              <Button type="text" icon={<DeleteOutlined />} />
+            </Popconfirm>
+          </Space>
+        ),
+      },
+    ]
+  }, [viewRows, startEdit, handleDelete])
 
   return (
     <div>
@@ -427,6 +529,15 @@ export default function Chessboard() {
             <Button onClick={handleSave}>Сохранить</Button>
           </Space>
           <Table<RowData> dataSource={rows} columns={columns} pagination={false} rowKey="key" />
+        </>
+      )}
+      {appliedFilters && mode === 'edit' && (
+        <>
+          <Space style={{ marginBottom: 16 }}>
+            <Button onClick={handleUpdate}>Сохранить</Button>
+            <Button onClick={() => setMode('view')}>Отмена</Button>
+          </Space>
+          <Table<RowData> dataSource={rows} columns={editColumns} pagination={false} rowKey="key" />
         </>
       )}
       {appliedFilters && mode === 'view' && (
