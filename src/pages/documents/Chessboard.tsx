@@ -321,6 +321,11 @@ export default function Chessboard() {
     await refetch()
   }
 
+  const handleCancel = useCallback(() => {
+    setRows([])
+    setMode('view')
+  }, [])
+
   const columns: ColumnType<RowData>[] = [
     {
       title: 'Материал',
@@ -494,58 +499,61 @@ export default function Chessboard() {
 
   return (
     <div>
-      <Space style={{ marginBottom: 16 }}>
-        <Select
-          placeholder="Проект"
-          style={{ width: 200 }}
-          value={filters.projectId}
-          onChange={(value) => setFilters({ projectId: value })}
-          options={projects?.map((p) => ({ value: p.id, label: p.name })) ?? []}
-        />
-        <Select
-          placeholder="Категория затрат"
-          style={{ width: 200 }}
-          value={filters.categoryId}
-          onChange={(value) =>
-            setFilters((f) => ({ ...f, categoryId: value, typeId: undefined }))
-          }
-          options={[
-            { value: '', label: 'НЕТ' },
-            ...(
-              costCategories?.map((c) => ({
-                value: String(c.id),
-                label: c.number ? `${c.number} ${c.name}` : c.name,
-              })) ?? []
-            ),
-          ]}
-        />
-        <Select
-          placeholder="Вид затрат"
-          style={{ width: 200 }}
-          value={filters.typeId}
-          onChange={(value) => setFilters((f) => ({ ...f, typeId: value }))}
-          options={[
-            { value: '', label: 'НЕТ' },
-            ...(
-              costTypes
-                ?.filter((t) => String(t.cost_category_id) === filters.categoryId)
-                .map((t) => ({ value: String(t.id), label: t.name })) ?? []
-            ),
-          ]}
-          disabled={!filters.categoryId}
-        />
-        <Button type="primary" onClick={handleApply} disabled={!filters.projectId}>
-          Применить
-        </Button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+        <Space>
+          <Select
+            placeholder="Проект"
+            style={{ width: 200 }}
+            value={filters.projectId}
+            onChange={(value) => setFilters({ projectId: value })}
+            options={projects?.map((p) => ({ value: p.id, label: p.name })) ?? []}
+          />
+          <Select
+            placeholder="Категория затрат"
+            style={{ width: 200 }}
+            value={filters.categoryId}
+            onChange={(value) =>
+              setFilters((f) => ({ ...f, categoryId: value, typeId: undefined }))
+            }
+            options={[
+              { value: '', label: 'НЕТ' },
+              ...(
+                costCategories?.map((c) => ({
+                  value: String(c.id),
+                  label: c.number ? `${c.number} ${c.name}` : c.name,
+                })) ?? []
+              ),
+            ]}
+          />
+          <Select
+            placeholder="Вид затрат"
+            style={{ width: 200 }}
+            value={filters.typeId}
+            onChange={(value) => setFilters((f) => ({ ...f, typeId: value }))}
+            options={[
+              { value: '', label: 'НЕТ' },
+              ...(
+                costTypes
+                  ?.filter((t) => String(t.cost_category_id) === filters.categoryId)
+                  .map((t) => ({ value: String(t.id), label: t.name })) ?? []
+              ),
+            ]}
+            disabled={!filters.categoryId}
+          />
+          <Button type="primary" onClick={handleApply} disabled={!filters.projectId}>
+            Применить
+          </Button>
+        </Space>
         {appliedFilters && mode === 'view' && <Button onClick={startAdd}>Добавить</Button>}
-      </Space>
-      {appliedFilters && mode === 'add' && (
-        <>
-          <Space style={{ marginBottom: 16 }}>
+        {appliedFilters && mode === 'add' && (
+          <Space>
             <Button onClick={handleSave}>Сохранить</Button>
+            <Button onClick={handleCancel}>Отменить</Button>
           </Space>
-          <Table<RowData> dataSource={rows} columns={columns} pagination={false} rowKey="key" />
-        </>
+        )}
+      </div>
+      {appliedFilters && mode === 'add' && (
+        <Table<RowData> dataSource={rows} columns={columns} pagination={false} rowKey="key" />
       )}
       {appliedFilters && mode === 'edit' && (
         <>
