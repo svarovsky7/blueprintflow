@@ -1,4 +1,4 @@
-import { Layout, Menu } from 'antd';
+import { Layout, Menu, theme } from 'antd';
 import { Link, useLocation } from 'react-router-dom';
 import type { MenuProps } from 'antd';
 import PortalHeader from '../components/PortalHeader';
@@ -36,12 +36,23 @@ const items: MenuProps['items'] = [
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
+  const { token } = theme.useToken();
+  const menuTheme = token.colorBgContainer === '#141414' ? 'dark' : 'light';
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider theme="dark" style={{ background: '#000000' }} collapsible>
-        <div style={{ color: '#fff', padding: 16, fontWeight: 600 }}>BlueprintFlow</div>
+      <Sider
+        theme={menuTheme}
+        style={{ background: token.colorBgContainer }}
+        collapsible
+      >
+        <div
+          style={{ color: token.colorText, padding: 16, fontWeight: 600 }}
+        >
+          BlueprintFlow
+        </div>
         <Menu
-          theme="dark"
+          theme={menuTheme}
           mode="inline"
           selectedKeys={[location.pathname]}
           items={items}
