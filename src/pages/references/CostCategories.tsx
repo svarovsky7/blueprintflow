@@ -279,19 +279,7 @@ export default function CostCategories() {
 
   return (
     <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          marginBottom: 16,
-          position: 'sticky',
-          top: 64,
-          zIndex: 1,
-          background: '#333333',
-          paddingTop: 16,
-          paddingBottom: 16,
-        }}
-      >
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
         <Button type="primary" onClick={openAddModal}>
           Добавить
         </Button>
@@ -301,7 +289,6 @@ export default function CostCategories() {
         columns={columns}
         rowKey="id"
         loading={isLoading}
-        sticky={{ offsetHeader: 64 }}
       />
 
       <Modal

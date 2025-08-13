@@ -309,19 +309,7 @@ export default function Chessboard() {
 
   return (
     <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-          position: 'sticky',
-          top: 64,
-          zIndex: 1,
-          background: '#333333',
-          paddingTop: 16,
-          paddingBottom: 16,
-        }}
-      >
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <Space>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span>Объект</span>
@@ -346,36 +334,14 @@ export default function Chessboard() {
       </div>
       {mode === 'add' && (
         <>
-          <Space
-            style={{
-              marginBottom: 16,
-              position: 'sticky',
-              top: 64,
-              zIndex: 1,
-              background: '#333333',
-              paddingTop: 16,
-              paddingBottom: 16,
-            }}
-          >
+          <Space style={{ marginBottom: 16 }}>
             <Button onClick={handleSave}>Сохранить</Button>
           </Space>
-          <Table<RowData>
-            dataSource={rows}
-            columns={columns}
-            pagination={false}
-            rowKey="key"
-            sticky={{ offsetHeader: 64 }}
-          />
+          <Table<RowData> dataSource={rows} columns={columns} pagination={false} rowKey="key" />
         </>
       )}
       {mode === 'show' && (
-        <Table<ViewRow>
-          dataSource={viewRows}
-          columns={viewColumns}
-          pagination={false}
-          rowKey="key"
-          sticky={{ offsetHeader: 64 }}
-        />
+        <Table<ViewRow> dataSource={viewRows} columns={viewColumns} pagination={false} rowKey="key" />
       )}
     </div>
   )

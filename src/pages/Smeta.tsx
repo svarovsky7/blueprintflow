@@ -11,17 +11,12 @@ export default function Smeta() {
   const [table, setTable] = useState('estimate');
   return (
     <>
-      <div
-        style={{
-          position: 'sticky',
-          top: 64,
-          zIndex: 1,
-          background: '#333333',
-          paddingBottom: 16,
-        }}
-      >
-        <Select options={options} value={table} onChange={setTable} style={{ width: 240 }} />
-      </div>
+      <Select
+        options={options}
+        value={table}
+        onChange={setTable}
+        style={{ width: 240, marginBottom: 16 }}
+      />
       <DataTable table={table} />
     </>
   );
