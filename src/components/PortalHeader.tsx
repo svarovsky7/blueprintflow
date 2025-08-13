@@ -3,16 +3,9 @@ import { BellOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import { useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { portalConfig, pageTitles } from '../lib/portalConfig';
 
 const { Header } = Layout;
-
-const breadcrumbs: Record<string, string[]> = {
-  '/': ['Dashboard'],
-  '/documents': ['Документы'],
-  '/documents/chessboard': ['Документы', 'Шахматка'],
-  '/documents/vor': ['Документы', 'ВОР'],
-  '/references': ['Справочники'],
-};
 
 interface PortalHeaderProps {
   isDark: boolean;
@@ -21,6 +14,7 @@ interface PortalHeaderProps {
 export default function PortalHeader({ isDark }: PortalHeaderProps) {
   const { pathname } = useLocation();
   const [userEmail, setUserEmail] = useState<string>('');
+  const title = portalConfig.header.showPageTitle ? pageTitles[pathname] ?? '' : '';
 
   useEffect(() => {
     if (!supabase) return;
@@ -40,7 +34,7 @@ export default function PortalHeader({ isDark }: PortalHeaderProps) {
         color: isDark ? '#ffffff' : '#000000',
       }}
     >
-      <span>{breadcrumbs[pathname]?.join(' / ') || ''}</span>
+      {portalConfig.header.showPageTitle && <span>{title}</span>}
       <Space size="middle">
         <Button type="text" icon={<BellOutlined />} />
         <Space>
