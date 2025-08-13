@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   App,
   Button,
@@ -9,7 +9,6 @@ import {
   Space,
   Table,
 } from 'antd'
-import type { ColumnsType } from 'antd/es/table'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { EyeOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
@@ -43,26 +42,23 @@ export default function Units() {
     },
   })
 
-  const openAddModal = useCallback(() => {
+  const openAddModal = () => {
     form.resetFields()
     setModalMode('add')
-  }, [form])
+  }
 
-  const openViewModal = useCallback((record: Unit) => {
+  const openViewModal = (record: Unit) => {
     setCurrentUnit(record)
     setModalMode('view')
-  }, [])
+  }
 
-  const openEditModal = useCallback(
-    (record: Unit) => {
-      setCurrentUnit(record)
-      form.setFieldsValue({ name: record.name, description: record.description })
-      setModalMode('edit')
-    },
-    [form],
-  )
+  const openEditModal = (record: Unit) => {
+    setCurrentUnit(record)
+    form.setFieldsValue({ name: record.name, description: record.description })
+    setModalMode('edit')
+  }
 
-  const handleSave = useCallback(async () => {
+  const handleSave = async () => {
     try {
       const values = await form.validateFields()
       if (!supabase) return
@@ -87,21 +83,18 @@ export default function Units() {
     } catch {
       message.error('Не удалось сохранить')
     }
-  }, [form, modalMode, currentUnit, message, refetch])
+  }
 
-  const handleDelete = useCallback(
-    async (record: Unit) => {
-      if (!supabase) return
-      const { error } = await supabase.from('units').delete().eq('id', record.id)
-      if (error) {
-        message.error('Не удалось удалить')
-      } else {
-        message.success('Запись удалена')
-        refetch()
-      }
-    },
-    [message, refetch],
-  )
+  const handleDelete = async (record: Unit) => {
+    if (!supabase) return
+    const { error } = await supabase.from('units').delete().eq('id', record.id)
+    if (error) {
+      message.error('Не удалось удалить')
+    } else {
+      message.success('Запись удалена')
+      refetch()
+    }
+  }
 
   const nameFilters = useMemo(
     () =>
@@ -123,53 +116,44 @@ export default function Units() {
     [units],
   )
 
-  const columns: ColumnsType<Unit> = useMemo(
-    () => [
-      {
-        title: 'Название',
-        dataIndex: 'name',
-        sorter: (a: Unit, b: Unit) => a.name.localeCompare(b.name),
-        filters: nameFilters,
-        onFilter: (value: unknown, record: Unit) => record.name === value,
-      },
-      {
-        title: 'Описание',
-        dataIndex: 'description',
-        sorter: (a: Unit, b: Unit) =>
-          (a.description ?? '').localeCompare(b.description ?? ''),
-        filters: descriptionFilters,
-        onFilter: (value: unknown, record: Unit) => record.description === value,
-      },
-      {
-        title: 'Действия',
-        dataIndex: 'actions',
-        render: (_: unknown, record: Unit) => (
-          <Space>
-            <Button
-              icon={<EyeOutlined />}
-              onClick={() => openViewModal(record)}
-              aria-label="Просмотр"
-            />
-            <Button
-              icon={<EditOutlined />}
-              onClick={() => openEditModal(record)}
-              aria-label="Редактировать"
-            />
-            <Popconfirm title="Удалить запись?" onConfirm={() => handleDelete(record)}>
-              <Button danger icon={<DeleteOutlined />} aria-label="Удалить" />
-            </Popconfirm>
-          </Space>
-        ),
-      },
-    ],
-    [
-      nameFilters,
-      descriptionFilters,
-      openViewModal,
-      openEditModal,
-      handleDelete,
-    ],
-  )
+  const columns = [
+    {
+      title: 'Название',
+      dataIndex: 'name',
+      sorter: (a: Unit, b: Unit) => a.name.localeCompare(b.name),
+      filters: nameFilters,
+      onFilter: (value: unknown, record: Unit) => record.name === value,
+    },
+    {
+      title: 'Описание',
+      dataIndex: 'description',
+      sorter: (a: Unit, b: Unit) =>
+        (a.description ?? '').localeCompare(b.description ?? ''),
+      filters: descriptionFilters,
+      onFilter: (value: unknown, record: Unit) => record.description === value,
+    },
+    {
+      title: 'Действия',
+      dataIndex: 'actions',
+      render: (_: unknown, record: Unit) => (
+        <Space>
+          <Button
+            icon={<EyeOutlined />}
+            onClick={() => openViewModal(record)}
+            aria-label="Просмотр"
+          />
+          <Button
+            icon={<EditOutlined />}
+            onClick={() => openEditModal(record)}
+            aria-label="Редактировать"
+          />
+          <Popconfirm title="Удалить запись?" onConfirm={() => handleDelete(record)}>
+            <Button danger icon={<DeleteOutlined />} aria-label="Удалить" />
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ]
 
   return (
     <div>
