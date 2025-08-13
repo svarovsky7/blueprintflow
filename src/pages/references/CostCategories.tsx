@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from 'react'
+import { useMemo, useState } from 'react'
 import {
   App,
   Button,
@@ -15,10 +15,8 @@ import {
   CloseOutlined,
   EditOutlined,
   DeleteOutlined,
-  UploadOutlined,
 } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
-import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
 
 interface Category {
@@ -90,7 +88,6 @@ export default function CostCategories() {
     { type: 'category' | 'detail'; key: string; id: number } | null
   >(null)
   const [form] = Form.useForm()
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const {
     data: categories,
@@ -171,146 +168,6 @@ export default function CostCategories() {
       return (data ?? []) as LocationOption[]
     },
   })
-
-  const handleImport = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ): Promise<void> => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!supabase) {
-      message.error('Нет подключения к базе данных')
-      return
-    }
-    try {
-      const data = await file.arrayBuffer()
-      const workbook = XLSX.read(data, { type: 'array' })
-      const sheet = workbook.Sheets[workbook.SheetNames[0]]
-      const rows = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, {
-        header: 1,
-      })
-      let imported = 0
-      let skipped = 0
-      let errors = 0
-      for (let i = 1; i < rows.length; i++) {
-        const [num, catName, catUnitName, detName, detUnitName, locName] =
-          rows[i]
-        if (!catName || !detName) {
-          skipped++
-          continue
-        }
-        const catUnit = units?.find((u) => u.name === catUnitName)
-        const detUnit = units?.find((u) => u.name === detUnitName)
-        const location = locations?.find((l) => l.name === locName)
-        if (!catUnit || !detUnit || !location) {
-          errors++
-          continue
-        }
-        let category = categories?.find(
-          (c) => c.number === Number(num) || c.name === catName,
-        )
-        if (category) {
-          if (
-            category.name !== catName ||
-            category.unitName !== catUnit.name ||
-            category.number !== Number(num)
-          ) {
-            const replace = window.confirm(
-              `Категория "${catName}" существует. Заменить?`,
-            )
-            if (replace) {
-              const { error } = await supabase
-                .from('cost_categories')
-                .update({
-                  number: Number(num),
-                  name: catName as string,
-                  unit_id: catUnit.id,
-                })
-                .eq('id', category.id)
-              if (error) {
-                errors++
-                continue
-              }
-            } else {
-              skipped++
-              continue
-            }
-          }
-        } else {
-          const { data: inserted, error } = await supabase
-            .from('cost_categories')
-            .insert({
-              number: Number(num),
-              name: catName as string,
-              unit_id: catUnit.id,
-            })
-            .select('id')
-            .single()
-          if (error || !inserted) {
-            errors++
-            continue
-          }
-          category = {
-            id: inserted.id,
-            number: Number(num),
-            name: catName as string,
-            description: null,
-            unitId: catUnit.id,
-            unitName: catUnit.name,
-          }
-        }
-        const existingDetail = details?.find(
-          (d) =>
-            d.costCategoryId === category.id &&
-            d.name === detName &&
-            d.locationName === location.name,
-        )
-        if (existingDetail) {
-          const replace = window.confirm(
-            `Вид "${detName}" в категории "${catName}" существует. Заменить?`,
-          )
-          if (replace) {
-            const { error } = await supabase
-              .from('detail_cost_categories')
-              .update({
-                unit_id: detUnit.id,
-                location_id: location.id,
-              })
-              .eq('id', existingDetail.id)
-            if (error) {
-              errors++
-            } else {
-              imported++
-            }
-          } else {
-            skipped++
-          }
-        } else {
-          const { error } = await supabase
-            .from('detail_cost_categories')
-            .insert({
-              name: detName as string,
-              unit_id: detUnit.id,
-              cost_category_id: category.id,
-              location_id: location.id,
-            })
-          if (error) {
-            errors++
-          } else {
-            imported++
-          }
-        }
-      }
-      console.log(
-        `Импортировано: ${imported}, пропущено: ${skipped}, ошибок: ${errors}`,
-      )
-      await Promise.all([refetchCategories(), refetchDetails()])
-    } catch (err) {
-      console.error(err)
-      message.error('Ошибка при импорте')
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = ''
-    }
-  }
 
   const selectedCategoryId = Form.useWatch('costCategoryId', form)
   const selectedCategory = categories?.find((c) => c.id === selectedCategoryId)
@@ -927,21 +784,6 @@ export default function CostCategories() {
 
   return (
     <Form form={form} component={false}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <Button
-          icon={<UploadOutlined />}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          Импорт
-        </Button>
-        <input
-          type="file"
-          accept=".xlsx,.xls"
-          ref={fileInputRef}
-          style={{ display: 'none' }}
-          onChange={handleImport}
-        />
-      </div>
       <Table<TableRow>
         dataSource={dataSource}
         columns={columns}
