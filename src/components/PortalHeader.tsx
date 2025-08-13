@@ -1,4 +1,4 @@
-import { Layout, Button, Space, theme } from 'antd';
+import { Layout, Button, Space } from 'antd';
 import { BellOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import { useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
@@ -14,10 +14,13 @@ const breadcrumbs: Record<string, string[]> = {
   '/references': ['Справочники'],
 };
 
-export default function PortalHeader() {
+interface PortalHeaderProps {
+  isDark: boolean;
+}
+
+export default function PortalHeader({ isDark }: PortalHeaderProps) {
   const { pathname } = useLocation();
   const [userEmail, setUserEmail] = useState<string>('');
-  const { token } = theme.useToken();
 
   useEffect(() => {
     if (!supabase) return;
@@ -29,14 +32,14 @@ export default function PortalHeader() {
   return (
     <Header
       style={{
-        background: token.colorBgContainer,
+        background: isDark
+          ? '#333333'
+          : 'linear-gradient(135deg, #add8e6, #800080)',
         padding: '0 16px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-
-        color: token.colorText,
-
+        color: isDark ? '#ffffff' : '#000000',
       }}
     >
       <span>{breadcrumbs[pathname]?.join(' / ') || ''}</span>
