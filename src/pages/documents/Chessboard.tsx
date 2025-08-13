@@ -134,10 +134,12 @@ export default function Chessboard() {
     enabled: !!appliedFilters?.projectId,
     queryFn: async () => {
       if (!supabase || !appliedFilters) return []
+      const relation =
+        appliedFilters.categoryId || appliedFilters.typeId ? 'chessboard_mapping!inner' : 'chessboard_mapping'
       const query = supabase
         .from('chessboard')
         .select(
-          'id, material, quantityPd, quantitySpec, quantityRd, unit_id, units(name), chessboard_mapping(cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name))',
+          `id, material, quantityPd, quantitySpec, quantityRd, unit_id, units(name), ${relation}(cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name))`,
         )
         .eq('project_id', appliedFilters.projectId)
       if (appliedFilters.categoryId)
