@@ -12,7 +12,6 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { EyeOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
-import TopBar from '../../components/TopBar'
 
 interface Unit {
   id: string
@@ -158,19 +157,16 @@ export default function Units() {
 
   return (
     <div>
-      <TopBar>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Button type="primary" onClick={openAddModal}>
-            Добавить
-          </Button>
-        </div>
-      </TopBar>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <Button type="primary" onClick={openAddModal}>
+          Добавить
+        </Button>
+      </div>
       <Table<Unit>
         dataSource={units ?? []}
         columns={columns}
         rowKey="id"
         loading={isLoading}
-        sticky={{ offsetHeader: 64 }}
       />
 
       <Modal

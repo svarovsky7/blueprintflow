@@ -52,12 +52,5 @@ export default function DataTable({ table }: DataTableProps) {
     [data],
   );
 
-  return (
-    <Table
-      dataSource={data}
-      columns={columns}
-      rowKey={columns[0]?.dataIndex || 'id'}
-      sticky={{ offsetHeader: 64 }}
-    />
-  );
+  return <Table dataSource={data} columns={columns} rowKey={columns[0]?.dataIndex || 'id'} />;
 }
