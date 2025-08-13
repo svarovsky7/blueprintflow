@@ -49,7 +49,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
       <Sider
         theme="dark"
         style={{
-          background: isDark ? '#555555' : '#DCEBF9',
+          background: isDark ? '#555555' : '#0000ff',
         }}
         collapsible
       >
@@ -60,7 +60,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           theme="dark"
           mode="inline"
           items={items}
-          style={{ background: isDark ? '#555555' : '#DCEBF9' }}
+          style={{ background: isDark ? '#555555' : '#0000ff' }}
         />
       </Sider>
       <Layout>
@@ -88,7 +88,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         <Footer
           style={{
             textAlign: 'center',
-            background: isDark ? '#555555' : '#DCEBF9',
+            background: isDark ? '#555555' : '#0000ff',
             color: '#ffffff',
           }}
         >
