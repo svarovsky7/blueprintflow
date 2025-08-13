@@ -8,6 +8,8 @@ import {
   Space,
   Table,
   Popconfirm,
+  Upload,
+  Modal,
 } from 'antd'
 import {
   PlusOutlined,
@@ -15,8 +17,10 @@ import {
   CloseOutlined,
   EditOutlined,
   DeleteOutlined,
+  UploadOutlined,
 } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
+import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
 
 interface Category {
@@ -276,6 +280,140 @@ export default function CostCategories() {
     [rows],
   )
 
+  const handleImport = async (file: File) => {
+    if (!supabase || !units || !locations) return false
+    try {
+      const data = await file.arrayBuffer()
+      const workbook = XLSX.read(data, { type: 'array' })
+      const sheet = workbook.Sheets[workbook.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, { header: 1 })
+
+      let imported = 0
+      const errors: string[] = []
+
+      const categoriesMap = new Map<string, Category>()
+      ;(categories ?? []).forEach((c) => categoriesMap.set(c.name, c))
+
+      const detailsMap = new Map<string, DetailCategory>()
+      ;(details ?? []).forEach((d) =>
+        detailsMap.set(`${d.costCategoryId}-${d.name}-${d.locationId}`, d),
+      )
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i]
+        const number = row[0] as number | undefined
+        const categoryName = (row[1] as string | undefined)?.trim()
+        const categoryUnitName = (row[2] as string | undefined)?.trim()
+        const detailName = (row[3] as string | undefined)?.trim()
+        const detailUnitName = (row[4] as string | undefined)?.trim()
+        const locationName = (row[5] as string | undefined)?.trim()
+
+        if (!categoryName || !detailName) {
+          errors.push(`Строка ${i + 1}: отсутствует категория или вид`)
+          continue
+        }
+
+        const categoryUnit = units.find((u) => u.name === categoryUnitName)
+        const detailUnit = units.find((u) => u.name === detailUnitName)
+        const location = locations.find((l) => l.name === locationName)
+
+        if (!categoryUnit || !detailUnit || !location) {
+          errors.push(`Строка ${i + 1}: неизвестные единицы измерения или локализация`)
+          continue
+        }
+
+        let category = categoriesMap.get(categoryName)
+        if (!category) {
+          const { data: catData, error: catError } = await supabase
+            .from('cost_categories')
+            .insert({
+              number: number ?? null,
+              name: categoryName,
+              unit_id: categoryUnit.id,
+            })
+            .select()
+            .single()
+          if (catError || !catData) {
+            errors.push(`Строка ${i + 1}: не удалось добавить категорию`)
+            continue
+          }
+          category = {
+            id: catData.id,
+            number: catData.number,
+            name: catData.name,
+            description: catData.description,
+            unitId: catData.unit_id,
+            unitName: categoryUnit.name,
+          }
+          categoriesMap.set(categoryName, category)
+        }
+
+        const detailKey = `${category.id}-${detailName}-${location.id}`
+        const existingDetail = detailsMap.get(detailKey)
+
+        if (existingDetail) {
+          const replace = await new Promise<boolean>((resolve) => {
+            Modal.confirm({
+              title: 'Дубликат',
+              content: `Вид затрат "${detailName}" уже существует. Заменить?`,
+              okText: 'Заменить',
+              cancelText: 'Пропустить',
+              onOk: () => resolve(true),
+              onCancel: () => resolve(false),
+            })
+          })
+          if (!replace) continue
+          const { error: updError } = await supabase
+            .from('detail_cost_categories')
+            .update({
+              cost_category_id: category.id,
+              name: detailName,
+              unit_id: detailUnit.id,
+              location_id: location.id,
+            })
+            .eq('id', existingDetail.id)
+          if (updError) {
+            errors.push(`Строка ${i + 1}: не удалось обновить вид`)
+            continue
+          }
+        } else {
+          const { data: detData, error: detError } = await supabase
+            .from('detail_cost_categories')
+            .insert({
+              cost_category_id: category.id,
+              name: detailName,
+              unit_id: detailUnit.id,
+              location_id: location.id,
+            })
+            .select()
+            .single()
+          if (detError || !detData) {
+            errors.push(`Строка ${i + 1}: не удалось добавить вид`)
+            continue
+          }
+          detailsMap.set(detailKey, {
+            id: detData.id,
+            name: detData.name,
+            description: detData.description,
+            unitId: detData.unit_id,
+            unitName: detailUnit.name,
+            costCategoryId: detData.cost_category_id,
+            locationId: detData.location_id,
+            locationName: location.name,
+          })
+        }
+        imported++
+      }
+
+      console.log(`Импортировано строк: ${imported}`)
+      if (errors.length) console.log('Ошибки:', errors)
+
+      await Promise.all([refetchCategories(), refetchDetails()])
+    } catch {
+      message.error('Не удалось импортировать файл')
+    }
+    return false
+  }
   const startAdd = (mode: 'category' | 'detail') => {
     form.resetFields()
     setEditing(null)
@@ -784,6 +922,18 @@ export default function CostCategories() {
 
   return (
     <Form form={form} component={false}>
+      <Space style={{ marginBottom: 16 }}>
+        <Upload
+          beforeUpload={(file) => {
+            void handleImport(file)
+            return false
+          }}
+          showUploadList={false}
+          accept=".xlsx,.xls"
+        >
+          <Button icon={<UploadOutlined />}>Импорт</Button>
+        </Upload>
+      </Space>
       <Table<TableRow>
         dataSource={dataSource}
         columns={columns}
