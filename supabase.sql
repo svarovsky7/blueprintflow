@@ -3,8 +3,6 @@ create table if not exists projects (
   name text not null,
   description text,
   address text,
-  bottom_underground_floor integer,
-  top_ground_floor integer,
   blocks_count integer,
   created_at timestamptz default now()
 );
@@ -19,7 +17,11 @@ on conflict do nothing;
 
 create table if not exists blocks (
   id uuid primary key default gen_random_uuid(),
-  name text not null
+  name text not null,
+  bottom_underground_floor integer,
+  top_ground_floor integer,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 create table if not exists projects_blocks (
