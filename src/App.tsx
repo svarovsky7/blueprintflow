@@ -1,5 +1,5 @@
 
-import { Layout, Menu, Switch, theme } from 'antd'
+import { Layout, Menu, Switch } from 'antd'
 import { Link, Route, Routes } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Documents from './pages/Documents'
@@ -20,7 +20,6 @@ interface AppProps {
 }
 
 const App = ({ isDark, toggleTheme }: AppProps) => {
-  const { token } = theme.useToken()
   const items = [
     { key: 'dashboard', label: <Link to="/">Dashboard</Link> },
     {
@@ -47,18 +46,9 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider
-        theme={isDark ? 'dark' : 'light'}
-        style={{ background: token.colorBgContainer }}
-        collapsible
-      >
-        <div style={{ color: token.colorText, padding: 16, fontWeight: 600 }}>BlueprintFlow</div>
-        <Menu
-          theme={isDark ? 'dark' : 'light'}
-          mode="inline"
-          items={items}
-          style={{ background: token.colorBgContainer }}
-        />
+      <Sider theme="dark" style={{ background: '#000000' }} collapsible>
+        <div style={{ color: '#fff', padding: 16, fontWeight: 600 }}>BlueprintFlow</div>
+        <Menu theme="dark" mode="inline" items={items} />
       </Sider>
       <Layout>
         <PortalHeader />
