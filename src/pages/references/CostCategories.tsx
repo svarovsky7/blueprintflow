@@ -7,9 +7,7 @@ import {
   Select,
   Space,
   Table,
-  Popconfirm,
   Upload,
-  Modal,
 } from 'antd'
 import {
   PlusOutlined,
@@ -86,7 +84,7 @@ interface DetailCategoryRowDB {
 }
 
 export default function CostCategories() {
-  const { message } = App.useApp()
+  const { message, modal } = App.useApp()
   const [addMode, setAddMode] = useState<'category' | 'detail' | null>(null)
   const [editing, setEditing] = useState<
     { type: 'category' | 'detail'; key: string; id: number } | null
@@ -353,7 +351,7 @@ export default function CostCategories() {
 
         if (existingDetail) {
           const replace = await new Promise<boolean>((resolve) => {
-            Modal.confirm({
+            modal.confirm({
               title: 'Дубликат',
               content: `Вид затрат "${detailName}" уже существует. Заменить?`,
               okText: 'Заменить',
@@ -904,14 +902,18 @@ export default function CostCategories() {
               onClick={() => startEdit(record)}
               aria-label="Редактировать"
             />
-            <Popconfirm
-              title="Удалить?"
-              onConfirm={() => handleDelete(record)}
-              okText="Да"
-              cancelText="Нет"
-            >
-              <Button icon={<DeleteOutlined />} aria-label="Удалить" />
-            </Popconfirm>
+            <Button
+              icon={<DeleteOutlined />}
+              aria-label="Удалить"
+              onClick={() =>
+                modal.confirm({
+                  title: 'Удалить?',
+                  okText: 'Да',
+                  cancelText: 'Нет',
+                  onOk: () => handleDelete(record),
+                })
+              }
+            />
           </Space>
         )
       },
