@@ -87,9 +87,8 @@ export default function Chessboard() {
       .select('id, name')
       .then(({ data }) => setUnits((data as UnitOption[]) ?? []))
     supabase
-      .from('cost_categories')
+      .from('cost_categories_sorted')
       .select('code, name')
-      .order('code', { ascending: true })
       .then(({ data }) => setCostCategories((data as CostCategoryOption[]) ?? []))
   }, [])
 
