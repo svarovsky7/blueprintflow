@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   App,
   Button,
@@ -77,35 +77,32 @@ export default function Projects() {
     [projects],
   )
 
-  const openAddModal = useCallback(() => {
+  const openAddModal = () => {
     form.resetFields()
     setBlocksCount(0)
     setExistingBlockIds([])
     setModalMode('add')
-  }, [form])
+  }
 
-  const openViewModal = useCallback((record: ProjectRow) => {
+  const openViewModal = (record: ProjectRow) => {
     setCurrentProject(record)
     setModalMode('view')
-  }, [])
+  }
 
-  const openEditModal = useCallback(
-    (record: ProjectRow) => {
-      setCurrentProject(record)
-      const blocks = record.blocks
-      const blockIds = record.projects_blocks?.map((b) => b.block_id) ?? []
-      setExistingBlockIds(blockIds)
-      setBlocksCount(blocks.length)
-      form.setFieldsValue({
-        name: record.name,
-        address: record.address,
-        blocks_count: blocks.length || record.blocks_count,
-        blocks,
-      })
-      setModalMode('edit')
-    },
-    [form],
-  )
+  const openEditModal = (record: ProjectRow) => {
+    setCurrentProject(record)
+    const blocks = record.blocks
+    const blockIds = record.projects_blocks?.map((b) => b.block_id) ?? []
+    setExistingBlockIds(blockIds)
+    setBlocksCount(blocks.length)
+    form.setFieldsValue({
+      name: record.name,
+      address: record.address,
+      blocks_count: blocks.length || record.blocks_count,
+      blocks,
+    })
+    setModalMode('edit')
+  }
 
   const handleBlocksCountChange = (value: number | null) => {
     const count = value ?? 0
@@ -194,28 +191,25 @@ export default function Projects() {
     }
   }
 
-  const handleDelete = useCallback(
-    async (record: ProjectRow) => {
-      if (!supabase) return
-      const { data } = await supabase
-        .from('projects_blocks')
-        .select('block_id')
-        .eq('project_id', record.id)
-      const idsData = data as { block_id: string }[] | null
-      const blockIds = idsData?.map((b) => b.block_id) ?? []
-      const { error } = await supabase.from('projects').delete().eq('id', record.id)
-      if (error) {
-        message.error('Не удалось удалить')
-      } else {
-        if (blockIds.length) {
-          await supabase.from('blocks').delete().in('id', blockIds)
-        }
-        message.success('Проект удалён')
-        refetch()
+  const handleDelete = async (record: ProjectRow) => {
+    if (!supabase) return
+    const { data } = await supabase
+      .from('projects_blocks')
+      .select('block_id')
+      .eq('project_id', record.id)
+    const idsData = data as { block_id: string }[] | null
+    const blockIds = idsData?.map((b) => b.block_id) ?? []
+    const { error } = await supabase.from('projects').delete().eq('id', record.id)
+    if (error) {
+      message.error('Не удалось удалить')
+    } else {
+      if (blockIds.length) {
+        await supabase.from('blocks').delete().in('id', blockIds)
       }
-    },
-    [message, refetch],
-  )
+      message.success('Проект удалён')
+      refetch()
+    }
+  }
 
   const nameFilters = useMemo(
     () =>
@@ -258,79 +252,68 @@ export default function Projects() {
     [projectRows],
   )
 
-  const columns: TableProps<ProjectRow>['columns'] = useMemo(
-    () => [
-      {
-        title: 'Название',
-        dataIndex: 'name',
-        sorter: (a: ProjectRow, b: ProjectRow) => a.name.localeCompare(b.name),
-        filters: nameFilters,
-        onFilter: (value: unknown, record: ProjectRow) => record.name === value,
-      },
-      {
-        title: 'Адрес',
-        dataIndex: 'address',
-        sorter: (a: ProjectRow, b: ProjectRow) =>
-          (a.address ?? '').localeCompare(b.address ?? ''),
-        filters: addressFilters,
-        onFilter: (value: unknown, record: ProjectRow) => record.address === value,
-      },
-      {
-        title: 'Кол-во корпусов',
-        dataIndex: 'blocks_count',
-        sorter: (a: ProjectRow, b: ProjectRow) =>
-          (a.blocks_count ?? 0) - (b.blocks_count ?? 0),
-        filters: blockCountFilters,
-        onFilter: (value: unknown, record: ProjectRow) => record.blocks_count === value,
-      },
-      {
-        title: 'Корпуса',
-        dataIndex: 'blockNames',
-        sorter: (a: ProjectRow, b: ProjectRow) =>
-          a.blockNames.join(';').localeCompare(b.blockNames.join(';')),
-        filters: blockNameFilters,
-        onFilter: (value: unknown, record: ProjectRow) =>
-          record.blockNames.includes(value as string),
-        render: (_: unknown, record: ProjectRow) =>
-          record.blocks
-            .map(
-              (b) =>
-                `${b.name} (${b.bottom_underground_floor ?? ''}; ${b.top_ground_floor ?? ''})`,
-            )
-            .join('; '),
-      },
-      {
-        title: 'Действия',
-        dataIndex: 'actions',
-        render: (_: unknown, record: ProjectRow) => (
-          <Space>
-            <Button
-              icon={<EyeOutlined />}
-              onClick={() => openViewModal(record)}
-              aria-label="Просмотр"
-            />
-            <Button
-              icon={<EditOutlined />}
-              onClick={() => openEditModal(record)}
-              aria-label="Редактировать"
-            />
-            <Popconfirm title="Удалить запись?" onConfirm={() => handleDelete(record)}>
-              <Button danger icon={<DeleteOutlined />} aria-label="Удалить" />
-            </Popconfirm>
-          </Space>
-        ),
-      },
-    ],
-    [
-      nameFilters,
-      addressFilters,
-      blockCountFilters,
-      blockNameFilters,
-      openViewModal,
-      openEditModal,
-      handleDelete,
-    ],
-  )
+  const columns: TableProps<ProjectRow>['columns'] = [
+    {
+      title: 'Название',
+      dataIndex: 'name',
+      sorter: (a: ProjectRow, b: ProjectRow) => a.name.localeCompare(b.name),
+      filters: nameFilters,
+      onFilter: (value: unknown, record: ProjectRow) => record.name === value,
+    },
+    {
+      title: 'Адрес',
+      dataIndex: 'address',
+      sorter: (a: ProjectRow, b: ProjectRow) =>
+        (a.address ?? '').localeCompare(b.address ?? ''),
+      filters: addressFilters,
+      onFilter: (value: unknown, record: ProjectRow) => record.address === value,
+    },
+    {
+      title: 'Кол-во корпусов',
+      dataIndex: 'blocks_count',
+      sorter: (a: ProjectRow, b: ProjectRow) =>
+        (a.blocks_count ?? 0) - (b.blocks_count ?? 0),
+      filters: blockCountFilters,
+      onFilter: (value: unknown, record: ProjectRow) => record.blocks_count === value,
+    },
+    {
+      title: 'Корпуса',
+      dataIndex: 'blockNames',
+      sorter: (a: ProjectRow, b: ProjectRow) =>
+        a.blockNames.join(';').localeCompare(b.blockNames.join(';')),
+      filters: blockNameFilters,
+      onFilter: (value: unknown, record: ProjectRow) =>
+        record.blockNames.includes(value as string),
+      render: (_: unknown, record: ProjectRow) =>
+        record.blocks
+          .map(
+            (b) =>
+              `${b.name} (${b.bottom_underground_floor ?? ''}; ${b.top_ground_floor ?? ''})`,
+          )
+          .join('; '),
+    },
+    {
+      title: 'Действия',
+      dataIndex: 'actions',
+      render: (_: unknown, record: ProjectRow) => (
+        <Space>
+          <Button
+            icon={<EyeOutlined />}
+            onClick={() => openViewModal(record)}
+            aria-label="Просмотр"
+          />
+          <Button
+            icon={<EditOutlined />}
+            onClick={() => openEditModal(record)}
+            aria-label="Редактировать"
+          />
+          <Popconfirm title="Удалить запись?" onConfirm={() => handleDelete(record)}>
+            <Button danger icon={<DeleteOutlined />} aria-label="Удалить" />
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ]
 
   return (
     <div>
