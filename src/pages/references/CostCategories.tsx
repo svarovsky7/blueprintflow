@@ -13,7 +13,6 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { EyeOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
-import TopBar from '../../components/TopBar'
 
 interface CostCategory {
   id: string
@@ -280,19 +279,16 @@ export default function CostCategories() {
 
   return (
     <div>
-      <TopBar>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Button type="primary" onClick={openAddModal}>
-            Добавить
-          </Button>
-        </div>
-      </TopBar>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <Button type="primary" onClick={openAddModal}>
+          Добавить
+        </Button>
+      </div>
       <Table<CostCategory>
         dataSource={categories ?? []}
         columns={columns}
         rowKey="id"
         loading={isLoading}
-        sticky={{ offsetHeader: 64 }}
       />
 
       <Modal
