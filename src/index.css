@@ -4,8 +4,3 @@ body {
   background-color: #000;
   color: #fff;
 }
-
-.ant-menu-dark .ant-menu-submenu-popup,
-.ant-menu-dark .ant-menu-submenu-popup .ant-menu {
-  background: var(--ant-color-bg-container) !important;
-}
