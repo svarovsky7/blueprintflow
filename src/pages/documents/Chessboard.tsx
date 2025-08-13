@@ -452,7 +452,13 @@ export default function Chessboard() {
     ]
 
     const dataColumns = base.map((col) => {
-      const values = Array.from(new Set(viewRows.map((row) => row[col.dataIndex]).filter((v) => v)))
+      const values = Array.from(
+        new Set(viewRows.map((row) => row[col.dataIndex]).filter((v) => v)),
+      )
+      const filters =
+        col.dataIndex === 'costCategory' || col.dataIndex === 'costType'
+          ? [{ text: 'НЕТ', value: '' }, ...values.map((v) => ({ text: String(v), value: String(v) }))]
+          : values.map((v) => ({ text: String(v), value: String(v) }))
       return {
         ...col,
         sorter: (a: ViewRow, b: ViewRow) => {
@@ -463,9 +469,9 @@ export default function Chessboard() {
           if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum
           return String(aVal ?? '').localeCompare(String(bVal ?? ''))
         },
-        filters: values.map((v) => ({ text: String(v), value: String(v) })),
+        filters,
         onFilter: (value: boolean | Key, record: ViewRow) =>
-          String(record[col.dataIndex]) === String(value),
+          String(record[col.dataIndex] ?? '') === String(value),
       }
     })
 
@@ -500,24 +506,32 @@ export default function Chessboard() {
           placeholder="Категория затрат"
           style={{ width: 200 }}
           value={filters.categoryId}
-          onChange={(value) => setFilters((f) => ({ ...f, categoryId: value, typeId: undefined }))}
-          options={
-            costCategories?.map((c) => ({
-              value: String(c.id),
-              label: c.number ? `${c.number} ${c.name}` : c.name,
-            })) ?? []
+          onChange={(value) =>
+            setFilters((f) => ({ ...f, categoryId: value, typeId: undefined }))
           }
+          options={[
+            { value: '', label: 'НЕТ' },
+            ...(
+              costCategories?.map((c) => ({
+                value: String(c.id),
+                label: c.number ? `${c.number} ${c.name}` : c.name,
+              })) ?? []
+            ),
+          ]}
         />
         <Select
           placeholder="Вид затрат"
           style={{ width: 200 }}
           value={filters.typeId}
           onChange={(value) => setFilters((f) => ({ ...f, typeId: value }))}
-          options={
-            costTypes
-              ?.filter((t) => String(t.cost_category_id) === filters.categoryId)
-              .map((t) => ({ value: String(t.id), label: t.name })) ?? []
-          }
+          options={[
+            { value: '', label: 'НЕТ' },
+            ...(
+              costTypes
+                ?.filter((t) => String(t.cost_category_id) === filters.categoryId)
+                .map((t) => ({ value: String(t.id), label: t.name })) ?? []
+            ),
+          ]}
           disabled={!filters.categoryId}
         />
         <Button type="primary" onClick={handleApply} disabled={!filters.projectId}>
