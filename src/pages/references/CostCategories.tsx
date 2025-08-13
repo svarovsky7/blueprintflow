@@ -1,370 +1,518 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   App,
   Button,
   Form,
   Input,
-  Modal,
-  Popconfirm,
   Select,
   Space,
   Table,
 } from 'antd'
+import { PlusOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
-import { EyeOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 
-interface CostCategory {
-  id: string
-  code: string
+interface Category {
+  id: number
+  number: number | null
   name: string
-  level: number
-  parentId: string | null
   description: string | null
-  created_at: string
+  unitId: string | null
+  unitName: string | null
+}
+
+interface DetailCategory {
+  id: number
+  name: string
+  description: string | null
+  unitId: string | null
+  unitName: string | null
+  costCategoryId: number
+  locationId: number
+  locationName: string | null
+}
+
+interface UnitOption {
+  id: string
+  name: string
+}
+
+interface LocationOption {
+  id: number
+  name: string
+}
+
+interface TableRow {
+  key: string
+  number: number | null
+  categoryId: number | null
+  categoryName: string | null
+  categoryUnit: string | null
+  detailId: number | null
+  detailName: string | null
+  detailUnit: string | null
+  location: string | null
 }
 
 export default function CostCategories() {
   const { message } = App.useApp()
-  const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view' | null>(null)
-  const [currentCategory, setCurrentCategory] = useState<CostCategory | null>(null)
+  const [addMode, setAddMode] = useState<'category' | 'detail' | null>(null)
   const [form] = Form.useForm()
 
-  const { data: categories, isLoading, refetch } = useQuery({
+  const {
+    data: categories,
+    isLoading: categoriesLoading,
+    refetch: refetchCategories,
+  } = useQuery({
     queryKey: ['cost_categories'],
     queryFn: async () => {
       if (!supabase) return []
       const { data, error } = await supabase
         .from('cost_categories')
-        .select('*')
-        .order('code')
+        .select('id, number, name, description, unit_id, units(name)')
+        .order('number')
       if (error) {
-        message.error('Не удалось загрузить данные')
+        message.error('Не удалось загрузить категории')
         throw error
       }
-      return ((data ?? []) as {
-        id: string
-        code: string
-        name: string
-        level: number
-        parent_id: string | null
-        description: string | null
-        created_at: string
-      }[]).map((c) => ({
-        id: c.id,
-        code: c.code,
-        name: c.name,
-        level: c.level,
-        parentId: c.parent_id,
-        description: c.description,
-        created_at: c.created_at,
-      })) as CostCategory[]
+      return (
+        data ?? []
+      ).map((c) => ({
+        id: c.id as number,
+        number: c.number as number | null,
+        name: c.name as string,
+        description: c.description as string | null,
+        unitId: c.unit_id as string | null,
+        unitName: (c as any).units?.name ?? null,
+      })) as Category[]
     },
   })
 
-  const openAddModal = () => {
-    form.resetFields()
-    form.setFieldsValue({ level: 1 })
-    setModalMode('add')
-  }
+  const {
+    data: details,
+    isLoading: detailsLoading,
+    refetch: refetchDetails,
+  } = useQuery({
+    queryKey: ['detail_cost_categories'],
+    queryFn: async () => {
+      if (!supabase) return []
+      const { data, error } = await supabase
+        .from('detail_cost_categories')
+        .select(
+          'id, name, description, unit_id, cost_category_id, location_id, units(name), location(name)',
+        )
+      if (error) {
+        message.error('Не удалось загрузить виды')
+        throw error
+      }
+      return (
+        data ?? []
+      ).map((d) => ({
+        id: d.id as number,
+        name: d.name as string,
+        description: d.description as string | null,
+        unitId: d.unit_id as string | null,
+        unitName: (d as any).units?.name ?? null,
+        costCategoryId: d.cost_category_id as number,
+        locationId: d.location_id as number,
+        locationName: (d as any).location?.name ?? null,
+      })) as DetailCategory[]
+    },
+  })
 
-  const openViewModal = (record: CostCategory) => {
-    setCurrentCategory(record)
-    setModalMode('view')
-  }
+  const { data: units } = useQuery({
+    queryKey: ['units'],
+    queryFn: async () => {
+      if (!supabase) return []
+      const { data } = await supabase.from('units').select('id, name').order('name')
+      return (data ?? []) as UnitOption[]
+    },
+  })
 
-  const openEditModal = (record: CostCategory) => {
-    setCurrentCategory(record)
-    form.setFieldsValue({
-      code: record.code,
-      name: record.name,
-      level: record.level,
-      parentId: record.parentId,
-      description: record.description,
-    })
-    setModalMode('edit')
-  }
+  const { data: locations } = useQuery({
+    queryKey: ['location'],
+    queryFn: async () => {
+      if (!supabase) return []
+      const { data } = await supabase
+        .from('location')
+        .select('id, name')
+        .order('name')
+      return (data ?? []) as LocationOption[]
+    },
+  })
 
-  const level = Form.useWatch('level', form)
-  const parentId = Form.useWatch('parentId', form)
+  const selectedCategoryId = Form.useWatch('costCategoryId', form)
+  const selectedCategory = categories?.find((c) => c.id === selectedCategoryId)
 
-  useEffect(() => {
-    if (!categories) return
-    if (modalMode === 'view') return
-    if (level === 1) {
-      if (modalMode === 'add') form.setFieldsValue({ code: undefined, parentId: null })
-      return
-    }
-    const parent = categories.find((c) => c.id === parentId)
-    if (!parent) return
-    if (
-      modalMode === 'edit' &&
-      level === currentCategory?.level &&
-      parentId === currentCategory?.parentId
-    ) {
-      return
-    }
-    const siblings = categories.filter(
-      (c) => c.parentId === parent.id && c.id !== currentCategory?.id,
+  const rows = useMemo(() => {
+    const result: TableRow[] = []
+    const detailsByCategory = new Map<number, DetailCategory[]>(
+      (details ?? []).map((d) => [d.costCategoryId, []]),
     )
-    const numbers = siblings.map((s) => {
-      const parts = s.code.split('.')
-      return parseInt(parts[parts.length - 1], 10)
+    ;(details ?? []).forEach((d) => {
+      const arr = detailsByCategory.get(d.costCategoryId)
+      if (arr) arr.push(d)
     })
-    const nextNumber = numbers.length > 0 ? Math.max(...numbers) + 1 : 1
-    const newCode = `${parent.code}.${String(nextNumber).padStart(2, '0')}`
-    form.setFieldsValue({ code: newCode })
-  }, [level, parentId, categories, modalMode, currentCategory, form])
+    ;(categories ?? []).forEach((c) => {
+      const ds = detailsByCategory.get(c.id)
+      if (ds && ds.length > 0) {
+        ds.forEach((d) => {
+          result.push({
+            key: `detail-${d.id}`,
+            number: c.number,
+            categoryId: c.id,
+            categoryName: c.name,
+            categoryUnit: c.unitName,
+            detailId: d.id,
+            detailName: d.name,
+            detailUnit: d.unitName,
+            location: d.locationName,
+          })
+        })
+      } else {
+        result.push({
+          key: `category-${c.id}`,
+          number: c.number,
+          categoryId: c.id,
+          categoryName: c.name,
+          categoryUnit: c.unitName,
+          detailId: null,
+          detailName: null,
+          detailUnit: null,
+          location: null,
+        })
+      }
+    })
+    return result
+  }, [categories, details])
+
+  const emptyRow: TableRow = {
+    key: 'new',
+    number: null,
+    categoryId: null,
+    categoryName: null,
+    categoryUnit: null,
+    detailId: null,
+    detailName: null,
+    detailUnit: null,
+    location: null,
+  }
+
+  const dataSource: TableRow[] = addMode ? [emptyRow, ...rows] : rows
+
+  const numberFilters = useMemo(
+    () =>
+      Array.from(
+        new Set(rows.map((r) => r.number).filter((n): n is number => n !== null)),
+      ).map((n) => ({ text: String(n), value: n })),
+    [rows],
+  )
+
+  const categoryFilters = useMemo(
+    () =>
+      Array.from(
+        new Set(rows.map((r) => r.categoryName).filter((n): n is string => !!n)),
+      ).map((n) => ({ text: n, value: n })),
+    [rows],
+  )
+
+  const categoryUnitFilters = useMemo(
+    () =>
+      Array.from(
+        new Set(rows.map((r) => r.categoryUnit).filter((n): n is string => !!n)),
+      ).map((n) => ({ text: n, value: n })),
+    [rows],
+  )
+
+  const detailFilters = useMemo(
+    () =>
+      Array.from(
+        new Set(rows.map((r) => r.detailName).filter((n): n is string => !!n)),
+      ).map((n) => ({ text: n, value: n })),
+    [rows],
+  )
+
+  const detailUnitFilters = useMemo(
+    () =>
+      Array.from(
+        new Set(rows.map((r) => r.detailUnit).filter((n): n is string => !!n)),
+      ).map((n) => ({ text: n, value: n })),
+    [rows],
+  )
+
+  const locationFilters = useMemo(
+    () =>
+      Array.from(
+        new Set(rows.map((r) => r.location).filter((n): n is string => !!n)),
+      ).map((n) => ({ text: n, value: n })),
+    [rows],
+  )
+
+  const startAdd = (mode: 'category' | 'detail') => {
+    form.resetFields()
+    setAddMode(mode)
+  }
 
   const handleSave = async () => {
     try {
       const values = await form.validateFields()
       if (!supabase) return
-      const payload = {
-        code: values.code,
-        name: values.name,
-        level: values.level,
-        parent_id: values.level === 1 ? null : values.parentId,
-        description: values.description,
-      }
-      if (modalMode === 'add') {
-        const { error } = await supabase.from('cost_categories').insert(payload)
+      if (addMode === 'category') {
+        const { error } = await supabase.from('cost_categories').insert({
+          number: values.number,
+          name: values.categoryName,
+          description: values.categoryDescription,
+          unit_id: values.categoryUnitId,
+        })
         if (error) throw error
-        message.success('Запись добавлена')
       }
-      if (modalMode === 'edit' && currentCategory) {
-        const { error } = await supabase
-          .from('cost_categories')
-          .update(payload)
-          .eq('id', currentCategory.id)
+      if (addMode === 'detail') {
+        const { error } = await supabase.from('detail_cost_categories').insert({
+          cost_category_id: values.costCategoryId,
+          name: values.detailName,
+          description: values.detailDescription,
+          unit_id: values.detailUnitId,
+          location_id: values.locationId,
+        })
         if (error) throw error
-        message.success('Запись обновлена')
       }
-      setModalMode(null)
-      setCurrentCategory(null)
-      await refetch()
+      message.success('Запись добавлена')
+      setAddMode(null)
+      form.resetFields()
+      await Promise.all([refetchCategories(), refetchDetails()])
     } catch {
       message.error('Не удалось сохранить')
     }
   }
 
-  const handleDelete = async (record: CostCategory) => {
-    if (!supabase) return
-    const { error } = await supabase.from('cost_categories').delete().eq('id', record.id)
-    if (error) {
-      message.error('Не удалось удалить')
-    } else {
-      message.success('Запись удалена')
-      refetch()
-    }
-  }
-
-  const codeFilters = useMemo(
-    () =>
-      Array.from(new Set((categories ?? []).map((c) => c.code))).map((c) => ({
-        text: c,
-        value: c,
-      })),
-    [categories],
-  )
-
-  const nameFilters = useMemo(
-    () =>
-      Array.from(new Set((categories ?? []).map((c) => c.name))).map((n) => ({
-        text: n,
-        value: n,
-      })),
-    [categories],
-  )
-
-  const levelFilters = useMemo(
-    () =>
-      Array.from(new Set((categories ?? []).map((c) => c.level))).map((l) => ({
-        text: String(l),
-        value: l,
-      })),
-    [categories],
-  )
-
-  const parentFilters = useMemo(
-    () =>
-      Array.from(
-        new Set((categories ?? []).map((c) => c.parentId).filter((p): p is string => !!p)),
-      ).map((pid) => ({
-        text: categories?.find((c) => c.id === pid)?.name || '-',
-        value: pid,
-      })),
-    [categories],
-  )
-
-  const descriptionFilters = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          (categories ?? [])
-            .map((c) => c.description)
-            .filter((d): d is string => !!d),
-        ),
-      ).map((d) => ({
-        text: d,
-        value: d,
-      })),
-    [categories],
-  )
-
   const columns = [
     {
-      title: 'Номер',
-      dataIndex: 'code',
-      sorter: (a: CostCategory, b: CostCategory) => a.code.localeCompare(b.code),
-      filters: codeFilters,
-      onFilter: (value: unknown, record: CostCategory) => record.code === value,
+      title: '№',
+      dataIndex: 'number',
+      sorter: (a: TableRow, b: TableRow) =>
+        (a.number ?? 0) - (b.number ?? 0),
+      filters: numberFilters,
+      onFilter: (value: unknown, record: TableRow) => record.number === value,
+      render: (_: unknown, record: TableRow) => {
+        if (record.key === 'new') {
+          return (
+            <Space>
+              {addMode === 'category' ? (
+                <Form.Item
+                  name="number"
+                  rules={[{ required: true, message: 'Введите номер' }]}
+                  style={{ margin: 0 }}
+                >
+                  <Input style={{ width: 80 }} />
+                </Form.Item>
+              ) : (
+                <span>{selectedCategory?.number ?? ''}</span>
+              )}
+              <Button
+                icon={<CheckOutlined />}
+                onClick={handleSave}
+                aria-label="Сохранить"
+              />
+              <Button
+                icon={<CloseOutlined />}
+                onClick={() => setAddMode(null)}
+                aria-label="Отменить"
+              />
+            </Space>
+          )
+        }
+        return record.number
+      },
     },
     {
-      title: 'Название',
-      dataIndex: 'name',
-      sorter: (a: CostCategory, b: CostCategory) => a.name.localeCompare(b.name),
-      filters: nameFilters,
-      onFilter: (value: unknown, record: CostCategory) => record.name === value,
-    },
-    {
-      title: 'Уровень',
-      dataIndex: 'level',
-      sorter: (a: CostCategory, b: CostCategory) => a.level - b.level,
-      filters: levelFilters,
-      onFilter: (value: unknown, record: CostCategory) => record.level === value,
-    },
-    {
-      title: 'Родитель',
-      dataIndex: 'parentId',
-      render: (pid: string | null) =>
-        categories?.find((c) => c.id === pid)?.name || '-',
-      sorter: (a: CostCategory, b: CostCategory) =>
-        (categories?.find((c) => c.id === a.parentId)?.name || '').localeCompare(
-          categories?.find((c) => c.id === b.parentId)?.name || '',
-        ),
-      filters: parentFilters,
-      onFilter: (value: unknown, record: CostCategory) => record.parentId === value,
-    },
-    {
-      title: 'Описание',
-      dataIndex: 'description',
-      sorter: (a: CostCategory, b: CostCategory) =>
-        (a.description ?? '').localeCompare(b.description ?? ''),
-      filters: descriptionFilters,
-      onFilter: (value: unknown, record: CostCategory) => record.description === value,
-    },
-    {
-      title: 'Действия',
-      dataIndex: 'actions',
-      render: (_: unknown, record: CostCategory) => (
+      title: () => (
         <Space>
+          Категория затрат
           <Button
-            icon={<EyeOutlined />}
-            onClick={() => openViewModal(record)}
-            aria-label="Просмотр"
+            icon={<PlusOutlined />}
+            onClick={() => startAdd('category')}
+            aria-label="Добавить категорию"
           />
-          <Button
-            icon={<EditOutlined />}
-            onClick={() => openEditModal(record)}
-            aria-label="Редактировать"
-          />
-          <Popconfirm title="Удалить запись?" onConfirm={() => handleDelete(record)}>
-            <Button danger icon={<DeleteOutlined />} aria-label="Удалить" />
-          </Popconfirm>
         </Space>
       ),
-    },
-  ]
-
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <Button type="primary" onClick={openAddModal}>
-          Добавить
-        </Button>
-      </div>
-      <Table<CostCategory>
-        dataSource={categories ?? []}
-        columns={columns}
-        rowKey="id"
-        loading={isLoading}
-      />
-
-      <Modal
-        open={modalMode !== null}
-        title={
-          modalMode === 'add'
-            ? 'Добавить категорию'
-            : modalMode === 'edit'
-              ? 'Редактировать категорию'
-              : 'Просмотр категории'
-        }
-        onCancel={() => {
-          setModalMode(null)
-          setCurrentCategory(null)
-        }}
-        onOk={modalMode === 'view' ? () => setModalMode(null) : handleSave}
-        okText={modalMode === 'view' ? 'Закрыть' : 'Сохранить'}
-        cancelText="Отмена"
-      >
-        {modalMode === 'view' ? (
-          <div>
-            <p><strong>Номер:</strong> {currentCategory?.code}</p>
-            <p><strong>Название:</strong> {currentCategory?.name}</p>
-            <p><strong>Уровень:</strong> {currentCategory?.level}</p>
-            <p>
-              <strong>Родитель:</strong> {
-                categories?.find((c) => c.id === currentCategory?.parentId)?.name || '-'
-              }
-            </p>
-            <p><strong>Описание:</strong> {currentCategory?.description}</p>
-          </div>
-        ) : (
-          <Form form={form} layout="vertical" initialValues={{ level: 1 }}>
-            <Form.Item
-              label="Номер категории"
-              name="code"
-              rules={level === 1 ? [{ required: true, message: 'Введите номер' }] : []}
-            >
-              <Input disabled={level !== 1} />
-            </Form.Item>
-            <Form.Item
-              label="Название"
-              name="name"
-              rules={[{ required: true, message: 'Введите название' }]}
-            >
-              <Input />
-            </Form.Item>
-            <Form.Item
-              label="Уровень"
-              name="level"
-              rules={[{ required: true, message: 'Выберите уровень' }]}
-            >
-              <Select options={[1, 2, 3].map((v) => ({ value: v, label: v }))} />
-            </Form.Item>
-            {level > 1 && (
+      dataIndex: 'categoryName',
+      sorter: (a: TableRow, b: TableRow) =>
+        (a.categoryName ?? '').localeCompare(b.categoryName ?? ''),
+      filters: categoryFilters,
+      onFilter: (value: unknown, record: TableRow) =>
+        record.categoryName === value,
+      render: (value: string | null, record: TableRow) => {
+        if (record.key === 'new') {
+          if (addMode === 'category') {
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <Form.Item
+                  name="categoryName"
+                  rules={[{ required: true, message: 'Введите название' }]}
+                  style={{ marginBottom: 8 }}
+                >
+                  <Input />
+                </Form.Item>
+                <Form.Item name="categoryDescription" style={{ margin: 0 }}>
+                  <Input placeholder="Описание" />
+                </Form.Item>
+              </div>
+            )
+          }
+          if (addMode === 'detail') {
+            return (
               <Form.Item
-                label="Родительская категория"
-                name="parentId"
-                rules={[{ required: true, message: 'Выберите родительскую категорию' }]}
+                name="costCategoryId"
+                rules={[{ required: true, message: 'Выберите категорию' }]}
+                style={{ margin: 0 }}
               >
                 <Select
                   options={
-                    categories
-                      ?.filter((c) => c.level === level - 1)
-                      .map((c) => ({ value: c.id, label: `${c.code} ${c.name}` })) ?? []
+                    categories?.map((c) => ({
+                      value: c.id,
+                      label: `${c.number ?? ''} ${c.name}`,
+                    })) ?? []
                   }
                 />
               </Form.Item>
-            )}
-            <Form.Item label="Описание" name="description">
-              <Input />
+            )
+          }
+        }
+        return value
+      },
+    },
+    {
+      title: 'Ед.Изм.',
+      dataIndex: 'categoryUnit',
+      sorter: (a: TableRow, b: TableRow) =>
+        (a.categoryUnit ?? '').localeCompare(b.categoryUnit ?? ''),
+      filters: categoryUnitFilters,
+      onFilter: (value: unknown, record: TableRow) =>
+        record.categoryUnit === value,
+      render: (value: string | null, record: TableRow) => {
+        if (record.key === 'new') {
+          if (addMode === 'category') {
+            return (
+              <Form.Item
+                name="categoryUnitId"
+                rules={[{ required: true, message: 'Выберите единицу' }]}
+                style={{ margin: 0 }}
+              >
+                <Select
+                  options={units?.map((u) => ({ value: u.id, label: u.name })) ?? []}
+                />
+              </Form.Item>
+            )
+          }
+          if (addMode === 'detail') {
+            return selectedCategory?.unitName ?? ''
+          }
+        }
+        return value
+      },
+    },
+    {
+      title: () => (
+        <Space>
+          Вид затрат
+          <Button
+            icon={<PlusOutlined />}
+            onClick={() => startAdd('detail')}
+            aria-label="Добавить вид"
+          />
+        </Space>
+      ),
+      dataIndex: 'detailName',
+      sorter: (a: TableRow, b: TableRow) =>
+        (a.detailName ?? '').localeCompare(b.detailName ?? ''),
+      filters: detailFilters,
+      onFilter: (value: unknown, record: TableRow) => record.detailName === value,
+      render: (value: string | null, record: TableRow) => {
+        if (record.key === 'new') {
+          if (addMode === 'detail') {
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <Form.Item
+                  name="detailName"
+                  rules={[{ required: true, message: 'Введите название' }]}
+                  style={{ marginBottom: 8 }}
+                >
+                  <Input />
+                </Form.Item>
+                <Form.Item name="detailDescription" style={{ margin: 0 }}>
+                  <Input placeholder="Описание" />
+                </Form.Item>
+              </div>
+            )
+          }
+        }
+        return value
+      },
+    },
+    {
+      title: 'Ед.Изм.',
+      dataIndex: 'detailUnit',
+      sorter: (a: TableRow, b: TableRow) =>
+        (a.detailUnit ?? '').localeCompare(b.detailUnit ?? ''),
+      filters: detailUnitFilters,
+      onFilter: (value: unknown, record: TableRow) =>
+        record.detailUnit === value,
+      render: (value: string | null, record: TableRow) => {
+        if (record.key === 'new' && addMode === 'detail') {
+          return (
+            <Form.Item
+              name="detailUnitId"
+              rules={[{ required: true, message: 'Выберите единицу' }]}
+              style={{ margin: 0 }}
+            >
+              <Select
+                options={units?.map((u) => ({ value: u.id, label: u.name })) ?? []}
+              />
             </Form.Item>
-          </Form>
-        )}
-      </Modal>
-    </div>
+          )
+        }
+        return value
+      },
+    },
+    {
+      title: 'Локализация',
+      dataIndex: 'location',
+      sorter: (a: TableRow, b: TableRow) =>
+        (a.location ?? '').localeCompare(b.location ?? ''),
+      filters: locationFilters,
+      onFilter: (value: unknown, record: TableRow) => record.location === value,
+      render: (value: string | null, record: TableRow) => {
+        if (record.key === 'new' && addMode === 'detail') {
+          return (
+            <Form.Item
+              name="locationId"
+              rules={[{ required: true, message: 'Выберите локализацию' }]}
+              style={{ margin: 0 }}
+            >
+              <Select
+                options={
+                  locations?.map((l) => ({ value: l.id, label: l.name })) ?? []
+                }
+              />
+            </Form.Item>
+          )
+        }
+        return value
+      },
+    },
+  ]
+
+  const loading = categoriesLoading || detailsLoading
+
+  return (
+    <Form form={form} component={false}>
+      <Table<TableRow>
+        dataSource={dataSource}
+        columns={columns}
+        rowKey="key"
+        loading={loading}
+      />
+    </Form>
   )
 }
 
