@@ -78,36 +78,8 @@
   },
   {
     "table_name": "cost_categories",
-    "column_name": "id",
-    "data_type": "uuid",
-    "is_nullable": "NO",
-    "column_default": "gen_random_uuid()"
-  },
-  {
-    "table_name": "cost_categories",
-    "column_name": "parent_id",
-    "data_type": "uuid",
-    "is_nullable": "YES",
-    "column_default": null
-  },
-  {
-    "table_name": "cost_categories",
-    "column_name": "code",
-    "data_type": "text",
-    "is_nullable": "NO",
-    "column_default": null
-  },
-  {
-    "table_name": "cost_categories",
     "column_name": "name",
     "data_type": "text",
-    "is_nullable": "NO",
-    "column_default": null
-  },
-  {
-    "table_name": "cost_categories",
-    "column_name": "level",
-    "data_type": "integer",
     "is_nullable": "NO",
     "column_default": null
   },
@@ -120,58 +92,58 @@
   },
   {
     "table_name": "cost_categories",
-    "column_name": "created_at",
-    "data_type": "timestamp with time zone",
-    "is_nullable": "YES",
-    "column_default": "now()"
-  },
-  {
-    "table_name": "cost_categories_sorted",
     "column_name": "id",
+    "data_type": "integer",
+    "is_nullable": "NO",
+    "column_default": "nextval('cost_categories_id_seq'::regclass)"
+  },
+  {
+    "table_name": "cost_categories",
+    "column_name": "unit_id",
     "data_type": "uuid",
     "is_nullable": "YES",
     "column_default": null
   },
   {
-    "table_name": "cost_categories_sorted",
-    "column_name": "parent_id",
-    "data_type": "uuid",
-    "is_nullable": "YES",
-    "column_default": null
+    "table_name": "detail_cost_categories",
+    "column_name": "id",
+    "data_type": "integer",
+    "is_nullable": "NO",
+    "column_default": "nextval('detail_cost_categories_id_seq'::regclass)"
   },
   {
-    "table_name": "cost_categories_sorted",
-    "column_name": "code",
-    "data_type": "text",
-    "is_nullable": "YES",
-    "column_default": null
-  },
-  {
-    "table_name": "cost_categories_sorted",
+    "table_name": "detail_cost_categories",
     "column_name": "name",
     "data_type": "text",
+    "is_nullable": "NO",
+    "column_default": null
+  },
+  {
+    "table_name": "detail_cost_categories",
+    "column_name": "unit_id",
+    "data_type": "uuid",
     "is_nullable": "YES",
     "column_default": null
   },
   {
-    "table_name": "cost_categories_sorted",
-    "column_name": "level",
-    "data_type": "integer",
-    "is_nullable": "YES",
-    "column_default": null
-  },
-  {
-    "table_name": "cost_categories_sorted",
+    "table_name": "detail_cost_categories",
     "column_name": "description",
     "data_type": "text",
     "is_nullable": "YES",
     "column_default": null
   },
   {
-    "table_name": "cost_categories_sorted",
-    "column_name": "created_at",
-    "data_type": "timestamp with time zone",
-    "is_nullable": "YES",
+    "table_name": "detail_cost_categories",
+    "column_name": "cost_category_id",
+    "data_type": "bigint",
+    "is_nullable": "NO",
+    "column_default": null
+  },
+  {
+    "table_name": "detail_cost_categories",
+    "column_name": "location_id",
+    "data_type": "bigint",
+    "is_nullable": "NO",
     "column_default": null
   },
   {
@@ -257,6 +229,34 @@
     "data_type": "integer",
     "is_nullable": "NO",
     "column_default": null
+  },
+  {
+    "table_name": "location",
+    "column_name": "id",
+    "data_type": "integer",
+    "is_nullable": "NO",
+    "column_default": "nextval('location_id_seq'::regclass)"
+  },
+  {
+    "table_name": "location",
+    "column_name": "name",
+    "data_type": "text",
+    "is_nullable": "NO",
+    "column_default": null
+  },
+  {
+    "table_name": "location",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES",
+    "column_default": "now()"
+  },
+  {
+    "table_name": "location",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES",
+    "column_default": "now()"
   },
   {
     "table_name": "projects",
