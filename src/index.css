@@ -1,12 +1,12 @@
 body {
   margin: 0;
   font-family: system-ui, sans-serif;
-  background-color: #fff;
+  background-color: #EEF0F1;
   color: #000;
 }
 
 body[data-theme='light'] {
-  --menu-bg: #0000ff;
+  --menu-bg: #EEF0F1;
 }
 
 body[data-theme='dark'] {
