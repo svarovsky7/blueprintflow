@@ -51,13 +51,13 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
       <Sider
         theme={isDark ? 'dark' : 'light'}
         style={{
-          background: isDark ? '#555555' : '#EEF0F1',
+          background: 'var(--menu-bg)',
         }}
         collapsible
       >
         <div
           style={{
-            color: isDark ? '#ffffff' : '#000000',
+            color: 'var(--menu-color)',
             padding: 16,
             fontWeight: 600,
           }}
@@ -68,7 +68,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           theme={isDark ? 'dark' : 'light'}
           mode="inline"
           items={items}
-          style={{ background: isDark ? '#555555' : '#EEF0F1' }}
+          style={{ background: 'var(--menu-bg)' }}
         />
       </Sider>
       <Layout>
