@@ -9,6 +9,7 @@ import References from './pages/References'
 import Units from './pages/references/Units'
 import CostCategories from './pages/references/CostCategories'
 import Projects from './pages/references/Projects'
+import Locations from './pages/references/Locations'
 import PortalHeader from './components/PortalHeader'
 import { SunOutlined, MoonOutlined } from '@ant-design/icons'
 
@@ -40,6 +41,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           label: <Link to="/references/cost-categories">Категории затрат</Link>,
         },
         { key: 'projects', label: <Link to="/references/projects">Проекты</Link> },
+        { key: 'locations', label: <Link to="/references/locations">Локализации</Link> },
       ],
     },
   ]
@@ -88,6 +90,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               <Route index element={<Units />} />
               <Route path="cost-categories" element={<CostCategories />} />
               <Route path="projects" element={<Projects />} />
+              <Route path="locations" element={<Locations />} />
             </Route>
           </Routes>
         </Content>
