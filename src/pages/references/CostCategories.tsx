@@ -8,6 +8,8 @@ import {
   Space,
   Table,
   Popconfirm,
+  Upload,
+  Modal,
 } from 'antd'
 import {
   PlusOutlined,
@@ -15,9 +17,11 @@ import {
   CloseOutlined,
   EditOutlined,
   DeleteOutlined,
+  UploadOutlined,
 } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
+import * as XLSX from 'xlsx'
 
 interface Category {
   id: number
@@ -276,6 +280,210 @@ export default function CostCategories() {
     [rows],
   )
 
+  const askReplace = (title: string) =>
+    new Promise<'replace' | 'skip' | 'replaceAll' | 'skipAll'>((resolve) => {
+      const modal = Modal.confirm({
+        title,
+        footer: [
+          <Button key="ok" type="primary" onClick={() => { modal.destroy(); resolve('replace') }}>
+            ОК
+          </Button>,
+          <Button key="cancel" onClick={() => { modal.destroy(); resolve('skip') }}>
+            Отмена
+          </Button>,
+          <Button key="okAll" onClick={() => { modal.destroy(); resolve('replaceAll') }}>
+            ОК для всех
+          </Button>,
+          <Button key="cancelAll" onClick={() => { modal.destroy(); resolve('skipAll') }}>
+            Отмена для всех
+          </Button>,
+        ],
+        icon: null,
+        closable: false,
+      })
+    })
+
+  const importFile = async (file: File) => {
+    try {
+      if (!supabase) return
+      const client = supabase
+      const data = await file.arrayBuffer()
+      const workbook = XLSX.read(data)
+      const sheet = workbook.Sheets[workbook.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, {
+        header: 1,
+      })
+      const [, ...dataRows] = rows
+      const localCategories = [...(categories ?? [])]
+      const localDetails = [...(details ?? [])]
+      let replaceAllCat = false
+      let skipAllCat = false
+      let replaceAllDet = false
+      let skipAllDet = false
+      let catInserted = 0
+      let catUpdated = 0
+      let detInserted = 0
+      let detUpdated = 0
+      const errors: string[] = []
+      for (const row of dataRows) {
+        if (!row || row.length === 0) continue
+        const [num, catNameRaw, catUnitNameRaw, detNameRaw, detUnitNameRaw, locNameRaw] = row
+        const catName = typeof catNameRaw === 'string' ? catNameRaw.trim() : ''
+        if (!catName) continue
+        const number = typeof num === 'number' ? num : Number(num)
+        const catUnitId =
+          typeof catUnitNameRaw === 'string'
+            ? units?.find((u) => u.name === catUnitNameRaw.trim())?.id ?? null
+            : null
+        const detName = typeof detNameRaw === 'string' ? detNameRaw.trim() : ''
+        const detUnitId =
+          typeof detUnitNameRaw === 'string'
+            ? units?.find((u) => u.name === detUnitNameRaw.trim())?.id ?? null
+            : null
+        const locId =
+          typeof locNameRaw === 'string'
+            ? locations?.find((l) => l.name === locNameRaw.trim())?.id ?? null
+            : null
+        const category = localCategories.find(
+          (c) => c.number === number && c.name === catName,
+        )
+        let categoryId = category?.id ?? null
+        if (category) {
+          if (!skipAllCat) {
+            const doReplace = async () => {
+              const { error } = await client
+                .from('cost_categories')
+                .update({ number, name: catName, unit_id: catUnitId })
+                .eq('id', category!.id)
+              if (error) {
+                errors.push(`Категория ${catName}: ${error.message}`)
+              } else {
+                catUpdated += 1
+                category!.unitId = catUnitId
+              }
+            }
+            if (replaceAllCat) {
+              await doReplace()
+            } else {
+              const decision = await askReplace(
+                `Категория "${catName}" уже существует. Заменить?`,
+              )
+              if (decision === 'replace' || decision === 'replaceAll') {
+                if (decision === 'replaceAll') replaceAllCat = true
+                await doReplace()
+              } else if (decision === 'skipAll') {
+                skipAllCat = true
+              }
+            }
+          }
+        } else {
+          const { data: inserted, error } = await client
+            .from('cost_categories')
+            .insert({ number, name: catName, unit_id: catUnitId })
+            .select('id, number, name, unit_id')
+            .single()
+          if (error || !inserted) {
+            errors.push(`Категория ${catName}: ${error?.message}`)
+            continue
+          }
+          categoryId = inserted.id
+          localCategories.push({
+            id: inserted.id,
+            number: inserted.number,
+            name: inserted.name,
+            description: null,
+            unitId: inserted.unit_id,
+            unitName:
+              units?.find((u) => u.id === inserted.unit_id)?.name ?? null,
+          })
+          catInserted += 1
+        }
+        if (detName && categoryId) {
+          const detail = localDetails.find(
+            (d) => d.costCategoryId === categoryId && d.name === detName,
+          )
+          if (detail) {
+            if (!skipAllDet) {
+              const doReplaceDet = async () => {
+                const { error } = await client
+                  .from('detail_cost_categories')
+                  .update({
+                    name: detName,
+                    unit_id: detUnitId,
+                    location_id: locId,
+                    cost_category_id: categoryId,
+                  })
+                  .eq('id', detail!.id)
+                if (error) {
+                  errors.push(`Вид ${detName}: ${error.message}`)
+                } else {
+                  detUpdated += 1
+                  detail!.unitId = detUnitId
+                  detail!.locationId = locId ?? 0
+                }
+              }
+              if (replaceAllDet) {
+                await doReplaceDet()
+              } else {
+                const decision = await askReplace(
+                  `Вид "${detName}" уже существует. Заменить?`,
+                )
+                if (decision === 'replace' || decision === 'replaceAll') {
+                  if (decision === 'replaceAll') replaceAllDet = true
+                  await doReplaceDet()
+                } else if (decision === 'skipAll') {
+                  skipAllDet = true
+                }
+              }
+            }
+          } else {
+            const { error, data: inserted } = await client
+              .from('detail_cost_categories')
+              .insert({
+                cost_category_id: categoryId,
+                name: detName,
+                unit_id: detUnitId,
+                location_id: locId,
+              })
+              .select('id, name, unit_id, cost_category_id, location_id')
+              .single()
+            if (error || !inserted) {
+              errors.push(`Вид ${detName}: ${error?.message}`)
+            } else {
+              detInserted += 1
+              localDetails.push({
+                id: inserted.id,
+                name: inserted.name,
+                description: null,
+                unitId: inserted.unit_id,
+                unitName:
+                  units?.find((u) => u.id === inserted.unit_id)?.name ?? null,
+                costCategoryId: inserted.cost_category_id,
+                locationId: inserted.location_id,
+                locationName:
+                  locations?.find((l) => l.id === inserted.location_id)?.name ??
+                  null,
+              })
+            }
+          }
+        }
+      }
+      console.log(`Импорт завершен. Категорий добавлено: ${catInserted}, обновлено: ${catUpdated}, видов добавлено: ${detInserted}, обновлено: ${detUpdated}`)
+      if (errors.length > 0)
+        console.error('Ошибки импорта:', errors.join('; '))
+      await Promise.all([refetchCategories(), refetchDetails()])
+      message.success('Импорт завершен')
+    } catch (e) {
+      console.error('Ошибка импорта', e)
+      message.error('Не удалось импортировать файл')
+    }
+  }
+
+  const beforeUpload = (file: File) => {
+    void importFile(file)
+    return false
+  }
+
   const startAdd = (mode: 'category' | 'detail') => {
     form.resetFields()
     setEditing(null)
@@ -456,6 +664,9 @@ export default function CostCategories() {
             onClick={() => startAdd('category')}
             aria-label="Добавить категорию"
           />
+          <Upload beforeUpload={beforeUpload} showUploadList={false} accept=".xls,.xlsx">
+            <Button icon={<UploadOutlined />} aria-label="Импорт из Excel" />
+          </Upload>
         </Space>
       ),
       dataIndex: 'categoryName',
