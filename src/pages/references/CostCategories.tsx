@@ -1,10 +1,9 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   App,
   Button,
   Form,
   Input,
-  Modal,
   Select,
   Space,
   Table,
@@ -16,9 +15,7 @@ import {
   CloseOutlined,
   EditOutlined,
   DeleteOutlined,
-  UploadOutlined,
 } from '@ant-design/icons'
-import * as XLSX from 'xlsx'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 
@@ -171,239 +168,6 @@ export default function CostCategories() {
       return (data ?? []) as LocationOption[]
     },
   })
-
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
-
-  const handleImportClick = () => {
-    fileInputRef.current?.click()
-  }
-
-  const resolveDuplicate = (
-    title: string,
-  ): Promise<'replace' | 'skip' | 'replaceAll' | 'skipAll'> =>
-    new Promise((resolve) => {
-      const modal = Modal.confirm({
-        title,
-        okText: 'ОК',
-        cancelText: 'ОТМЕНА',
-        onOk: () => resolve('replace'),
-        onCancel: () => resolve('skip'),
-        footer: (_, { OkBtn, CancelBtn }) => (
-          <>
-            <OkBtn />
-            <CancelBtn />
-            <Button
-              onClick={() => {
-                resolve('replaceAll')
-                modal.destroy()
-              }}
-            >
-              ОК для всех
-            </Button>
-            <Button
-              onClick={() => {
-                resolve('skipAll')
-                modal.destroy()
-              }}
-            >
-              ОТМЕНА для всех
-            </Button>
-          </>
-        ),
-      })
-    })
-
-  const handleFileChange = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = e.target.files?.[0]
-    if (!file || !supabase) return
-    let imported = 0
-    let errors = 0
-    let duplicateMode: 'replace' | 'skip' | undefined
-    try {
-      const buffer = await file.arrayBuffer()
-      const workbook = XLSX.read(buffer, { type: 'array' })
-      const sheet = workbook.Sheets[workbook.SheetNames[0]]
-      const data = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, {
-        header: 1,
-      })
-      const unitMap = new Map((units ?? []).map((u) => [u.name, u.id]))
-      const locationMap = new Map(
-        (locations ?? []).map((l) => [l.name, l.id]),
-      )
-      const categoryMap = new Map(
-        (categories ?? []).map((c) => [c.name, c]),
-      )
-      const detailKey = (
-        catId: number,
-        name: string,
-        locId: number | null,
-      ) => `${catId}|${name}|${locId ?? ''}`
-      const detailMap = new Map(
-        (details ?? []).map((d) => [
-          detailKey(d.costCategoryId, d.name, d.locationId),
-          d,
-        ]),
-      )
-      for (let i = 1; i < data.length; i++) {
-        const [num, catNameRaw, catUnitRaw, detNameRaw, detUnitRaw, locRaw] =
-          data[i]
-        const catName = catNameRaw ? String(catNameRaw).trim() : ''
-        if (!catName) {
-          errors++
-          continue
-        }
-        const number =
-          typeof num === 'number' ? num : num ? Number(num) : null
-        const catUnitId =
-          catUnitRaw && String(catUnitRaw).trim()
-            ? unitMap.get(String(catUnitRaw).trim()) ?? null
-            : null
-        let category = categoryMap.get(catName)
-        if (category) {
-          let action = duplicateMode
-          if (!action) {
-            const res = await resolveDuplicate(
-              `Категория "${catName}" уже существует. Заменить?`,
-            )
-            if (res === 'replaceAll') {
-              duplicateMode = 'replace'
-              action = 'replace'
-            } else if (res === 'skipAll') {
-              duplicateMode = 'skip'
-              action = 'skip'
-            } else {
-              action = res
-            }
-          }
-          if (action === 'replace') {
-            const { error } = await supabase
-              .from('cost_categories')
-              .update({ number, unit_id: catUnitId })
-              .eq('id', category.id)
-            if (error) {
-              errors++
-              continue
-            }
-            category = {
-              ...category,
-              number,
-              unitId: catUnitId,
-              unitName:
-                catUnitId
-                  ? units?.find((u) => u.id === catUnitId)?.name ?? null
-                  : null,
-            }
-            categoryMap.set(catName, category)
-          }
-        } else {
-          const { data: inserted, error } = await supabase
-            .from('cost_categories')
-            .insert({ number, name: catName, unit_id: catUnitId })
-            .select('id')
-            .single()
-          if (error || !inserted) {
-            errors++
-            continue
-          }
-          category = {
-            id: inserted.id,
-            number,
-            name: catName,
-            description: null,
-            unitId: catUnitId,
-            unitName:
-              catUnitId
-                ? units?.find((u) => u.id === catUnitId)?.name ?? null
-                : null,
-          }
-          categoryMap.set(catName, category)
-        }
-        const detName = detNameRaw ? String(detNameRaw).trim() : ''
-        if (detName) {
-          const detUnitId =
-            detUnitRaw && String(detUnitRaw).trim()
-              ? unitMap.get(String(detUnitRaw).trim()) ?? null
-              : null
-          const locationId =
-            locRaw && String(locRaw).trim()
-              ? locationMap.get(String(locRaw).trim()) ?? null
-              : null
-          const key = detailKey(category.id, detName, locationId)
-          const existing = detailMap.get(key)
-          if (existing) {
-            let action = duplicateMode
-            if (!action) {
-              const res = await resolveDuplicate(
-                `Вид затрат "${detName}" уже существует. Заменить?`,
-              )
-              if (res === 'replaceAll') {
-                duplicateMode = 'replace'
-                action = 'replace'
-              } else if (res === 'skipAll') {
-                duplicateMode = 'skip'
-                action = 'skip'
-              } else {
-                action = res
-              }
-            }
-            if (action === 'replace') {
-              const { error } = await supabase
-                .from('detail_cost_categories')
-                .update({ unit_id: detUnitId, location_id: locationId })
-                .eq('id', existing.id)
-              if (error) {
-                errors++
-                continue
-              }
-            } else {
-              continue
-            }
-          } else {
-            const { error, data: ins } = await supabase
-              .from('detail_cost_categories')
-              .insert({
-                cost_category_id: category.id,
-                name: detName,
-                unit_id: detUnitId,
-                location_id: locationId,
-              })
-              .select('id')
-              .single()
-            if (error || !ins) {
-              errors++
-              continue
-            }
-            detailMap.set(key, {
-              id: ins.id,
-              name: detName,
-              description: null,
-              unitId: detUnitId,
-              unitName:
-                detUnitId
-                  ? units?.find((u) => u.id === detUnitId)?.name ?? null
-                  : null,
-              costCategoryId: category.id,
-              locationId: locationId ?? 0,
-              locationName:
-                locationId
-                  ? locations?.find((l) => l.id === locationId)?.name ?? null
-                  : null,
-            })
-          }
-        }
-        imported++
-      }
-      console.log(`Импортировано: ${imported}, ошибок: ${errors}`)
-      message.success('Импорт завершен')
-      await Promise.all([refetchCategories(), refetchDetails()])
-    } catch {
-      message.error('Не удалось импортировать')
-    } finally {
-      e.target.value = ''
-    }
-  }
 
   const selectedCategoryId = Form.useWatch('costCategoryId', form)
   const selectedCategory = categories?.find((c) => c.id === selectedCategoryId)
@@ -1020,27 +784,11 @@ export default function CostCategories() {
 
   return (
     <Form form={form} component={false}>
-      <input
-        type="file"
-        accept=".xlsx,.xls"
-        ref={fileInputRef}
-        style={{ display: 'none' }}
-        onChange={handleFileChange}
-      />
       <Table<TableRow>
         dataSource={dataSource}
         columns={columns}
         rowKey="key"
         loading={loading}
-        title={() => (
-          <Button
-            icon={<UploadOutlined />}
-            onClick={handleImportClick}
-            aria-label="Импорт из Excel"
-          >
-            Импорт
-          </Button>
-        )}
       />
     </Form>
   )
