@@ -499,7 +499,7 @@ export default function Chessboard() {
           placeholder="Проект"
           style={{ width: 200 }}
           value={filters.projectId}
-          onChange={(value) => setFilters((f) => ({ ...f, projectId: value }))}
+          onChange={(value) => setFilters({ projectId: value })}
           options={projects?.map((p) => ({ value: p.id, label: p.name })) ?? []}
         />
         <Select
