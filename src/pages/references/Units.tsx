@@ -5,6 +5,7 @@ import {
   Form,
   Input,
   Modal,
+  Popconfirm,
   Space,
   Table,
 } from 'antd'
@@ -146,19 +147,9 @@ export default function Units() {
             onClick={() => openEditModal(record)}
             aria-label="Редактировать"
           />
-          <Button
-            danger
-            icon={<DeleteOutlined />}
-            aria-label="Удалить"
-            onClick={() =>
-              Modal.confirm({
-                title: 'Удалить запись?',
-                okText: 'Да',
-                cancelText: 'Нет',
-                onOk: () => handleDelete(record),
-              })
-            }
-          />
+          <Popconfirm title="Удалить запись?" onConfirm={() => handleDelete(record)}>
+            <Button danger icon={<DeleteOutlined />} aria-label="Удалить" />
+          </Popconfirm>
         </Space>
       ),
     },

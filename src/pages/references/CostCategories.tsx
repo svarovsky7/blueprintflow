@@ -7,6 +7,7 @@ import {
   Select,
   Space,
   Table,
+  Popconfirm,
   Upload,
   Modal,
 } from 'antd'
@@ -903,18 +904,14 @@ export default function CostCategories() {
               onClick={() => startEdit(record)}
               aria-label="Редактировать"
             />
-            <Button
-              icon={<DeleteOutlined />}
-              aria-label="Удалить"
-              onClick={() =>
-                Modal.confirm({
-                  title: 'Удалить?',
-                  okText: 'Да',
-                  cancelText: 'Нет',
-                  onOk: () => handleDelete(record),
-                })
-              }
-            />
+            <Popconfirm
+              title="Удалить?"
+              onConfirm={() => handleDelete(record)}
+              okText="Да"
+              cancelText="Нет"
+            >
+              <Button icon={<DeleteOutlined />} aria-label="Удалить" />
+            </Popconfirm>
           </Space>
         )
       },
