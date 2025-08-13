@@ -15,18 +15,23 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { EyeOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 
+interface BlockInfo {
+  name: string
+  bottom_underground_floor: number | null
+  top_ground_floor: number | null
+}
+
 interface Project {
   id: string
   name: string
   address: string | null
-  bottom_underground_floor: number | null
-  top_ground_floor: number | null
   blocks_count: number | null
   created_at: string
-  projects_blocks?: { block_id: string; blocks: { name: string } | null }[] | null
+  projects_blocks?: { block_id: string; blocks: BlockInfo | null }[] | null
 }
 
 interface ProjectRow extends Project {
+  blocks: BlockInfo[]
   blockNames: string[]
 }
 
@@ -48,7 +53,7 @@ export default function Projects() {
       if (!supabase) return []
       const { data, error } = await supabase
         .from('projects')
-        .select('*, projects_blocks(block_id, blocks(name))')
+        .select('*, projects_blocks(block_id, blocks(name, bottom_underground_floor, top_ground_floor))')
         .order('created_at', { ascending: false })
       if (error) {
         message.error('Не удалось загрузить данные')
@@ -60,11 +65,15 @@ export default function Projects() {
 
   const projectRows = useMemo<ProjectRow[]>(
     () =>
-      (projects ?? []).map((p) => ({
-        ...p,
-        blockNames:
-          p.projects_blocks?.map((b) => b.blocks?.name).filter((n): n is string => !!n) ?? [],
-      })),
+      (projects ?? []).map((p) => {
+        const blocks =
+          p.projects_blocks?.map((b) => b.blocks).filter((b): b is BlockInfo => !!b) ?? []
+        return {
+          ...p,
+          blocks,
+          blockNames: blocks.map((b) => b.name),
+        }
+      }),
     [projects],
   )
 
@@ -82,26 +91,26 @@ export default function Projects() {
 
   const openEditModal = (record: ProjectRow) => {
     setCurrentProject(record)
-    const blockNames = record.blockNames
+    const blocks = record.blocks
     const blockIds = record.projects_blocks?.map((b) => b.block_id) ?? []
     setExistingBlockIds(blockIds)
-    setBlocksCount(blockNames.length)
+    setBlocksCount(blocks.length)
     form.setFieldsValue({
       name: record.name,
       address: record.address,
-      bottom_underground_floor: record.bottom_underground_floor,
-      top_ground_floor: record.top_ground_floor,
-      blocks_count: blockNames.length || record.blocks_count,
-      blockNames,
+      blocks_count: blocks.length || record.blocks_count,
+      blocks,
     })
     setModalMode('edit')
   }
 
   const handleBlocksCountChange = (value: number | null) => {
     const count = value ?? 0
-    const current = form.getFieldValue('blockNames') || []
-    const updated = Array.from({ length: count }, (_, i) => current[i] || '')
-    form.setFieldsValue({ blockNames: updated })
+    const current = form.getFieldValue('blocks') || []
+    const updated = Array.from({ length: count }, (_, i) =>
+      current[i] || { name: '', bottom_underground_floor: null, top_ground_floor: null },
+    )
+    form.setFieldsValue({ blocks: updated })
     setBlocksCount(count)
   }
 
@@ -109,12 +118,10 @@ export default function Projects() {
     try {
       const values = await form.validateFields()
       if (!supabase) return
-      const blockNames: string[] = values.blockNames ?? []
+      const blocks: BlockInfo[] = values.blocks ?? []
       const projectData = {
         name: values.name,
         address: values.address,
-        bottom_underground_floor: values.bottom_underground_floor,
-        top_ground_floor: values.top_ground_floor,
         blocks_count: values.blocks_count,
       }
       if (modalMode === 'add') {
@@ -125,10 +132,10 @@ export default function Projects() {
           .single()
         if (projectError) throw projectError
         const projectRow = project as { id: string }
-        if (blockNames.length) {
+        if (blocks.length) {
           const { data: blocksData, error: blocksError } = await supabase
             .from('blocks')
-            .insert(blockNames.map((name) => ({ name })))
+            .insert(blocks)
             .select('id')
           if (blocksError) throw blocksError
           const rows = blocksData as BlockRow[] | null
@@ -156,10 +163,10 @@ export default function Projects() {
             .in('id', existingBlockIds)
           if (delError) throw delError
         }
-        if (blockNames.length) {
+        if (blocks.length) {
           const { data: blocksData, error: blocksError } = await supabase
             .from('blocks')
-            .insert(blockNames.map((name) => ({ name })))
+            .insert(blocks)
             .select('id')
           if (blocksError) throw blocksError
           const rows = blocksData as BlockRow[] | null
@@ -224,30 +231,6 @@ export default function Projects() {
     [projects],
   )
 
-  const bottomFilters = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          (projects ?? [])
-            .map((p) => p.bottom_underground_floor)
-            .filter((n): n is number => n !== null),
-        ),
-      ).map((n) => ({ text: n.toString(), value: n })),
-    [projects],
-  )
-
-  const topFilters = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          (projects ?? [])
-            .map((p) => p.top_ground_floor)
-            .filter((n): n is number => n !== null),
-        ),
-      ).map((n) => ({ text: n.toString(), value: n })),
-    [projects],
-  )
-
   const blockCountFilters = useMemo(
     () =>
       Array.from(
@@ -286,23 +269,6 @@ export default function Projects() {
       onFilter: (value: unknown, record: ProjectRow) => record.address === value,
     },
     {
-      title: 'Нижний этаж',
-      dataIndex: 'bottom_underground_floor',
-      sorter: (a: ProjectRow, b: ProjectRow) =>
-        (a.bottom_underground_floor ?? 0) - (b.bottom_underground_floor ?? 0),
-      filters: bottomFilters,
-      onFilter: (value: unknown, record: ProjectRow) =>
-        record.bottom_underground_floor === value,
-    },
-    {
-      title: 'Верхний этаж',
-      dataIndex: 'top_ground_floor',
-      sorter: (a: ProjectRow, b: ProjectRow) =>
-        (a.top_ground_floor ?? 0) - (b.top_ground_floor ?? 0),
-      filters: topFilters,
-      onFilter: (value: unknown, record: ProjectRow) => record.top_ground_floor === value,
-    },
-    {
       title: 'Кол-во корпусов',
       dataIndex: 'blocks_count',
       sorter: (a: ProjectRow, b: ProjectRow) =>
@@ -318,7 +284,13 @@ export default function Projects() {
       filters: blockNameFilters,
       onFilter: (value: unknown, record: ProjectRow) =>
         record.blockNames.includes(value as string),
-      render: (names: string[]) => names.join('; '),
+      render: (_: unknown, record: ProjectRow) =>
+        record.blocks
+          .map(
+            (b) =>
+              `${b.name} (${b.bottom_underground_floor ?? ''}–${b.top_ground_floor ?? ''})`,
+          )
+          .join('; '),
     },
     {
       title: 'Действия',
@@ -381,9 +353,16 @@ export default function Projects() {
           <div>
             <p>Название: {currentProject?.name}</p>
             <p>Адрес: {currentProject?.address}</p>
-            <p>Нижний этаж: {currentProject?.bottom_underground_floor ?? ''}</p>
-            <p>Верхний этаж: {currentProject?.top_ground_floor ?? ''}</p>
             <p>Количество корпусов: {currentProject?.blocks_count ?? ''}</p>
+            <p>
+              Корпуса:{' '}
+              {currentProject?.blocks
+                .map(
+                  (b) =>
+                    `${b.name} (от ${b.bottom_underground_floor ?? ''} до ${b.top_ground_floor ?? ''})`,
+                )
+                .join('; ')}
+            </p>
           </div>
         ) : (
           <Form form={form} layout="vertical">
@@ -402,20 +381,6 @@ export default function Projects() {
               <Input />
             </Form.Item>
             <Form.Item
-              label="Нижний этаж"
-              name="bottom_underground_floor"
-              rules={[{ required: true, message: 'Введите нижний этаж' }]}
-            >
-              <InputNumber />
-            </Form.Item>
-            <Form.Item
-              label="Верхний этаж"
-              name="top_ground_floor"
-              rules={[{ required: true, message: 'Введите верхний этаж' }]}
-            >
-              <InputNumber />
-            </Form.Item>
-            <Form.Item
               label="Количество корпусов"
               name="blocks_count"
               rules={[{ required: true, message: 'Введите количество корпусов' }]}
@@ -423,14 +388,29 @@ export default function Projects() {
               <InputNumber min={1} onChange={handleBlocksCountChange} />
             </Form.Item>
             {Array.from({ length: blocksCount }).map((_, index) => (
-              <Form.Item
-                key={index}
-                label={`Название корпуса ${index + 1}`}
-                name={['blockNames', index]}
-                rules={[{ required: true, message: 'Введите название корпуса' }]}
-              >
-                <Input />
-              </Form.Item>
+              <Space key={index} direction="vertical" style={{ width: '100%' }}>
+                <Form.Item
+                  label={`Название корпуса ${index + 1}`}
+                  name={['blocks', index, 'name']}
+                  rules={[{ required: true, message: 'Введите название корпуса' }]}
+                >
+                  <Input />
+                </Form.Item>
+                <Form.Item
+                  label="Нижний этаж"
+                  name={['blocks', index, 'bottom_underground_floor']}
+                  rules={[{ required: true, message: 'Введите нижний этаж' }]}
+                >
+                  <InputNumber />
+                </Form.Item>
+                <Form.Item
+                  label="Верхний этаж"
+                  name={['blocks', index, 'top_ground_floor']}
+                  rules={[{ required: true, message: 'Введите верхний этаж' }]}
+                >
+                  <InputNumber />
+                </Form.Item>
+              </Space>
             ))}
           </Form>
         )}
