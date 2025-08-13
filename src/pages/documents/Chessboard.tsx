@@ -32,12 +32,7 @@ interface ViewRow {
 interface ProjectOption { id: string; name: string }
 interface UnitOption { id: string; name: string }
 interface CostCategoryOption { id: number; number: number | null; name: string }
-interface CostTypeOption {
-  id: number
-  name: string
-  cost_category_id: number
-  location_id: number
-}
+interface CostTypeOption { id: number; name: string; cost_category_id: number }
 interface LocationOption { id: string; name: string }
 
 interface DbRow {
@@ -67,7 +62,7 @@ const emptyRow = (defaults: Partial<RowData>): RowData => ({
   unitId: '',
   costCategoryId: defaults.costCategoryId ?? '',
   costTypeId: defaults.costTypeId ?? '',
-  locationId: defaults.locationId ?? '',
+  locationId: '',
 })
 
 export default function Chessboard() {
@@ -118,7 +113,7 @@ export default function Chessboard() {
       if (!supabase) return []
       const { data, error } = await supabase
         .from('detail_cost_categories')
-        .select('id, name, cost_category_id, location_id')
+        .select('id, name, cost_category_id')
       if (error) throw error
       return data as CostTypeOption[]
     },
@@ -187,45 +182,29 @@ export default function Chessboard() {
 
   const addRow = useCallback(() => {
     if (!appliedFilters) return
-    const location = costTypes?.find((t) => String(t.id) === appliedFilters.typeId)?.location_id
     setRows((prev) => [
       ...prev,
       emptyRow({
         costCategoryId: appliedFilters.categoryId ?? '',
         costTypeId: appliedFilters.typeId ?? '',
-        locationId: location ? String(location) : '',
       }),
     ])
-  }, [appliedFilters, costTypes])
+  }, [appliedFilters])
 
-  const handleRowChange = useCallback(
-    (key: string, field: keyof RowData, value: string) => {
-      setRows((prev) =>
-        prev.map((r) => {
-          if (r.key !== key) return r
-          if (field === 'costTypeId') {
-            const locId = costTypes?.find((t) => String(t.id) === value)?.location_id
-            return { ...r, costTypeId: value, locationId: locId ? String(locId) : '' }
-          }
-          return { ...r, [field]: value }
-        }),
-      )
-    },
-    [costTypes],
-  )
+  const handleRowChange = useCallback((key: string, field: keyof RowData, value: string) => {
+    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, [field]: value } : r)))
+  }, [])
 
   const startAdd = useCallback(() => {
     if (!appliedFilters) return
-    const location = costTypes?.find((t) => String(t.id) === appliedFilters.typeId)?.location_id
     setRows([
       emptyRow({
         costCategoryId: appliedFilters.categoryId ?? '',
         costTypeId: appliedFilters.typeId ?? '',
-        locationId: location ? String(location) : '',
       }),
     ])
     setMode('add')
-  }, [appliedFilters, costTypes])
+  }, [appliedFilters])
 
   const startEdit = useCallback(
     (id: string) => {
@@ -415,7 +394,6 @@ export default function Chessboard() {
           onChange={(value) => {
             handleRowChange(record.key, 'costCategoryId', value)
             handleRowChange(record.key, 'costTypeId', '')
-            handleRowChange(record.key, 'locationId', '')
           }}
           options={
             costCategories?.map((c) => ({
