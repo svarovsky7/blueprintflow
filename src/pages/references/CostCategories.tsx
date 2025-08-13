@@ -4,19 +4,11 @@ import {
   Button,
   Form,
   Input,
-  Modal,
-  Popconfirm,
   Select,
   Space,
   Table,
 } from 'antd'
-import {
-  PlusOutlined,
-  CheckOutlined,
-  CloseOutlined,
-  EditOutlined,
-  DeleteOutlined,
-} from '@ant-design/icons'
+import { PlusOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 
@@ -86,10 +78,6 @@ export default function CostCategories() {
   const { message } = App.useApp()
   const [addMode, setAddMode] = useState<'category' | 'detail' | null>(null)
   const [form] = Form.useForm()
-  const [editForm] = Form.useForm()
-  const [editingRow, setEditingRow] = useState<TableRow | null>(null)
-  const [editingType, setEditingType] = useState<'category' | 'detail' | null>(null)
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
 
   const {
     data: categories,
@@ -315,99 +303,6 @@ export default function CostCategories() {
     }
   }
 
-  const openEditModal = (record: TableRow) => {
-    if (record.detailId) {
-      const detail = details?.find((d) => d.id === record.detailId)
-      editForm.setFieldsValue({
-        costCategoryId: record.categoryId,
-        detailName: detail?.name,
-        detailDescription: detail?.description,
-        detailUnitId: detail?.unitId,
-        locationId: detail?.locationId,
-      })
-      setEditingType('detail')
-    } else {
-      const category = categories?.find((c) => c.id === record.categoryId)
-      editForm.setFieldsValue({
-        number: category?.number,
-        categoryName: category?.name,
-        categoryDescription: category?.description,
-        categoryUnitId: category?.unitId,
-      })
-      setEditingType('category')
-    }
-    setEditingRow(record)
-    setIsEditModalOpen(true)
-  }
-
-  const handleEditSave = async () => {
-    try {
-      const values = await editForm.validateFields()
-      if (!supabase || !editingRow) return
-      if (editingType === 'category' && editingRow.categoryId) {
-        const { error } = await supabase
-          .from('cost_categories')
-          .update({
-            number: values.number,
-            name: values.categoryName,
-            description: values.categoryDescription,
-            unit_id: values.categoryUnitId,
-          })
-          .eq('id', editingRow.categoryId)
-        if (error) throw error
-      }
-      if (editingType === 'detail' && editingRow.detailId) {
-        const { error } = await supabase
-          .from('detail_cost_categories')
-          .update({
-            cost_category_id: values.costCategoryId,
-            name: values.detailName,
-            description: values.detailDescription,
-            unit_id: values.detailUnitId,
-            location_id: values.locationId,
-          })
-          .eq('id', editingRow.detailId)
-        if (error) throw error
-      }
-      message.success('Запись обновлена')
-      setIsEditModalOpen(false)
-      setEditingRow(null)
-      setEditingType(null)
-      editForm.resetFields()
-      await Promise.all([refetchCategories(), refetchDetails()])
-    } catch {
-      message.error('Не удалось сохранить')
-    }
-  }
-
-  const handleDelete = async (record: TableRow) => {
-    if (!supabase) return
-    if (record.detailId) {
-      const { error } = await supabase
-        .from('detail_cost_categories')
-        .delete()
-        .eq('id', record.detailId)
-      if (error) {
-        message.error('Не удалось удалить')
-        return
-      }
-      message.success('Запись удалена')
-      await refetchDetails()
-      await refetchCategories()
-    } else if (record.categoryId) {
-      const { error } = await supabase
-        .from('cost_categories')
-        .delete()
-        .eq('id', record.categoryId)
-      if (error) {
-        message.error('Не удалось удалить')
-        return
-      }
-      message.success('Запись удалена')
-      await Promise.all([refetchCategories(), refetchDetails()])
-    }
-  }
-
   const columns = [
     {
       title: '№',
@@ -623,144 +518,19 @@ export default function CostCategories() {
         return value
       },
     },
-    {
-      title: 'Действия',
-      dataIndex: 'actions',
-      render: (_: unknown, record: TableRow) => {
-        if (record.key === 'new') return null
-        return (
-          <Space>
-            <Button
-              icon={<EditOutlined />}
-              onClick={() => openEditModal(record)}
-              aria-label="Редактировать"
-            />
-            <Popconfirm
-              title="Удалить запись?"
-              onConfirm={() => handleDelete(record)}
-            >
-              <Button danger icon={<DeleteOutlined />} aria-label="Удалить" />
-            </Popconfirm>
-          </Space>
-        )
-      },
-    },
   ]
 
   const loading = categoriesLoading || detailsLoading
 
   return (
-    <>
-      <Form form={form} component={false}>
-        <Table<TableRow>
-          dataSource={dataSource}
-          columns={columns}
-          rowKey="key"
-          loading={loading}
-        />
-      </Form>
-      <Modal
-        open={isEditModalOpen}
-        title={
-          editingType === 'category'
-            ? 'Редактировать категорию'
-            : 'Редактировать вид'
-        }
-        onCancel={() => {
-          setIsEditModalOpen(false)
-          setEditingRow(null)
-          setEditingType(null)
-          editForm.resetFields()
-        }}
-        onOk={handleEditSave}
-        okText="Сохранить"
-        cancelText="Отмена"
-      >
-        <Form form={editForm} layout="vertical">
-          {editingType === 'category' ? (
-            <>
-              <Form.Item
-                label="Номер"
-                name="number"
-                rules={[{ required: true, message: 'Введите номер' }]}
-              >
-                <Input />
-              </Form.Item>
-              <Form.Item
-                label="Название"
-                name="categoryName"
-                rules={[{ required: true, message: 'Введите название' }]}
-              >
-                <Input />
-              </Form.Item>
-              <Form.Item label="Описание" name="categoryDescription">
-                <Input />
-              </Form.Item>
-              <Form.Item
-                label="Единица"
-                name="categoryUnitId"
-                rules={[{ required: true, message: 'Выберите единицу' }]}
-              >
-                <Select
-                  options={
-                    units?.map((u) => ({ value: u.id, label: u.name })) ?? []
-                  }
-                />
-              </Form.Item>
-            </>
-          ) : (
-            <>
-              <Form.Item
-                label="Категория"
-                name="costCategoryId"
-                rules={[{ required: true, message: 'Выберите категорию' }]}
-              >
-                <Select
-                  options={
-                    categories?.map((c) => ({
-                      value: c.id,
-                      label: `${c.number ?? ''} ${c.name}`,
-                    })) ?? []
-                  }
-                />
-              </Form.Item>
-              <Form.Item
-                label="Название"
-                name="detailName"
-                rules={[{ required: true, message: 'Введите название' }]}
-              >
-                <Input />
-              </Form.Item>
-              <Form.Item label="Описание" name="detailDescription">
-                <Input />
-              </Form.Item>
-              <Form.Item
-                label="Единица"
-                name="detailUnitId"
-                rules={[{ required: true, message: 'Выберите единицу' }]}
-              >
-                <Select
-                  options={
-                    units?.map((u) => ({ value: u.id, label: u.name })) ?? []
-                  }
-                />
-              </Form.Item>
-              <Form.Item
-                label="Локализация"
-                name="locationId"
-                rules={[{ required: true, message: 'Выберите локализацию' }]}
-              >
-                <Select
-                  options={
-                    locations?.map((l) => ({ value: l.id, label: l.name })) ?? []
-                  }
-                />
-              </Form.Item>
-            </>
-          )}
-        </Form>
-      </Modal>
-    </>
+    <Form form={form} component={false}>
+      <Table<TableRow>
+        dataSource={dataSource}
+        columns={columns}
+        rowKey="key"
+        loading={loading}
+      />
+    </Form>
   )
 }
 
