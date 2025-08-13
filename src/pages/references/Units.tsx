@@ -5,7 +5,6 @@ import {
   Form,
   Input,
   Modal,
-  Popconfirm,
   Space,
   Table,
 } from 'antd'
@@ -21,7 +20,7 @@ interface Unit {
 }
 
 export default function Units() {
-  const { message } = App.useApp()
+  const { message, modal } = App.useApp()
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view' | null>(null)
   const [currentUnit, setCurrentUnit] = useState<Unit | null>(null)
   const [form] = Form.useForm()
@@ -147,9 +146,19 @@ export default function Units() {
             onClick={() => openEditModal(record)}
             aria-label="Редактировать"
           />
-          <Popconfirm title="Удалить запись?" onConfirm={() => handleDelete(record)}>
-            <Button danger icon={<DeleteOutlined />} aria-label="Удалить" />
-          </Popconfirm>
+          <Button
+            danger
+            icon={<DeleteOutlined />}
+            aria-label="Удалить"
+            onClick={() =>
+              modal.confirm({
+                title: 'Удалить запись?',
+                okText: 'Да',
+                cancelText: 'Нет',
+                onOk: () => handleDelete(record),
+              })
+            }
+          />
         </Space>
       ),
     },
