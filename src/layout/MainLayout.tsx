@@ -39,11 +39,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const isDark = true;
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider
-        theme="dark"
-        style={{ background: '#333333', position: 'sticky', top: 0, height: '100vh', overflow: 'auto' }}
-        collapsible
-      >
+      <Sider theme="dark" style={{ background: '#333333' }} collapsible>
         <div style={{ color: '#ffffff', padding: 16, fontWeight: 600 }}>BlueprintFlow</div>
         <Menu
           theme="dark"
@@ -55,9 +51,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       </Sider>
       <Layout>
         <PortalHeader isDark={isDark} />
-        <Content
-          style={{ margin: '16px', background: '#333333', color: '#ffffff' }}
-        >
+        <Content style={{ margin: '16px', background: '#333333', color: '#ffffff' }}>
           {children}
         </Content>
       </Layout>
