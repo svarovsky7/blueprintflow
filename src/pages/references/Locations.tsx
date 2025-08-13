@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   App,
   Button,
   Input,
-  Popconfirm,
+  Modal,
   Space,
   Table,
+  type TableProps,
 } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
@@ -55,59 +56,79 @@ export default function Locations() {
     [locations],
   )
 
-  const startEdit = (record: Location) => {
+  const startEdit = useCallback((record: Location) => {
     setEditingId(record.id)
     setNameValue(record.name)
-  }
+  }, [])
 
-  const handleAdd = () => {
+  const handleAdd = useCallback(() => {
     setEditingId('new')
     setNameValue('')
-  }
+  }, [])
 
-  const cancelEdit = () => {
+  const cancelEdit = useCallback(() => {
     setEditingId(null)
     setNameValue('')
-  }
+  }, [])
 
-  const save = async (id: number | 'new') => {
-    if (!nameValue.trim()) {
-      message.error('Введите название')
-      return
-    }
-    if (!supabase) return
-    try {
-      if (id === 'new') {
-        const { error } = await supabase.from('location').insert({ name: nameValue })
-        if (error) throw error
-        message.success('Запись добавлена')
-      } else {
-        const { error } = await supabase
-          .from('location')
-          .update({ name: nameValue })
-          .eq('id', id)
-        if (error) throw error
-        message.success('Запись обновлена')
+  const save = useCallback(
+    async (id: number | 'new') => {
+      if (!nameValue.trim()) {
+        message.error('Введите название')
+        return
       }
-      cancelEdit()
-      await refetch()
-    } catch {
-      message.error('Не удалось сохранить')
-    }
-  }
+      if (!supabase) return
+      try {
+        if (id === 'new') {
+          const { error } = await supabase.from('location').insert({ name: nameValue })
+          if (error) throw error
+          message.success('Запись добавлена')
+        } else {
+          const { error } = await supabase
+            .from('location')
+            .update({ name: nameValue })
+            .eq('id', id)
+          if (error) throw error
+          message.success('Запись обновлена')
+        }
+        cancelEdit()
+        await refetch()
+      } catch {
+        message.error('Не удалось сохранить')
+      }
+    },
+    [nameValue, message, cancelEdit, refetch],
+  )
 
-  const handleDelete = async (record: Location) => {
-    if (!supabase) return
-    const { error } = await supabase.from('location').delete().eq('id', record.id)
-    if (error) {
-      message.error('Не удалось удалить')
-    } else {
-      message.success('Запись удалена')
-      refetch()
-    }
-  }
+  const handleDelete = useCallback(
+    async (record: Location) => {
+      if (!supabase) return
+      const { error } = await supabase.from('location').delete().eq('id', record.id)
+      if (error) {
+        message.error('Не удалось удалить')
+      } else {
+        message.success('Запись удалена')
+        refetch()
+      }
+    },
+    [message, refetch],
+  )
 
-  const columns = [
+  const confirmDelete = useCallback(
+    (record: Location) => {
+      Modal.confirm({
+        title: 'Удалить запись?',
+        okText: 'Удалить',
+        okButtonProps: { danger: true },
+        cancelText: 'Отмена',
+        onOk: () => handleDelete(record),
+      })
+    },
+    [handleDelete],
+  )
+
+  const columns: TableProps<LocationRow>['columns'] = useMemo(
+    () => [
     {
       title: 'Название',
       dataIndex: 'name',
@@ -148,19 +169,27 @@ export default function Locations() {
               />
             )}
             {record.id !== 'new' && (
-              <Popconfirm title="Удалить запись?" onConfirm={() => handleDelete(record as Location)}>
-                <Button danger icon={<DeleteOutlined />} aria-label="Удалить" />
-              </Popconfirm>
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => confirmDelete(record as Location)}
+                aria-label="Удалить"
+              />
             )}
           </Space>
         ),
     },
-  ]
+  ],
+    [editingId, nameValue, nameFilters, startEdit, cancelEdit, save, confirmDelete],
+  )
 
-  const dataSource: LocationRow[] =
-    editingId === 'new'
-      ? [{ id: 'new', name: nameValue, created_at: '', updated_at: '' }, ...(locations ?? [])]
-      : (locations ?? [])
+  const dataSource = useMemo<LocationRow[]>(
+    () =>
+      editingId === 'new'
+        ? [{ id: 'new', name: nameValue, created_at: '', updated_at: '' }, ...(locations ?? [])]
+        : (locations ?? []),
+    [editingId, locations, nameValue],
+  )
 
   return (
     <div>
