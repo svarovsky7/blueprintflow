@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   App,
   Button,
@@ -11,6 +11,7 @@ import {
   Upload,
   Modal,
 } from 'antd'
+import type { ColumnsType } from 'antd/es/table'
 import {
   PlusOutlined,
   CheckOutlined,
@@ -414,43 +415,49 @@ export default function CostCategories() {
     }
     return false
   }
-  const startAdd = (mode: 'category' | 'detail') => {
-    form.resetFields()
+  const startAdd = useCallback(
+    (mode: 'category' | 'detail') => {
+      form.resetFields()
+      setEditing(null)
+      setAddMode(mode)
+    },
+    [form],
+  )
+
+  const startEdit = useCallback(
+    (record: TableRow) => {
+      if (addMode) return
+      form.resetFields()
+      if (record.detailId) {
+        const detail = details?.find((d) => d.id === record.detailId)
+        form.setFieldsValue({
+          costCategoryId: detail?.costCategoryId,
+          detailName: detail?.name,
+          detailDescription: detail?.description,
+          detailUnitId: detail?.unitId,
+          locationId: detail?.locationId,
+        })
+        setEditing({ type: 'detail', key: record.key, id: record.detailId })
+      } else if (record.categoryId) {
+        const category = categories?.find((c) => c.id === record.categoryId)
+        form.setFieldsValue({
+          number: category?.number,
+          categoryName: category?.name,
+          categoryDescription: category?.description,
+          categoryUnitId: category?.unitId,
+        })
+        setEditing({ type: 'category', key: record.key, id: record.categoryId })
+      }
+    },
+    [addMode, categories, details, form],
+  )
+
+  const cancelEdit = useCallback(() => {
     setEditing(null)
-    setAddMode(mode)
-  }
-
-  const startEdit = (record: TableRow) => {
-    if (addMode) return
     form.resetFields()
-    if (record.detailId) {
-      const detail = details?.find((d) => d.id === record.detailId)
-      form.setFieldsValue({
-        costCategoryId: detail?.costCategoryId,
-        detailName: detail?.name,
-        detailDescription: detail?.description,
-        detailUnitId: detail?.unitId,
-        locationId: detail?.locationId,
-      })
-      setEditing({ type: 'detail', key: record.key, id: record.detailId })
-    } else if (record.categoryId) {
-      const category = categories?.find((c) => c.id === record.categoryId)
-      form.setFieldsValue({
-        number: category?.number,
-        categoryName: category?.name,
-        categoryDescription: category?.description,
-        categoryUnitId: category?.unitId,
-      })
-      setEditing({ type: 'category', key: record.key, id: record.categoryId })
-    }
-  }
+  }, [form])
 
-  const cancelEdit = () => {
-    setEditing(null)
-    form.resetFields()
-  }
-
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     try {
       const values = await form.validateFields()
       if (!supabase) return
@@ -480,9 +487,15 @@ export default function CostCategories() {
     } catch {
       message.error('Не удалось сохранить')
     }
-  }
+  }, [
+    addMode,
+    form,
+    message,
+    refetchCategories,
+    refetchDetails,
+  ])
 
-  const handleUpdate = async () => {
+  const handleUpdate = useCallback(async () => {
     try {
       const values = await form.validateFields()
       if (!supabase || !editing) return
@@ -517,34 +530,45 @@ export default function CostCategories() {
     } catch {
       message.error('Не удалось сохранить')
     }
-  }
+  }, [
+    cancelEdit,
+    editing,
+    form,
+    message,
+    refetchCategories,
+    refetchDetails,
+  ])
 
-  const handleDelete = async (record: TableRow) => {
-    try {
-      if (!supabase) return
-      if (record.detailId) {
-        const { error } = await supabase
-          .from('detail_cost_categories')
-          .delete()
-          .eq('id', record.detailId)
-        if (error) throw error
-      } else if (record.categoryId) {
-        const { error } = await supabase
-          .from('cost_categories')
-          .delete()
-          .eq('id', record.categoryId)
-        if (error) throw error
+  const handleDelete = useCallback(
+    async (record: TableRow) => {
+      try {
+        if (!supabase) return
+        if (record.detailId) {
+          const { error } = await supabase
+            .from('detail_cost_categories')
+            .delete()
+            .eq('id', record.detailId)
+          if (error) throw error
+        } else if (record.categoryId) {
+          const { error } = await supabase
+            .from('cost_categories')
+            .delete()
+            .eq('id', record.categoryId)
+          if (error) throw error
+        }
+        message.success('Запись удалена')
+        await Promise.all([refetchCategories(), refetchDetails()])
+      } catch {
+        message.error('Не удалось удалить')
       }
-      message.success('Запись удалена')
-      await Promise.all([refetchCategories(), refetchDetails()])
-    } catch {
-      message.error('Не удалось удалить')
-    }
-  }
+    },
+    [message, refetchCategories, refetchDetails],
+  )
 
-  const columns = [
-    {
-      title: '№',
+  const columns: ColumnsType<TableRow> = useMemo(
+    () => [
+      {
+        title: '№',
       dataIndex: 'number',
       sorter: (a: TableRow, b: TableRow) =>
         (a.number ?? 0) - (b.number ?? 0),
@@ -916,7 +940,29 @@ export default function CostCategories() {
         )
       },
     },
-  ]
+    ],
+    [
+      addMode,
+      editing,
+      selectedCategory,
+      numberFilters,
+      categoryFilters,
+      categoryUnitFilters,
+      detailFilters,
+      detailUnitFilters,
+      locationFilters,
+      units,
+      locations,
+      categories,
+      form,
+      handleSave,
+      handleUpdate,
+      cancelEdit,
+      startEdit,
+      handleDelete,
+      startAdd,
+    ],
+  )
 
   const loading = categoriesLoading || detailsLoading
 
