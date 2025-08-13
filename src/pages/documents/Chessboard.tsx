@@ -42,13 +42,15 @@ interface DbRow {
   quantitySpec: number | null
   quantityRd: number | null
   unit_id: string | null
-  cost_category_code: string | null
-  cost_type_code: string | null
-  location_id: string | null
   units?: { name: string | null } | null
-  cost_categories?: { name: string | null } | null
-  detail_cost_categories?: { name: string | null } | null
-  location?: { name: string | null } | null
+  chessboard_mapping?: {
+    cost_category_code: string | null
+    cost_type_code: string | null
+    location_id: string | null
+    cost_categories?: { name: string | null } | null
+    detail_cost_categories?: { name: string | null } | null
+    location?: { name: string | null } | null
+  } | null
 }
 
 const emptyRow = (defaults: Partial<RowData>): RowData => ({
@@ -135,11 +137,11 @@ export default function Chessboard() {
       const query = supabase
         .from('chessboard')
         .select(
-          'id, material, quantityPd, quantitySpec, quantityRd, unit_id, cost_category_code, cost_type_code, location_id, units(name), cost_categories(name), detail_cost_categories(name), location(name)',
+          'id, material, quantityPd, quantitySpec, quantityRd, unit_id, units(name), chessboard_mapping(cost_category_code, cost_type_code, location_id, cost_categories(name), detail_cost_categories(name), location(name))',
         )
         .eq('project_id', appliedFilters.projectId)
-      if (appliedFilters.categoryCode) query.eq('cost_category_code', appliedFilters.categoryCode)
-      if (appliedFilters.typeCode) query.eq('cost_type_code', appliedFilters.typeCode)
+      if (appliedFilters.categoryCode) query.eq('chessboard_mapping.cost_category_code', appliedFilters.categoryCode)
+      if (appliedFilters.typeCode) query.eq('chessboard_mapping.cost_type_code', appliedFilters.typeCode)
       const { data, error } = await query.order('created_at', { ascending: false })
       if (error) {
         message.error('Не удалось загрузить данные')
@@ -158,9 +160,9 @@ export default function Chessboard() {
         quantitySpec: item.quantitySpec !== null && item.quantitySpec !== undefined ? String(item.quantitySpec) : '',
         quantityRd: item.quantityRd !== null && item.quantityRd !== undefined ? String(item.quantityRd) : '',
         unit: item.units?.name ?? '',
-        costCategory: item.cost_categories?.name ?? '',
-        costType: item.detail_cost_categories?.name ?? '',
-        location: item.location?.name ?? '',
+        costCategory: item.chessboard_mapping?.cost_categories?.name ?? '',
+        costType: item.chessboard_mapping?.detail_cost_categories?.name ?? '',
+        location: item.chessboard_mapping?.location?.name ?? '',
       })),
     [tableData],
   )
@@ -209,13 +211,21 @@ export default function Chessboard() {
       quantitySpec: r.quantitySpec ? Number(r.quantitySpec) : null,
       quantityRd: r.quantityRd ? Number(r.quantityRd) : null,
       unit_id: r.unitId || null,
-      cost_category_code: r.costCategoryCode,
-      cost_type_code: r.costTypeCode || null,
-      location_id: r.locationId || null,
     }))
-    const { error } = await supabase.from('chessboard').insert(payload)
-    if (error) {
-      message.error(`Не удалось сохранить данные: ${error.message}`)
+    const { data, error } = await supabase.from('chessboard').insert(payload).select('id')
+    if (error || !data) {
+      message.error(`Не удалось сохранить данные: ${error?.message}`)
+      return
+    }
+    const mappings = data.map((d, idx) => ({
+      chessboard_id: d.id,
+      cost_category_code: rows[idx].costCategoryCode,
+      cost_type_code: rows[idx].costTypeCode || null,
+      location_id: rows[idx].locationId ? Number(rows[idx].locationId) : null,
+    }))
+    const { error: mapError } = await supabase.from('chessboard_mapping').insert(mappings)
+    if (mapError) {
+      message.error(`Не удалось сохранить связи: ${mapError.message}`)
       return
     }
     message.success('Данные успешно сохранены')
