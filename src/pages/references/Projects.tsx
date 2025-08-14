@@ -25,6 +25,7 @@ interface Project {
   id: string
   name: string
   address: string | null
+  blocks_count: number | null
   created_at: string
   projects_blocks?: { block_id: string; blocks: BlockInfo | null }[] | null
 }
@@ -50,40 +51,15 @@ export default function Projects() {
     queryKey: ['projects'],
     queryFn: async () => {
       if (!supabase) return []
-      const { data: projectData, error: projectError } = await supabase
+      const { data, error } = await supabase
         .from('projects')
-        .select('id, name, address, created_at')
+        .select('*, projects_blocks(block_id, blocks(name, bottom_underground_floor, top_ground_floor))')
         .order('created_at', { ascending: false })
-      if (projectError) {
+      if (error) {
         message.error('Не удалось загрузить данные')
-        throw projectError
+        throw error
       }
-      const projects = projectData as Project[]
-      const ids = projects.map((p) => p.id)
-      if (!ids.length) return projects
-      const { data: linkData, error: linkError } = await supabase
-        .from('projects_blocks')
-        .select('project_id, block_id, blocks(name, bottom_underground_floor, top_ground_floor)')
-        .in('project_id', ids)
-      if (linkError) {
-        message.error('Не удалось загрузить данные')
-        throw linkError
-      }
-      const linkRows = (linkData as unknown as {
-        project_id: string
-        block_id: string
-        blocks: BlockInfo | null
-      }[] | null) ?? []
-      const map = linkRows.reduce(
-        (acc, row) => {
-          const arr = acc[row.project_id] ?? []
-          arr.push({ block_id: row.block_id, blocks: row.blocks })
-          acc[row.project_id] = arr
-          return acc
-        },
-        {} as Record<string, { block_id: string; blocks: BlockInfo | null }[]>,
-      )
-      return projects.map((p) => ({ ...p, projects_blocks: map[p.id] ?? [] }))
+      return data as Project[]
     },
   })
 
@@ -123,7 +99,7 @@ export default function Projects() {
       form.setFieldsValue({
         name: record.name,
         address: record.address,
-        blocksCount: blocks.length,
+        blocks_count: blocks.length || record.blocks_count,
         blocks,
       })
       setModalMode('edit')
@@ -149,6 +125,7 @@ export default function Projects() {
       const projectData = {
         name: values.name,
         address: values.address,
+        blocks_count: values.blocks_count,
       }
       if (modalMode === 'add') {
         const { data: project, error: projectError } = await supabase
@@ -260,6 +237,18 @@ export default function Projects() {
     [projects],
   )
 
+  const blockCountFilters = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (projects ?? [])
+            .map((p) => p.blocks_count)
+            .filter((n): n is number => typeof n === 'number'),
+        ),
+      ).map((n) => ({ text: n.toString(), value: n })),
+    [projects],
+  )
+
   const blockNameFilters = useMemo(
     () =>
       Array.from(new Set(projectRows.flatMap((p) => p.blockNames))).map((n) => ({
@@ -285,6 +274,14 @@ export default function Projects() {
           (a.address ?? '').localeCompare(b.address ?? ''),
         filters: addressFilters,
         onFilter: (value: unknown, record: ProjectRow) => record.address === value,
+      },
+      {
+        title: 'Кол-во корпусов',
+        dataIndex: 'blocks_count',
+        sorter: (a: ProjectRow, b: ProjectRow) =>
+          (a.blocks_count ?? 0) - (b.blocks_count ?? 0),
+        filters: blockCountFilters,
+        onFilter: (value: unknown, record: ProjectRow) => record.blocks_count === value,
       },
       {
         title: 'Корпуса',
@@ -324,7 +321,15 @@ export default function Projects() {
         ),
       },
     ],
-    [nameFilters, addressFilters, blockNameFilters, openViewModal, openEditModal, handleDelete],
+    [
+      nameFilters,
+      addressFilters,
+      blockCountFilters,
+      blockNameFilters,
+      openViewModal,
+      openEditModal,
+      handleDelete,
+    ],
   )
 
   return (
@@ -365,7 +370,7 @@ export default function Projects() {
           <div>
             <p>Название: {currentProject?.name}</p>
             <p>Адрес: {currentProject?.address}</p>
-            <p>Количество корпусов: {currentProject?.blocks.length ?? 0}</p>
+            <p>Количество корпусов: {currentProject?.blocks_count ?? ''}</p>
             <p>
               Корпуса:{' '}
               {currentProject?.blocks
@@ -394,7 +399,7 @@ export default function Projects() {
             </Form.Item>
             <Form.Item
               label="Количество корпусов"
-              name="blocksCount"
+              name="blocks_count"
               rules={[{ required: true, message: 'Введите количество корпусов' }]}
             >
               <InputNumber min={1} onChange={handleBlocksCountChange} />
