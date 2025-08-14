@@ -91,6 +91,7 @@ export default function Chessboard() {
   >(null)
   const [mode, setMode] = useState<'view' | 'add' | 'edit'>('view')
   const [rows, setRows] = useState<RowData[]>([])
+  const [editingKey, setEditingKey] = useState<string | null>(null)
 
   const { data: projects } = useQuery<ProjectOption[]>({
     queryKey: ['projects'],
@@ -213,26 +214,30 @@ export default function Chessboard() {
     [tableData],
   )
 
-  const tableRows = useMemo<TableRow[]>(
-    () => [
-      ...rows.map((r) => ({ ...r })),
-      ...viewRows.map((v) => ({
-        key: v.key,
-        material: v.material,
-        quantityPd: v.quantityPd,
-        quantitySpec: v.quantitySpec,
-        quantityRd: v.quantityRd,
-        unitId: v.unit,
-        blockId: v.blockId,
-        block: v.block,
-        costCategoryId: v.costCategory,
-        costTypeId: v.costType,
-        locationId: v.location,
-        isExisting: true,
-      })),
-    ],
-    [rows, viewRows],
-  )
+  const tableRows = useMemo<TableRow[]>(() => {
+    const existingMap = new Map(viewRows.map((v) => [v.key, v]))
+    const result: TableRow[] = viewRows.map((v) => {
+      const edited = rows.find((r) => r.key === v.key)
+      return edited
+        ? { ...edited }
+        : {
+            key: v.key,
+            material: v.material,
+            quantityPd: v.quantityPd,
+            quantitySpec: v.quantitySpec,
+            quantityRd: v.quantityRd,
+            unitId: v.unit,
+            blockId: v.blockId,
+            block: v.block,
+            costCategoryId: v.costCategory,
+            costTypeId: v.costType,
+            locationId: v.location,
+            isExisting: true,
+          }
+    })
+    const newRows = rows.filter((r) => !existingMap.has(r.key))
+    return newRows.length ? [...newRows, ...result] : result
+  }, [rows, viewRows])
 
   const handleApply = () => {
     if (!filters.projectId) {
@@ -298,6 +303,7 @@ export default function Chessboard() {
         block: blockName,
       }),
     ])
+    setEditingKey(null)
     setMode('add')
   }, [appliedFilters, costTypes, blocks])
 
@@ -306,7 +312,7 @@ export default function Chessboard() {
       const dbRow = tableData?.find((r) => r.id === id)
       if (!dbRow) return
       setRows([
-        { 
+        {
           key: id,
           material: dbRow.material ?? '',
           quantityPd: dbRow.quantityPd !== null && dbRow.quantityPd !== undefined ? String(dbRow.quantityPd) : '',
@@ -326,6 +332,7 @@ export default function Chessboard() {
             : '',
         },
       ])
+      setEditingKey(id)
       setMode('edit')
     },
     [tableData],
@@ -365,6 +372,7 @@ export default function Chessboard() {
     message.success('Строка обновлена')
     setMode('view')
     setRows([])
+    setEditingKey(null)
     await refetch()
   }, [rows, message, refetch])
 
@@ -417,145 +425,15 @@ export default function Chessboard() {
     message.success('Данные успешно сохранены')
     setMode('view')
     setRows([])
+    setEditingKey(null)
     await refetch()
   }
 
   const handleCancel = useCallback(() => {
     setRows([])
     setMode('view')
+    setEditingKey(null)
   }, [])
-
-  const editColumns: ColumnType<RowData>[] = [
-    {
-      title: 'Материал',
-      dataIndex: 'material',
-      width: 300,
-      render: (_, record) => (
-        <Input
-          style={{ width: 300 }}
-          value={record.material}
-          onChange={(e) => handleRowChange(record.key, 'material', e.target.value)}
-        />
-      ),
-    },
-    {
-      title: 'Кол-во по ПД',
-      dataIndex: 'quantityPd',
-      render: (_, record) => (
-        <Input
-          style={{ width: '10ch' }}
-          value={record.quantityPd}
-          onChange={(e) => handleRowChange(record.key, 'quantityPd', e.target.value)}
-        />
-      ),
-    },
-    {
-      title: 'Кол-во по спеке РД',
-      dataIndex: 'quantitySpec',
-      render: (_, record) => (
-        <Input
-          style={{ width: '10ch' }}
-          value={record.quantitySpec}
-          onChange={(e) => handleRowChange(record.key, 'quantitySpec', e.target.value)}
-        />
-      ),
-    },
-    {
-      title: 'Кол-во по пересчету РД',
-      dataIndex: 'quantityRd',
-      render: (_, record) => (
-        <Input
-          style={{ width: '10ch' }}
-          value={record.quantityRd}
-          onChange={(e) => handleRowChange(record.key, 'quantityRd', e.target.value)}
-        />
-      ),
-    },
-    {
-      title: 'Ед.изм.',
-      dataIndex: 'unitId',
-      render: (_, record) => (
-        <Select
-          style={{ width: 160 }}
-          value={record.unitId}
-          onChange={(value) => handleRowChange(record.key, 'unitId', value)}
-          options={units?.map((u) => ({ value: u.id, label: u.name })) ?? []}
-        />
-      ),
-    },
-    {
-      title: 'Корпус',
-      dataIndex: 'blockId',
-      render: (_, record) => (
-        <Select
-          style={{ width: 200 }}
-          value={record.blockId}
-          onChange={(value) => {
-            handleRowChange(record.key, 'blockId', value)
-            const name = blocks?.find((b) => b.id === value)?.name ?? ''
-            handleRowChange(record.key, 'block', name)
-          }}
-          options={[
-            { value: '', label: 'НЕТ' },
-            ...(blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []),
-          ]}
-        />
-      ),
-    },
-    {
-      title: 'Категория затрат',
-      dataIndex: 'costCategoryId',
-      render: (_, record) => (
-        <Select
-          style={{ width: 200 }}
-          value={record.costCategoryId}
-          onChange={(value) => {
-            handleRowChange(record.key, 'costCategoryId', value)
-            handleRowChange(record.key, 'costTypeId', '')
-            handleRowChange(record.key, 'locationId', '')
-          }}
-          options={
-            costCategories?.map((c) => ({
-              value: String(c.id),
-              label: c.number ? `${c.number} ${c.name}` : c.name,
-            })) ?? []
-          }
-        />
-      ),
-    },
-    {
-      title: 'Вид затрат',
-      dataIndex: 'costTypeId',
-      render: (_, record) => (
-        <Select
-          style={{ width: 200 }}
-          value={record.costTypeId}
-          onChange={(value) => {
-            handleRowChange(record.key, 'costTypeId', value)
-            const loc = costTypes?.find((t) => t.id === Number(value))?.location_id
-            handleRowChange(record.key, 'locationId', loc ? String(loc) : '')
-          }}
-          options={
-            costTypes
-              ?.filter((t) => t.cost_category_id === Number(record.costCategoryId))
-              .map((t) => ({ value: String(t.id), label: t.name })) ?? []
-          }
-        />
-      ),
-    },
-    {
-      title: 'Локализация',
-      dataIndex: 'locationId',
-      render: (_, record) => (
-        <Select
-          style={{ width: 200 }}
-          value={record.locationId}
-          onChange={(value) => handleRowChange(record.key, 'locationId', value)}
-          options={locations?.map((l) => ({ value: String(l.id), label: l.name })) ?? []}
-        />
-      ),
-    },
-  ]
 
   const addColumns: ColumnsType<TableRow> = useMemo(() => {
     const map: Record<string, keyof ViewRow> = {
@@ -604,7 +482,7 @@ export default function Chessboard() {
         String(record[col.dataIndex] ?? '') === String(value)
 
       const render: ColumnType<TableRow>['render'] = (_, record) => {
-        if (record.isExisting) return record[col.dataIndex] as string
+        if (record.key !== editingKey && record.isExisting) return record[col.dataIndex] as string
         switch (col.dataIndex) {
           case 'material':
             return (
@@ -716,20 +594,24 @@ export default function Chessboard() {
     })
 
     return [
-      {
-        title: '',
-        dataIndex: 'add',
-        render: (_, __, index) =>
-          index < rows.length ? (
-            <Button type="text" icon={<PlusOutlined />} onClick={() => addRow(index)} />
-          ) : null,
-      },
+      ...(mode === 'add'
+        ? [
+            {
+              title: '',
+              dataIndex: 'add',
+              render: (_: unknown, __: TableRow, index: number) =>
+                index < rows.length ? (
+                  <Button type="text" icon={<PlusOutlined />} onClick={() => addRow(index)} />
+                ) : null,
+            },
+          ]
+        : []),
       ...dataColumns,
       {
         title: '',
         dataIndex: 'actions',
         render: (_, record) =>
-          record.isExisting ? (
+          record.isExisting && record.key !== editingKey ? (
             <Space>
               <Button type="text" icon={<EditOutlined />} onClick={() => startEdit(record.key)} />
               <Popconfirm title="Удалить строку?" onConfirm={() => handleDelete(record.key)}>
@@ -751,6 +633,8 @@ export default function Chessboard() {
     handleDelete,
     addRow,
     rows,
+    mode,
+    editingKey,
   ])
 
   const viewColumns: ColumnsType<ViewRow> = useMemo(() => {
@@ -874,18 +758,28 @@ export default function Chessboard() {
         )}
       </div>
       {appliedFilters && (
-        mode === 'edit' ? (
-          <>
-            <Space style={{ marginBottom: 16 }}>
-              <Button onClick={handleUpdate}>Сохранить</Button>
-              <Button onClick={() => setMode('view')}>Отмена</Button>
-            </Space>
-            <Table<RowData> dataSource={rows} columns={editColumns} pagination={false} rowKey="key" />
-          </>
-        ) : mode === 'add' ? (
-          <Table<TableRow> dataSource={tableRows} columns={addColumns} pagination={false} rowKey="key" />
+        mode === 'view' ? (
+          <Table<ViewRow>
+            dataSource={viewRows}
+            columns={viewColumns}
+            pagination={false}
+            rowKey="key"
+          />
         ) : (
-          <Table<ViewRow> dataSource={viewRows} columns={viewColumns} pagination={false} rowKey="key" />
+          <>
+            {mode === 'edit' && (
+              <Space style={{ marginBottom: 16 }}>
+                <Button onClick={handleUpdate}>Сохранить</Button>
+                <Button onClick={handleCancel}>Отмена</Button>
+              </Space>
+            )}
+            <Table<TableRow>
+              dataSource={tableRows}
+              columns={addColumns}
+              pagination={false}
+              rowKey="key"
+            />
+          </>
         )
       )}
     </div>
