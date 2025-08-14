@@ -1,9 +1,44 @@
 import { useCallback, useMemo, useState, type Key } from 'react'
-import { App, Button, Input, Popconfirm, Select, Space, Table } from 'antd'
+import { App, Button, Dropdown, Input, Popconfirm, Select, Space, Table } from 'antd'
 import type { ColumnType, ColumnsType } from 'antd/es/table'
-import { CopyOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
+import { BgColorsOutlined, CopyOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
+
+type RowColor = '' | 'green' | 'yellow' | 'blue' | 'red'
+
+const colorMap: Record<RowColor, string> = {
+  green: '#d9f7be',
+  yellow: '#fff1b8',
+  blue: '#e6f7ff',
+  red: '#ffa39e',
+  '': '',
+}
+
+const RowColorPicker = ({
+  value,
+  onChange,
+}: {
+  value: RowColor
+  onChange: (c: RowColor) => void
+}) => (
+  <Dropdown
+    trigger={['click']}
+    menu={{
+      items: (['green', 'yellow', 'blue', 'red'] as RowColor[]).map((c) => ({
+        key: c,
+        label: <div style={{ width: 16, height: 16, background: colorMap[c] }} />,
+      })),
+      onClick: ({ key }) => onChange(key as RowColor),
+    }}
+  >
+    <Button
+      type="text"
+      icon={<BgColorsOutlined />}
+      style={{ background: value ? colorMap[value] : undefined }}
+    />
+  </Dropdown>
+)
 
 interface RowData {
   key: string
@@ -17,6 +52,7 @@ interface RowData {
   costCategoryId: string
   costTypeId: string
   locationId: string
+  color: RowColor
 }
 
 interface ViewRow {
@@ -31,6 +67,7 @@ interface ViewRow {
   costCategory: string
   costType: string
   location: string
+  color: RowColor
 }
 
 interface TableRow extends RowData {
@@ -56,6 +93,7 @@ interface DbRow {
   quantitySpec: number | null
   quantityRd: number | null
   unit_id: string | null
+  color: string | null
   units?: { name: string | null } | null
   chessboard_mapping?: {
     block_id: string | null
@@ -81,6 +119,7 @@ const emptyRow = (defaults: Partial<RowData>): RowData => ({
   costCategoryId: defaults.costCategoryId ?? '',
   costTypeId: defaults.costTypeId ?? '',
   locationId: defaults.locationId ?? '',
+  color: '',
 })
 
 type HiddenColKey = 'block' | 'costCategory' | 'costType' | 'location'
@@ -210,7 +249,7 @@ export default function Chessboard() {
       const query = supabase
         .from('chessboard')
         .select(
-          `id, material, quantityPd, quantitySpec, quantityRd, unit_id, units(name), ${relation}(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name))`,
+          `id, material, quantityPd, quantitySpec, quantityRd, unit_id, color, units(name), ${relation}(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name))`,
         )
         .eq('project_id', appliedFilters.projectId)
       if (appliedFilters.blockId)
@@ -242,6 +281,7 @@ export default function Chessboard() {
         costCategory: item.chessboard_mapping?.cost_categories?.name ?? '',
         costType: item.chessboard_mapping?.detail_cost_categories?.name ?? '',
         location: item.chessboard_mapping?.location?.name ?? '',
+        color: (item.color as RowColor | null) ?? '',
       })),
     [tableData],
   )
@@ -261,6 +301,7 @@ export default function Chessboard() {
         costCategoryId: v.costCategory,
         costTypeId: v.costType,
         locationId: v.location,
+        color: v.color,
         isExisting: true,
       })),
     ],
@@ -387,6 +428,7 @@ export default function Chessboard() {
             locationId: dbRow.chessboard_mapping?.location_id
               ? String(dbRow.chessboard_mapping.location_id)
               : '',
+            color: (dbRow.color as RowColor | null) ?? '',
           },
         }
       })
@@ -405,6 +447,7 @@ export default function Chessboard() {
           quantitySpec: r.quantitySpec ? Number(r.quantitySpec) : null,
           quantityRd: r.quantityRd ? Number(r.quantityRd) : null,
           unit_id: r.unitId || null,
+          color: r.color || null,
         })
         .eq('id', r.key)
       if (error) {
@@ -463,6 +506,7 @@ export default function Chessboard() {
       quantitySpec: r.quantitySpec ? Number(r.quantitySpec) : null,
       quantityRd: r.quantityRd ? Number(r.quantityRd) : null,
       unit_id: r.unitId || null,
+      color: r.color || null,
     }))
     const { data, error } = await supabase.from('chessboard').insert(payload).select('id')
     if (error || !data) {
@@ -679,6 +723,14 @@ export default function Chessboard() {
     return [
       {
         title: '',
+        dataIndex: 'color',
+        render: (_, record) =>
+          record.isExisting ? null : (
+            <RowColorPicker value={record.color} onChange={(c) => handleRowChange(record.key, 'color', c)} />
+          ),
+      },
+      {
+        title: '',
         dataIndex: 'add',
         render: (_, __, index) =>
           index < rows.length ? (
@@ -875,6 +927,16 @@ export default function Chessboard() {
     })
 
     return [
+      {
+        title: '',
+        dataIndex: 'color',
+        render: (_, record) => {
+          const edit = editingRows[record.key]
+          return edit ? (
+            <RowColorPicker value={edit.color} onChange={(c) => handleEditChange(record.key, 'color', c)} />
+          ) : null
+        },
+      },
       ...dataColumns,
       {
         title: '',
@@ -999,6 +1061,7 @@ export default function Chessboard() {
             pagination={false}
             rowKey="key"
             scroll={{ scrollToFirstRowOnChange: false }}
+            rowClassName={(record) => (record.color ? `row-${record.color}` : '')}
           />
         ) : (
           <Table<ViewRow>
@@ -1007,6 +1070,10 @@ export default function Chessboard() {
             pagination={false}
             rowKey="key"
             scroll={{ scrollToFirstRowOnChange: false }}
+            rowClassName={(record) => {
+              const color = editingRows[record.key]?.color ?? record.color
+              return color ? `row-${color}` : ''
+            }}
           />
         ))}
     </div>
