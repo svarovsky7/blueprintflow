@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState, type Key } from 'react'
 import { App, Button, Input, Popconfirm, Select, Space, Table } from 'antd'
 import type { ColumnType, ColumnsType } from 'antd/es/table'
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
+import { CopyOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 
@@ -307,6 +307,17 @@ export default function Chessboard() {
     },
     [appliedFilters, costTypes, blocks],
   )
+
+  const copyRow = useCallback((index: number) => {
+    setRows((prev) => {
+      const source = prev[index]
+      if (!source) return prev
+      const newRow: RowData = { ...source, key: Math.random().toString(36).slice(2) }
+      const next = [...prev]
+      next.splice(index + 1, 0, newRow)
+      return next
+    })
+  }, [])
 
   const handleRowChange = useCallback((key: string, field: keyof RowData, value: string) => {
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, [field]: value } : r)))
@@ -671,7 +682,10 @@ export default function Chessboard() {
         dataIndex: 'add',
         render: (_, __, index) =>
           index < rows.length ? (
-            <Button type="text" icon={<PlusOutlined />} onClick={() => addRow(index)} />
+            <Space size="small">
+              <Button type="text" icon={<PlusOutlined />} onClick={() => addRow(index)} />
+              <Button type="text" icon={<CopyOutlined />} onClick={() => copyRow(index)} />
+            </Space>
           ) : null,
       },
       ...dataColumns,
@@ -701,6 +715,7 @@ export default function Chessboard() {
     startEdit,
     handleDelete,
     addRow,
+    copyRow,
     rows,
     hiddenCols,
   ])
