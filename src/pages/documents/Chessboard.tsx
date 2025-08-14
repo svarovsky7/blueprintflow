@@ -29,6 +29,10 @@ interface ViewRow {
   location: string
 }
 
+interface TableRow extends RowData {
+  isExisting?: boolean
+}
+
 interface ProjectOption { id: string; name: string }
 interface UnitOption { id: string; name: string }
 interface CostCategoryOption { id: number; number: number | null; name: string }
@@ -174,6 +178,25 @@ export default function Chessboard() {
         location: item.chessboard_mapping?.location?.name ?? '',
       })),
     [tableData],
+  )
+
+  const tableRows = useMemo<TableRow[]>(
+    () => [
+      ...rows.map((r) => ({ ...r })),
+      ...viewRows.map((v) => ({
+        key: v.key,
+        material: v.material,
+        quantityPd: v.quantityPd,
+        quantitySpec: v.quantitySpec,
+        quantityRd: v.quantityRd,
+        unitId: v.unit,
+        costCategoryId: v.costCategory,
+        costTypeId: v.costType,
+        locationId: v.location,
+        isExisting: true,
+      })),
+    ],
+    [rows, viewRows],
   )
 
   const handleApply = () => {
@@ -343,7 +366,7 @@ export default function Chessboard() {
     setMode('view')
   }, [])
 
-  const columns: ColumnType<RowData>[] = [
+  const editColumns: ColumnType<RowData>[] = [
     {
       title: 'Материал',
       dataIndex: 'material',
@@ -454,17 +477,167 @@ export default function Chessboard() {
         />
       ),
     },
-    {
-      title: '',
-      dataIndex: 'actions',
-      render: (_, __, index) =>
-        index === rows.length - 1 ? (
-          <Button type="text" icon={<PlusOutlined />} onClick={addRow} />
-        ) : null,
-    },
   ]
 
-  const editColumns = columns.filter((c) => c.dataIndex !== 'actions')
+  const addColumns: ColumnsType<TableRow> = useMemo(() => {
+    const map: Record<string, keyof ViewRow> = {
+      material: 'material',
+      quantityPd: 'quantityPd',
+      quantitySpec: 'quantitySpec',
+      quantityRd: 'quantityRd',
+      unitId: 'unit',
+      costCategoryId: 'costCategory',
+      costTypeId: 'costType',
+      locationId: 'location',
+    }
+
+    const base: Array<{ title: string; dataIndex: keyof TableRow; width?: number }> = [
+      { title: 'Материал', dataIndex: 'material', width: 300 },
+      { title: 'Кол-во по ПД', dataIndex: 'quantityPd' },
+      { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec' },
+      { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd' },
+      { title: 'Ед.изм.', dataIndex: 'unitId' },
+      { title: 'Категория затрат', dataIndex: 'costCategoryId' },
+      { title: 'Вид затрат', dataIndex: 'costTypeId' },
+      { title: 'Локализация', dataIndex: 'locationId' },
+    ]
+
+    const dataColumns = base.map((col) => {
+      const values = Array.from(
+        new Set(viewRows.map((row) => row[map[col.dataIndex] as keyof ViewRow]).filter((v) => v)),
+      )
+      const filters =
+        col.dataIndex === 'costCategoryId' || col.dataIndex === 'costTypeId'
+          ? [{ text: 'НЕТ', value: '' }, ...values.map((v) => ({ text: String(v), value: String(v) }))]
+          : values.map((v) => ({ text: String(v), value: String(v) }))
+
+      const sorter = (a: TableRow, b: TableRow) => {
+        const aVal = a[col.dataIndex]
+        const bVal = b[col.dataIndex]
+        const aNum = Number(aVal)
+        const bNum = Number(bVal)
+        if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum
+        return String(aVal ?? '').localeCompare(String(bVal ?? ''))
+      }
+
+      const onFilter = (value: boolean | Key, record: TableRow) =>
+        String(record[col.dataIndex] ?? '') === String(value)
+
+      const render: ColumnType<TableRow>['render'] = (_, record) => {
+        if (record.isExisting) return record[col.dataIndex] as string
+        switch (col.dataIndex) {
+          case 'material':
+            return (
+              <Input
+                style={{ width: 300 }}
+                value={record.material}
+                onChange={(e) => handleRowChange(record.key, 'material', e.target.value)}
+              />
+            )
+          case 'quantityPd':
+            return (
+              <Input
+                style={{ width: '10ch' }}
+                value={record.quantityPd}
+                onChange={(e) => handleRowChange(record.key, 'quantityPd', e.target.value)}
+              />
+            )
+          case 'quantitySpec':
+            return (
+              <Input
+                style={{ width: '10ch' }}
+                value={record.quantitySpec}
+                onChange={(e) => handleRowChange(record.key, 'quantitySpec', e.target.value)}
+              />
+            )
+          case 'quantityRd':
+            return (
+              <Input
+                style={{ width: '10ch' }}
+                value={record.quantityRd}
+                onChange={(e) => handleRowChange(record.key, 'quantityRd', e.target.value)}
+              />
+            )
+          case 'unitId':
+            return (
+              <Select
+                style={{ width: 160 }}
+                value={record.unitId}
+                onChange={(value) => handleRowChange(record.key, 'unitId', value)}
+                options={units?.map((u) => ({ value: u.id, label: u.name })) ?? []}
+              />
+            )
+          case 'costCategoryId':
+            return (
+              <Select
+                style={{ width: 200 }}
+                value={record.costCategoryId}
+                onChange={(value) => {
+                  handleRowChange(record.key, 'costCategoryId', value)
+                  handleRowChange(record.key, 'costTypeId', '')
+                  handleRowChange(record.key, 'locationId', '')
+                }}
+                options={
+                  costCategories?.map((c) => ({
+                    value: String(c.id),
+                    label: c.number ? `${c.number} ${c.name}` : c.name,
+                  })) ?? []
+                }
+              />
+            )
+          case 'costTypeId':
+            return (
+              <Select
+                style={{ width: 200 }}
+                value={record.costTypeId}
+                onChange={(value) => {
+                  handleRowChange(record.key, 'costTypeId', value)
+                  const loc = costTypes?.find((t) => t.id === Number(value))?.location_id
+                  handleRowChange(record.key, 'locationId', loc ? String(loc) : '')
+                }}
+                options={
+                  costTypes
+                    ?.filter((t) => t.cost_category_id === Number(record.costCategoryId))
+                    .map((t) => ({ value: String(t.id), label: t.name })) ?? []
+                }
+              />
+            )
+          case 'locationId':
+            return (
+              <Select
+                style={{ width: 200 }}
+                value={record.locationId}
+                onChange={(value) => handleRowChange(record.key, 'locationId', value)}
+                options={locations?.map((l) => ({ value: String(l.id), label: l.name })) ?? []}
+              />
+            )
+          default:
+            return null
+        }
+      }
+
+      return { ...col, filters, sorter, onFilter, render }
+    })
+
+    return [
+      ...dataColumns,
+      {
+        title: '',
+        dataIndex: 'actions',
+        render: (_, record, index) =>
+          record.isExisting ? (
+            <Space>
+              <Button type="text" icon={<EditOutlined />} onClick={() => startEdit(record.key)} />
+              <Popconfirm title="Удалить строку?" onConfirm={() => handleDelete(record.key)}>
+                <Button type="text" icon={<DeleteOutlined />} />
+              </Popconfirm>
+            </Space>
+          ) : index === rows.length - 1 ? (
+            <Button type="text" icon={<PlusOutlined />} onClick={addRow} />
+          ) : null,
+      },
+    ]
+  }, [viewRows, handleRowChange, units, costCategories, costTypes, locations, startEdit, handleDelete, addRow, rows])
 
   const viewColumns: ColumnsType<ViewRow> = useMemo(() => {
     const base: Array<{ title: string; dataIndex: keyof ViewRow; width?: number }> = [
@@ -574,20 +747,20 @@ export default function Chessboard() {
           </Space>
         )}
       </div>
-      {appliedFilters && mode === 'add' && (
-        <Table<RowData> dataSource={rows} columns={columns} pagination={false} rowKey="key" />
-      )}
-      {appliedFilters && mode === 'edit' && (
-        <>
-          <Space style={{ marginBottom: 16 }}>
-            <Button onClick={handleUpdate}>Сохранить</Button>
-            <Button onClick={() => setMode('view')}>Отмена</Button>
-          </Space>
-          <Table<RowData> dataSource={rows} columns={editColumns} pagination={false} rowKey="key" />
-        </>
-      )}
-      {appliedFilters && mode === 'view' && (
-        <Table<ViewRow> dataSource={viewRows} columns={viewColumns} pagination={false} rowKey="key" />
+      {appliedFilters && (
+        mode === 'edit' ? (
+          <>
+            <Space style={{ marginBottom: 16 }}>
+              <Button onClick={handleUpdate}>Сохранить</Button>
+              <Button onClick={() => setMode('view')}>Отмена</Button>
+            </Space>
+            <Table<RowData> dataSource={rows} columns={editColumns} pagination={false} rowKey="key" />
+          </>
+        ) : mode === 'add' ? (
+          <Table<TableRow> dataSource={tableRows} columns={addColumns} pagination={false} rowKey="key" />
+        ) : (
+          <Table<ViewRow> dataSource={viewRows} columns={viewColumns} pagination={false} rowKey="key" />
+        )
       )}
     </div>
   )
