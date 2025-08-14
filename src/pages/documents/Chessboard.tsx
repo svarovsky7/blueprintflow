@@ -83,6 +83,25 @@ const emptyRow = (defaults: Partial<RowData>): RowData => ({
   locationId: defaults.locationId ?? '',
 })
 
+type HiddenColKey = 'block' | 'costCategory' | 'costType' | 'location'
+
+const collapseMap: Record<string, HiddenColKey> = {
+  block: 'block',
+  costCategory: 'costCategory',
+  costCategoryId: 'costCategory',
+  costType: 'costType',
+  costTypeId: 'costType',
+  location: 'location',
+  locationId: 'location',
+}
+
+const titleMap: Record<HiddenColKey, string> = {
+  block: 'Корпус',
+  costCategory: 'Категория затрат',
+  costType: 'Вид затрат',
+  location: 'Локализация',
+}
+
 export default function Chessboard() {
   const { message } = App.useApp()
   const [filters, setFilters] = useState<{ projectId?: string; blockId?: string; categoryId?: string; typeId?: string }>({})
@@ -92,6 +111,19 @@ export default function Chessboard() {
   const [mode, setMode] = useState<'view' | 'add'>('view')
   const [rows, setRows] = useState<RowData[]>([])
   const [editingRows, setEditingRows] = useState<Record<string, RowData>>({})
+  const [hiddenCols, setHiddenCols] = useState({
+    block: false,
+    costCategory: false,
+    costType: false,
+    location: false,
+  })
+
+  const toggleColumn = useCallback(
+    (col: keyof typeof hiddenCols) =>
+      setHiddenCols((prev) => ({ ...prev, [col]: !prev[col] })),
+    [],
+  )
+
 
   const { data: projects } = useQuery<ProjectOption[]>({
     queryKey: ['projects'],
@@ -475,7 +507,12 @@ export default function Chessboard() {
       { title: 'Локализация', dataIndex: 'locationId' },
     ]
 
-    const dataColumns = base.map((col) => {
+    const dataColumns = base
+      .filter((col) => {
+        const key = collapseMap[col.dataIndex as string]
+        return key ? !hiddenCols[key] : true
+      })
+      .map((col) => {
       const values = Array.from(
         new Set(viewRows.map((row) => row[map[col.dataIndex] as keyof ViewRow]).filter((v) => v)),
       )
@@ -665,6 +702,7 @@ export default function Chessboard() {
     handleDelete,
     addRow,
     rows,
+    hiddenCols,
   ])
 
   const viewColumns: ColumnsType<ViewRow> = useMemo(() => {
@@ -680,7 +718,12 @@ export default function Chessboard() {
       { title: 'Локализация', dataIndex: 'location' },
     ]
 
-    const dataColumns = base.map((col) => {
+    const dataColumns = base
+      .filter((col) => {
+        const key = collapseMap[col.dataIndex as string]
+        return key ? !hiddenCols[key] : true
+      })
+      .map((col) => {
       const values = Array.from(
         new Set(viewRows.map((row) => row[col.dataIndex]).filter((v) => v)),
       )
@@ -847,6 +890,7 @@ export default function Chessboard() {
     costCategories,
     costTypes,
     locations,
+    hiddenCols,
   ])
 
   return (
@@ -923,11 +967,32 @@ export default function Chessboard() {
           </Space>
         )}
       </div>
+      {appliedFilters && (
+        <Space style={{ marginBottom: 16 }}>
+          {(Object.keys(titleMap) as Array<keyof typeof titleMap>).map((key) => (
+            <Button key={key} size="small" onClick={() => toggleColumn(key)}>
+              {hiddenCols[key] ? `Показать ${titleMap[key]}` : `Скрыть ${titleMap[key]}`}
+            </Button>
+          ))}
+        </Space>
+      )}
       {appliedFilters &&
         (mode === 'add' ? (
-          <Table<TableRow> dataSource={tableRows} columns={addColumns} pagination={false} rowKey="key" />
+          <Table<TableRow>
+            dataSource={tableRows}
+            columns={addColumns}
+            pagination={false}
+            rowKey="key"
+            scroll={{ scrollToFirstRowOnChange: false }}
+          />
         ) : (
-          <Table<ViewRow> dataSource={viewRows} columns={viewColumns} pagination={false} rowKey="key" />
+          <Table<ViewRow>
+            dataSource={viewRows}
+            columns={viewColumns}
+            pagination={false}
+            rowKey="key"
+            scroll={{ scrollToFirstRowOnChange: false }}
+          />
         ))}
     </div>
   )
