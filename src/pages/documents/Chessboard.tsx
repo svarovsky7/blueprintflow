@@ -1,9 +1,8 @@
 import { useCallback, useMemo, useState, type Key } from 'react'
-import { App, Button, Dropdown, Input, Modal, Popconfirm, Select, Space, Table, Upload } from 'antd'
+import { App, Button, Dropdown, Input, Popconfirm, Select, Space, Table } from 'antd'
 import type { ColumnType, ColumnsType } from 'antd/es/table'
-import { BgColorsOutlined, CopyOutlined, DeleteOutlined, EditOutlined, InboxOutlined, PlusOutlined } from '@ant-design/icons'
+import { BgColorsOutlined, CopyOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
-import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
 
 type RowColor = '' | 'green' | 'yellow' | 'blue' | 'red'
@@ -166,15 +165,6 @@ export default function Chessboard() {
     costType: false,
     location: false,
   })
-  const [importOpen, setImportOpen] = useState(false)
-  const [importFile, setImportFile] = useState<File | null>(null)
-  const [importState, setImportState] = useState<{
-    projectId?: string
-    blockId?: string
-    categoryId?: string
-    typeId?: string
-    locationId?: string
-  }>({})
 
   const toggleColumn = useCallback(
     (col: keyof typeof hiddenCols) =>
@@ -202,24 +192,6 @@ export default function Chessboard() {
         .from('projects_blocks')
         .select('blocks(id, name)')
         .eq('project_id', filters.projectId)
-      if (error) throw error
-      const rows = (data as { blocks: BlockOption | BlockOption[] | null }[] | null) ?? []
-      return rows
-        .map((r) => r.blocks)
-        .flat()
-        .filter((b): b is BlockOption => !!b)
-    },
-  })
-
-  const { data: importBlocks } = useQuery<BlockOption[]>({
-    queryKey: ['importBlocks', importState.projectId],
-    enabled: !!importState.projectId,
-    queryFn: async () => {
-      if (!supabase || !importState.projectId) return []
-      const { data, error } = await supabase
-        .from('projects_blocks')
-        .select('blocks(id, name)')
-        .eq('project_id', importState.projectId)
       if (error) throw error
       const rows = (data as { blocks: BlockOption | BlockOption[] | null }[] | null) ?? []
       return rows
@@ -533,97 +505,6 @@ export default function Chessboard() {
     },
     [message, refetch],
   )
-
-  const openImport = useCallback(() => {
-    const loc = appliedFilters?.typeId
-      ? costTypes?.find((t) => String(t.id) === appliedFilters.typeId)?.location_id
-      : undefined
-    setImportState({
-      projectId: appliedFilters?.projectId,
-      blockId: appliedFilters?.blockId,
-      categoryId: appliedFilters?.categoryId,
-      typeId: appliedFilters?.typeId,
-      locationId: loc ? String(loc) : undefined,
-    })
-    setImportOpen(true)
-  }, [appliedFilters, costTypes])
-
-  const handleImport = useCallback(async () => {
-    if (!supabase || !importFile || !importState.projectId || !importState.blockId) {
-      message.error('Выберите проект, корпус и файл')
-      return
-    }
-    try {
-      const data = await importFile.arrayBuffer()
-      const workbook = XLSX.read(data, { type: 'array' })
-      const sheet = workbook.Sheets[workbook.SheetNames[0]]
-      const rows = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, { header: 1 })
-      const payload: {
-        project_id: string
-        material: string
-        quantitySpec: number | null
-        unit_id: string | null
-      }[] = []
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i]
-        const material = row[0] != null ? String(row[0]).trim() : ''
-        if (!material) continue
-
-        const cell1 = row[1]
-        const cell2 = row[2]
-        let unitName = ''
-        let quantityCell: string | number | undefined = cell1
-
-        if (cell2 != null && cell2 !== '') {
-          unitName = cell1 != null ? String(cell1).trim() : ''
-          quantityCell = cell2
-        }
-
-        const quantityValue =
-          quantityCell != null && String(quantityCell).trim() !== ''
-            ? Number(String(quantityCell).replace(',', '.'))
-            : null
-        const quantity = Number.isNaN(quantityValue) ? null : quantityValue
-        const unitId = unitName
-          ? units?.find((u) => u.name.toLowerCase() === unitName.toLowerCase())?.id || null
-          : null
-
-        payload.push({
-          project_id: importState.projectId,
-          material,
-          quantitySpec: quantity,
-          unit_id: unitId,
-        })
-      }
-      if (payload.length === 0) {
-        message.error('Нет данных для импорта')
-        return
-      }
-      const { data: inserted, error } = await supabase
-        .from('chessboard')
-        .insert(payload)
-        .select('id')
-      if (error || !inserted) throw error
-      const mappings = inserted.map((d) => ({
-        chessboard_id: d.id,
-        block_id: importState.blockId,
-        cost_category_id: importState.categoryId ? Number(importState.categoryId) : null,
-        cost_type_id: importState.typeId ? Number(importState.typeId) : null,
-        location_id: importState.locationId ? Number(importState.locationId) : null,
-      }))
-      const { error: mapError } = await supabase
-        .from('chessboard_mapping')
-        .insert(mappings)
-      if (mapError) throw mapError
-      message.success('Импорт завершен')
-      setImportOpen(false)
-      setImportFile(null)
-      setImportState({})
-      await refetch()
-    } catch (e) {
-      message.error(`Не удалось импортировать: ${(e as Error).message}`)
-    }
-  }, [importFile, importState, message, refetch, units])
 
   const handleSave = async () => {
     if (!supabase || !appliedFilters) return
@@ -1163,10 +1044,7 @@ export default function Chessboard() {
               <Button onClick={handleCancelEdit}>Отмена</Button>
             </Space>
           ) : (
-            <Space>
-              <Button onClick={openImport}>Импорт</Button>
-              <Button onClick={startAdd}>Добавить</Button>
-            </Space>
+            <Button onClick={startAdd}>Добавить</Button>
           ))}
         {appliedFilters && mode === 'add' && (
           <Space>
@@ -1207,112 +1085,6 @@ export default function Chessboard() {
             }}
           />
         ))}
-      <Modal
-        title="Импорт из Excel"
-        open={importOpen}
-        onCancel={() => {
-          setImportOpen(false)
-          setImportFile(null)
-          setImportState({})
-        }}
-        onOk={handleImport}
-        okText="Импорт"
-        cancelText="Отмена"
-        okButtonProps={{ disabled: !importFile || !importState.projectId || !importState.blockId }}
-      >
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Upload.Dragger
-            beforeUpload={(file) => {
-              setImportFile(file)
-              return false
-            }}
-            onRemove={() => {
-              setImportFile(null)
-              return true
-            }}
-            maxCount={1}
-            accept=".xlsx,.xls"
-          >
-            <p className="ant-upload-drag-icon">
-              <InboxOutlined />
-            </p>
-            <p className="ant-upload-text">
-              Перетащите файл или нажмите для выбора
-            </p>
-          </Upload.Dragger>
-          <Select
-            placeholder="Проект"
-            style={{ width: '100%' }}
-            value={importState.projectId}
-            onChange={(value) =>
-              setImportState({ projectId: value })
-            }
-            options={projects?.map((p) => ({ value: p.id, label: p.name })) ?? []}
-          />
-          <Select
-            placeholder="Корпус"
-            style={{ width: '100%' }}
-            value={importState.blockId}
-            onChange={(value) =>
-              setImportState((s) => ({ ...s, blockId: value }))
-            }
-            options={importBlocks?.map((b) => ({ value: b.id, label: b.name })) ?? []}
-            disabled={!importState.projectId}
-          />
-          <Select
-            placeholder="Категория затрат"
-            style={{ width: '100%' }}
-            value={importState.categoryId}
-            onChange={(value) =>
-              setImportState((s) => ({
-                ...s,
-                categoryId: value || undefined,
-                typeId: undefined,
-                locationId: undefined,
-              }))
-            }
-            options={[
-              { value: '', label: 'НЕТ' },
-              ...(costCategories?.map((c) => ({
-                value: String(c.id),
-                label: c.number ? `${c.number} ${c.name}` : c.name,
-              })) ?? []),
-            ]}
-          />
-          <Select
-            placeholder="Вид затрат"
-            style={{ width: '100%' }}
-            value={importState.typeId}
-            onChange={(value) => {
-              const loc = costTypes?.find((t) => String(t.id) === value)?.location_id
-              setImportState((s) => ({
-                ...s,
-                typeId: value || undefined,
-                locationId: loc ? String(loc) : undefined,
-              }))
-            }}
-            options={[
-              { value: '', label: 'НЕТ' },
-              ...(costTypes
-                ?.filter((t) => String(t.cost_category_id) === importState.categoryId)
-                .map((t) => ({ value: String(t.id), label: t.name })) ?? []),
-            ]}
-            disabled={!importState.categoryId}
-          />
-          <Select
-            placeholder="Локализация"
-            style={{ width: '100%' }}
-            value={importState.locationId ?? ''}
-            onChange={(value) =>
-              setImportState((s) => ({ ...s, locationId: value || undefined }))
-            }
-            options={[
-              { value: '', label: 'НЕТ' },
-              ...(locations?.map((l) => ({ value: String(l.id), label: l.name })) ?? []),
-            ]}
-          />
-        </Space>
-      </Modal>
     </div>
   )
 }
