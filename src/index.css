@@ -25,3 +25,15 @@ body[data-theme='dark'] {
   background: var(--menu-bg) !important;
   color: var(--menu-color) !important;
 }
+.row-green {
+  background-color: #d9f7be;
+}
+.row-yellow {
+  background-color: #fff1b8;
+}
+.row-blue {
+  background-color: #e6f7ff;
+}
+.row-red {
+  background-color: #ffa39e;
+}
