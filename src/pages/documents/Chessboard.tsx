@@ -425,138 +425,6 @@ export default function Chessboard() {
     setMode('view')
   }, [])
 
-  const editColumns: ColumnType<RowData>[] = [
-    {
-      title: 'Материал',
-      dataIndex: 'material',
-      width: 300,
-      render: (_, record) => (
-        <Input
-          style={{ width: 300 }}
-          value={record.material}
-          onChange={(e) => handleRowChange(record.key, 'material', e.target.value)}
-        />
-      ),
-    },
-    {
-      title: 'Кол-во по ПД',
-      dataIndex: 'quantityPd',
-      render: (_, record) => (
-        <Input
-          style={{ width: '10ch' }}
-          value={record.quantityPd}
-          onChange={(e) => handleRowChange(record.key, 'quantityPd', e.target.value)}
-        />
-      ),
-    },
-    {
-      title: 'Кол-во по спеке РД',
-      dataIndex: 'quantitySpec',
-      render: (_, record) => (
-        <Input
-          style={{ width: '10ch' }}
-          value={record.quantitySpec}
-          onChange={(e) => handleRowChange(record.key, 'quantitySpec', e.target.value)}
-        />
-      ),
-    },
-    {
-      title: 'Кол-во по пересчету РД',
-      dataIndex: 'quantityRd',
-      render: (_, record) => (
-        <Input
-          style={{ width: '10ch' }}
-          value={record.quantityRd}
-          onChange={(e) => handleRowChange(record.key, 'quantityRd', e.target.value)}
-        />
-      ),
-    },
-    {
-      title: 'Ед.изм.',
-      dataIndex: 'unitId',
-      render: (_, record) => (
-        <Select
-          style={{ width: 160 }}
-          value={record.unitId}
-          onChange={(value) => handleRowChange(record.key, 'unitId', value)}
-          options={units?.map((u) => ({ value: u.id, label: u.name })) ?? []}
-        />
-      ),
-    },
-    {
-      title: 'Корпус',
-      dataIndex: 'blockId',
-      render: (_, record) => (
-        <Select
-          style={{ width: 200 }}
-          value={record.blockId}
-          onChange={(value) => {
-            handleRowChange(record.key, 'blockId', value)
-            const name = blocks?.find((b) => b.id === value)?.name ?? ''
-            handleRowChange(record.key, 'block', name)
-          }}
-          options={[
-            { value: '', label: 'НЕТ' },
-            ...(blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []),
-          ]}
-        />
-      ),
-    },
-    {
-      title: 'Категория затрат',
-      dataIndex: 'costCategoryId',
-      render: (_, record) => (
-        <Select
-          style={{ width: 200 }}
-          value={record.costCategoryId}
-          onChange={(value) => {
-            handleRowChange(record.key, 'costCategoryId', value)
-            handleRowChange(record.key, 'costTypeId', '')
-            handleRowChange(record.key, 'locationId', '')
-          }}
-          options={
-            costCategories?.map((c) => ({
-              value: String(c.id),
-              label: c.number ? `${c.number} ${c.name}` : c.name,
-            })) ?? []
-          }
-        />
-      ),
-    },
-    {
-      title: 'Вид затрат',
-      dataIndex: 'costTypeId',
-      render: (_, record) => (
-        <Select
-          style={{ width: 200 }}
-          value={record.costTypeId}
-          onChange={(value) => {
-            handleRowChange(record.key, 'costTypeId', value)
-            const loc = costTypes?.find((t) => t.id === Number(value))?.location_id
-            handleRowChange(record.key, 'locationId', loc ? String(loc) : '')
-          }}
-          options={
-            costTypes
-              ?.filter((t) => t.cost_category_id === Number(record.costCategoryId))
-              .map((t) => ({ value: String(t.id), label: t.name })) ?? []
-          }
-        />
-      ),
-    },
-    {
-      title: 'Локализация',
-      dataIndex: 'locationId',
-      render: (_, record) => (
-        <Select
-          style={{ width: 200 }}
-          value={record.locationId}
-          onChange={(value) => handleRowChange(record.key, 'locationId', value)}
-          options={locations?.map((l) => ({ value: String(l.id), label: l.name })) ?? []}
-        />
-      ),
-    },
-  ]
-
   const addColumns: ColumnsType<TableRow> = useMemo(() => {
     const map: Record<string, keyof ViewRow> = {
       material: 'material',
@@ -753,6 +621,29 @@ export default function Chessboard() {
     rows,
   ])
 
+  const editRowsData = useMemo<TableRow[]>(() => {
+    const editing = rows[0]
+    return viewRows.map((v) => {
+      if (editing && v.key === editing.key) return editing as TableRow
+      return {
+        key: v.key,
+        material: v.material,
+        quantityPd: v.quantityPd,
+        quantitySpec: v.quantitySpec,
+        quantityRd: v.quantityRd,
+        unitId: v.unit,
+        blockId: v.blockId,
+        block: v.block,
+        costCategoryId: v.costCategory,
+        costTypeId: v.costType,
+        locationId: v.location,
+        isExisting: true,
+      }
+    })
+  }, [viewRows, rows])
+
+  const editColumns = useMemo<ColumnsType<TableRow>>(() => addColumns.slice(1), [addColumns])
+
   const viewColumns: ColumnsType<ViewRow> = useMemo(() => {
     const base: Array<{ title: string; dataIndex: keyof ViewRow; width?: number }> = [
       { title: 'Материал', dataIndex: 'material', width: 300 },
@@ -874,17 +765,17 @@ export default function Chessboard() {
         )}
       </div>
       {appliedFilters && (
-        mode === 'edit' ? (
-          <>
-            <Space style={{ marginBottom: 16 }}>
-              <Button onClick={handleUpdate}>Сохранить</Button>
-              <Button onClick={() => setMode('view')}>Отмена</Button>
-            </Space>
-            <Table<RowData> dataSource={rows} columns={editColumns} pagination={false} rowKey="key" />
-          </>
-        ) : mode === 'add' ? (
-          <Table<TableRow> dataSource={tableRows} columns={addColumns} pagination={false} rowKey="key" />
-        ) : (
+          mode === 'edit' ? (
+            <>
+              <Space style={{ marginBottom: 16 }}>
+                <Button onClick={handleUpdate}>Сохранить</Button>
+                <Button onClick={() => setMode('view')}>Отмена</Button>
+              </Space>
+              <Table<TableRow> dataSource={editRowsData} columns={editColumns} pagination={false} rowKey="key" />
+            </>
+          ) : mode === 'add' ? (
+            <Table<TableRow> dataSource={tableRows} columns={addColumns} pagination={false} rowKey="key" />
+          ) : (
           <Table<ViewRow> dataSource={viewRows} columns={viewColumns} pagination={false} rowKey="key" />
         )
       )}
