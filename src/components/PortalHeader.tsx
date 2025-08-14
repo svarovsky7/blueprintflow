@@ -6,12 +6,24 @@ import { supabase } from '../lib/supabase';
 
 const { Header } = Layout;
 
-const breadcrumbs: Record<string, string[]> = {
-  '/': ['Dashboard'],
-  '/documents': ['Документы'],
-  '/documents/chessboard': ['Документы', 'Шахматка'],
-  '/documents/vor': ['Документы', 'ВОР'],
-  '/references': ['Справочники'],
+const pageTitles: Record<string, string> = {
+  '/': 'Dashboard',
+  '/documents': 'Документы',
+  '/documents/estimate': 'Шахматка',
+  '/documents/estimate-monolith': 'Шахматка монолит',
+  '/documents/work-volume': 'ВОР для подрядчиков',
+  '/documents/cost': 'Смета',
+  '/documents/chessboard': 'Шахматка',
+  '/documents/vor': 'ВОР',
+  '/library/docs': 'Документация',
+  '/library/rd-codes': 'Шифры РД',
+  '/library/pd-codes': 'Шифры ПД',
+  '/references': 'Единицы измерения',
+  '/references/cost-categories': 'Категории затрат',
+  '/references/projects': 'Проекты',
+  '/references/locations': 'Локализации',
+  '/reports': 'Отчёты',
+  '/admin': 'Администрирование',
 };
 
 interface PortalHeaderProps {
@@ -40,7 +52,7 @@ export default function PortalHeader({ isDark }: PortalHeaderProps) {
         color: isDark ? '#ffffff' : '#000000',
       }}
     >
-      <span>{breadcrumbs[pathname]?.join(' / ') || ''}</span>
+        <span>{pageTitles[pathname] || ''}</span>
       <Space size="middle">
         <Button type="text" icon={<BellOutlined />} />
         <Space>
