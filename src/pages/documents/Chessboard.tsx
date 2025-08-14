@@ -208,22 +208,27 @@ export default function Chessboard() {
     setMode('view')
   }
 
-  const addRow = useCallback(() => {
-    if (!appliedFilters) return
-    const defaultLocationId = appliedFilters.typeId
-      ? String(
-          costTypes?.find((t) => String(t.id) === appliedFilters.typeId)?.location_id ?? '',
-        )
-      : ''
-    setRows((prev) => [
-      ...prev,
-      emptyRow({
-        costCategoryId: appliedFilters.categoryId ?? '',
-        costTypeId: appliedFilters.typeId ?? '',
-        locationId: defaultLocationId,
-      }),
-    ])
-  }, [appliedFilters, costTypes])
+  const addRow = useCallback(
+    (index: number) => {
+      if (!appliedFilters) return
+      const defaultLocationId = appliedFilters.typeId
+        ? String(
+            costTypes?.find((t) => String(t.id) === appliedFilters.typeId)?.location_id ?? '',
+          )
+        : ''
+      setRows((prev) => {
+        const newRow = emptyRow({
+          costCategoryId: appliedFilters.categoryId ?? '',
+          costTypeId: appliedFilters.typeId ?? '',
+          locationId: defaultLocationId,
+        })
+        const next = [...prev]
+        next.splice(index + 1, 0, newRow)
+        return next
+      })
+    },
+    [appliedFilters, costTypes],
+  )
 
   const handleRowChange = useCallback((key: string, field: keyof RowData, value: string) => {
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, [field]: value } : r)))
@@ -620,11 +625,19 @@ export default function Chessboard() {
     })
 
     return [
+      {
+        title: '',
+        dataIndex: 'add',
+        render: (_, __, index) =>
+          index < rows.length ? (
+            <Button type="text" icon={<PlusOutlined />} onClick={() => addRow(index)} />
+          ) : null,
+      },
       ...dataColumns,
       {
         title: '',
         dataIndex: 'actions',
-        render: (_, record, index) =>
+        render: (_, record) =>
           record.isExisting ? (
             <Space>
               <Button type="text" icon={<EditOutlined />} onClick={() => startEdit(record.key)} />
@@ -632,12 +645,21 @@ export default function Chessboard() {
                 <Button type="text" icon={<DeleteOutlined />} />
               </Popconfirm>
             </Space>
-          ) : index === rows.length - 1 ? (
-            <Button type="text" icon={<PlusOutlined />} onClick={addRow} />
           ) : null,
       },
     ]
-  }, [viewRows, handleRowChange, units, costCategories, costTypes, locations, startEdit, handleDelete, addRow, rows])
+  }, [
+    viewRows,
+    handleRowChange,
+    units,
+    costCategories,
+    costTypes,
+    locations,
+    startEdit,
+    handleDelete,
+    addRow,
+    rows,
+  ])
 
   const viewColumns: ColumnsType<ViewRow> = useMemo(() => {
     const base: Array<{ title: string; dataIndex: keyof ViewRow; width?: number }> = [
