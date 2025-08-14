@@ -161,6 +161,13 @@
     "column_default": "now()"
   },
   {
+    "table_name": "chessboard_mapping",
+    "column_name": "block_id",
+    "data_type": "uuid",
+    "is_nullable": "YES",
+    "column_default": null
+  },
+  {
     "table_name": "cost_categories",
     "column_name": "name",
     "data_type": "text",
@@ -443,6 +450,20 @@
   {
     "table_name": "projects",
     "column_name": "blocks_count",
+    "data_type": "integer",
+    "is_nullable": "YES",
+    "column_default": null
+  },
+  {
+    "table_name": "projects",
+    "column_name": "bottom_underground_floor",
+    "data_type": "integer",
+    "is_nullable": "YES",
+    "column_default": null
+  },
+  {
+    "table_name": "projects",
+    "column_name": "top_ground_floor",
     "data_type": "integer",
     "is_nullable": "YES",
     "column_default": null
