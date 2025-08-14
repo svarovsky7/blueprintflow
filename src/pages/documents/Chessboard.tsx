@@ -586,8 +586,14 @@ export default function Chessboard() {
           <Table<RowData> dataSource={rows} columns={editColumns} pagination={false} rowKey="key" />
         </>
       )}
-      {appliedFilters && mode === 'view' && (
-        <Table<ViewRow> dataSource={viewRows} columns={viewColumns} pagination={false} rowKey="key" />
+      {appliedFilters && mode !== 'edit' && (
+        <Table<ViewRow>
+          dataSource={viewRows}
+          columns={viewColumns}
+          pagination={false}
+          rowKey="key"
+          style={{ marginTop: mode === 'add' ? 16 : 0 }}
+        />
       )}
     </div>
   )
