@@ -34,7 +34,6 @@ interface TableRow extends RowData {
 }
 
 interface ProjectOption { id: string; name: string }
-interface BlockOption { id: string; name: string }
 interface UnitOption { id: string; name: string }
 interface CostCategoryOption { id: number; number: number | null; name: string }
 interface CostTypeOption {
@@ -77,10 +76,10 @@ const emptyRow = (defaults: Partial<RowData>): RowData => ({
 
 export default function Chessboard() {
   const { message } = App.useApp()
-  const [filters, setFilters] = useState<{ projectId?: string; blockId?: string; categoryId?: string; typeId?: string }>({})
-  const [appliedFilters, setAppliedFilters] = useState<
-    { projectId: string; blockId?: string; categoryId?: string; typeId?: string } | null
-  >(null)
+  const [filters, setFilters] = useState<{ projectId?: string; categoryId?: string; typeId?: string }>({})
+  const [appliedFilters, setAppliedFilters] = useState<{ projectId: string; categoryId?: string; typeId?: string } | null>(
+    null,
+  )
   const [mode, setMode] = useState<'view' | 'add' | 'edit'>('view')
   const [rows, setRows] = useState<RowData[]>([])
 
@@ -91,24 +90,6 @@ export default function Chessboard() {
       const { data, error } = await supabase.from('projects').select('id, name').order('name')
       if (error) throw error
       return data as ProjectOption[]
-    },
-  })
-
-  const { data: blocks } = useQuery<BlockOption[]>({
-    queryKey: ['blocks', filters.projectId],
-    enabled: !!filters.projectId,
-    queryFn: async () => {
-      if (!supabase || !filters.projectId) return []
-      const { data, error } = await supabase
-        .from('projects_blocks')
-        .select('blocks(id, name)')
-        .eq('project_id', filters.projectId)
-      if (error) throw error
-      const rows = (data as { blocks: BlockOption | BlockOption[] | null }[] | null) ?? []
-      return rows
-        .map((r) => r.blocks)
-        .flat()
-        .filter((b): b is BlockOption => !!b)
     },
   })
 
@@ -170,7 +151,6 @@ export default function Chessboard() {
           `id, material, quantityPd, quantitySpec, quantityRd, unit_id, units(name), ${relation}(cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name))`,
         )
         .eq('project_id', appliedFilters.projectId)
-      if (appliedFilters.blockId) query.eq('block_id', appliedFilters.blockId)
       if (appliedFilters.categoryId)
         query.eq('chessboard_mapping.cost_category_id', Number(appliedFilters.categoryId))
       if (appliedFilters.typeId)
@@ -224,12 +204,7 @@ export default function Chessboard() {
       message.warning('Выберите проект')
       return
     }
-    setAppliedFilters({ ...filters } as {
-      projectId: string
-      blockId?: string
-      categoryId?: string
-      typeId?: string
-    })
+    setAppliedFilters({ ...filters } as { projectId: string; categoryId?: string; typeId?: string })
     setMode('view')
   }
 
@@ -363,7 +338,6 @@ export default function Chessboard() {
     if (!supabase || !appliedFilters) return
     const payload = rows.map((r) => ({
       project_id: appliedFilters.projectId,
-      block_id: appliedFilters.blockId,
       material: r.material,
       quantityPd: r.quantityPd ? Number(r.quantityPd) : null,
       quantitySpec: r.quantitySpec ? Number(r.quantitySpec) : null,
@@ -750,14 +724,6 @@ export default function Chessboard() {
             value={filters.projectId}
             onChange={(value) => setFilters({ projectId: value })}
             options={projects?.map((p) => ({ value: p.id, label: p.name })) ?? []}
-          />
-          <Select
-            placeholder="Корпус"
-            style={{ width: 200 }}
-            value={filters.blockId}
-            onChange={(value) => setFilters((f) => ({ ...f, blockId: value }))}
-            options={blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []}
-            disabled={!filters.projectId}
           />
           <Select
             placeholder="Категория затрат"
