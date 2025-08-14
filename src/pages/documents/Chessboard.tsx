@@ -12,6 +12,8 @@ interface RowData {
   quantitySpec: string
   quantityRd: string
   unitId: string
+  blockId: string
+  block: string
   costCategoryId: string
   costTypeId: string
   locationId: string
@@ -24,6 +26,8 @@ interface ViewRow {
   quantitySpec: string
   quantityRd: string
   unit: string
+  blockId: string
+  block: string
   costCategory: string
   costType: string
   location: string
@@ -34,6 +38,7 @@ interface TableRow extends RowData {
 }
 
 interface ProjectOption { id: string; name: string }
+interface BlockOption { id: string; name: string }
 interface UnitOption { id: string; name: string }
 interface CostCategoryOption { id: number; number: number | null; name: string }
 interface CostTypeOption {
@@ -53,6 +58,8 @@ interface DbRow {
   unit_id: string | null
   units?: { name: string | null } | null
   chessboard_mapping?: {
+    block_id: string | null
+    blocks?: { name: string | null } | null
     cost_category_id: number | null
     cost_type_id: number | null
     location_id: number | null
@@ -69,6 +76,8 @@ const emptyRow = (defaults: Partial<RowData>): RowData => ({
   quantitySpec: '',
   quantityRd: '',
   unitId: '',
+  blockId: defaults.blockId ?? '',
+  block: defaults.block ?? '',
   costCategoryId: defaults.costCategoryId ?? '',
   costTypeId: defaults.costTypeId ?? '',
   locationId: defaults.locationId ?? '',
@@ -76,10 +85,10 @@ const emptyRow = (defaults: Partial<RowData>): RowData => ({
 
 export default function Chessboard() {
   const { message } = App.useApp()
-  const [filters, setFilters] = useState<{ projectId?: string; categoryId?: string; typeId?: string }>({})
-  const [appliedFilters, setAppliedFilters] = useState<{ projectId: string; categoryId?: string; typeId?: string } | null>(
-    null,
-  )
+  const [filters, setFilters] = useState<{ projectId?: string; blockId?: string; categoryId?: string; typeId?: string }>({})
+  const [appliedFilters, setAppliedFilters] = useState<
+    { projectId: string; blockId?: string; categoryId?: string; typeId?: string } | null
+  >(null)
   const [mode, setMode] = useState<'view' | 'add' | 'edit'>('view')
   const [rows, setRows] = useState<RowData[]>([])
 
@@ -90,6 +99,24 @@ export default function Chessboard() {
       const { data, error } = await supabase.from('projects').select('id, name').order('name')
       if (error) throw error
       return data as ProjectOption[]
+    },
+  })
+
+  const { data: blocks } = useQuery<BlockOption[]>({
+    queryKey: ['blocks', filters.projectId],
+    enabled: !!filters.projectId,
+    queryFn: async () => {
+      if (!supabase || !filters.projectId) return []
+      const { data, error } = await supabase
+        .from('projects_blocks')
+        .select('blocks(id, name)')
+        .eq('project_id', filters.projectId)
+      if (error) throw error
+      const rows = (data as { blocks: BlockOption | BlockOption[] | null }[] | null) ?? []
+      return rows
+        .map((r) => r.blocks)
+        .flat()
+        .filter((b): b is BlockOption => !!b)
     },
   })
 
@@ -144,13 +171,17 @@ export default function Chessboard() {
     queryFn: async () => {
       if (!supabase || !appliedFilters) return []
       const relation =
-        appliedFilters.categoryId || appliedFilters.typeId ? 'chessboard_mapping!inner' : 'chessboard_mapping'
+        appliedFilters.blockId || appliedFilters.categoryId || appliedFilters.typeId
+          ? 'chessboard_mapping!inner'
+          : 'chessboard_mapping'
       const query = supabase
         .from('chessboard')
         .select(
-          `id, material, quantityPd, quantitySpec, quantityRd, unit_id, units(name), ${relation}(cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name))`,
+          `id, material, quantityPd, quantitySpec, quantityRd, unit_id, units(name), ${relation}(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name))`,
         )
         .eq('project_id', appliedFilters.projectId)
+      if (appliedFilters.blockId)
+        query.eq('chessboard_mapping.block_id', appliedFilters.blockId)
       if (appliedFilters.categoryId)
         query.eq('chessboard_mapping.cost_category_id', Number(appliedFilters.categoryId))
       if (appliedFilters.typeId)
@@ -173,6 +204,8 @@ export default function Chessboard() {
         quantitySpec: item.quantitySpec !== null && item.quantitySpec !== undefined ? String(item.quantitySpec) : '',
         quantityRd: item.quantityRd !== null && item.quantityRd !== undefined ? String(item.quantityRd) : '',
         unit: item.units?.name ?? '',
+        blockId: item.chessboard_mapping?.block_id ?? '',
+        block: item.chessboard_mapping?.blocks?.name ?? '',
         costCategory: item.chessboard_mapping?.cost_categories?.name ?? '',
         costType: item.chessboard_mapping?.detail_cost_categories?.name ?? '',
         location: item.chessboard_mapping?.location?.name ?? '',
@@ -190,6 +223,8 @@ export default function Chessboard() {
         quantitySpec: v.quantitySpec,
         quantityRd: v.quantityRd,
         unitId: v.unit,
+        blockId: v.blockId,
+        block: v.block,
         costCategoryId: v.costCategory,
         costTypeId: v.costType,
         locationId: v.location,
@@ -204,7 +239,12 @@ export default function Chessboard() {
       message.warning('Выберите проект')
       return
     }
-    setAppliedFilters({ ...filters } as { projectId: string; categoryId?: string; typeId?: string })
+    setAppliedFilters({ ...filters } as {
+      projectId: string
+      blockId?: string
+      categoryId?: string
+      typeId?: string
+    })
     setMode('view')
   }
 
@@ -216,18 +256,23 @@ export default function Chessboard() {
             costTypes?.find((t) => String(t.id) === appliedFilters.typeId)?.location_id ?? '',
           )
         : ''
+      const blockName = appliedFilters.blockId
+        ? blocks?.find((b) => b.id === appliedFilters.blockId)?.name ?? ''
+        : ''
       setRows((prev) => {
         const newRow = emptyRow({
+          blockId: appliedFilters.blockId ?? '',
           costCategoryId: appliedFilters.categoryId ?? '',
           costTypeId: appliedFilters.typeId ?? '',
           locationId: defaultLocationId,
+          block: blockName,
         })
         const next = [...prev]
         next.splice(index + 1, 0, newRow)
         return next
       })
     },
-    [appliedFilters, costTypes],
+    [appliedFilters, costTypes, blocks],
   )
 
   const handleRowChange = useCallback((key: string, field: keyof RowData, value: string) => {
@@ -241,28 +286,35 @@ export default function Chessboard() {
           costTypes?.find((t) => String(t.id) === appliedFilters.typeId)?.location_id ?? '',
         )
       : ''
+    const blockName = appliedFilters.blockId
+      ? blocks?.find((b) => b.id === appliedFilters.blockId)?.name ?? ''
+      : ''
     setRows([
       emptyRow({
+        blockId: appliedFilters.blockId ?? '',
         costCategoryId: appliedFilters.categoryId ?? '',
         costTypeId: appliedFilters.typeId ?? '',
         locationId: defaultLocationId,
+        block: blockName,
       }),
     ])
     setMode('add')
-  }, [appliedFilters, costTypes])
+  }, [appliedFilters, costTypes, blocks])
 
   const startEdit = useCallback(
     (id: string) => {
       const dbRow = tableData?.find((r) => r.id === id)
       if (!dbRow) return
       setRows([
-        {
+        { 
           key: id,
           material: dbRow.material ?? '',
           quantityPd: dbRow.quantityPd !== null && dbRow.quantityPd !== undefined ? String(dbRow.quantityPd) : '',
           quantitySpec: dbRow.quantitySpec !== null && dbRow.quantitySpec !== undefined ? String(dbRow.quantitySpec) : '',
           quantityRd: dbRow.quantityRd !== null && dbRow.quantityRd !== undefined ? String(dbRow.quantityRd) : '',
           unitId: dbRow.unit_id ?? '',
+          blockId: dbRow.chessboard_mapping?.block_id ?? '',
+          block: dbRow.chessboard_mapping?.blocks?.name ?? '',
           costCategoryId: dbRow.chessboard_mapping?.cost_category_id
             ? String(dbRow.chessboard_mapping.cost_category_id)
             : '',
@@ -299,6 +351,7 @@ export default function Chessboard() {
     const { error: mapError } = await supabase.from('chessboard_mapping').upsert(
       {
         chessboard_id: r.key,
+        block_id: r.blockId || null,
         cost_category_id: Number(r.costCategoryId),
         cost_type_id: r.costTypeId ? Number(r.costTypeId) : null,
         location_id: r.locationId ? Number(r.locationId) : null,
@@ -351,6 +404,7 @@ export default function Chessboard() {
     }
     const mappings = data.map((d, idx) => ({
       chessboard_id: d.id,
+      block_id: rows[idx].blockId || null,
       cost_category_id: Number(rows[idx].costCategoryId),
       cost_type_id: rows[idx].costTypeId ? Number(rows[idx].costTypeId) : null,
       location_id: rows[idx].locationId ? Number(rows[idx].locationId) : null,
@@ -430,6 +484,25 @@ export default function Chessboard() {
       ),
     },
     {
+      title: 'Корпус',
+      dataIndex: 'blockId',
+      render: (_, record) => (
+        <Select
+          style={{ width: 200 }}
+          value={record.blockId}
+          onChange={(value) => {
+            handleRowChange(record.key, 'blockId', value)
+            const name = blocks?.find((b) => b.id === value)?.name ?? ''
+            handleRowChange(record.key, 'block', name)
+          }}
+          options={[
+            { value: '', label: 'НЕТ' },
+            ...(blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []),
+          ]}
+        />
+      ),
+    },
+    {
       title: 'Категория затрат',
       dataIndex: 'costCategoryId',
       render: (_, record) => (
@@ -491,6 +564,7 @@ export default function Chessboard() {
       quantitySpec: 'quantitySpec',
       quantityRd: 'quantityRd',
       unitId: 'unit',
+      block: 'block',
       costCategoryId: 'costCategory',
       costTypeId: 'costType',
       locationId: 'location',
@@ -502,6 +576,7 @@ export default function Chessboard() {
       { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec' },
       { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd' },
       { title: 'Ед.изм.', dataIndex: 'unitId' },
+      { title: 'Корпус', dataIndex: 'block' },
       { title: 'Категория затрат', dataIndex: 'costCategoryId' },
       { title: 'Вид затрат', dataIndex: 'costTypeId' },
       { title: 'Локализация', dataIndex: 'locationId' },
@@ -512,7 +587,7 @@ export default function Chessboard() {
         new Set(viewRows.map((row) => row[map[col.dataIndex] as keyof ViewRow]).filter((v) => v)),
       )
       const filters =
-        col.dataIndex === 'costCategoryId' || col.dataIndex === 'costTypeId'
+        col.dataIndex === 'costCategoryId' || col.dataIndex === 'costTypeId' || col.dataIndex === 'block'
           ? [{ text: 'НЕТ', value: '' }, ...values.map((v) => ({ text: String(v), value: String(v) }))]
           : values.map((v) => ({ text: String(v), value: String(v) }))
 
@@ -570,6 +645,22 @@ export default function Chessboard() {
                 value={record.unitId}
                 onChange={(value) => handleRowChange(record.key, 'unitId', value)}
                 options={units?.map((u) => ({ value: u.id, label: u.name })) ?? []}
+              />
+            )
+          case 'block':
+            return (
+              <Select
+                style={{ width: 200 }}
+                value={record.blockId}
+                onChange={(value) => {
+                  handleRowChange(record.key, 'blockId', value)
+                  const name = blocks?.find((b) => b.id === value)?.name ?? ''
+                  handleRowChange(record.key, 'block', name)
+                }}
+                options={[
+                  { value: '', label: 'НЕТ' },
+                  ...(blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []),
+                ]}
               />
             )
           case 'costCategoryId':
@@ -655,6 +746,7 @@ export default function Chessboard() {
     costCategories,
     costTypes,
     locations,
+    blocks,
     startEdit,
     handleDelete,
     addRow,
@@ -668,6 +760,7 @@ export default function Chessboard() {
       { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec' },
       { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd' },
       { title: 'Ед.изм.', dataIndex: 'unit' },
+      { title: 'Корпус', dataIndex: 'block' },
       { title: 'Категория затрат', dataIndex: 'costCategory' },
       { title: 'Вид затрат', dataIndex: 'costType' },
       { title: 'Локализация', dataIndex: 'location' },
@@ -678,7 +771,7 @@ export default function Chessboard() {
         new Set(viewRows.map((row) => row[col.dataIndex]).filter((v) => v)),
       )
       const filters =
-        col.dataIndex === 'costCategory' || col.dataIndex === 'costType'
+        col.dataIndex === 'costCategory' || col.dataIndex === 'costType' || col.dataIndex === 'block'
           ? [{ text: 'НЕТ', value: '' }, ...values.map((v) => ({ text: String(v), value: String(v) }))]
           : values.map((v) => ({ text: String(v), value: String(v) }))
       return {
@@ -724,6 +817,17 @@ export default function Chessboard() {
             value={filters.projectId}
             onChange={(value) => setFilters({ projectId: value })}
             options={projects?.map((p) => ({ value: p.id, label: p.name })) ?? []}
+          />
+          <Select
+            placeholder="Корпус"
+            style={{ width: 200 }}
+            value={filters.blockId}
+            onChange={(value) => setFilters((f) => ({ ...f, blockId: value }))}
+            options={[
+              { value: '', label: 'НЕТ' },
+              ...(blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []),
+            ]}
+            disabled={!filters.projectId}
           />
           <Select
             placeholder="Категория затрат"
