@@ -575,19 +575,32 @@ export default function Chessboard() {
         )}
       </div>
       {appliedFilters && mode === 'add' && (
-        <Table<RowData> dataSource={rows} columns={columns} pagination={false} rowKey="key" />
+        <Table<RowData>
+          dataSource={rows}
+          columns={columns}
+          pagination={false}
+          rowKey="key"
+          style={{ marginBottom: 16 }}
+        />
       )}
-      {appliedFilters && mode === 'edit' && (
-        <>
-          <Space style={{ marginBottom: 16 }}>
-            <Button onClick={handleUpdate}>Сохранить</Button>
-            <Button onClick={() => setMode('view')}>Отмена</Button>
-          </Space>
-          <Table<RowData> dataSource={rows} columns={editColumns} pagination={false} rowKey="key" />
-        </>
-      )}
-      {appliedFilters && mode === 'view' && (
-        <Table<ViewRow> dataSource={viewRows} columns={viewColumns} pagination={false} rowKey="key" />
+      {appliedFilters && (
+        mode === 'edit' ? (
+          <>
+            <Space style={{ marginBottom: 16 }}>
+              <Button onClick={handleUpdate}>Сохранить</Button>
+              <Button onClick={() => setMode('view')}>Отмена</Button>
+            </Space>
+            <Table<RowData> dataSource={rows} columns={editColumns} pagination={false} rowKey="key" />
+          </>
+        ) : (
+          <Table<ViewRow>
+            dataSource={viewRows}
+            columns={viewColumns}
+            pagination={false}
+            rowKey="key"
+            style={mode === 'add' ? { marginTop: 16 } : undefined}
+          />
+        )
       )}
     </div>
   )
