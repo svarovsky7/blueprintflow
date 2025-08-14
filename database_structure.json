@@ -435,22 +435,8 @@
   },
   {
     "table_name": "projects",
-    "column_name": "description",
-    "data_type": "text",
-    "is_nullable": "YES",
-    "column_default": null
-  },
-  {
-    "table_name": "projects",
     "column_name": "address",
     "data_type": "text",
-    "is_nullable": "YES",
-    "column_default": null
-  },
-  {
-    "table_name": "projects",
-    "column_name": "blocks_count",
-    "data_type": "integer",
     "is_nullable": "YES",
     "column_default": null
   },
