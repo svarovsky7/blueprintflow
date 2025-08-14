@@ -21,8 +21,6 @@ interface PortalHeaderProps {
 export default function PortalHeader({ isDark }: PortalHeaderProps) {
   const { pathname } = useLocation();
   const [userEmail, setUserEmail] = useState<string>('');
-  const portalName = 'BlueprintFlow';
-  const pageTitle = breadcrumbs[pathname]?.join(' / ');
 
   useEffect(() => {
     if (!supabase) return;
@@ -42,7 +40,7 @@ export default function PortalHeader({ isDark }: PortalHeaderProps) {
         color: isDark ? '#ffffff' : '#000000',
       }}
     >
-      <span>{pageTitle ? `${portalName} / ${pageTitle}` : portalName}</span>
+      <span>{breadcrumbs[pathname]?.join(' / ') || ''}</span>
       <Space size="middle">
         <Button type="text" icon={<BellOutlined />} />
         <Space>
