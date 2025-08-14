@@ -20,4 +20,11 @@ npm run dev
 ```
 
 ## Supabase
-Схема базы данных находится в файле `supabase.sql`. Для дополнительных требований см. `tech_task.md`.
+Схема базы данных находится в файле `supabase.sql`. Для развёртывания выполните:
+
+```bash
+psql "$DATABASE_URL" -f supabase.sql
+for file in sql/*.sql; do psql "$DATABASE_URL" -f "$file"; done
+```
+
+Миграционные скрипты в каталоге `sql/` синхронизированы со структурой `database_structure.json`. Для дополнительных требований см. `tech_task.md`.

@@ -1,25 +1,19 @@
--- Добавление категории затрат в шахматку и заполнение значений по умолчанию
 create table if not exists cost_categories (
-  id uuid primary key default gen_random_uuid(),
-  parent_id uuid references cost_categories on delete set null,
-  code text unique not null,
+  id integer primary key generated always as identity,
+  number integer not null,
   name text not null,
-  level int check (level in (1, 2, 3)) not null,
+  unit_id uuid references units on delete set null,
   description text,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
-create view if not exists cost_categories_sorted as
-select *
-from cost_categories
-order by code asc;
-
 alter table if exists chessboard
-  add column if not exists cost_category_code text references cost_categories(code);
+  add column if not exists cost_category_code text;
 
-insert into cost_categories (code, name, level)
-values ('99', 'Прочее', 1)
-on conflict (code) do nothing;
+insert into cost_categories (number, name)
+values (99, 'Прочее')
+on conflict (number) do nothing;
 
 update chessboard
 set cost_category_code = '99'
