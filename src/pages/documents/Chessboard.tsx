@@ -92,19 +92,6 @@ export default function Chessboard() {
   const [mode, setMode] = useState<'view' | 'add'>('view')
   const [rows, setRows] = useState<RowData[]>([])
   const [editingRows, setEditingRows] = useState<Record<string, RowData>>({})
-  const columnLabels = {
-    block: 'Корпус',
-    costCategory: 'Категория затрат',
-    costType: 'Вид затрат',
-    location: 'Локализация',
-  } as const
-  type ColumnKey = keyof typeof columnLabels
-  const [hiddenColumns, setHiddenColumns] = useState<ColumnKey[]>([])
-  const toggleColumn = useCallback((key: ColumnKey) => {
-    setHiddenColumns((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-    )
-  }, [])
 
   const { data: projects } = useQuery<ProjectOption[]>({
     queryKey: ['projects'],
@@ -475,21 +462,20 @@ export default function Chessboard() {
       costTypeId: 'costType',
       locationId: 'location',
     }
-    const base: Array<{ title: string; dataIndex: keyof TableRow; width?: number; key?: ColumnKey }> = [
+
+    const base: Array<{ title: string; dataIndex: keyof TableRow; width?: number }> = [
       { title: 'Материал', dataIndex: 'material', width: 300 },
       { title: 'Кол-во по ПД', dataIndex: 'quantityPd' },
       { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec' },
       { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd' },
       { title: 'Ед.изм.', dataIndex: 'unitId' },
-      { title: 'Корпус', dataIndex: 'block', key: 'block' },
-      { title: 'Категория затрат', dataIndex: 'costCategoryId', key: 'costCategory' },
-      { title: 'Вид затрат', dataIndex: 'costTypeId', key: 'costType' },
-      { title: 'Локализация', dataIndex: 'locationId', key: 'location' },
+      { title: 'Корпус', dataIndex: 'block' },
+      { title: 'Категория затрат', dataIndex: 'costCategoryId' },
+      { title: 'Вид затрат', dataIndex: 'costTypeId' },
+      { title: 'Локализация', dataIndex: 'locationId' },
     ]
 
-    const visibleBase = base.filter((col) => !col.key || !hiddenColumns.includes(col.key))
-
-    const dataColumns = visibleBase.map((col) => {
+    const dataColumns = base.map((col) => {
       const values = Array.from(
         new Set(viewRows.map((row) => row[map[col.dataIndex] as keyof ViewRow]).filter((v) => v)),
       )
@@ -679,25 +665,22 @@ export default function Chessboard() {
     handleDelete,
     addRow,
     rows,
-    hiddenColumns,
   ])
 
   const viewColumns: ColumnsType<ViewRow> = useMemo(() => {
-    const base: Array<{ title: string; dataIndex: keyof ViewRow; width?: number; key?: ColumnKey }> = [
+    const base: Array<{ title: string; dataIndex: keyof ViewRow; width?: number }> = [
       { title: 'Материал', dataIndex: 'material', width: 300 },
       { title: 'Кол-во по ПД', dataIndex: 'quantityPd' },
       { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec' },
       { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd' },
       { title: 'Ед.изм.', dataIndex: 'unit' },
-      { title: 'Корпус', dataIndex: 'block', key: 'block' },
-      { title: 'Категория затрат', dataIndex: 'costCategory', key: 'costCategory' },
-      { title: 'Вид затрат', dataIndex: 'costType', key: 'costType' },
-      { title: 'Локализация', dataIndex: 'location', key: 'location' },
+      { title: 'Корпус', dataIndex: 'block' },
+      { title: 'Категория затрат', dataIndex: 'costCategory' },
+      { title: 'Вид затрат', dataIndex: 'costType' },
+      { title: 'Локализация', dataIndex: 'location' },
     ]
 
-    const visibleBase = base.filter((col) => !col.key || !hiddenColumns.includes(col.key))
-
-    const dataColumns = visibleBase.map((col) => {
+    const dataColumns = base.map((col) => {
       const values = Array.from(
         new Set(viewRows.map((row) => row[col.dataIndex]).filter((v) => v)),
       )
@@ -864,7 +847,6 @@ export default function Chessboard() {
     costCategories,
     costTypes,
     locations,
-    hiddenColumns,
   ])
 
   return (
@@ -941,17 +923,6 @@ export default function Chessboard() {
           </Space>
         )}
       </div>
-      {appliedFilters && (
-        <Space style={{ marginBottom: 16 }}>
-          {(Object.keys(columnLabels) as ColumnKey[]).map((key) => (
-            <Button key={key} size="small" onClick={() => toggleColumn(key)}>
-              {hiddenColumns.includes(key)
-                ? `Показать ${columnLabels[key]}`
-                : `Скрыть ${columnLabels[key]}`}
-            </Button>
-          ))}
-        </Space>
-      )}
       {appliedFilters &&
         (mode === 'add' ? (
           <Table<TableRow> dataSource={tableRows} columns={addColumns} pagination={false} rowKey="key" />
