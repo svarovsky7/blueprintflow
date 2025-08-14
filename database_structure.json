@@ -15,20 +15,6 @@
   },
   {
     "table_name": "blocks",
-    "column_name": "created_at",
-    "data_type": "timestamp with time zone",
-    "is_nullable": "NO",
-    "column_default": "now()"
-  },
-  {
-    "table_name": "blocks",
-    "column_name": "updated_at",
-    "data_type": "timestamp with time zone",
-    "is_nullable": "NO",
-    "column_default": "now()"
-  },
-  {
-    "table_name": "blocks",
     "column_name": "bottom_underground_floor",
     "data_type": "integer",
     "is_nullable": "YES",
@@ -110,6 +96,13 @@
     "data_type": "timestamp with time zone",
     "is_nullable": "NO",
     "column_default": "now()"
+  },
+  {
+    "table_name": "chessboard",
+    "column_name": "color",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null
   },
   {
     "table_name": "chessboard_mapping",
@@ -428,13 +421,6 @@
   },
   {
     "table_name": "projects",
-    "column_name": "created_at",
-    "data_type": "timestamp with time zone",
-    "is_nullable": "NO",
-    "column_default": "now()"
-  },
-  {
-    "table_name": "projects",
     "column_name": "address",
     "data_type": "text",
     "is_nullable": "YES",
@@ -453,6 +439,20 @@
     "data_type": "uuid",
     "is_nullable": "NO",
     "column_default": null
+  },
+  {
+    "table_name": "projects_blocks",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "NO",
+    "column_default": "now()"
+  },
+  {
+    "table_name": "projects_blocks",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "NO",
+    "column_default": "now()"
   },
   {
     "table_name": "reference_data",
