@@ -89,9 +89,8 @@ export default function Chessboard() {
   const [appliedFilters, setAppliedFilters] = useState<
     { projectId: string; blockId?: string; categoryId?: string; typeId?: string } | null
   >(null)
-  const [mode, setMode] = useState<'view' | 'add'>('view')
+  const [mode, setMode] = useState<'view' | 'add' | 'edit'>('view')
   const [rows, setRows] = useState<RowData[]>([])
-  const [editingRows, setEditingRows] = useState<Record<string, RowData>>({})
 
   const { data: projects } = useQuery<ProjectOption[]>({
     queryKey: ['projects'],
@@ -280,13 +279,6 @@ export default function Chessboard() {
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, [field]: value } : r)))
   }, [])
 
-  const handleEditChange = useCallback(
-    (key: string, field: keyof RowData, value: string) => {
-      setEditingRows((prev) => ({ ...prev, [key]: { ...prev[key], [field]: value } }))
-    },
-    [],
-  )
-
   const startAdd = useCallback(() => {
     if (!appliedFilters) return
     const defaultLocationId = appliedFilters.typeId
@@ -313,84 +305,68 @@ export default function Chessboard() {
     (id: string) => {
       const dbRow = tableData?.find((r) => r.id === id)
       if (!dbRow) return
-      setEditingRows((prev) => {
-        if (prev[id]) return prev
-        return {
-          ...prev,
-          [id]: {
-            key: id,
-            material: dbRow.material ?? '',
-            quantityPd:
-              dbRow.quantityPd !== null && dbRow.quantityPd !== undefined
-                ? String(dbRow.quantityPd)
-                : '',
-            quantitySpec:
-              dbRow.quantitySpec !== null && dbRow.quantitySpec !== undefined
-                ? String(dbRow.quantitySpec)
-                : '',
-            quantityRd:
-              dbRow.quantityRd !== null && dbRow.quantityRd !== undefined
-                ? String(dbRow.quantityRd)
-                : '',
-            unitId: dbRow.unit_id ?? '',
-            blockId: dbRow.chessboard_mapping?.block_id ?? '',
-            block: dbRow.chessboard_mapping?.blocks?.name ?? '',
-            costCategoryId: dbRow.chessboard_mapping?.cost_category_id
-              ? String(dbRow.chessboard_mapping.cost_category_id)
-              : '',
-            costTypeId: dbRow.chessboard_mapping?.cost_type_id
-              ? String(dbRow.chessboard_mapping.cost_type_id)
-              : '',
-            locationId: dbRow.chessboard_mapping?.location_id
-              ? String(dbRow.chessboard_mapping.location_id)
-              : '',
-          },
-        }
-      })
+      setRows([
+        { 
+          key: id,
+          material: dbRow.material ?? '',
+          quantityPd: dbRow.quantityPd !== null && dbRow.quantityPd !== undefined ? String(dbRow.quantityPd) : '',
+          quantitySpec: dbRow.quantitySpec !== null && dbRow.quantitySpec !== undefined ? String(dbRow.quantitySpec) : '',
+          quantityRd: dbRow.quantityRd !== null && dbRow.quantityRd !== undefined ? String(dbRow.quantityRd) : '',
+          unitId: dbRow.unit_id ?? '',
+          blockId: dbRow.chessboard_mapping?.block_id ?? '',
+          block: dbRow.chessboard_mapping?.blocks?.name ?? '',
+          costCategoryId: dbRow.chessboard_mapping?.cost_category_id
+            ? String(dbRow.chessboard_mapping.cost_category_id)
+            : '',
+          costTypeId: dbRow.chessboard_mapping?.cost_type_id
+            ? String(dbRow.chessboard_mapping.cost_type_id)
+            : '',
+          locationId: dbRow.chessboard_mapping?.location_id
+            ? String(dbRow.chessboard_mapping.location_id)
+            : '',
+        },
+      ])
+      setMode('edit')
     },
     [tableData],
   )
 
   const handleUpdate = useCallback(async () => {
-    if (!supabase || Object.keys(editingRows).length === 0) return
-    for (const r of Object.values(editingRows)) {
-      const { error } = await supabase
-        .from('chessboard')
-        .update({
-          material: r.material,
-          quantityPd: r.quantityPd ? Number(r.quantityPd) : null,
-          quantitySpec: r.quantitySpec ? Number(r.quantitySpec) : null,
-          quantityRd: r.quantityRd ? Number(r.quantityRd) : null,
-          unit_id: r.unitId || null,
-        })
-        .eq('id', r.key)
-      if (error) {
-        message.error(`Не удалось обновить данные: ${error.message}`)
-        return
-      }
-      const { error: mapError } = await supabase.from('chessboard_mapping').upsert(
-        {
-          chessboard_id: r.key,
-          block_id: r.blockId || null,
-          cost_category_id: Number(r.costCategoryId),
-          cost_type_id: r.costTypeId ? Number(r.costTypeId) : null,
-          location_id: r.locationId ? Number(r.locationId) : null,
-        },
-        { onConflict: 'chessboard_id' },
-      )
-      if (mapError) {
-        message.error(`Не удалось обновить связи: ${mapError.message}`)
-        return
-      }
+    if (!supabase || rows.length !== 1) return
+    const r = rows[0]
+    const { error } = await supabase
+      .from('chessboard')
+      .update({
+        material: r.material,
+        quantityPd: r.quantityPd ? Number(r.quantityPd) : null,
+        quantitySpec: r.quantitySpec ? Number(r.quantitySpec) : null,
+        quantityRd: r.quantityRd ? Number(r.quantityRd) : null,
+        unit_id: r.unitId || null,
+      })
+      .eq('id', r.key)
+    if (error) {
+      message.error(`Не удалось обновить данные: ${error.message}`)
+      return
     }
-    message.success('Изменения сохранены')
-    setEditingRows({})
+    const { error: mapError } = await supabase.from('chessboard_mapping').upsert(
+      {
+        chessboard_id: r.key,
+        block_id: r.blockId || null,
+        cost_category_id: Number(r.costCategoryId),
+        cost_type_id: r.costTypeId ? Number(r.costTypeId) : null,
+        location_id: r.locationId ? Number(r.locationId) : null,
+      },
+      { onConflict: 'chessboard_id' },
+    )
+    if (mapError) {
+      message.error(`Не удалось обновить связи: ${mapError.message}`)
+      return
+    }
+    message.success('Строка обновлена')
+    setMode('view')
+    setRows([])
     await refetch()
-  }, [editingRows, message, refetch])
-
-  const handleCancelEdit = useCallback(() => {
-    setEditingRows({})
-  }, [])
+  }, [rows, message, refetch])
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -449,6 +425,137 @@ export default function Chessboard() {
     setMode('view')
   }, [])
 
+  const editColumns: ColumnType<RowData>[] = [
+    {
+      title: 'Материал',
+      dataIndex: 'material',
+      width: 300,
+      render: (_, record) => (
+        <Input
+          style={{ width: 300 }}
+          value={record.material}
+          onChange={(e) => handleRowChange(record.key, 'material', e.target.value)}
+        />
+      ),
+    },
+    {
+      title: 'Кол-во по ПД',
+      dataIndex: 'quantityPd',
+      render: (_, record) => (
+        <Input
+          style={{ width: '10ch' }}
+          value={record.quantityPd}
+          onChange={(e) => handleRowChange(record.key, 'quantityPd', e.target.value)}
+        />
+      ),
+    },
+    {
+      title: 'Кол-во по спеке РД',
+      dataIndex: 'quantitySpec',
+      render: (_, record) => (
+        <Input
+          style={{ width: '10ch' }}
+          value={record.quantitySpec}
+          onChange={(e) => handleRowChange(record.key, 'quantitySpec', e.target.value)}
+        />
+      ),
+    },
+    {
+      title: 'Кол-во по пересчету РД',
+      dataIndex: 'quantityRd',
+      render: (_, record) => (
+        <Input
+          style={{ width: '10ch' }}
+          value={record.quantityRd}
+          onChange={(e) => handleRowChange(record.key, 'quantityRd', e.target.value)}
+        />
+      ),
+    },
+    {
+      title: 'Ед.изм.',
+      dataIndex: 'unitId',
+      render: (_, record) => (
+        <Select
+          style={{ width: 160 }}
+          value={record.unitId}
+          onChange={(value) => handleRowChange(record.key, 'unitId', value)}
+          options={units?.map((u) => ({ value: u.id, label: u.name })) ?? []}
+        />
+      ),
+    },
+    {
+      title: 'Корпус',
+      dataIndex: 'blockId',
+      render: (_, record) => (
+        <Select
+          style={{ width: 200 }}
+          value={record.blockId}
+          onChange={(value) => {
+            handleRowChange(record.key, 'blockId', value)
+            const name = blocks?.find((b) => b.id === value)?.name ?? ''
+            handleRowChange(record.key, 'block', name)
+          }}
+          options={[
+            { value: '', label: 'НЕТ' },
+            ...(blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []),
+          ]}
+        />
+      ),
+    },
+    {
+      title: 'Категория затрат',
+      dataIndex: 'costCategoryId',
+      render: (_, record) => (
+        <Select
+          style={{ width: 200 }}
+          value={record.costCategoryId}
+          onChange={(value) => {
+            handleRowChange(record.key, 'costCategoryId', value)
+            handleRowChange(record.key, 'costTypeId', '')
+            handleRowChange(record.key, 'locationId', '')
+          }}
+          options={
+            costCategories?.map((c) => ({
+              value: String(c.id),
+              label: c.number ? `${c.number} ${c.name}` : c.name,
+            })) ?? []
+          }
+        />
+      ),
+    },
+    {
+      title: 'Вид затрат',
+      dataIndex: 'costTypeId',
+      render: (_, record) => (
+        <Select
+          style={{ width: 200 }}
+          value={record.costTypeId}
+          onChange={(value) => {
+            handleRowChange(record.key, 'costTypeId', value)
+            const loc = costTypes?.find((t) => t.id === Number(value))?.location_id
+            handleRowChange(record.key, 'locationId', loc ? String(loc) : '')
+          }}
+          options={
+            costTypes
+              ?.filter((t) => t.cost_category_id === Number(record.costCategoryId))
+              .map((t) => ({ value: String(t.id), label: t.name })) ?? []
+          }
+        />
+      ),
+    },
+    {
+      title: 'Локализация',
+      dataIndex: 'locationId',
+      render: (_, record) => (
+        <Select
+          style={{ width: 200 }}
+          value={record.locationId}
+          onChange={(value) => handleRowChange(record.key, 'locationId', value)}
+          options={locations?.map((l) => ({ value: String(l.id), label: l.name })) ?? []}
+        />
+      ),
+    },
+  ]
 
   const addColumns: ColumnsType<TableRow> = useMemo(() => {
     const map: Record<string, keyof ViewRow> = {
@@ -667,117 +774,6 @@ export default function Chessboard() {
         col.dataIndex === 'costCategory' || col.dataIndex === 'costType' || col.dataIndex === 'block'
           ? [{ text: 'НЕТ', value: '' }, ...values.map((v) => ({ text: String(v), value: String(v) }))]
           : values.map((v) => ({ text: String(v), value: String(v) }))
-
-      const render: ColumnType<ViewRow>['render'] = (_, record) => {
-        const edit = editingRows[record.key]
-        if (!edit) return record[col.dataIndex]
-        switch (col.dataIndex) {
-          case 'material':
-            return (
-              <Input
-                style={{ width: 300 }}
-                value={edit.material}
-                onChange={(e) => handleEditChange(record.key, 'material', e.target.value)}
-              />
-            )
-          case 'quantityPd':
-            return (
-              <Input
-                style={{ width: '10ch' }}
-                value={edit.quantityPd}
-                onChange={(e) => handleEditChange(record.key, 'quantityPd', e.target.value)}
-              />
-            )
-          case 'quantitySpec':
-            return (
-              <Input
-                style={{ width: '10ch' }}
-                value={edit.quantitySpec}
-                onChange={(e) => handleEditChange(record.key, 'quantitySpec', e.target.value)}
-              />
-            )
-          case 'quantityRd':
-            return (
-              <Input
-                style={{ width: '10ch' }}
-                value={edit.quantityRd}
-                onChange={(e) => handleEditChange(record.key, 'quantityRd', e.target.value)}
-              />
-            )
-          case 'unit':
-            return (
-              <Select
-                style={{ width: 160 }}
-                value={edit.unitId}
-                onChange={(value) => handleEditChange(record.key, 'unitId', value)}
-                options={units?.map((u) => ({ value: u.id, label: u.name })) ?? []}
-              />
-            )
-          case 'block':
-            return (
-              <Select
-                style={{ width: 200 }}
-                value={edit.blockId}
-                onChange={(value) => {
-                  handleEditChange(record.key, 'blockId', value)
-                  const name = blocks?.find((b) => b.id === value)?.name ?? ''
-                  handleEditChange(record.key, 'block', name)
-                }}
-                options={[
-                  { value: '', label: 'НЕТ' },
-                  ...(blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []),
-                ]}
-              />
-            )
-          case 'costCategory':
-            return (
-              <Select
-                style={{ width: 200 }}
-                value={edit.costCategoryId}
-                onChange={(value) => {
-                  handleEditChange(record.key, 'costCategoryId', value)
-                  handleEditChange(record.key, 'costTypeId', '')
-                  handleEditChange(record.key, 'locationId', '')
-                }}
-                options={
-                  costCategories?.map((c) => ({
-                    value: String(c.id),
-                    label: c.number ? `${c.number} ${c.name}` : c.name,
-                  })) ?? []
-                }
-              />
-            )
-          case 'costType':
-            return (
-              <Select
-                style={{ width: 200 }}
-                value={edit.costTypeId}
-                onChange={(value) => {
-                  handleEditChange(record.key, 'costTypeId', value)
-                  const loc = costTypes?.find((t) => t.id === Number(value))?.location_id
-                  handleEditChange(record.key, 'locationId', loc ? String(loc) : '')
-                }}
-                options={
-                  costTypes
-                    ?.filter((t) => t.cost_category_id === Number(edit.costCategoryId))
-                    .map((t) => ({ value: String(t.id), label: t.name })) ?? []
-                }
-              />
-            )
-          case 'location':
-            return (
-              <Select
-                style={{ width: 200 }}
-                value={edit.locationId}
-                onChange={(value) => handleEditChange(record.key, 'locationId', value)}
-                options={locations?.map((l) => ({ value: String(l.id), label: l.name })) ?? []}
-              />
-            )
-          default:
-            return record[col.dataIndex]
-        }
-      }
-
       return {
         ...col,
         sorter: (a: ViewRow, b: ViewRow) => {
@@ -791,7 +787,6 @@ export default function Chessboard() {
         filters,
         onFilter: (value: boolean | Key, record: ViewRow) =>
           String(record[col.dataIndex] ?? '') === String(value),
-        render,
       }
     })
 
@@ -800,33 +795,17 @@ export default function Chessboard() {
       {
         title: '',
         dataIndex: 'actions',
-        render: (_, record) => {
-          const isEditing = !!editingRows[record.key]
-          return (
-            <Space>
-              {!isEditing && (
-                <Button type="text" icon={<EditOutlined />} onClick={() => startEdit(record.key)} />
-              )}
-              <Popconfirm title="Удалить строку?" onConfirm={() => handleDelete(record.key)}>
-                <Button type="text" icon={<DeleteOutlined />} />
-              </Popconfirm>
-            </Space>
-          )
-        },
+        render: (_, record) => (
+          <Space>
+            <Button type="text" icon={<EditOutlined />} onClick={() => startEdit(record.key)} />
+            <Popconfirm title="Удалить строку?" onConfirm={() => handleDelete(record.key)}>
+              <Button type="text" icon={<DeleteOutlined />} />
+            </Popconfirm>
+          </Space>
+        ),
       },
     ]
-  }, [
-    viewRows,
-    editingRows,
-    handleEditChange,
-    startEdit,
-    handleDelete,
-    units,
-    blocks,
-    costCategories,
-    costTypes,
-    locations,
-  ])
+  }, [viewRows, startEdit, handleDelete])
 
   return (
     <div>
@@ -886,15 +865,7 @@ export default function Chessboard() {
             Применить
           </Button>
         </Space>
-        {appliedFilters && mode === 'view' &&
-          (Object.keys(editingRows).length > 0 ? (
-            <Space>
-              <Button onClick={handleUpdate}>Сохранить</Button>
-              <Button onClick={handleCancelEdit}>Отмена</Button>
-            </Space>
-          ) : (
-            <Button onClick={startAdd}>Добавить</Button>
-          ))}
+        {appliedFilters && mode === 'view' && <Button onClick={startAdd}>Добавить</Button>}
         {appliedFilters && mode === 'add' && (
           <Space>
             <Button onClick={handleSave}>Сохранить</Button>
@@ -902,12 +873,21 @@ export default function Chessboard() {
           </Space>
         )}
       </div>
-      {appliedFilters &&
-        (mode === 'add' ? (
+      {appliedFilters && (
+        mode === 'edit' ? (
+          <>
+            <Space style={{ marginBottom: 16 }}>
+              <Button onClick={handleUpdate}>Сохранить</Button>
+              <Button onClick={() => setMode('view')}>Отмена</Button>
+            </Space>
+            <Table<RowData> dataSource={rows} columns={editColumns} pagination={false} rowKey="key" />
+          </>
+        ) : mode === 'add' ? (
           <Table<TableRow> dataSource={tableRows} columns={addColumns} pagination={false} rowKey="key" />
         ) : (
           <Table<ViewRow> dataSource={viewRows} columns={viewColumns} pagination={false} rowKey="key" />
-        ))}
+        )
+      )}
     </div>
   )
 }
