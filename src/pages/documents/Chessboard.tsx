@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState, type Key } from 'react'
-import { App, Button, Dropdown, Input, Modal, Popconfirm, Select, Space, Table, Upload } from 'antd'
+import { App, Button, Card, Checkbox, Drawer, Dropdown, Input, List, Modal, Popconfirm, Select, Space, Table, Typography, Upload } from 'antd'
 import type { ColumnType, ColumnsType } from 'antd/es/table'
-import { BgColorsOutlined, CopyOutlined, DeleteOutlined, EditOutlined, InboxOutlined, PlusOutlined } from '@ant-design/icons'
+import { ArrowDownOutlined, ArrowUpOutlined, BgColorsOutlined, CopyOutlined, DeleteOutlined, DownOutlined, EditOutlined, InboxOutlined, PlusOutlined, SettingOutlined, UpOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
@@ -144,13 +144,6 @@ const collapseMap: Record<string, HiddenColKey> = {
   locationId: 'location',
 }
 
-const titleMap: Record<HiddenColKey, string> = {
-  block: 'Корпус',
-  costCategory: 'Категория затрат',
-  costType: 'Вид затрат',
-  location: 'Локализация',
-}
-
 export default function Chessboard() {
   const { message } = App.useApp()
   const [filters, setFilters] = useState<{ projectId?: string; blockId?: string; categoryId?: string; typeId?: string }>({})
@@ -160,12 +153,18 @@ export default function Chessboard() {
   const [mode, setMode] = useState<'view' | 'add'>('view')
   const [rows, setRows] = useState<RowData[]>([])
   const [editingRows, setEditingRows] = useState<Record<string, RowData>>({})
-  const [hiddenCols, setHiddenCols] = useState({
+  const [hiddenCols] = useState({
     block: false,
     costCategory: false,
     costType: false,
     location: false,
   })
+  const [filtersExpanded, setFiltersExpanded] = useState(true)
+  const [columnsSettingsOpen, setColumnsSettingsOpen] = useState(false)
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({})
+  const [columnOrder, setColumnOrder] = useState<string[]>([])
+  const [deleteMode, setDeleteMode] = useState(false)
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [importOpen, setImportOpen] = useState(false)
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importState, setImportState] = useState<{
@@ -175,12 +174,6 @@ export default function Chessboard() {
     typeId?: string
     locationId?: string
   }>({})
-
-  const toggleColumn = useCallback(
-    (col: keyof typeof hiddenCols) =>
-      setHiddenCols((prev) => ({ ...prev, [col]: !prev[col] })),
-    [],
-  )
 
 
   const { data: projects } = useQuery<ProjectOption[]>({
@@ -396,6 +389,44 @@ export default function Chessboard() {
       return next
     })
   }, [])
+  
+  const deleteRow = useCallback((key: string) => {
+    setRows((prev) => prev.filter((r) => r.key !== key))
+  }, [])
+  
+  const handleDeleteSelected = useCallback(async () => {
+    if (!supabase || selectedRows.size === 0) return
+    
+    const idsToDelete = Array.from(selectedRows)
+    
+    try {
+      // Параллельное удаление связей и записей
+      const deletePromises = idsToDelete.map(async (id) => {
+        await supabase!.from('chessboard_mapping').delete().eq('chessboard_id', id)
+        await supabase!.from('chessboard').delete().eq('id', id)
+      })
+      
+      await Promise.all(deletePromises)
+      message.success(`Удалено строк: ${idsToDelete.length}`)
+      setSelectedRows(new Set())
+      setDeleteMode(false)
+      await refetch()
+    } catch (error: any) {
+      message.error(`Не удалось удалить строки: ${error.message}`)
+    }
+  }, [selectedRows, message, refetch])
+  
+  const toggleRowSelection = useCallback((key: string) => {
+    setSelectedRows(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(key)) {
+        newSet.delete(key)
+      } else {
+        newSet.add(key)
+      }
+      return newSet
+    })
+  }, [])
 
   const handleRowChange = useCallback((key: string, field: keyof RowData, value: string) => {
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, [field]: value } : r)))
@@ -475,8 +506,10 @@ export default function Chessboard() {
 
   const handleUpdate = useCallback(async () => {
     if (!supabase || Object.keys(editingRows).length === 0) return
-    for (const r of Object.values(editingRows)) {
-      const { error } = await supabase
+    
+    // Параллельное выполнение всех обновлений
+    const updatePromises = Object.values(editingRows).map(async (r) => {
+      const updateChessboard = supabase!
         .from('chessboard')
         .update({
           material: r.material,
@@ -487,11 +520,8 @@ export default function Chessboard() {
           color: r.color || null,
         })
         .eq('id', r.key)
-      if (error) {
-        message.error(`Не удалось обновить данные: ${error.message}`)
-        return
-      }
-      const { error: mapError } = await supabase.from('chessboard_mapping').upsert(
+      
+      const updateMapping = supabase!.from('chessboard_mapping').upsert(
         {
           chessboard_id: r.key,
           block_id: r.blockId || null,
@@ -501,14 +531,18 @@ export default function Chessboard() {
         },
         { onConflict: 'chessboard_id' },
       )
-      if (mapError) {
-        message.error(`Не удалось обновить связи: ${mapError.message}`)
-        return
-      }
+      
+      return Promise.all([updateChessboard, updateMapping])
+    })
+    
+    try {
+      await Promise.all(updatePromises)
+      message.success('Изменения сохранены')
+      setEditingRows({})
+      await refetch()
+    } catch (error: any) {
+      message.error(`Не удалось сохранить изменения: ${error.message}`)
     }
-    message.success('Изменения сохранены')
-    setEditingRows({})
-    await refetch()
   }, [editingRows, message, refetch])
 
   const handleCancelEdit = useCallback(() => {
@@ -609,7 +643,7 @@ export default function Chessboard() {
         cost_type_id: importState.typeId ? Number(importState.typeId) : null,
         location_id: importState.locationId ? Number(importState.locationId) : null,
       }))
-      const { error: mapError } = await supabase
+      const { error: mapError } = await supabase!
         .from('chessboard_mapping')
         .insert(mappings)
       if (mapError) throw mapError
@@ -858,11 +892,19 @@ export default function Chessboard() {
       {
         title: '',
         dataIndex: 'add',
-        render: (_, __, index) =>
+        render: (_, record, index) =>
           index < rows.length ? (
             <Space size="small">
               <Button type="text" icon={<PlusOutlined />} onClick={() => addRow(index)} />
               <Button type="text" icon={<CopyOutlined />} onClick={() => copyRow(index)} />
+              {!record.isExisting && (
+                <Button 
+                  type="text" 
+                  danger 
+                  icon={<DeleteOutlined />} 
+                  onClick={() => deleteRow(record.key)} 
+                />
+              )}
             </Space>
           ) : null,
       },
@@ -899,7 +941,21 @@ export default function Chessboard() {
   ])
 
   const viewColumns: ColumnsType<ViewRow> = useMemo(() => {
-    const base: Array<{ title: string; dataIndex: keyof ViewRow; width?: number }> = [
+    // Чекбокс колонка для режима удаления
+    const checkboxColumn: ColumnType<ViewRow> | null = deleteMode ? {
+      title: '',
+      dataIndex: 'checkbox',
+      width: 50,
+      fixed: 'left',
+      render: (_: any, record: ViewRow) => (
+        <Checkbox
+          checked={selectedRows.has(record.key)}
+          onChange={() => toggleRowSelection(record.key)}
+        />
+      ),
+    } : null
+    
+    const base: Array<{ title: string; dataIndex: string; width?: number }> = [
       { title: 'Материал', dataIndex: 'material', width: 300 },
       { title: 'Кол-во по ПД', dataIndex: 'quantityPd' },
       { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec' },
@@ -918,7 +974,7 @@ export default function Chessboard() {
       })
       .map((col) => {
       const values = Array.from(
-        new Set(viewRows.map((row) => row[col.dataIndex]).filter((v) => v)),
+        new Set(viewRows.map((row) => row[col.dataIndex as keyof ViewRow]).filter((v) => v)),
       )
       const filters =
         col.dataIndex === 'costCategory' || col.dataIndex === 'costType' || col.dataIndex === 'block'
@@ -927,7 +983,7 @@ export default function Chessboard() {
 
       const render: ColumnType<ViewRow>['render'] = (_, record) => {
         const edit = editingRows[record.key]
-        if (!edit) return record[col.dataIndex]
+        if (!edit) return record[col.dataIndex as keyof ViewRow]
         switch (col.dataIndex) {
           case 'material':
             return (
@@ -1031,32 +1087,34 @@ export default function Chessboard() {
               />
             )
           default:
-            return record[col.dataIndex]
+            return (record as any)[col.dataIndex]
         }
       }
 
       return {
         ...col,
         sorter: (a: ViewRow, b: ViewRow) => {
-          const aVal = a[col.dataIndex]
-          const bVal = b[col.dataIndex]
+          const aVal = (a as any)[col.dataIndex]
+          const bVal = (b as any)[col.dataIndex]
           const aNum = Number(aVal)
           const bNum = Number(bVal)
           if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum
           return String(aVal ?? '').localeCompare(String(bVal ?? ''))
         },
         filters,
-        onFilter: (value: boolean | Key, record: ViewRow) =>
-          String(record[col.dataIndex] ?? '') === String(value),
+        onFilter: (value: boolean | Key, record: ViewRow) => {
+          const dataIndex = col.dataIndex as keyof ViewRow
+          return String(record[dataIndex] ?? '') === String(value)
+        },
         render,
       }
     })
 
-    return [
+    const finalColumns = [
       {
         title: '',
         dataIndex: 'color',
-        render: (_, record) => {
+        render: (_: any, record: ViewRow) => {
           const edit = editingRows[record.key]
           return edit ? (
             <RowColorPicker value={edit.color} onChange={(c) => handleEditChange(record.key, 'color', c)} />
@@ -1067,7 +1125,7 @@ export default function Chessboard() {
       {
         title: '',
         dataIndex: 'actions',
-        render: (_, record) => {
+        render: (_: any, record: ViewRow) => {
           const isEditing = !!editingRows[record.key]
           return (
             <Space>
@@ -1082,6 +1140,9 @@ export default function Chessboard() {
         },
       },
     ]
+    
+    // Добавляем checkbox колонку в начало если включен режим удаления
+    return checkboxColumn ? [checkboxColumn, ...finalColumns] : finalColumns
   }, [
     viewRows,
     editingRows,
@@ -1094,94 +1155,304 @@ export default function Chessboard() {
     costTypes,
     locations,
     hiddenCols,
+    deleteMode,
+    selectedRows,
+    toggleRowSelection,
   ])
+
+  const { Text } = Typography
+
+  // Инициализация порядка и видимости столбцов
+  const allColumns = useMemo(() => [
+    { key: 'checkbox', title: '' },
+    { key: 'block', title: 'Корпус' },
+    { key: 'costCategory', title: 'Категория затрат' },
+    { key: 'costType', title: 'Вид затрат' },
+    { key: 'location', title: 'Локализация' },
+    { key: 'material', title: 'Материал' },
+    { key: 'quantityPd', title: 'Кол. ПД' },
+    { key: 'quantitySpec', title: 'Кол. Спец.' },
+    { key: 'quantityRd', title: 'Кол. РД' },
+    { key: 'unit', title: 'Ед. изм.' },
+    { key: 'color', title: 'Цвет' },
+    { key: 'actions', title: 'Действия' },
+  ], [])
+
+  // Инициализация состояния видимости столбцов при первой загрузке
+  useMemo(() => {
+    // Попытка загрузить из sessionStorage
+    const savedVisibility = sessionStorage.getItem('chessboard-column-visibility')
+    const savedOrder = sessionStorage.getItem('chessboard-column-order')
+    
+    if (savedVisibility && Object.keys(columnVisibility).length === 0) {
+      try {
+        setColumnVisibility(JSON.parse(savedVisibility))
+      } catch {
+        const initialVisibility: Record<string, boolean> = {}
+        allColumns.forEach(col => {
+          initialVisibility[col.key] = true
+        })
+        setColumnVisibility(initialVisibility)
+      }
+    } else if (Object.keys(columnVisibility).length === 0) {
+      const initialVisibility: Record<string, boolean> = {}
+      allColumns.forEach(col => {
+        initialVisibility[col.key] = true
+      })
+      setColumnVisibility(initialVisibility)
+    }
+    
+    if (savedOrder && columnOrder.length === 0) {
+      try {
+        setColumnOrder(JSON.parse(savedOrder))
+      } catch {
+        setColumnOrder(allColumns.map(c => c.key))
+      }
+    } else if (columnOrder.length === 0) {
+      setColumnOrder(allColumns.map(c => c.key))
+    }
+  }, [allColumns, columnVisibility, columnOrder])
+  
+  // Сохранение в sessionStorage при изменении
+  useMemo(() => {
+    if (Object.keys(columnVisibility).length > 0) {
+      sessionStorage.setItem('chessboard-column-visibility', JSON.stringify(columnVisibility))
+    }
+  }, [columnVisibility])
+  
+  useMemo(() => {
+    if (columnOrder.length > 0) {
+      sessionStorage.setItem('chessboard-column-order', JSON.stringify(columnOrder))
+    }
+  }, [columnOrder])
+
+  const moveColumn = useCallback((key: string, direction: 'up' | 'down') => {
+    setColumnOrder(prev => {
+      const index = prev.indexOf(key)
+      if (index === -1) return prev
+      
+      const newOrder = [...prev]
+      if (direction === 'up' && index > 0) {
+        [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]]
+      } else if (direction === 'down' && index < prev.length - 1) {
+        [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]]
+      }
+      return newOrder
+    })
+  }, [])
+
+  const toggleColumnVisibility = useCallback((key: string) => {
+    setColumnVisibility(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }))
+  }, [])
+  
+  const selectAllColumns = useCallback((select: boolean) => {
+    const newVisibility: Record<string, boolean> = {}
+    allColumns.forEach(col => {
+      newVisibility[col.key] = select
+    })
+    setColumnVisibility(newVisibility)
+  }, [allColumns])
+
+  // Применение порядка и видимости к столбцам таблицы
+  const orderedViewColumns = useMemo(() => {
+    const columnsMap: Record<string, any> = {}
+    
+    viewColumns.forEach(col => {
+      if (col && 'dataIndex' in col) {
+        columnsMap[col.dataIndex as string] = col
+      }
+    })
+
+    // Сначала фильтруем столбцы по видимости и порядку
+    const orderedCols = columnOrder
+      .filter(key => {
+        // Checkbox колонка всегда скрыта из порядка, но будет добавлена отдельно
+        if (key === 'checkbox') return false
+        return columnVisibility[key] !== false
+      })
+      .map(key => columnsMap[key])
+      .filter(Boolean)
+    
+    // Если включен режим удаления, добавляем checkbox колонку в начало
+    if (deleteMode && columnsMap['checkbox']) {
+      return [columnsMap['checkbox'], ...orderedCols]
+    }
+    
+    return orderedCols
+  }, [viewColumns, columnOrder, columnVisibility, deleteMode])
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Space>
-          <Select
-            placeholder="Проект"
-            style={{ width: 200 }}
-            value={filters.projectId}
-            onChange={(value) => setFilters({ projectId: value })}
-            options={projects?.map((p) => ({ value: p.id, label: p.name })) ?? []}
-          />
-          <Select
-            placeholder="Корпус"
-            style={{ width: 200 }}
-            value={filters.blockId}
-            onChange={(value) => setFilters((f) => ({ ...f, blockId: value }))}
-            options={[
-              { value: '', label: 'НЕТ' },
-              ...(blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []),
-            ]}
-            disabled={!filters.projectId}
-          />
-          <Select
-            placeholder="Категория затрат"
-            style={{ width: 200 }}
-            value={filters.categoryId}
-            onChange={(value) =>
-              setFilters((f) => ({ ...f, categoryId: value, typeId: undefined }))
-            }
-            options={[
-              { value: '', label: 'НЕТ' },
-              ...(
-                costCategories?.map((c) => ({
-                  value: String(c.id),
-                  label: c.number ? `${c.number} ${c.name}` : c.name,
-                })) ?? []
-              ),
-            ]}
-          />
-          <Select
-            placeholder="Вид затрат"
-            style={{ width: 200 }}
-            value={filters.typeId}
-            onChange={(value) => setFilters((f) => ({ ...f, typeId: value }))}
-            options={[
-              { value: '', label: 'НЕТ' },
-              ...(
-                costTypes
-                  ?.filter((t) => String(t.cost_category_id) === filters.categoryId)
-                  .map((t) => ({ value: String(t.id), label: t.name })) ?? []
-              ),
-            ]}
-            disabled={!filters.categoryId}
-          />
-          <Button type="primary" onClick={handleApply} disabled={!filters.projectId}>
-            Применить
-          </Button>
-        </Space>
-        {appliedFilters && mode === 'view' &&
-          (Object.keys(editingRows).length > 0 ? (
-            <Space>
-              <Button onClick={handleUpdate}>Сохранить</Button>
-              <Button onClick={handleCancelEdit}>Отмена</Button>
-            </Space>
-          ) : (
-            <Space>
-              <Button onClick={openImport}>Импорт</Button>
-              <Button onClick={startAdd}>Добавить</Button>
-            </Space>
-          ))}
-        {appliedFilters && mode === 'add' && (
-          <Space>
-            <Button onClick={handleSave}>Сохранить</Button>
-            <Button onClick={handleCancel}>Отменить</Button>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+          <Space align="center" size="middle">
+            <Text style={{ fontSize: '16px' }}>Объект:</Text>
+            <Select
+              placeholder="Выберите проект"
+              style={{ width: 280 }}
+              size="large"
+              value={filters.projectId}
+              onChange={(value) => setFilters({ projectId: value })}
+              options={projects?.map((p) => ({ 
+                value: p.id, 
+                label: <span style={{ fontWeight: 'bold' }}>{p.name}</span> 
+              })) ?? []}
+              showSearch
+              filterOption={(input, option) => {
+                const label = option?.label
+                if (!label) return false
+                // Handle React elements (like bold text)
+                if (typeof label === 'object' && 'props' in label) {
+                  const text = (label as any).props?.children || ''
+                  if (typeof text === 'string') {
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }
+                  return false
+                }
+                // Handle string labels
+                if (typeof label === 'string') {
+                  return (label as string).toLowerCase().includes(input.toLowerCase())
+                }
+                return false
+              }}
+            />
+            <Button 
+              type="primary" 
+              size="large"
+              onClick={handleApply} 
+              disabled={!filters.projectId}
+            >
+              Применить
+            </Button>
+            <Button
+              type="text"
+              onClick={() => setFiltersExpanded(!filtersExpanded)}
+              icon={filtersExpanded ? <UpOutlined /> : <DownOutlined />}
+            >
+              {
+                filtersExpanded ? 'Скрыть фильтры' : 'Показать фильтры'
+              }
+            </Button>
           </Space>
+          {appliedFilters && mode === 'view' &&
+            (Object.keys(editingRows).length > 0 ? (
+              <Space>
+                <Button onClick={handleUpdate}>Сохранить</Button>
+                <Button onClick={handleCancelEdit}>Отмена</Button>
+              </Space>
+            ) : (
+              <Space>
+                <Button onClick={openImport}>Импорт</Button>
+                <Button onClick={startAdd}>Добавить</Button>
+              </Space>
+            ))}
+          {appliedFilters && mode === 'add' && (
+            <Space>
+              <Button onClick={handleSave}>Сохранить</Button>
+              <Button onClick={handleCancel}>Отменить</Button>
+            </Space>
+          )}
+        </div>
+        
+        {filtersExpanded && (
+          <Card size="small" style={{ marginTop: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <Space wrap>
+                <Select
+                placeholder="Корпус"
+                style={{ width: 200 }}
+                value={filters.blockId}
+                onChange={(value) => setFilters((f) => ({ ...f, blockId: value }))}
+                options={[
+                  { value: '', label: 'НЕТ' },
+                  ...(blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []),
+                ]}
+                disabled={!filters.projectId}
+                allowClear
+              />
+              <Select
+                placeholder="Категория затрат"
+                style={{ width: 200 }}
+                value={filters.categoryId}
+                onChange={(value) =>
+                  setFilters((f) => ({ ...f, categoryId: value, typeId: undefined }))
+                }
+                options={[
+                  { value: '', label: 'НЕТ' },
+                  ...(
+                    costCategories?.map((c) => ({
+                      value: String(c.id),
+                      label: c.number ? `${c.number} ${c.name}` : c.name,
+                    })) ?? []
+                  ),
+                ]}
+                allowClear
+              />
+              <Select
+                placeholder="Вид затрат"
+                style={{ width: 200 }}
+                value={filters.typeId}
+                onChange={(value) => setFilters((f) => ({ ...f, typeId: value }))}
+                options={[
+                  { value: '', label: 'НЕТ' },
+                  ...(
+                    costTypes
+                      ?.filter((t) => String(t.cost_category_id) === filters.categoryId)
+                      .map((t) => ({ value: String(t.id), label: t.name })) ?? []
+                  ),
+                ]}
+                disabled={!filters.categoryId}
+                allowClear
+              />
+              </Space>
+              <Space>
+                {appliedFilters && (
+                  <>
+                    <Button
+                      style={{ 
+                        borderColor: deleteMode && selectedRows.size > 0 ? '#fa8c16' : '#fa8c16', 
+                        color: deleteMode && selectedRows.size > 0 ? '#fff' : deleteMode ? '#fff' : '#fa8c16', 
+                        backgroundColor: deleteMode && selectedRows.size > 0 ? '#fa8c16' : deleteMode ? '#fa8c16' : 'transparent' 
+                      }}
+                      icon={<DeleteOutlined />}
+                      onClick={() => {
+                        if (deleteMode && selectedRows.size > 0) {
+                          handleDeleteSelected()
+                        } else {
+                          setDeleteMode(!deleteMode)
+                          setSelectedRows(new Set())
+                        }
+                      }}
+                    >
+                      {deleteMode && selectedRows.size > 0 ? `Удалить (${selectedRows.size})` : deleteMode ? 'Выйти из режима' : 'Удалить'}
+                    </Button>
+                    {deleteMode && selectedRows.size > 0 && (
+                      <Button
+                        onClick={() => {
+                          setSelectedRows(new Set())
+                        }}
+                      >
+                        Отмена
+                      </Button>
+                    )}
+                  </>
+                )}
+                <Button
+                  type="primary"
+                  icon={<SettingOutlined />}
+                  onClick={() => setColumnsSettingsOpen(true)}
+                  title="Настройка столбцов"
+                >
+                  Настройка столбцов
+                </Button>
+              </Space>
+            </div>
+          </Card>
         )}
       </div>
-      {appliedFilters && (
-        <Space style={{ marginBottom: 16 }}>
-          {(Object.keys(titleMap) as Array<keyof typeof titleMap>).map((key) => (
-            <Button key={key} size="small" onClick={() => toggleColumn(key)}>
-              {hiddenCols[key] ? `Показать ${titleMap[key]}` : `Скрыть ${titleMap[key]}`}
-            </Button>
-          ))}
-        </Space>
-      )}
       {appliedFilters &&
         (mode === 'add' ? (
           <Table<TableRow>
@@ -1195,7 +1466,7 @@ export default function Chessboard() {
         ) : (
           <Table<ViewRow>
             dataSource={viewRows}
-            columns={viewColumns}
+            columns={orderedViewColumns}
             pagination={false}
             rowKey="key"
             scroll={{ scrollToFirstRowOnChange: false }}
@@ -1311,6 +1582,57 @@ export default function Chessboard() {
           />
         </Space>
       </Modal>
+      
+      <Drawer
+        title="Настройка столбцов"
+        placement="right"
+        onClose={() => setColumnsSettingsOpen(false)}
+        open={columnsSettingsOpen}
+        width={350}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Checkbox
+            checked={allColumns.every(col => columnVisibility[col.key] !== false)}
+            indeterminate={allColumns.some(col => columnVisibility[col.key]) && !allColumns.every(col => columnVisibility[col.key] !== false)}
+            onChange={(e) => selectAllColumns(e.target.checked)}
+          >
+            Выделить все
+          </Checkbox>
+        </div>
+        <List
+          dataSource={columnOrder.map(key => {
+            const col = allColumns.find(c => c.key === key)
+            return col ? { ...col, visible: columnVisibility[key] !== false } : null
+          }).filter(Boolean)}
+          renderItem={(item, index) => item && (
+            <List.Item
+              actions={[
+                <Button
+                  type="text"
+                  icon={<ArrowUpOutlined />}
+                  onClick={() => moveColumn(item.key, 'up')}
+                  disabled={index === 0}
+                  size="small"
+                />,
+                <Button
+                  type="text"
+                  icon={<ArrowDownOutlined />}
+                  onClick={() => moveColumn(item.key, 'down')}
+                  disabled={index === columnOrder.length - 1}
+                  size="small"
+                />
+              ]}
+            >
+              <Checkbox
+                checked={item.visible}
+                onChange={() => toggleColumnVisibility(item.key)}
+              >
+                {item.title}
+              </Checkbox>
+            </List.Item>
+          )}
+        />
+      </Drawer>
     </div>
   )
 }
