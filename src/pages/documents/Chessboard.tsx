@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState, type Key } from 'react'
-import { App, Button, Card, Checkbox, Drawer, Dropdown, Input, List, Modal, Popconfirm, Select, Space, Table, Typography, Upload } from 'antd'
+import { App, Badge, Button, Card, Checkbox, Drawer, Dropdown, Input, List, Modal, Popconfirm, Select, Space, Table, Typography, Upload } from 'antd'
 import type { ColumnType, ColumnsType } from 'antd/es/table'
-import { ArrowDownOutlined, ArrowUpOutlined, BgColorsOutlined, CopyOutlined, DeleteOutlined, DownOutlined, EditOutlined, InboxOutlined, PlusOutlined, SettingOutlined, UpOutlined } from '@ant-design/icons'
+import { ArrowDownOutlined, ArrowUpOutlined, BgColorsOutlined, CopyOutlined, DeleteOutlined, EditOutlined, InboxOutlined, PlusOutlined, SettingOutlined, FilterOutlined, CaretUpFilled, CaretDownFilled } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
@@ -1327,15 +1327,34 @@ export default function Chessboard() {
             >
               Применить
             </Button>
-            <Button
-              type="text"
-              onClick={() => setFiltersExpanded(!filtersExpanded)}
-              icon={filtersExpanded ? <UpOutlined /> : <DownOutlined />}
+            <Badge 
+              count={[filters.blockId, filters.categoryId, filters.typeId].filter(Boolean).length} 
+              size="small"
+              style={{ marginRight: '8px' }}
             >
-              {
-                filtersExpanded ? 'Скрыть фильтры' : 'Показать фильтры'
-              }
-            </Button>
+              <Button
+                type={filtersExpanded ? 'default' : 'text'}
+                onClick={() => setFiltersExpanded(!filtersExpanded)}
+                icon={
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <FilterOutlined style={{ fontSize: '16px', color: filtersExpanded ? '#1890ff' : undefined }} />
+                    {filtersExpanded ? 
+                      <CaretUpFilled style={{ fontSize: '10px', color: '#1890ff' }} /> : 
+                      <CaretDownFilled style={{ fontSize: '10px' }} />
+                    }
+                  </span>
+                }
+                title={filtersExpanded ? 'Скрыть фильтры' : 'Показать фильтры'}
+                style={{ 
+                  padding: '4px 12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  borderColor: filtersExpanded ? '#1890ff' : undefined
+                }}
+              >
+                Фильтры
+              </Button>
+            </Badge>
           </Space>
           {appliedFilters && mode === 'view' &&
             (Object.keys(editingRows).length > 0 ? (
