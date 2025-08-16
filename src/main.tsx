@@ -18,12 +18,16 @@ unstableSetRender((node, container) => {
 const queryClient = new QueryClient()
 
 export function Root() {
-  const [isDark, setIsDark] = useState(false)
+  const [isDark, setIsDark] = useState(() => {
+    const savedTheme = localStorage.getItem('blueprintflow-theme')
+    return savedTheme === 'dark'
+  })
 
   useEffect(() => {
     document.body.style.backgroundColor = isDark ? '#555555' : '#FCFCFC'
     document.body.style.color = isDark ? '#ffffff' : '#000000'
     document.body.dataset.theme = isDark ? 'dark' : 'light'
+    localStorage.setItem('blueprintflow-theme', isDark ? 'dark' : 'light')
   }, [isDark])
 
   return (
@@ -53,7 +57,7 @@ export function Root() {
       <AntdApp>
         <QueryClientProvider client={queryClient}>
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <App isDark={isDark} toggleTheme={() => setIsDark((v) => !v)} />
+            <App isDark={isDark} toggleTheme={() => setIsDark((prev) => !prev)} />
           </BrowserRouter>
         </QueryClientProvider>
       </AntdApp>
