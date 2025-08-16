@@ -843,15 +843,15 @@ export default function Chessboard() {
 
     const base: Array<{ title: string; dataIndex: keyof TableRow; width?: number }> = [
       { title: 'Материал', dataIndex: 'material', width: 300 },
-      { title: 'Кол-во по ПД', dataIndex: 'quantityPd' },
-      { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec' },
-      { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd' },
-      { title: 'Ед.изм.', dataIndex: 'unitId' },
-      { title: 'Корпус', dataIndex: 'block' },
-      { title: 'Этажи', dataIndex: 'floors' },
-      { title: 'Категория затрат', dataIndex: 'costCategoryId' },
-      { title: 'Вид затрат', dataIndex: 'costTypeId' },
-      { title: 'Локализация', dataIndex: 'locationId' },
+      { title: 'Кол-во по ПД', dataIndex: 'quantityPd', width: 120 },
+      { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', width: 150 },
+      { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd', width: 180 },
+      { title: 'Ед.изм.', dataIndex: 'unitId', width: 160 },
+      { title: 'Корпус', dataIndex: 'block', width: 200 },
+      { title: 'Этажи', dataIndex: 'floors', width: 150 },
+      { title: 'Категория затрат', dataIndex: 'costCategoryId', width: 200 },
+      { title: 'Вид затрат', dataIndex: 'costTypeId', width: 200 },
+      { title: 'Локализация', dataIndex: 'locationId', width: 200 },
     ]
 
     const dataColumns = base
@@ -1025,6 +1025,7 @@ export default function Chessboard() {
       {
         title: '',
         dataIndex: 'color',
+        width: 50,
         render: (_, record) =>
           record.isExisting ? null : (
             <RowColorPicker value={record.color} onChange={(c) => handleRowChange(record.key, 'color', c)} />
@@ -1033,6 +1034,7 @@ export default function Chessboard() {
       {
         title: '',
         dataIndex: 'add',
+        width: 120,
         render: (_, record, index) =>
           index < rows.length ? (
             <Space size="small">
@@ -1098,15 +1100,15 @@ export default function Chessboard() {
     
     const base: Array<{ title: string; dataIndex: string; width?: number }> = [
       { title: 'Материал', dataIndex: 'material', width: 300 },
-      { title: 'Кол-во по ПД', dataIndex: 'quantityPd' },
-      { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec' },
-      { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd' },
-      { title: 'Ед.изм.', dataIndex: 'unit' },
-      { title: 'Корпус', dataIndex: 'block' },
-      { title: 'Этажи', dataIndex: 'floors' },
-      { title: 'Категория затрат', dataIndex: 'costCategory' },
-      { title: 'Вид затрат', dataIndex: 'costType' },
-      { title: 'Локализация', dataIndex: 'location' },
+      { title: 'Кол-во по ПД', dataIndex: 'quantityPd', width: 120 },
+      { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', width: 150 },
+      { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd', width: 180 },
+      { title: 'Ед.изм.', dataIndex: 'unit', width: 160 },
+      { title: 'Корпус', dataIndex: 'block', width: 200 },
+      { title: 'Этажи', dataIndex: 'floors', width: 150 },
+      { title: 'Категория затрат', dataIndex: 'costCategory', width: 200 },
+      { title: 'Вид затрат', dataIndex: 'costType', width: 200 },
+      { title: 'Локализация', dataIndex: 'location', width: 200 },
     ]
 
     const dataColumns = base
@@ -1265,6 +1267,7 @@ export default function Chessboard() {
       {
         title: '',
         dataIndex: 'color',
+        width: 50,
         render: (_: any, record: ViewRow) => {
           const edit = editingRows[record.key]
           return edit ? (
@@ -1276,6 +1279,7 @@ export default function Chessboard() {
       {
         title: '',
         dataIndex: 'actions',
+        width: 100,
         render: (_: any, record: ViewRow) => {
           const isEditing = !!editingRows[record.key]
           return (
@@ -1671,7 +1675,12 @@ export default function Chessboard() {
             columns={addColumns}
             pagination={false}
             rowKey="key"
-            scroll={{ scrollToFirstRowOnChange: false }}
+            scroll={{ 
+              x: 'max-content',
+              y: 'calc(100vh - 300px)',
+              scrollToFirstRowOnChange: false 
+            }}
+            sticky
             rowClassName={(record) => (record.color ? `row-${record.color}` : '')}
           />
         ) : (
@@ -1680,7 +1689,12 @@ export default function Chessboard() {
             columns={orderedViewColumns}
             pagination={false}
             rowKey="key"
-            scroll={{ scrollToFirstRowOnChange: false }}
+            scroll={{ 
+              x: 'max-content',
+              y: 'calc(100vh - 300px)',
+              scrollToFirstRowOnChange: false 
+            }}
+            sticky
             rowClassName={(record) => {
               const color = editingRows[record.key]?.color ?? record.color
               return color ? `row-${color}` : ''

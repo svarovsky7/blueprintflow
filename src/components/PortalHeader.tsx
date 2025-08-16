@@ -59,7 +59,15 @@ export default function PortalHeader({ isDark }: PortalHeaderProps) {
         color: isDark ? '#ffffff' : '#000000',
       }}
     >
-        <span>{getPageTitle(pathname)}</span>
+        <div style={{ fontSize: '16px', fontWeight: 500 }}>
+          <span style={{ fontWeight: 600 }}>BlueprintFlow</span>
+          {getPageTitle(pathname) && (
+            <>
+              <span style={{ margin: '0 8px', opacity: 0.5 }}>/</span>
+              <span>{getPageTitle(pathname)}</span>
+            </>
+          )}
+        </div>
       <Space size="middle">
         <Button type="text" icon={<BellOutlined />} />
         <Space>

@@ -1,5 +1,5 @@
 
-import { Layout, Menu, Switch } from 'antd'
+import { Layout, Menu } from 'antd'
 import { Link, Route, Routes } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Documents from './pages/Documents'
@@ -11,9 +11,8 @@ import CostCategories from './pages/references/CostCategories'
 import Projects from './pages/references/Projects'
 import Locations from './pages/references/Locations'
 import PortalHeader from './components/PortalHeader'
-import { SunOutlined, MoonOutlined } from '@ant-design/icons'
 
-const { Sider, Content, Footer } = Layout
+const { Sider, Content } = Layout
 
 interface AppProps {
   isDark: boolean
@@ -44,6 +43,20 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         { key: 'locations', label: <Link to="/references/locations">Локализации</Link> },
       ],
     },
+    {
+      key: 'admin',
+      label: 'Администрирование',
+      children: [
+        { 
+          key: 'theme-toggle', 
+          label: (
+            <span onClick={toggleTheme} style={{ cursor: 'pointer' }}>
+              {isDark ? 'Светлая тема' : 'Темная тема'}
+            </span>
+          ) 
+        },
+      ],
+    },
   ]
 
   return (
@@ -55,15 +68,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         }}
         collapsible
       >
-        <div
-          style={{
-            color: 'var(--menu-color)',
-            padding: 16,
-            fontWeight: 600,
-          }}
-        >
-          BlueprintFlow
-        </div>
+        <div style={{ height: 64 }} />
         <Menu
           theme={isDark ? 'dark' : 'light'}
           mode="inline"
@@ -94,20 +99,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             </Route>
           </Routes>
         </Content>
-        <Footer
-          style={{
-            textAlign: 'center',
-            background: isDark ? '#555555' : '#EEF0F1',
-            color: isDark ? '#ffffff' : '#000000',
-          }}
-        >
-          <Switch
-            checked={isDark}
-            onChange={toggleTheme}
-            checkedChildren={<MoonOutlined />}
-            unCheckedChildren={<SunOutlined />}
-          />
-        </Footer>
       </Layout>
     </Layout>
   )

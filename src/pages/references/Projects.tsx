@@ -19,6 +19,8 @@ interface BlockInfo {
   name: string
   bottom_floor?: number | null
   top_floor?: number | null
+  bottom_underground_floor?: number | null
+  top_ground_floor?: number | null
 }
 
 interface Project {
@@ -300,7 +302,8 @@ export default function Projects() {
             // Создаём связи корпус-этажи напрямую в таблице маппинга
             for (let i = 0; i < rows!.length; i++) {
               const block = blocks[i]
-              if (block.bottom_floor !== null && block.top_floor !== null) {
+              if (block.bottom_floor !== null && block.bottom_floor !== undefined && 
+                  block.top_floor !== null && block.top_floor !== undefined) {
                 const floorMappings = []
                 const minFloor = Math.min(block.bottom_floor, block.top_floor)
                 const maxFloor = Math.max(block.bottom_floor, block.top_floor)
@@ -391,7 +394,8 @@ export default function Projects() {
             // Создаём связи корпус-этажи напрямую в таблице маппинга
             for (let i = 0; i < rows!.length; i++) {
               const block = blocks[i]
-              if (block.bottom_floor !== null && block.top_floor !== null) {
+              if (block.bottom_floor !== null && block.bottom_floor !== undefined && 
+                  block.top_floor !== null && block.top_floor !== undefined) {
                 const floorMappings = []
                 const minFloor = Math.min(block.bottom_floor, block.top_floor)
                 const maxFloor = Math.max(block.bottom_floor, block.top_floor)
