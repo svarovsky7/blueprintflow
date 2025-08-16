@@ -62,6 +62,7 @@ interface RowData {
   costCategoryId: string
   costTypeId: string
   locationId: string
+  floors: string
   color: RowColor
 }
 
@@ -77,6 +78,7 @@ interface ViewRow {
   costCategory: string
   costType: string
   location: string
+  floors: string
   color: RowColor
 }
 
@@ -104,6 +106,7 @@ interface DbRow {
   quantityRd: number | null
   unit_id: string | null
   color: string | null
+  floors?: string
   units?: { name: string | null } | null
   chessboard_mapping?: {
     block_id: string | null
@@ -115,6 +118,62 @@ interface DbRow {
     detail_cost_categories?: { name: string | null } | null
     location?: { name: string | null } | null
   } | null
+}
+
+// Функция для форматирования массива этажей в строку с диапазонами
+const formatFloorsString = (floors: number[]): string => {
+  if (floors.length === 0) return ''
+  
+  const sorted = [...floors].sort((a, b) => a - b)
+  const ranges: string[] = []
+  let start = sorted[0]
+  let end = sorted[0]
+  
+  for (let i = 1; i <= sorted.length; i++) {
+    if (i < sorted.length && sorted[i] === end + 1) {
+      end = sorted[i]
+    } else {
+      if (start === end) {
+        ranges.push(String(start))
+      } else if (end - start === 1) {
+        ranges.push(`${start},${end}`)
+      } else {
+        ranges.push(`${start}-${end}`)
+      }
+      if (i < sorted.length) {
+        start = sorted[i]
+        end = sorted[i]
+      }
+    }
+  }
+  
+  return ranges.join(',')
+}
+
+// Функция для парсинга строки этажей в массив чисел
+const parseFloorsString = (floorsStr: string): number[] => {
+  if (!floorsStr || !floorsStr.trim()) return []
+  
+  const floors = new Set<number>()
+  const parts = floorsStr.split(',').map(s => s.trim())
+  
+  for (const part of parts) {
+    if (part.includes('-')) {
+      const [start, end] = part.split('-').map(s => parseInt(s.trim()))
+      if (!isNaN(start) && !isNaN(end)) {
+        for (let i = Math.min(start, end); i <= Math.max(start, end); i++) {
+          floors.add(i)
+        }
+      }
+    } else {
+      const num = parseInt(part)
+      if (!isNaN(num)) {
+        floors.add(num)
+      }
+    }
+  }
+  
+  return Array.from(floors).sort((a, b) => a - b)
 }
 
 const emptyRow = (defaults: Partial<RowData>): RowData => ({
@@ -129,6 +188,7 @@ const emptyRow = (defaults: Partial<RowData>): RowData => ({
   costCategoryId: defaults.costCategoryId ?? '',
   costTypeId: defaults.costTypeId ?? '',
   locationId: defaults.locationId ?? '',
+  floors: defaults.floors ?? '',
   color: '',
 })
 
@@ -293,7 +353,41 @@ export default function Chessboard() {
         message.error('Не удалось загрузить данные')
         throw error
       }
-      return (data as unknown as DbRow[]) ?? []
+      
+      // Загружаем этажи для всех записей
+      const chessboardIds = (data as any[])?.map(item => item.id) || []
+      let floorsMap: Record<string, string> = {}
+      
+      if (chessboardIds.length > 0) {
+        const { data: floorsData } = await supabase
+          .from('chessboard_floor_mapping')
+          .select('chessboard_id, floor_number')
+          .in('chessboard_id', chessboardIds)
+          .order('floor_number', { ascending: true })
+        
+        // Группируем этажи по chessboard_id и преобразуем в строки с диапазонами
+        if (floorsData) {
+          const grouped: Record<string, number[]> = {}
+          floorsData.forEach((item: any) => {
+            if (!grouped[item.chessboard_id]) {
+              grouped[item.chessboard_id] = []
+            }
+            grouped[item.chessboard_id].push(item.floor_number)
+          })
+          
+          // Преобразуем массивы этажей в строки с диапазонами
+          for (const [id, floors] of Object.entries(grouped)) {
+            floorsMap[id] = formatFloorsString(floors)
+          }
+        }
+      }
+      
+      // Добавляем этажи к результатам
+      const result = (data as unknown as DbRow[]) ?? []
+      return result.map(item => ({
+        ...item,
+        floors: floorsMap[item.id] || ''
+      }))
     },
   })
 
@@ -311,6 +405,7 @@ export default function Chessboard() {
         costCategory: item.chessboard_mapping?.cost_categories?.name ?? '',
         costType: item.chessboard_mapping?.detail_cost_categories?.name ?? '',
         location: item.chessboard_mapping?.location?.name ?? '',
+        floors: item.floors ?? '',
         color: (item.color as RowColor | null) ?? '',
       })),
     [tableData],
@@ -331,6 +426,7 @@ export default function Chessboard() {
         costCategoryId: v.costCategory,
         costTypeId: v.costType,
         locationId: v.location,
+        floors: v.floors,
         color: v.color,
         isExisting: true,
       })),
@@ -496,6 +592,7 @@ export default function Chessboard() {
             locationId: dbRow.chessboard_mapping?.location_id
               ? String(dbRow.chessboard_mapping.location_id)
               : '',
+            floors: dbRow.floors ?? '',
             color: (dbRow.color as RowColor | null) ?? '',
           },
         }
@@ -532,7 +629,26 @@ export default function Chessboard() {
         { onConflict: 'chessboard_id' },
       )
       
-      return Promise.all([updateChessboard, updateMapping])
+      // Обновляем этажи
+      const updateFloors = async () => {
+        // Сначала удаляем старые связи
+        await supabase!.from('chessboard_floor_mapping')
+          .delete()
+          .eq('chessboard_id', r.key)
+        
+        // Парсим строку этажей и добавляем новые
+        const floors = parseFloorsString(r.floors)
+        if (floors.length > 0) {
+          const floorMappings = floors.map(floor => ({
+            chessboard_id: r.key,
+            floor_number: floor
+          }))
+          await supabase!.from('chessboard_floor_mapping')
+            .insert(floorMappings)
+        }
+      }
+      
+      return Promise.all([updateChessboard, updateMapping, updateFloors()])
     })
     
     try {
@@ -685,6 +801,21 @@ export default function Chessboard() {
       message.error(`Не удалось сохранить связи: ${mapError.message}`)
       return
     }
+    
+    // Сохраняем этажи
+    for (let idx = 0; idx < data.length; idx++) {
+      const floors = parseFloorsString(rows[idx].floors)
+      if (floors.length > 0) {
+        const floorMappings = floors.map(floor => ({
+          chessboard_id: data[idx].id,
+          floor_number: floor
+        }))
+        const { error: floorError } = await supabase.from('chessboard_floor_mapping').insert(floorMappings)
+        if (floorError) {
+          console.error(`Не удалось сохранить этажи: ${floorError.message}`)
+        }
+      }
+    }
     message.success('Данные успешно сохранены')
     setMode('view')
     setRows([])
@@ -717,6 +848,7 @@ export default function Chessboard() {
       { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd' },
       { title: 'Ед.изм.', dataIndex: 'unitId' },
       { title: 'Корпус', dataIndex: 'block' },
+      { title: 'Этажи', dataIndex: 'floors' },
       { title: 'Категория затрат', dataIndex: 'costCategoryId' },
       { title: 'Вид затрат', dataIndex: 'costTypeId' },
       { title: 'Локализация', dataIndex: 'locationId' },
@@ -806,6 +938,15 @@ export default function Chessboard() {
                   { value: '', label: 'НЕТ' },
                   ...(blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []),
                 ]}
+              />
+            )
+          case 'floors':
+            return (
+              <Input
+                style={{ width: 150 }}
+                value={record.floors}
+                onChange={(e) => handleRowChange(record.key, 'floors', e.target.value)}
+                placeholder="1,2,3 или 1-5"
               />
             )
           case 'costCategoryId':
@@ -962,6 +1103,7 @@ export default function Chessboard() {
       { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd' },
       { title: 'Ед.изм.', dataIndex: 'unit' },
       { title: 'Корпус', dataIndex: 'block' },
+      { title: 'Этажи', dataIndex: 'floors' },
       { title: 'Категория затрат', dataIndex: 'costCategory' },
       { title: 'Вид затрат', dataIndex: 'costType' },
       { title: 'Локализация', dataIndex: 'location' },
@@ -1040,6 +1182,15 @@ export default function Chessboard() {
                   { value: '', label: 'НЕТ' },
                   ...(blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []),
                 ]}
+              />
+            )
+          case 'floors':
+            return (
+              <Input
+                style={{ width: 150 }}
+                value={edit.floors}
+                onChange={(e) => handleEditChange(record.key, 'floors', e.target.value)}
+                placeholder="1,2,3 или 1-5"
               />
             )
           case 'costCategory':
@@ -1166,6 +1317,7 @@ export default function Chessboard() {
   const allColumns = useMemo(() => [
     { key: 'checkbox', title: '' },
     { key: 'block', title: 'Корпус' },
+    { key: 'floors', title: 'Этажи' },
     { key: 'costCategory', title: 'Категория затрат' },
     { key: 'costType', title: 'Вид затрат' },
     { key: 'location', title: 'Локализация' },
@@ -1186,7 +1338,14 @@ export default function Chessboard() {
     
     if (savedVisibility && Object.keys(columnVisibility).length === 0) {
       try {
-        setColumnVisibility(JSON.parse(savedVisibility))
+        const parsed = JSON.parse(savedVisibility)
+        // Проверяем, есть ли новые столбцы, которых нет в сохраненных настройках
+        allColumns.forEach(col => {
+          if (!(col.key in parsed)) {
+            parsed[col.key] = true
+          }
+        })
+        setColumnVisibility(parsed)
       } catch {
         const initialVisibility: Record<string, boolean> = {}
         allColumns.forEach(col => {
@@ -1204,7 +1363,24 @@ export default function Chessboard() {
     
     if (savedOrder && columnOrder.length === 0) {
       try {
-        setColumnOrder(JSON.parse(savedOrder))
+        const parsed = JSON.parse(savedOrder)
+        // Добавляем новые столбцы, которых нет в сохраненном порядке
+        const missingColumns = allColumns.filter(col => !parsed.includes(col.key))
+        // Добавляем новые столбцы после 'block' или в конец
+        if (missingColumns.length > 0) {
+          const blockIndex = parsed.indexOf('block')
+          if (blockIndex !== -1) {
+            // Вставляем floors после block
+            const floorsCol = missingColumns.find(c => c.key === 'floors')
+            if (floorsCol) {
+              parsed.splice(blockIndex + 1, 0, 'floors')
+              missingColumns.splice(missingColumns.indexOf(floorsCol), 1)
+            }
+          }
+          // Остальные новые столбцы добавляем в конец
+          parsed.push(...missingColumns.map(c => c.key))
+        }
+        setColumnOrder(parsed)
       } catch {
         setColumnOrder(allColumns.map(c => c.key))
       }
@@ -1254,6 +1430,22 @@ export default function Chessboard() {
       newVisibility[col.key] = select
     })
     setColumnVisibility(newVisibility)
+  }, [allColumns])
+  
+  const resetToDefaults = useCallback(() => {
+    // Сброс видимости - все столбцы видимы
+    const defaultVisibility: Record<string, boolean> = {}
+    allColumns.forEach(col => {
+      defaultVisibility[col.key] = true
+    })
+    setColumnVisibility(defaultVisibility)
+    
+    // Сброс порядка - исходный порядок
+    setColumnOrder(allColumns.map(c => c.key))
+    
+    // Очистка sessionStorage
+    sessionStorage.removeItem('chessboard-column-visibility')
+    sessionStorage.removeItem('chessboard-column-order')
   }, [allColumns])
 
   // Применение порядка и видимости к столбцам таблицы
@@ -1609,7 +1801,7 @@ export default function Chessboard() {
         open={columnsSettingsOpen}
         width={350}
       >
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Checkbox
             checked={allColumns.every(col => columnVisibility[col.key] !== false)}
             indeterminate={allColumns.some(col => columnVisibility[col.key]) && !allColumns.every(col => columnVisibility[col.key] !== false)}
@@ -1617,6 +1809,12 @@ export default function Chessboard() {
           >
             Выделить все
           </Checkbox>
+          <Button
+            type="link"
+            onClick={resetToDefaults}
+          >
+            По умолчанию
+          </Button>
         </div>
         <List
           dataSource={columnOrder.map(key => {
