@@ -847,7 +847,7 @@ export default function Chessboard() {
       { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', width: 150 },
       { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd', width: 180 },
       { title: 'Ед.изм.', dataIndex: 'unitId', width: 160 },
-      { title: 'Корпус', dataIndex: 'block', width: 200 },
+      { title: 'Корпус', dataIndex: 'block', width: 120 },
       { title: 'Этажи', dataIndex: 'floors', width: 150 },
       { title: 'Категория затрат', dataIndex: 'costCategoryId', width: 200 },
       { title: 'Вид затрат', dataIndex: 'costTypeId', width: 200 },
@@ -927,7 +927,7 @@ export default function Chessboard() {
           case 'block':
             return (
               <Select
-                style={{ width: 200 }}
+                style={{ width: 120 }}
                 value={record.blockId}
                 onChange={(value) => {
                   handleRowChange(record.key, 'blockId', value)
@@ -1024,37 +1024,32 @@ export default function Chessboard() {
     return [
       {
         title: '',
-        dataIndex: 'color',
-        width: 50,
-        render: (_, record) =>
-          record.isExisting ? null : (
-            <RowColorPicker value={record.color} onChange={(c) => handleRowChange(record.key, 'color', c)} />
-          ),
-      },
-      {
-        title: '',
-        dataIndex: 'add',
+        dataIndex: 'actions',
         width: 120,
         render: (_, record, index) =>
           index < rows.length ? (
-            <Space size="small">
-              <Button type="text" icon={<PlusOutlined />} onClick={() => addRow(index)} />
-              <Button type="text" icon={<CopyOutlined />} onClick={() => copyRow(index)} />
-              {!record.isExisting && (
+            record.isExisting ? null : (
+              <Space size={0}>
+                <RowColorPicker value={record.color} onChange={(c) => handleRowChange(record.key, 'color', c)} />
+                <Button type="text" size="small" icon={<PlusOutlined />} onClick={() => addRow(index)} style={{ padding: '2px 4px' }} />
+                <Button type="text" size="small" icon={<CopyOutlined />} onClick={() => copyRow(index)} style={{ padding: '2px 4px' }} />
                 <Button 
                   type="text" 
+                  size="small"
                   danger 
                   icon={<DeleteOutlined />} 
                   onClick={() => deleteRow(record.key)} 
+                  style={{ padding: '2px 4px' }}
                 />
-              )}
-            </Space>
+              </Space>
+            )
           ) : null,
       },
       ...dataColumns,
       {
         title: '',
-        dataIndex: 'actions',
+        dataIndex: 'editActions',
+        width: 80,
         render: (_, record) =>
           record.isExisting ? (
             <Space>
@@ -1104,7 +1099,7 @@ export default function Chessboard() {
       { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', width: 150 },
       { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd', width: 180 },
       { title: 'Ед.изм.', dataIndex: 'unit', width: 160 },
-      { title: 'Корпус', dataIndex: 'block', width: 200 },
+      { title: 'Корпус', dataIndex: 'block', width: 120 },
       { title: 'Этажи', dataIndex: 'floors', width: 150 },
       { title: 'Категория затрат', dataIndex: 'costCategory', width: 200 },
       { title: 'Вид затрат', dataIndex: 'costType', width: 200 },
@@ -1173,7 +1168,7 @@ export default function Chessboard() {
           case 'block':
             return (
               <Select
-                style={{ width: 200 }}
+                style={{ width: 120 }}
                 value={edit.blockId}
                 onChange={(value) => {
                   handleEditChange(record.key, 'blockId', value)
@@ -1267,12 +1262,20 @@ export default function Chessboard() {
       {
         title: '',
         dataIndex: 'color',
-        width: 50,
+        width: Object.keys(editingRows).length > 0 ? 35 : 5,
         render: (_: any, record: ViewRow) => {
           const edit = editingRows[record.key]
           return edit ? (
             <RowColorPicker value={edit.color} onChange={(c) => handleEditChange(record.key, 'color', c)} />
-          ) : null
+          ) : (
+            <div
+              style={{
+                width: 4,
+                height: 16,
+                background: record.color ? colorMap[record.color] : undefined,
+              }}
+            />
+          )
         },
       },
       ...dataColumns,
@@ -1319,19 +1322,16 @@ export default function Chessboard() {
 
   // Инициализация порядка и видимости столбцов
   const allColumns = useMemo(() => [
-    { key: 'checkbox', title: '' },
     { key: 'block', title: 'Корпус' },
     { key: 'floors', title: 'Этажи' },
     { key: 'costCategory', title: 'Категория затрат' },
     { key: 'costType', title: 'Вид затрат' },
     { key: 'location', title: 'Локализация' },
     { key: 'material', title: 'Материал' },
-    { key: 'quantityPd', title: 'Кол. ПД' },
-    { key: 'quantitySpec', title: 'Кол. Спец.' },
-    { key: 'quantityRd', title: 'Кол. РД' },
-    { key: 'unit', title: 'Ед. изм.' },
-    { key: 'color', title: 'Цвет' },
-    { key: 'actions', title: 'Действия' },
+    { key: 'quantityPd', title: 'Кол-во по ПД' },
+    { key: 'quantitySpec', title: 'Кол-во по спеке РД' },
+    { key: 'quantityRd', title: 'Кол-во по пересчету РД' },
+    { key: 'unit', title: 'Ед.изм.' },
   ], [])
 
   // Инициализация состояния видимости столбцов при первой загрузке
@@ -1462,23 +1462,82 @@ export default function Chessboard() {
       }
     })
 
+    // Служебные столбцы
+    const actionsColumn = columnsMap['actions']
+    const colorColumn = columnsMap['color']
+    
     // Сначала фильтруем столбцы по видимости и порядку
     const orderedCols = columnOrder
       .filter(key => {
-        // Checkbox колонка всегда скрыта из порядка, но будет добавлена отдельно
-        if (key === 'checkbox') return false
+        // Служебные колонки не включаем в основную сортировку
+        if (key === 'checkbox' || key === 'color' || key === 'actions' || key === 'add') return false
         return columnVisibility[key] !== false
       })
       .map(key => columnsMap[key])
       .filter(Boolean)
     
+    // Собираем результат
+    const result = []
+    
     // Если включен режим удаления, добавляем checkbox колонку в начало
     if (deleteMode && columnsMap['checkbox']) {
-      return [columnsMap['checkbox'], ...orderedCols]
+      result.push(columnsMap['checkbox'])
     }
     
-    return orderedCols
+    // Добавляем цветовую колонку если она есть
+    if (colorColumn) {
+      result.push(colorColumn)
+    }
+    
+    // Добавляем отсортированные колонки данных
+    result.push(...orderedCols)
+    
+    // Добавляем колонку действий в конец
+    if (actionsColumn) {
+      result.push(actionsColumn)
+    }
+    
+    return result
   }, [viewColumns, columnOrder, columnVisibility, deleteMode])
+
+  // Применение порядка и видимости к addColumns
+  const orderedAddColumns = useMemo(() => {
+    const columnsMap: Record<string, any> = {}
+    
+    addColumns.forEach(col => {
+      if (col && 'dataIndex' in col) {
+        const dataIndex = col.dataIndex as string
+        // Маппинг для соответствия между addColumns и настройками столбцов
+        const mappedKey = dataIndex === 'unitId' ? 'unit' :
+                          dataIndex === 'costCategoryId' ? 'costCategory' :
+                          dataIndex === 'costTypeId' ? 'costType' :
+                          dataIndex === 'locationId' ? 'location' :
+                          dataIndex
+        columnsMap[mappedKey] = col
+      }
+    })
+
+    // Служебные колонки (действия) всегда добавляются в начало и конец
+    const actionsColumn = columnsMap['actions']
+    const editActionsColumn = columnsMap['editActions']
+    
+    // Применяем порядок и видимость к остальным колонкам
+    const orderedDataCols = columnOrder
+      .filter(key => {
+        return columnVisibility[key] !== false && columnsMap[key] && 
+               key !== 'actions' && key !== 'editActions'
+      })
+      .map(key => columnsMap[key])
+      .filter(Boolean)
+    
+    // Собираем итоговый массив колонок
+    const result = []
+    if (actionsColumn) result.push(actionsColumn)
+    result.push(...orderedDataCols)
+    if (editActionsColumn) result.push(editActionsColumn)
+    
+    return result
+  }, [addColumns, columnOrder, columnVisibility])
 
   return (
     <div>
@@ -1672,7 +1731,7 @@ export default function Chessboard() {
         (mode === 'add' ? (
           <Table<TableRow>
             dataSource={tableRows}
-            columns={addColumns}
+            columns={orderedAddColumns}
             pagination={false}
             rowKey="key"
             scroll={{ 
