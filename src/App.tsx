@@ -1,6 +1,7 @@
 
-import { Layout, Menu } from 'antd'
-import { Link, Route, Routes } from 'react-router-dom'
+import { useState } from 'react'
+import { Layout, Menu, Popover } from 'antd'
+import { Link, Route, Routes, useNavigate } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Documents from './pages/Documents'
 import Chessboard from './pages/documents/Chessboard'
@@ -20,20 +21,176 @@ interface AppProps {
 }
 
 const App = ({ isDark, toggleTheme }: AppProps) => {
+  const [collapsed, setCollapsed] = useState(false)
+  const navigate = useNavigate()
+  
+  const LetterIcon = ({ letter, children, onClick }: { letter: string; children?: React.ReactNode; onClick?: () => void }) => {
+    const iconContent = (
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: 4,
+          border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.15)'}`,
+          color: isDark ? '#ffffff' : '#000000',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 16,
+          fontWeight: 600,
+          cursor: 'pointer',
+          transition: 'all 0.3s',
+        }}
+        onClick={onClick}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.3)'
+          e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.15)'
+          e.currentTarget.style.backgroundColor = 'transparent'
+        }}
+      >
+        {letter}
+      </div>
+    )
+
+    if (children) {
+      return (
+        <Popover
+          content={children}
+          placement="rightTop"
+          trigger="hover"
+          overlayStyle={{ paddingLeft: 10 }}
+          arrow={false}
+          align={{
+            offset: [0, -16]
+          }}
+        >
+          {iconContent}
+        </Popover>
+      )
+    }
+
+    return iconContent
+  }
+
+  const menuItemStyle: React.CSSProperties = {
+    paddingLeft: '12px',
+    paddingRight: '12px',
+    minWidth: '180px',
+    transition: 'background-color 0.3s',
+  }
+
+  const linkStyle: React.CSSProperties = {
+    color: isDark ? '#fff' : '#000',
+    display: 'block',
+    padding: '5px 0',
+    textDecoration: 'none',
+  }
+
+  const documentsSubmenu = (
+    <div style={{ backgroundColor: isDark ? '#1f1f1f' : '#fff', borderRadius: 4, padding: '4px 0' }}>
+      <div 
+        style={menuItemStyle}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+      >
+        <Link to="/documents/chessboard" style={linkStyle}>
+          Шахматка
+        </Link>
+      </div>
+      <div 
+        style={menuItemStyle}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+      >
+        <Link to="/documents/vor" style={linkStyle}>
+          ВОР
+        </Link>
+      </div>
+    </div>
+  )
+
+  const referencesSubmenu = (
+    <div style={{ backgroundColor: isDark ? '#1f1f1f' : '#fff', borderRadius: 4, padding: '4px 0' }}>
+      <div 
+        style={menuItemStyle}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+      >
+        <Link to="/references" style={linkStyle}>
+          Единицы измерения
+        </Link>
+      </div>
+      <div 
+        style={menuItemStyle}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+      >
+        <Link to="/references/cost-categories" style={linkStyle}>
+          Категории затрат
+        </Link>
+      </div>
+      <div 
+        style={menuItemStyle}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+      >
+        <Link to="/references/projects" style={linkStyle}>
+          Проекты
+        </Link>
+      </div>
+      <div 
+        style={menuItemStyle}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+      >
+        <Link to="/references/locations" style={linkStyle}>
+          Локализации
+        </Link>
+      </div>
+    </div>
+  )
+
+  const adminSubmenu = (
+    <div style={{ backgroundColor: isDark ? '#1f1f1f' : '#fff', borderRadius: 4, padding: '4px 0' }}>
+      <div 
+        style={{ ...menuItemStyle, cursor: 'pointer' }} 
+        onClick={toggleTheme}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+      >
+        <span style={linkStyle}>
+          {isDark ? 'Светлая тема' : 'Темная тема'}
+        </span>
+      </div>
+    </div>
+  )
+
   const items = [
-    { key: 'dashboard', label: <Link to="/">Dashboard</Link> },
+    { 
+      key: 'dashboard', 
+      icon: collapsed ? <LetterIcon letter="D" onClick={() => navigate('/')} /> : undefined,
+      label: collapsed ? '' : <Link to="/">Dashboard</Link>,
+      title: collapsed ? '' : undefined
+    },
     {
       key: 'documents',
-      label: 'Документы',
-      children: [
+      icon: collapsed ? <LetterIcon letter="Д">{documentsSubmenu}</LetterIcon> : undefined,
+      label: collapsed ? '' : 'Документы',
+      title: collapsed ? '' : undefined,
+      children: collapsed ? undefined : [
         { key: 'chessboard', label: <Link to="/documents/chessboard">Шахматка</Link> },
         { key: 'vor', label: <Link to="/documents/vor">ВОР</Link> },
       ],
     },
     {
       key: 'references',
-      label: 'Справочники',
-      children: [
+      icon: collapsed ? <LetterIcon letter="С">{referencesSubmenu}</LetterIcon> : undefined,
+      label: collapsed ? '' : 'Справочники',
+      title: collapsed ? '' : undefined,
+      children: collapsed ? undefined : [
         { key: 'units', label: <Link to="/references">Единицы измерения</Link> },
         {
           key: 'cost-categories',
@@ -45,8 +202,10 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     },
     {
       key: 'admin',
-      label: 'Администрирование',
-      children: [
+      icon: collapsed ? <LetterIcon letter="А">{adminSubmenu}</LetterIcon> : undefined,
+      label: collapsed ? '' : 'Администрирование',
+      title: collapsed ? '' : undefined,
+      children: collapsed ? undefined : [
         { 
           key: 'theme-toggle', 
           label: (
@@ -67,11 +226,14 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           background: 'var(--menu-bg)',
         }}
         collapsible
+        collapsed={collapsed}
+        onCollapse={setCollapsed}
       >
         <div style={{ height: 64 }} />
         <Menu
           theme={isDark ? 'dark' : 'light'}
           mode="inline"
+          inlineCollapsed={collapsed}
           items={items}
           style={{ background: 'var(--menu-bg)' }}
         />
