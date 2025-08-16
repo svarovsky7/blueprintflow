@@ -334,6 +334,20 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             justify-content: center !important;
             transform: none !important;
           }
+          
+          .ant-menu:not(.ant-menu-inline-collapsed) > .ant-menu-item {
+            padding-left: 10px !important;
+            justify-content: flex-start !important;
+          }
+          
+          .ant-menu:not(.ant-menu-inline-collapsed) .ant-menu-submenu-title {
+            padding-left: 10px !important;
+          }
+          
+          .ant-menu:not(.ant-menu-inline-collapsed) .ant-menu-submenu .ant-menu-item {
+            padding-left: 20px !important;
+            justify-content: flex-start !important;
+          }
         `}
       </style>
       <Layout style={{ minHeight: '100vh' }}>
