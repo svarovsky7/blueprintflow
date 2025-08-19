@@ -4,78 +4,229 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-BlueprintFlow - Construction management portal for work documentation analysis and cost estimation (200+ users). Built with React/TypeScript, Supabase backend, real-time collaboration.
+BlueprintFlow is a React-based construction management portal for analyzing work documentation and cost estimation department of a construction general contractor. The system supports OAuth 2.0 authentication, Excel import capabilities, and real-time collaboration features for a team of 200+ employees.
 
-## Essential Commands
+## Tech Stack
+- **Frontend**: React 18, TypeScript (strict mode), Vite 7
+- **UI Library**: Ant Design 5 with Vibe design approach
+- **State Management**: TanStack Query 5+ (server state), Zustand 5+ (auth state)
+- **Backend**: Supabase 2.55+ (PostgreSQL 16, Auth, Storage, Edge Functions, Realtime WebSocket)
+- **Authentication**: Supabase Auth with OAuth 2.0 (Google, Microsoft) and MFA support
+- **Observability**: Sentry, Grafana Cloud, OpenTelemetry
+- **Excel Processing**: xlsx library for import/export
+- **Utilities**: Day.js for dates
+- **Editor**: WebStorm
+
+## Commands
 
 ```bash
-npm install        # Install dependencies
-npm run dev        # Development server
-npm run build      # Build (run before commit)
-npm run lint       # Lint (MUST pass before commit)
-npm run preview    # Preview production build
+# Development
+npm install           # Install dependencies
+npm run dev          # Start dev server (http://localhost:5173)
+npm run preview      # Preview production build
+
+# Build & Quality
+npm run build        # TypeScript check + Vite build (MUST pass before commit)
+npm run lint         # ESLint check (MUST pass before commit)
+npm run format       # Prettier formatting
+npm run format:check # Check formatting without changes
+npx tsc --noEmit    # Type checking only (standalone)
 ```
 
-## Pre-commit Requirements
-1. `npm run lint` - MUST pass with no warnings
-2. `npm run build` - MUST build successfully  
-3. Use Conventional Commits: `feat:`, `fix:`, `chore:`
+## Pre-commit Checklist
+1. Run `npm run lint` and fix all warnings
+2. Run `npm run format` to ensure consistent formatting
+3. Run `npm run build` and ensure project builds successfully
+4. Follow Conventional Commits format (`feat:`, `fix:`, `chore:`, etc.)
 
-## Architecture & Key Components
+## Architecture
 
-### Tech Stack
-- **Frontend**: React 18, TypeScript (strict), Vite, Ant Design 5
-- **Backend**: Supabase (PostgreSQL 16, Auth, Storage, Realtime)
-- **State**: TanStack Query
-- **Excel**: xlsx library
-- **Monitoring**: Sentry, Grafana Cloud
-
-### Architecture
-
-**Supabase Setup** (`src/lib/supabase.ts`):
+### Feature-Sliced Design (FSD) Structure
 ```
-VITE_SUPABASE_URL
-VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY or VITE_SUPABASE_ANON_KEY
+src/
+├── app/          # App-level providers, routing
+├── pages/        # Route pages  
+├── widgets/      # Complex reusable UI blocks
+├── features/     # User interactions, business features
+├── entities/     # Business entities and their APIs
+├── shared/       # Shared utilities, UI components, types
+├── lib/          # External library configurations (Supabase, etc.)
+└── components/   # Legacy UI components (migrate to FSD gradually)
 ```
 
-**Key Components**:
-- **Chessboard** (`src/pages/documents/Chessboard.tsx`) - Material tracking with Excel import, hierarchical filtering (Project→Block→Category→Type), real-time collaborative editing
-- **Database**: `chessboard` (main), `chessboard_mapping` (relations), reference tables (`units`, `cost_categories`, `location`)
-- **Migration**: `supabase.sql` + `sql/*.sql` directory
+### Key Patterns
+- **Public API**: Each slice exposes through `index.ts`
+- **Imports**: Use path aliases (`@/`, `@/entities/`, `@/features/`, etc.)
+- **State**: TanStack Query for server state, Zustand for auth state only
+- **API Files**: Named as `entity-name-api.ts` in `entities/*/api/`
+- **Error Handling**: All Supabase queries must include error handling
 
-## Critical Requirements
+## Database
 
-### Performance Targets (from `tech_task.md`)
-- Excel import: 5,000 rows ≤ 30 seconds
-- Table render: 10,000 rows ≤ 100ms  
-- Real-time sync latency < 300ms
-- Support 100 concurrent users
+**CRITICAL**: Always reference `supabase/schemas/prod.sql` for current database structure.
 
-### Code Standards
-- **TypeScript strict mode** - no `any` types
-- **Functional components only** - use hooks
-- **TanStack Query** for all data fetching
-- **Database tables** - always include `created_at`, `updated_at`
-- **NEVER use RLS** - handle auth in application layer
-- **Russian UI labels** - maintain existing language
 
-### Table UI Requirements
-- Column headers MUST have sorting and filtering
-- Row controls must be icon-only (no text)
-- Support inline editing with optimistic locking
-- Cascading dropdowns: changing category resets dependent fields
+## Database Integration
 
-### Excel Import Logic
-- Fuzzy match columns: "материал" (material), "кол" (quantity), "ед" (unit)
+### Supabase Configuration
+Environment variables required:
+```env
+VITE_SUPABASE_URL=<supabase_url>
+VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY=<anon_key> # or VITE_SUPABASE_ANON_KEY
+VITE_STORAGE_BUCKET=<storage_url>
+```
+
+Configuration: `src/lib/supabase.ts`
+
+### Core Tables
+- `chessboard` - Main data table for material tracking
+- `chessboard_mapping` - Mapping relationships
+- `units` - Units of measurement
+- `cost_categories`, `detail_cost_categories` - Cost categorization
+- `location` - Location/localization data
+- `projects`, `blocks` - Project structure
+- **Migration files**: `supabase.sql` and `sql/` directory
+
+### Database Rules
+- All tables MUST include `created_at` and `updated_at` fields
+- **NEVER use RLS (Row Level Security)** - handle auth in application layer
+- Use optimistic locking via `updated_at` timestamp for concurrent edits
+
+### API Pattern
+Standard Supabase query pattern:
+```typescript
+const { data, error } = await supabase
+  .from('table')
+  .select('*, relation:table(*)')
+  .order('created_at', { ascending: false });
+
+if (error) {
+  console.error('Operation failed:', error);
+  throw error;
+}
+```
+
+## Core Features
+
+### Chessboard Component (`src/pages/documents/Chessboard.tsx`)
+- Complex material tracking with Excel import
+- Hierarchical filtering: Project → Block → Cost Category → Cost Type
+- Real-time inline editing with optimistic locking
+- Row coloring system for visual categorization
+- Cascading dropdowns with automatic location assignment
+- Column settings persistence in localStorage
+
+### Excel Import Requirements
+- Headers use fuzzy matching for: "материал", "кол", "ед" columns
+- Support drag-and-drop upload up to 250 MB
 - Store original files in Supabase Storage
-- Support drag-and-drop up to 250 MB
+- Import 5,000 rows ≤ 30 seconds (performance target)
 
 ### Real-time Collaboration
 - Supabase Realtime WebSocket channels
-- Optimistic locking via `updated_at` timestamp
+- Optimistic locking for concurrent editing
 - Conflict resolver: Merge/Overwrite/Rollback options
+- Latency < 300ms for real-time sync
+
+## Performance Requirements
+
+From technical specification (`tech_task.md`):
+- Import 5,000 Excel rows ≤ 30 seconds
+- Render 10,000 rows ≤ 100ms
+- Support 100 concurrent users
+- Latency < 300ms for real-time sync
+- 99.9% uptime target
+- MTTR ≤ 5 minutes
+
+## Critical Guidelines
+
+### MUST DO
+- Run `npm run lint` before committing
+- Run `npm run format` for consistent code style
+- Handle all TypeScript strict mode requirements
+- Use absolute imports with path aliases (@/)
+- Export public APIs through index.ts files
+- Include error handling in all Supabase queries
+- Write **TypeScript only** with strict typing
+- Use functional React components and hooks
+- Data fetching via TanStack Query
+- All tables MUST have sorting and filters in column headers
+
+### NEVER DO
+- Create files unless absolutely necessary
+- Add comments unless explicitly requested
+- Use relative imports (../../../)
+- Commit .env files or secrets
+- Use `any` type in TypeScript
+- Create documentation files proactively
+- Use RLS (Row Level Security)
+- Store secrets or generated artifacts in repository
+
+## UI/UX Guidelines
+- **Mobile-first** design approach
+- **WCAG 2.1 AA** accessibility compliance
+- Modern, responsive UI with Ant Design 5/Vibe design system
+- All tables MUST have sorting and filters in column headers
+- Control elements in table rows should be icon-only (no text)
+- Display page title in header on all new portal pages
+- **Multi-language**: UI is in Russian, maintain Russian labels for user-facing elements
+
+## Code Standards
+- Component names: `PascalCase`
+- Variables and functions: `camelCase`
+- Use functional React components with hooks
+- Data fetching via TanStack Query
+- Auth state via Zustand store
+- Follow existing patterns in codebase
+
+## TypeScript Configuration
+- Composite project with separate `tsconfig.app.json` and `tsconfig.node.json`
+- Strict mode enabled with all strict checks
+- Path aliases configured in both `tsconfig.app.json` and `vite.config.ts`
+- Build info cached in `node_modules/.tmp/`
+- Module resolution: bundler mode with ESNext modules
+
+## Current Pages Structure
+
+### Documents (`/documents/*`)
+- Chessboard (`src/pages/documents/Chessboard.tsx`) - Complex material tracking with Excel import, filtering, and inline editing
+- VOR (`src/pages/documents/Vor.tsx`) - Volume of work documentation
+
+### References (`/references/*`)
+- Units of measurement
+- Cost categories
+- Projects
+- Locations
+
+### Dashboard
+- Analytics widgets for completed work
+
+## Git Workflow
+- Work in feature branches
+- Submit changes via Pull Request
+- Use Conventional Commits format (`feat:`, `fix:`, `chore:`, etc.)
+- Update documentation as needed
 
 ## Deployment
 - Frontend: GitHub Actions → Vercel
-- Backend: Supabase Cloud (PostgreSQL 16)
-- Monitoring: Sentry + Grafana Cloud
+- Backend: Supabase Cloud
+- Configure Sentry and Grafana Cloud for monitoring
+
+## Additional Features
+- Onboarding wizard for new users
+- AI-powered suggestions (Codex integration)
+- Analytics dashboard (win-rate, cost dynamics)
+- Full action history logging
+
+## Important Files
+- `tech_task.md` - Technical specification with performance requirements
+- `supabase.sql` - Database schema
+- `sql/` - Migration scripts
+- `.env.example` - Environment variables template
+
+## Important Notes
+- Excel import headers are flexible - use fuzzy matching
+- Cascading logic: When cost category changes, reset cost type and location
+- Row operations: Support add, copy, edit, delete with proper state management
+- Filtering: Applied filters persist through mode changes (view/add/edit)
+- Column settings saved in localStorage for persistence across sessions
