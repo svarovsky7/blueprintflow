@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict H9VWG5GMlskG40BduGWUpy4pcId4v5eCIc6Iu5i5UJhpc4B6xM5veQgXCnDDiUU
+\restrict BkeOT84mMt9syHRuW6ZRIgQojEglRuLzBgdWfeN8OQOrgIxFwieFSFeV2l2vXMU
 
 -- Dumped from database version 17.4
 -- Dumped by pg_dump version 17.6
@@ -766,8 +766,8 @@ CREATE FUNCTION public.update_updated_at_column() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
 END;
 $$;
 
@@ -2363,6 +2363,49 @@ CREATE TABLE public.chessboard_mapping (
 ALTER TABLE public.chessboard_mapping OWNER TO postgres;
 
 --
+-- Name: comments; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.comments (
+    comment_text text NOT NULL,
+    author_id integer,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL
+);
+
+
+ALTER TABLE public.comments OWNER TO postgres;
+
+--
+-- Name: TABLE comments; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE public.comments IS 'Комментарии (UUID)';
+
+
+--
+-- Name: COLUMN comments.comment_text; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.comments.comment_text IS 'Текст комментария';
+
+
+--
+-- Name: COLUMN comments.author_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.comments.author_id IS 'ID автора комментария';
+
+
+--
+-- Name: COLUMN comments.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.comments.id IS 'UUID комментария';
+
+
+--
 -- Name: cost_categories; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -2446,6 +2489,296 @@ ALTER SEQUENCE public.detail_cost_categories_id_seq OWNER TO postgres;
 --
 
 ALTER SEQUENCE public.detail_cost_categories_id_seq OWNED BY public.detail_cost_categories.id;
+
+
+--
+-- Name: documentation_tags; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.documentation_tags (
+    id integer NOT NULL,
+    tag_number integer NOT NULL,
+    name character varying(255) NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+ALTER TABLE public.documentation_tags OWNER TO postgres;
+
+--
+-- Name: TABLE documentation_tags; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE public.documentation_tags IS 'Справочник тэгов документации';
+
+
+--
+-- Name: COLUMN documentation_tags.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentation_tags.id IS 'Уникальный идентификатор записи';
+
+
+--
+-- Name: COLUMN documentation_tags.tag_number; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentation_tags.tag_number IS 'Номер тэга';
+
+
+--
+-- Name: COLUMN documentation_tags.name; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentation_tags.name IS 'Название тэга';
+
+
+--
+-- Name: COLUMN documentation_tags.created_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentation_tags.created_at IS 'Дата и время создания записи';
+
+
+--
+-- Name: COLUMN documentation_tags.updated_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentation_tags.updated_at IS 'Дата и время последнего обновления записи';
+
+
+--
+-- Name: documentation_tags_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.documentation_tags_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.documentation_tags_id_seq OWNER TO postgres;
+
+--
+-- Name: documentation_tags_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.documentation_tags_id_seq OWNED BY public.documentation_tags.id;
+
+
+--
+-- Name: documentation_versions; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.documentation_versions (
+    version_number integer NOT NULL,
+    issue_date date,
+    file_url text,
+    status character varying(50) DEFAULT 'not_filled'::character varying,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    documentation_id uuid,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    CONSTRAINT documentation_versions_status_check CHECK (((status)::text = ANY ((ARRAY['filled_recalc'::character varying, 'filled_spec'::character varying, 'not_filled'::character varying, 'vor_created'::character varying])::text[])))
+);
+
+
+ALTER TABLE public.documentation_versions OWNER TO postgres;
+
+--
+-- Name: TABLE documentation_versions; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE public.documentation_versions IS 'Версии документации (UUID)';
+
+
+--
+-- Name: COLUMN documentation_versions.version_number; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentation_versions.version_number IS 'Номер версии';
+
+
+--
+-- Name: COLUMN documentation_versions.issue_date; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentation_versions.issue_date IS 'Дата выдачи версии';
+
+
+--
+-- Name: COLUMN documentation_versions.file_url; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentation_versions.file_url IS 'Ссылка на файл документации';
+
+
+--
+-- Name: COLUMN documentation_versions.status; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentation_versions.status IS 'Статус заполнения данных';
+
+
+--
+-- Name: COLUMN documentation_versions.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentation_versions.id IS 'UUID версии документации';
+
+
+--
+-- Name: documentations; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.documentations (
+    code character varying(255) NOT NULL,
+    tag_id integer,
+    project_id uuid,
+    block_id uuid,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    stage character varying(1) DEFAULT 'П'::character varying,
+    CONSTRAINT documentations_stage_check CHECK (((stage)::text = ANY ((ARRAY['П'::character varying, 'Р'::character varying])::text[])))
+);
+
+
+ALTER TABLE public.documentations OWNER TO postgres;
+
+--
+-- Name: TABLE documentations; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE public.documentations IS 'Справочник документации (UUID)';
+
+
+--
+-- Name: COLUMN documentations.code; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentations.code IS 'Шифр проекта';
+
+
+--
+-- Name: COLUMN documentations.tag_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentations.tag_id IS 'ID раздела/тэга документации';
+
+
+--
+-- Name: COLUMN documentations.project_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentations.project_id IS 'ID проекта';
+
+
+--
+-- Name: COLUMN documentations.block_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentations.block_id IS 'ID корпуса/блока';
+
+
+--
+-- Name: COLUMN documentations.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentations.id IS 'UUID документации';
+
+
+--
+-- Name: COLUMN documentations.stage; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentations.stage IS 'Стадия проектирования (П - проект, Р - рабочка)';
+
+
+--
+-- Name: documentations_projects_mapping; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.documentations_projects_mapping (
+    documentation_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    block_id uuid
+);
+
+
+ALTER TABLE public.documentations_projects_mapping OWNER TO postgres;
+
+--
+-- Name: TABLE documentations_projects_mapping; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE public.documentations_projects_mapping IS 'Таблица маппинга документации с проектами и корпусами';
+
+
+--
+-- Name: COLUMN documentations_projects_mapping.documentation_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentations_projects_mapping.documentation_id IS 'UUID документации';
+
+
+--
+-- Name: COLUMN documentations_projects_mapping.project_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentations_projects_mapping.project_id IS 'UUID проекта';
+
+
+--
+-- Name: COLUMN documentations_projects_mapping.block_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentations_projects_mapping.block_id IS 'UUID корпуса (необязательно)';
+
+
+--
+-- Name: entity_comments_mapping; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.entity_comments_mapping (
+    entity_type character varying(100) NOT NULL,
+    entity_id uuid NOT NULL,
+    comment_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.entity_comments_mapping OWNER TO postgres;
+
+--
+-- Name: TABLE entity_comments_mapping; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE public.entity_comments_mapping IS 'Универсальная связь комментариев с сущностями (таблица маппинга)';
+
+
+--
+-- Name: COLUMN entity_comments_mapping.entity_type; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.entity_comments_mapping.entity_type IS 'Тип сущности';
+
+
+--
+-- Name: COLUMN entity_comments_mapping.entity_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.entity_comments_mapping.entity_id IS 'UUID сущности';
+
+
+--
+-- Name: COLUMN entity_comments_mapping.comment_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.entity_comments_mapping.comment_id IS 'UUID комментария';
 
 
 --
@@ -2569,6 +2902,73 @@ CREATE TABLE public.reference_data (
 
 
 ALTER TABLE public.reference_data OWNER TO postgres;
+
+--
+-- Name: statuses; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.statuses (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name character varying(100) NOT NULL,
+    code character varying(50) NOT NULL,
+    color character varying(20),
+    sort_order integer DEFAULT 0,
+    is_active boolean DEFAULT true,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+ALTER TABLE public.statuses OWNER TO postgres;
+
+--
+-- Name: TABLE statuses; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE public.statuses IS 'Справочник статусов документации';
+
+
+--
+-- Name: COLUMN statuses.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.statuses.id IS 'UUID статуса';
+
+
+--
+-- Name: COLUMN statuses.name; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.statuses.name IS 'Название статуса';
+
+
+--
+-- Name: COLUMN statuses.code; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.statuses.code IS 'Код статуса (уникальный)';
+
+
+--
+-- Name: COLUMN statuses.color; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.statuses.color IS 'Цвет для визуализации';
+
+
+--
+-- Name: COLUMN statuses.sort_order; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.statuses.sort_order IS 'Порядок сортировки';
+
+
+--
+-- Name: COLUMN statuses.is_active; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.statuses.is_active IS 'Активен ли статус';
+
 
 --
 -- Name: units; Type: TABLE; Schema: public; Owner: postgres
@@ -2825,6 +3225,13 @@ ALTER TABLE ONLY public.cost_categories ALTER COLUMN id SET DEFAULT nextval('pub
 --
 
 ALTER TABLE ONLY public.detail_cost_categories ALTER COLUMN id SET DEFAULT nextval('public.detail_cost_categories_id_seq'::regclass);
+
+
+--
+-- Name: documentation_tags id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.documentation_tags ALTER COLUMN id SET DEFAULT nextval('public.documentation_tags_id_seq'::regclass);
 
 
 --
@@ -3505,6 +3912,20 @@ d2e849c9-8815-4d64-99d3-3252cc4500de	8b51be6b-a2c4-43c8-aa64-21412899256c	240	63
 
 
 --
+-- Data for Name: comments; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.comments (comment_text, author_id, created_at, updated_at, id) FROM stdin;
+123	\N	2025-08-20 08:02:01.991255+00	2025-08-20 08:02:01.991255+00	33dfc8c1-edec-4b16-8a22-ceae4765e1ec
+234	\N	2025-08-20 08:02:02.464885+00	2025-08-20 08:02:02.464885+00	e65b31cf-2e48-4eed-8699-bca392c7cc64
+коммент1	\N	2025-08-20 12:45:02.104789+00	2025-08-20 12:45:02.104789+00	b429e8c4-1080-4a8f-bbad-2cab4faf485f
+коммент1	\N	2025-08-20 12:45:04.869248+00	2025-08-20 12:45:04.869248+00	0d5ab07e-118c-4fd6-894c-6ac7920feeec
+коммент1	\N	2025-08-20 12:57:03.699905+00	2025-08-20 12:57:03.699905+00	47433fc3-4c26-4243-bb78-a708c93aeca0
+ком1	\N	2025-08-20 14:19:06.588965+00	2025-08-20 14:19:06.588965+00	2d75cf36-4935-490e-85ce-5461f2cef9e8
+\.
+
+
+--
 -- Data for Name: cost_categories; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
@@ -3763,6 +4184,61 @@ COPY public.detail_cost_categories (id, name, unit_id, description, cost_categor
 
 
 --
+-- Data for Name: documentation_tags; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.documentation_tags (id, tag_number, name, created_at, updated_at) FROM stdin;
+1	1	ПОС / Котлован / ГИ	2025-08-19 15:43:28.214067+00	2025-08-19 15:43:28.214067+00
+2	2	КЖ	2025-08-19 15:44:13.950195+00	2025-08-19 15:44:13.950195+00
+3	3	АР	2025-08-19 15:44:29.753578+00	2025-08-19 15:44:29.753578+00
+4	4	ОВ/ВК	2025-08-19 15:44:51.025233+00	2025-08-19 15:44:51.025233+00
+5	5	ЭОМ/СС	2025-08-19 15:45:02.326977+00	2025-08-19 15:45:02.326977+00
+6	6	ТХ	2025-08-19 15:45:13.183335+00	2025-08-19 15:45:13.183335+00
+\.
+
+
+--
+-- Data for Name: documentation_versions; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.documentation_versions (version_number, issue_date, file_url, status, created_at, updated_at, documentation_id, id) FROM stdin;
+1	2025-08-20	\N	not_filled	2025-08-20 12:57:03.533478+00	2025-08-20 12:57:03.533478+00	e4ef7e84-0ab4-441c-8523-38beba1aebfb	d648ab8b-caf5-4a4b-afd0-6877f0452682
+1	2025-08-20	\N	not_filled	2025-08-20 14:19:06.402843+00	2025-08-20 14:19:06.402843+00	9953817c-c512-4460-8dfd-4da3cef5d6a3	7e35910e-1916-429b-9077-34a716120c54
+2	2025-08-20	https://su10.bitrix24.ru/bitrix/tools/disk/uf.php?attachedId=28669&action=download&ncc=1	not_filled	2025-08-20 14:19:54.763674+00	2025-08-20 14:19:54.763674+00	9953817c-c512-4460-8dfd-4da3cef5d6a3	8c20cca8-89eb-4107-bc7a-a47e9c293996
+\.
+
+
+--
+-- Data for Name: documentations; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.documentations (code, tag_id, project_id, block_id, created_at, updated_at, id, stage) FROM stdin;
+пос1	1	\N	\N	2025-08-20 12:57:03.243824+00	2025-08-20 12:57:03.243824+00	e4ef7e84-0ab4-441c-8523-38beba1aebfb	\N
+пос2	1	\N	\N	2025-08-20 14:19:05.886662+00	2025-08-20 14:19:54.547037+00	9953817c-c512-4460-8dfd-4da3cef5d6a3	Р
+\.
+
+
+--
+-- Data for Name: documentations_projects_mapping; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.documentations_projects_mapping (documentation_id, project_id, block_id) FROM stdin;
+e4ef7e84-0ab4-441c-8523-38beba1aebfb	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+9953817c-c512-4460-8dfd-4da3cef5d6a3	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+\.
+
+
+--
+-- Data for Name: entity_comments_mapping; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.entity_comments_mapping (entity_type, entity_id, comment_id) FROM stdin;
+documentation	e4ef7e84-0ab4-441c-8523-38beba1aebfb	47433fc3-4c26-4243-bb78-a708c93aeca0
+documentation	9953817c-c512-4460-8dfd-4da3cef5d6a3	2d75cf36-4935-490e-85ce-5461f2cef9e8
+\.
+
+
+--
 -- Data for Name: estimate_items; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
@@ -3972,6 +4448,18 @@ COPY public.reference_data (id, name, data, created_at, updated_at) FROM stdin;
 
 
 --
+-- Data for Name: statuses; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.statuses (id, name, code, color, sort_order, is_active, created_at, updated_at) FROM stdin;
+8316b4f0-6b0f-4a21-9d12-6c0953e490fd	Данные заполнены по пересчету РД	filled_recalc	green	1	t	2025-08-20 12:42:58.534299+00	2025-08-20 12:42:58.534299+00
+c724b4ff-81fa-4c30-9962-b9e7e9cda8c7	Данные заполнены по спеке РД	filled_spec	yellow	2	t	2025-08-20 12:42:58.534299+00	2025-08-20 12:42:58.534299+00
+0b9a8738-7c97-4cd0-9dd0-019a9b3be970	Данные не заполнены	not_filled	red	3	t	2025-08-20 12:42:58.534299+00	2025-08-20 12:42:58.534299+00
+0661a184-5e66-4e11-b47f-db38f2a7e91e	Созданы ВОР	vor_created	blue	4	t	2025-08-20 12:42:58.534299+00	2025-08-20 12:42:58.534299+00
+\.
+
+
+--
 -- Data for Name: units; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
@@ -4175,6 +4663,13 @@ SELECT pg_catalog.setval('public.cost_categories_id_seq', 257, true);
 --
 
 SELECT pg_catalog.setval('public.detail_cost_categories_id_seq', 821, true);
+
+
+--
+-- Name: documentation_tags_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.documentation_tags_id_seq', 6, true);
 
 
 --
@@ -4432,6 +4927,14 @@ ALTER TABLE ONLY public.chessboard
 
 
 --
+-- Name: comments comments_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.comments
+    ADD CONSTRAINT comments_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: cost_categories cost_categories_name_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -4453,6 +4956,70 @@ ALTER TABLE ONLY public.cost_categories
 
 ALTER TABLE ONLY public.detail_cost_categories
     ADD CONSTRAINT detail_cost_categories_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: documentations documentation_codes_code_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.documentations
+    ADD CONSTRAINT documentation_codes_code_key UNIQUE (code);
+
+
+--
+-- Name: documentation_tags documentation_tags_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.documentation_tags
+    ADD CONSTRAINT documentation_tags_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: documentation_tags documentation_tags_tag_number_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.documentation_tags
+    ADD CONSTRAINT documentation_tags_tag_number_key UNIQUE (tag_number);
+
+
+--
+-- Name: documentation_versions documentation_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.documentation_versions
+    ADD CONSTRAINT documentation_versions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: documentations documentations_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.documentations
+    ADD CONSTRAINT documentations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: documentations_projects_mapping documentations_projects_mappi_documentation_id_project_id_b_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.documentations_projects_mapping
+    ADD CONSTRAINT documentations_projects_mappi_documentation_id_project_id_b_key UNIQUE (documentation_id, project_id, block_id);
+
+
+--
+-- Name: documentations_projects_mapping documentations_projects_mapping_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.documentations_projects_mapping
+    ADD CONSTRAINT documentations_projects_mapping_pkey PRIMARY KEY (documentation_id, project_id);
+
+
+--
+-- Name: entity_comments_mapping entity_comments_mapping_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.entity_comments_mapping
+    ADD CONSTRAINT entity_comments_mapping_pkey PRIMARY KEY (entity_type, entity_id, comment_id);
 
 
 --
@@ -4509,6 +5076,30 @@ ALTER TABLE ONLY public.projects
 
 ALTER TABLE ONLY public.reference_data
     ADD CONSTRAINT reference_data_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: statuses statuses_code_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.statuses
+    ADD CONSTRAINT statuses_code_key UNIQUE (code);
+
+
+--
+-- Name: statuses statuses_name_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.statuses
+    ADD CONSTRAINT statuses_name_key UNIQUE (name);
+
+
+--
+-- Name: statuses statuses_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.statuses
+    ADD CONSTRAINT statuses_pkey PRIMARY KEY (id);
 
 
 --
@@ -4939,6 +5530,146 @@ CREATE INDEX idx_chessboard_floor_mapping_floor_number ON public.chessboard_floo
 
 
 --
+-- Name: idx_comments_author_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_comments_author_id ON public.comments USING btree (author_id);
+
+
+--
+-- Name: idx_documentation_tags_name; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_documentation_tags_name ON public.documentation_tags USING btree (name);
+
+
+--
+-- Name: idx_documentation_tags_tag_number; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_documentation_tags_tag_number ON public.documentation_tags USING btree (tag_number);
+
+
+--
+-- Name: idx_documentation_versions_documentation_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_documentation_versions_documentation_id ON public.documentation_versions USING btree (documentation_id);
+
+
+--
+-- Name: idx_documentation_versions_issue_date; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_documentation_versions_issue_date ON public.documentation_versions USING btree (issue_date);
+
+
+--
+-- Name: idx_documentation_versions_status; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_documentation_versions_status ON public.documentation_versions USING btree (status);
+
+
+--
+-- Name: idx_documentation_versions_version; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_documentation_versions_version ON public.documentation_versions USING btree (version_number);
+
+
+--
+-- Name: idx_documentations_block_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_documentations_block_id ON public.documentations USING btree (block_id);
+
+
+--
+-- Name: idx_documentations_code; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_documentations_code ON public.documentations USING btree (code);
+
+
+--
+-- Name: idx_documentations_project_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_documentations_project_id ON public.documentations USING btree (project_id);
+
+
+--
+-- Name: idx_documentations_projects_mapping_block_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_documentations_projects_mapping_block_id ON public.documentations_projects_mapping USING btree (block_id);
+
+
+--
+-- Name: idx_documentations_projects_mapping_documentation_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_documentations_projects_mapping_documentation_id ON public.documentations_projects_mapping USING btree (documentation_id);
+
+
+--
+-- Name: idx_documentations_projects_mapping_project_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_documentations_projects_mapping_project_id ON public.documentations_projects_mapping USING btree (project_id);
+
+
+--
+-- Name: idx_documentations_stage; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_documentations_stage ON public.documentations USING btree (stage);
+
+
+--
+-- Name: idx_documentations_tag_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_documentations_tag_id ON public.documentations USING btree (tag_id);
+
+
+--
+-- Name: idx_entity_comments_mapping_comment_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_entity_comments_mapping_comment_id ON public.entity_comments_mapping USING btree (comment_id);
+
+
+--
+-- Name: idx_entity_comments_mapping_type_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_entity_comments_mapping_type_id ON public.entity_comments_mapping USING btree (entity_type, entity_id);
+
+
+--
+-- Name: idx_statuses_code; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_statuses_code ON public.statuses USING btree (code);
+
+
+--
+-- Name: idx_statuses_is_active; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_statuses_is_active ON public.statuses USING btree (is_active);
+
+
+--
+-- Name: idx_statuses_sort_order; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_statuses_sort_order ON public.statuses USING btree (sort_order);
+
+
+--
 -- Name: ix_realtime_subscription_entity; Type: INDEX; Schema: realtime; Owner: supabase_admin
 --
 
@@ -4999,6 +5730,41 @@ CREATE TRIGGER update_block_floor_mapping_updated_at BEFORE UPDATE ON public.blo
 --
 
 CREATE TRIGGER update_chessboard_floor_mapping_updated_at BEFORE UPDATE ON public.chessboard_floor_mapping FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+
+--
+-- Name: comments update_comments_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER update_comments_updated_at BEFORE UPDATE ON public.comments FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+
+--
+-- Name: documentation_tags update_documentation_tags_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER update_documentation_tags_updated_at BEFORE UPDATE ON public.documentation_tags FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+
+--
+-- Name: documentation_versions update_documentation_versions_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER update_documentation_versions_updated_at BEFORE UPDATE ON public.documentation_versions FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+
+--
+-- Name: documentations update_documentations_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER update_documentations_updated_at BEFORE UPDATE ON public.documentations FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+
+--
+-- Name: statuses update_statuses_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER update_statuses_updated_at BEFORE UPDATE ON public.statuses FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
 --
@@ -5205,6 +5971,70 @@ ALTER TABLE ONLY public.cost_categories
 
 ALTER TABLE ONLY public.detail_cost_categories
     ADD CONSTRAINT detail_cost_categories_unit_id_fkey FOREIGN KEY (unit_id) REFERENCES public.units(id);
+
+
+--
+-- Name: documentations documentation_codes_block_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.documentations
+    ADD CONSTRAINT documentation_codes_block_id_fkey FOREIGN KEY (block_id) REFERENCES public.blocks(id) ON DELETE SET NULL;
+
+
+--
+-- Name: documentations documentation_codes_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.documentations
+    ADD CONSTRAINT documentation_codes_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
+
+
+--
+-- Name: documentations documentation_codes_tag_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.documentations
+    ADD CONSTRAINT documentation_codes_tag_id_fkey FOREIGN KEY (tag_id) REFERENCES public.documentation_tags(id) ON DELETE SET NULL;
+
+
+--
+-- Name: documentation_versions documentation_versions_documentation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.documentation_versions
+    ADD CONSTRAINT documentation_versions_documentation_id_fkey FOREIGN KEY (documentation_id) REFERENCES public.documentations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: documentations_projects_mapping documentations_projects_mapping_block_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.documentations_projects_mapping
+    ADD CONSTRAINT documentations_projects_mapping_block_id_fkey FOREIGN KEY (block_id) REFERENCES public.blocks(id) ON DELETE CASCADE;
+
+
+--
+-- Name: documentations_projects_mapping documentations_projects_mapping_documentation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.documentations_projects_mapping
+    ADD CONSTRAINT documentations_projects_mapping_documentation_id_fkey FOREIGN KEY (documentation_id) REFERENCES public.documentations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: documentations_projects_mapping documentations_projects_mapping_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.documentations_projects_mapping
+    ADD CONSTRAINT documentations_projects_mapping_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
+
+
+--
+-- Name: entity_comments_mapping entity_comments_mapping_comment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.entity_comments_mapping
+    ADD CONSTRAINT entity_comments_mapping_comment_id_fkey FOREIGN KEY (comment_id) REFERENCES public.comments(id) ON DELETE CASCADE;
 
 
 --
@@ -6430,6 +7260,15 @@ GRANT ALL ON TABLE public.chessboard_mapping TO service_role;
 
 
 --
+-- Name: TABLE comments; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.comments TO anon;
+GRANT ALL ON TABLE public.comments TO authenticated;
+GRANT ALL ON TABLE public.comments TO service_role;
+
+
+--
 -- Name: TABLE cost_categories; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -6463,6 +7302,60 @@ GRANT ALL ON TABLE public.detail_cost_categories TO service_role;
 GRANT ALL ON SEQUENCE public.detail_cost_categories_id_seq TO anon;
 GRANT ALL ON SEQUENCE public.detail_cost_categories_id_seq TO authenticated;
 GRANT ALL ON SEQUENCE public.detail_cost_categories_id_seq TO service_role;
+
+
+--
+-- Name: TABLE documentation_tags; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.documentation_tags TO anon;
+GRANT ALL ON TABLE public.documentation_tags TO authenticated;
+GRANT ALL ON TABLE public.documentation_tags TO service_role;
+
+
+--
+-- Name: SEQUENCE documentation_tags_id_seq; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON SEQUENCE public.documentation_tags_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.documentation_tags_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.documentation_tags_id_seq TO service_role;
+
+
+--
+-- Name: TABLE documentation_versions; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.documentation_versions TO anon;
+GRANT ALL ON TABLE public.documentation_versions TO authenticated;
+GRANT ALL ON TABLE public.documentation_versions TO service_role;
+
+
+--
+-- Name: TABLE documentations; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.documentations TO anon;
+GRANT ALL ON TABLE public.documentations TO authenticated;
+GRANT ALL ON TABLE public.documentations TO service_role;
+
+
+--
+-- Name: TABLE documentations_projects_mapping; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.documentations_projects_mapping TO anon;
+GRANT ALL ON TABLE public.documentations_projects_mapping TO authenticated;
+GRANT ALL ON TABLE public.documentations_projects_mapping TO service_role;
+
+
+--
+-- Name: TABLE entity_comments_mapping; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.entity_comments_mapping TO anon;
+GRANT ALL ON TABLE public.entity_comments_mapping TO authenticated;
+GRANT ALL ON TABLE public.entity_comments_mapping TO service_role;
 
 
 --
@@ -6535,6 +7428,15 @@ GRANT ALL ON TABLE public.projects_blocks TO service_role;
 GRANT ALL ON TABLE public.reference_data TO anon;
 GRANT ALL ON TABLE public.reference_data TO authenticated;
 GRANT ALL ON TABLE public.reference_data TO service_role;
+
+
+--
+-- Name: TABLE statuses; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.statuses TO anon;
+GRANT ALL ON TABLE public.statuses TO authenticated;
+GRANT ALL ON TABLE public.statuses TO service_role;
 
 
 --
@@ -6961,5 +7863,5 @@ ALTER EVENT TRIGGER pgrst_drop_watch OWNER TO supabase_admin;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict H9VWG5GMlskG40BduGWUpy4pcId4v5eCIc6Iu5i5UJhpc4B6xM5veQgXCnDDiUU
+\unrestrict BkeOT84mMt9syHRuW6ZRIgQojEglRuLzBgdWfeN8OQOrgIxFwieFSFeV2l2vXMU
 

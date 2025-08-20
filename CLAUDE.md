@@ -7,14 +7,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 BlueprintFlow is a React-based construction management portal for analyzing work documentation and cost estimation department of a construction general contractor. The system supports OAuth 2.0 authentication, Excel import capabilities, and real-time collaboration features for a team of 200+ employees.
 
 ## Tech Stack
-- **Frontend**: React 18, TypeScript (strict mode), Vite 7
+- **Frontend**: React 19, TypeScript (strict mode), Vite 7
 - **UI Library**: Ant Design 5 with Vibe design approach
 - **State Management**: TanStack Query 5+ (server state), Zustand 5+ (auth state)
-- **Backend**: Supabase 2.55+ (PostgreSQL 16, Auth, Storage, Edge Functions, Realtime WebSocket)
+- **Backend**: Supabase 2.47+ (PostgreSQL 17, Auth, Storage, Edge Functions, Realtime WebSocket)
 - **Authentication**: Supabase Auth with OAuth 2.0 (Google, Microsoft) and MFA support
 - **Observability**: Sentry, Grafana Cloud, OpenTelemetry
 - **Excel Processing**: xlsx library for import/export
 - **Utilities**: Day.js for dates
+- **Routing**: React Router DOM 6
 - **Editor**: WebStorm
 
 ## Commands
@@ -81,6 +82,7 @@ Configuration: `src/lib/supabase.ts`
 ### Core Tables
 - `chessboard` - Main data table for material tracking
 - `chessboard_mapping` - Mapping relationships
+- `entity_comments_mapping` - Universal mapping table for comments to entities
 - `units` - Units of measurement
 - `cost_categories`, `detail_cost_categories` - Cost categorization
 - `location` - Location/localization data
@@ -89,6 +91,10 @@ Configuration: `src/lib/supabase.ts`
 
 ### Database Rules
 - All tables MUST include `created_at` and `updated_at` fields
+  - **EXCEPTION**: Mapping/junction tables (many-to-many relationships) should NOT have `created_at` and `updated_at` fields
+- **Primary keys**: All tables should use UUID for primary keys (id field)
+  - **EXCEPTION**: Legacy tables may use integer IDs during migration phase
+- **Mapping table naming**: All mapping/junction tables MUST have `_mapping` suffix (e.g., `chessboard_mapping`, `entity_comments_mapping`)
 - **NEVER use RLS (Row Level Security)** - handle auth in application layer
 - Use optimistic locking via `updated_at` timestamp for concurrent edits
 

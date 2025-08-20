@@ -6,7 +6,8 @@
       "Bash(npm run lint)",
       "Bash(rm:*)",
       "Bash(npm install:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(cat:*)"
     ],
     "defaultMode": "acceptEdits"
   }

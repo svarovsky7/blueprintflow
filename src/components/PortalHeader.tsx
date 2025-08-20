@@ -19,11 +19,13 @@ const pageTitles: Record<string, string> = {
   '/library/rd-codes': 'Шифры РД',
   '/library/pd-codes': 'Шифры ПД',
   '/references': 'Единицы измерения',
+  '/references/documentation': 'Документация',
   '/references/cost-categories': 'Категории затрат',
   '/references/projects': 'Проекты',
   '/references/locations': 'Локализации',
   '/reports': 'Отчёты',
   '/admin': 'Администрирование',
+  '/admin/documentation-tags': 'Тэги документации',
 };
 
 const getPageTitle = (path: string): string => {

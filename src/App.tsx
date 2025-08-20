@@ -11,6 +11,10 @@ import Units from './pages/references/Units'
 import CostCategories from './pages/references/CostCategories'
 import Projects from './pages/references/Projects'
 import Locations from './pages/references/Locations'
+import Documentation from './pages/references/Documentation'
+import Admin from './pages/Admin'
+import DocumentationTags from './pages/admin/DocumentationTags'
+import Statuses from './pages/admin/Statuses'
 import PortalHeader from './components/PortalHeader'
 
 const { Sider, Content } = Layout
@@ -163,6 +167,15 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
       >
+        <Link to="/references/documentation" style={linkStyle}>
+          Документация
+        </Link>
+      </div>
+      <div 
+        style={menuItemStyle}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+      >
         <Link to="/references" style={linkStyle}>
           Единицы измерения
         </Link>
@@ -200,6 +213,24 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
   const adminSubmenu = (
     <div style={{ backgroundColor: isDark ? '#1f1f1f' : '#fff', borderRadius: 4, padding: '4px 0' }}>
       <div 
+        style={menuItemStyle}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+      >
+        <Link to="/admin/documentation-tags" style={linkStyle}>
+          Тэги документации
+        </Link>
+      </div>
+      <div 
+        style={menuItemStyle}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+      >
+        <Link to="/admin/statuses" style={linkStyle}>
+          Статусы
+        </Link>
+      </div>
+      <div 
         style={{ ...menuItemStyle, cursor: 'pointer' }} 
         onClick={toggleTheme}
         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
@@ -235,6 +266,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
       label: collapsed ? '' : 'Справочники',
       title: collapsed ? '' : undefined,
       children: collapsed ? undefined : [
+        { key: 'documentation', label: <Link to="/references/documentation">Документация</Link> },
         { key: 'units', label: <Link to="/references">Единицы измерения</Link> },
         {
           key: 'cost-categories',
@@ -250,6 +282,14 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
       label: collapsed ? '' : 'Администрирование',
       title: collapsed ? '' : undefined,
       children: collapsed ? undefined : [
+        { 
+          key: 'documentation-tags', 
+          label: <Link to="/admin/documentation-tags">Тэги документации</Link>
+        },
+        {
+          key: 'statuses',
+          label: <Link to="/admin/statuses">Статусы</Link>
+        },
         { 
           key: 'theme-toggle', 
           label: (
@@ -371,10 +411,12 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               location.pathname === '/' ? 'dashboard' :
               location.pathname.startsWith('/documents/chessboard') ? 'chessboard' :
               location.pathname.startsWith('/documents/vor') ? 'vor' :
+              location.pathname.startsWith('/references/documentation') ? 'documentation' :
               location.pathname.startsWith('/references/cost-categories') ? 'cost-categories' :
               location.pathname.startsWith('/references/projects') ? 'projects' :
               location.pathname.startsWith('/references/locations') ? 'locations' :
               location.pathname.startsWith('/references') ? 'units' :
+              location.pathname.startsWith('/admin/documentation-tags') ? 'documentation-tags' :
               location.pathname
             ]}
             openKeys={openKeys}
@@ -398,9 +440,14 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               </Route>
               <Route path="/references" element={<References />}>
                 <Route index element={<Units />} />
+                <Route path="documentation" element={<Documentation />} />
                 <Route path="cost-categories" element={<CostCategories />} />
                 <Route path="projects" element={<Projects />} />
                 <Route path="locations" element={<Locations />} />
+              </Route>
+              <Route path="/admin" element={<Admin />}>
+                <Route path="documentation-tags" element={<DocumentationTags />} />
+                <Route path="statuses" element={<Statuses />} />
               </Route>
             </Routes>
           </Content>
