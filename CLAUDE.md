@@ -7,15 +7,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 BlueprintFlow is a React-based construction management portal for analyzing work documentation and cost estimation department of a construction general contractor. The system supports OAuth 2.0 authentication, Excel import capabilities, and real-time collaboration features for a team of 200+ employees.
 
 ## Tech Stack
-- **Frontend**: React 19, TypeScript (strict mode), Vite 7
-- **UI Library**: Ant Design 5 with Vibe design approach
-- **State Management**: TanStack Query 5+ (server state), Zustand 5+ (auth state)
+- **Frontend**: React 19.1, TypeScript 5.8 (strict mode), Vite 7.0
+- **UI Library**: Ant Design 5.21 with Vibe design approach
+- **State Management**: TanStack Query 5.59+ (server state), Zustand 5.0+ (auth state)
 - **Backend**: Supabase 2.47+ (PostgreSQL 17, Auth, Storage, Edge Functions, Realtime WebSocket)
 - **Authentication**: Supabase Auth with OAuth 2.0 (Google, Microsoft) and MFA support
 - **Observability**: Sentry, Grafana Cloud, OpenTelemetry
-- **Excel Processing**: xlsx library for import/export
-- **Utilities**: Day.js for dates
-- **Routing**: React Router DOM 6
+- **Excel Processing**: xlsx 0.18 library for import/export
+- **Utilities**: Day.js 1.11 for dates
+- **Routing**: React Router DOM 6.27
 - **Editor**: WebStorm
 
 ## Commands
@@ -32,6 +32,9 @@ npm run lint         # ESLint check (MUST pass before commit)
 npm run format       # Prettier formatting
 npm run format:check # Check formatting without changes
 npx tsc --noEmit    # Type checking only (standalone)
+
+# Database Operations
+node -e "import('@supabase/supabase-js').then(m => {const c = m.createClient('https://hfqgcaxmufzitdfafdlp.supabase.co', process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhmcWdjYXhtdWZ6aXRkZmFmZGxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4OTI5MjMsImV4cCI6MjA3MDQ2ODkyM30.XnOEKdwZdJM-DilhrjZ7PdzHU2rx3L72oQ1rJYo5pXc'); c.from('TABLE_NAME').select('*', {count: 'exact', head: true}).then(r => console.log('Count:', r.count)).catch(console.error)})"  # Quick table count
 ```
 
 ## Pre-commit Checklist
@@ -57,7 +60,14 @@ src/
 
 ### Key Patterns
 - **Public API**: Each slice exposes through `index.ts`
-- **Imports**: Use path aliases (`@/`, `@/entities/`, `@/features/`, etc.)
+- **Imports**: Use path aliases configured in `vite.config.ts` and `tsconfig.app.json`:
+  - `@/` → `./src`
+  - `@/app/` → `./src/app`
+  - `@/pages/` → `./src/pages`
+  - `@/widgets/` → `./src/widgets`
+  - `@/features/` → `./src/features`
+  - `@/entities/` → `./src/entities`
+  - `@/shared/` → `./src/shared`
 - **State**: TanStack Query for server state, Zustand for auth state only
 - **API Files**: Named as `entity-name-api.ts` in `entities/*/api/`
 - **Error Handling**: All Supabase queries must include error handling
@@ -72,12 +82,35 @@ src/
 ### Supabase Configuration
 Environment variables required:
 ```env
-VITE_SUPABASE_URL=<supabase_url>
-VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY=<anon_key> # or VITE_SUPABASE_ANON_KEY
+VITE_SUPABASE_URL=https://hfqgcaxmufzitdfafdlp.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhmcWdjYXhtdWZ6aXRkZmFmZGxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4OTI5MjMsImV4cCI6MjA3MDQ2ODkyM30.XnOEKdwZdJM-DilhrjZ7PdzHU2rx3L72oQ1rJYo5pXc
 VITE_STORAGE_BUCKET=<storage_url>
 ```
 
 Configuration: `src/lib/supabase.ts`
+
+### MCP Server Setup
+The project includes `.mcp.json` configuration for Claude Code to automatically connect to Supabase:
+
+**IMPORTANT**: To enable MCP server functionality, you need to:
+1. Set `SUPABASE_ACCESS_TOKEN` in your environment or update `.mcp.json`
+2. Claude Code will automatically initialize the MCP server on startup
+3. Use MCP tools for database operations instead of manual queries
+
+Quick database inspection:
+```bash
+# Count records in any table (replace TABLE_NAME)
+node -e "import('@supabase/supabase-js').then(m => {const c = m.createClient('https://hfqgcaxmufzitdfafdlp.supabase.co', process.env.VITE_SUPABASE_ANON_KEY); c.from('TABLE_NAME').select('*', {count: 'exact', head: true}).then(r => console.log('Count:', r.count)).catch(console.error)})"
+
+# Or use MCP server tools when available (preferred)
+```
+
+### Database Deployment
+Deploy database schema:
+```bash
+psql "$DATABASE_URL" -f supabase.sql
+for file in sql/*.sql; do psql "$DATABASE_URL" -f "$file"; done
+```
 
 ### Core Tables
 - `chessboard` - Main data table for material tracking
@@ -228,7 +261,8 @@ From technical specification (`tech_task.md`):
 - `tech_task.md` - Technical specification with performance requirements
 - `supabase.sql` - Database schema
 - `sql/` - Migration scripts
-- `.env.example` - Environment variables template
+- `.env.local` - Environment variables (contains actual Supabase credentials)
+- `.mcp.json` - MCP server configuration for Claude Code database access
 
 ## Important Notes
 - Excel import headers are flexible - use fuzzy matching

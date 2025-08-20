@@ -7,7 +7,11 @@
       "Bash(rm:*)",
       "Bash(npm install:*)",
       "Bash(mkdir:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "WebSearch",
+      "WebFetch(domain:supabase.com)",
+      "Bash(npx:*)",
+      "Bash(node:*)"
     ],
     "defaultMode": "acceptEdits"
   }
