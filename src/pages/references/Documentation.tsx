@@ -122,6 +122,7 @@ export default function Documentation() {
   const [conflictDialogVisible, setConflictDialogVisible] = useState(false)
   const [pendingImportData, setPendingImportData] = useState<DocumentationImportRow[]>([])
   const [resolvingConflicts, setResolvingConflicts] = useState(false)
+  const [importSelectedProjectId, setImportSelectedProjectId] = useState<string | null>(null)
 
   // Загрузка данных - только если выбран проект
   const { data: documentation = [], isLoading } = useQuery({
@@ -168,6 +169,32 @@ export default function Documentation() {
       return blocksData || []
     },
     enabled: !!filters.project_id,
+  })
+
+  // Загрузка блоков для выбранного проекта в диалоге импорта
+  const { data: importBlocks = [] } = useQuery({
+    queryKey: ['blocks', importSelectedProjectId],
+    queryFn: async () => {
+      if (!supabase || !importSelectedProjectId) return []
+      // Сначала получаем связи проект-блок
+      const { data: projectBlocks } = await supabase
+        .from('projects_blocks')
+        .select('block_id')
+        .eq('project_id', importSelectedProjectId)
+      
+      if (!projectBlocks || projectBlocks.length === 0) return []
+      
+      // Затем получаем сами блоки
+      const blockIds = projectBlocks.map(pb => pb.block_id)
+      const { data: blocksData } = await supabase
+        .from('blocks')
+        .select('*')
+        .in('id', blockIds)
+        .order('name')
+      
+      return blocksData || []
+    },
+    enabled: !!importSelectedProjectId,
   })
 
   // Копирование строки
@@ -242,7 +269,7 @@ export default function Documentation() {
         message.error('Ошибка при удалении записи')
       }
     }
-  }, [queryClient])
+  }, [queryClient, message])
 
   // Колонки таблицы
   const columns = useMemo(() => {
@@ -744,6 +771,7 @@ export default function Documentation() {
           issue_date: excelDateToISO(row['Дата выдачи версии'] || row['Дата выдачи']),
           file_url: (row['Ссылка'] || row['Ссылка на документ'] || '').toString().trim() || undefined,
           project_id: values.project_id,
+          block_id: values.block_id, // Добавляем block_id если выбран
           stage: values.stage,
         }
         
@@ -787,6 +815,7 @@ export default function Documentation() {
         setImportModalOpen(false)
         setFileList([])
         importForm.resetFields()
+        setImportSelectedProjectId(null)
         setImportLoading(false)
       }
     } catch (error) {
@@ -825,6 +854,7 @@ export default function Documentation() {
       setPendingImportData([])
       setFileList([])
       importForm.resetFields()
+      setImportSelectedProjectId(null)
     } catch (error) {
       console.error('Error resolving conflicts:', error)
       message.error('Ошибка при обработке конфликтов')
@@ -1172,6 +1202,7 @@ export default function Documentation() {
           setImportModalOpen(false)
           setFileList([])
           importForm.resetFields()
+          setImportSelectedProjectId(null)
         }}
         confirmLoading={importLoading}
         okText="Импортировать"
@@ -1196,6 +1227,35 @@ export default function Documentation() {
                 value: p.id, 
                 label: p.name,
               })) ?? []}
+              showSearch
+              filterOption={(input, option) => {
+                const label = option?.label
+                if (typeof label === 'string') {
+                  return label.toLowerCase().includes(input.toLowerCase())
+                }
+                return false
+              }}
+              onChange={(value) => {
+                setImportSelectedProjectId(value)
+                // Сбрасываем выбранный корпус при смене проекта
+                importForm.setFieldValue('block_id', undefined)
+              }}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="block_id"
+            label="Корпус"
+            rules={[{ required: false }]}
+          >
+            <Select
+              placeholder="Выберите корпус (необязательно)"
+              options={importBlocks?.map((b) => ({ 
+                value: b.id, 
+                label: b.name,
+              })) ?? []}
+              allowClear
+              disabled={!importSelectedProjectId}
               showSearch
               filterOption={(input, option) => {
                 const label = option?.label

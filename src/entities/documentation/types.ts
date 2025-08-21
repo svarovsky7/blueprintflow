@@ -3,17 +3,18 @@ export interface Documentation {
   code: string
   stage?: 'П' | 'Р' | null   // Стадия проектирования
   tag_id: number | null
-  project_id: string | null  // UUID as string
-  block_id: string | null    // UUID as string
   color?: string | null      // Цвет строки
   created_at: string
   updated_at: string
   // Relations
   tag?: DocumentationTag
-  project?: Project
-  block?: Block
   versions?: DocumentationVersion[]
   comments?: Comment[]
+  // Данные из таблицы маппинга
+  project_mappings?: Array<{
+    project?: Project
+    block?: Block
+  }>
 }
 
 export interface DocumentationVersion {
@@ -68,6 +69,7 @@ export interface DocumentationImportRow {
   issue_date?: string // Дата выдачи версии
   file_url?: string // Ссылка на документ
   project_id?: string // ID проекта
+  block_id?: string // ID корпуса
   stage?: 'П' | 'Р' // Стадия документа
 }
 
