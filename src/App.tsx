@@ -167,15 +167,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
       >
-        <Link to="/references/documentation" style={linkStyle}>
-          Документация
-        </Link>
-      </div>
-      <div 
-        style={menuItemStyle}
-        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
-        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-      >
         <Link to="/references" style={linkStyle}>
           Единицы измерения
         </Link>
@@ -258,6 +249,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
       children: collapsed ? undefined : [
         { key: 'chessboard', label: <Link to="/documents/chessboard">Шахматка</Link> },
         { key: 'vor', label: <Link to="/documents/vor">ВОР</Link> },
+        { key: 'docs', label: <Link to="/documents/documentation">Документация</Link> },
       ],
     },
     {
@@ -266,7 +258,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
       label: collapsed ? '' : 'Справочники',
       title: collapsed ? '' : undefined,
       children: collapsed ? undefined : [
-        { key: 'documentation', label: <Link to="/references/documentation">Документация</Link> },
         { key: 'units', label: <Link to="/references">Единицы измерения</Link> },
         {
           key: 'cost-categories',
@@ -411,7 +402,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               location.pathname === '/' ? 'dashboard' :
               location.pathname.startsWith('/documents/chessboard') ? 'chessboard' :
               location.pathname.startsWith('/documents/vor') ? 'vor' :
-              location.pathname.startsWith('/references/documentation') ? 'documentation' :
+              location.pathname.startsWith('/documents/documentation') ? 'docs' :
               location.pathname.startsWith('/references/cost-categories') ? 'cost-categories' :
               location.pathname.startsWith('/references/projects') ? 'projects' :
               location.pathname.startsWith('/references/locations') ? 'locations' :
@@ -437,10 +428,10 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               <Route path="/documents" element={<Documents />}>
                 <Route path="chessboard" element={<Chessboard />} />
                 <Route path="vor" element={<Vor />} />
+                <Route path="documentation" element={<Documentation />} />
               </Route>
               <Route path="/references" element={<References />}>
                 <Route index element={<Units />} />
-                <Route path="documentation" element={<Documentation />} />
                 <Route path="cost-categories" element={<CostCategories />} />
                 <Route path="projects" element={<Projects />} />
                 <Route path="locations" element={<Locations />} />

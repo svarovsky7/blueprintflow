@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState, type Key } from 'react'
 import { App, Badge, Button, Card, Checkbox, Drawer, Dropdown, Input, List, Modal, Popconfirm, Select, Space, Table, Typography, Upload } from 'antd'
 import type { ColumnType, ColumnsType } from 'antd/es/table'
-import { ArrowDownOutlined, ArrowUpOutlined, BgColorsOutlined, CopyOutlined, DeleteOutlined, EditOutlined, InboxOutlined, PlusOutlined, SettingOutlined, FilterOutlined, CaretUpFilled, CaretDownFilled } from '@ant-design/icons'
+import { ArrowDownOutlined, ArrowUpOutlined, BgColorsOutlined, CopyOutlined, DeleteOutlined, EditOutlined, InboxOutlined, PlusOutlined, SaveOutlined, SettingOutlined, FilterOutlined, CaretUpFilled, CaretDownFilled, UploadOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
@@ -1611,24 +1611,88 @@ export default function Chessboard() {
               </Button>
             </Badge>
           </Space>
-          {appliedFilters && mode === 'view' &&
-            (Object.keys(editingRows).length > 0 ? (
-              <Space>
-                <Button onClick={handleUpdate}>Сохранить</Button>
-                <Button onClick={handleCancelEdit}>Отмена</Button>
-              </Space>
-            ) : (
-              <Space>
-                <Button onClick={openImport}>Импорт</Button>
-                <Button onClick={startAdd}>Добавить</Button>
-              </Space>
-            ))}
-          {appliedFilters && mode === 'add' && (
-            <Space>
-              <Button onClick={handleSave}>Сохранить</Button>
-              <Button onClick={handleCancel}>Отменить</Button>
-            </Space>
-          )}
+          <Space>
+            {appliedFilters && !Object.keys(editingRows).length && mode === 'view' && !deleteMode && (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={startAdd}
+              >
+                Добавить
+              </Button>
+            )}
+            {Object.keys(editingRows).length > 0 && (
+              <>
+                <Button 
+                  type="primary"
+                  icon={<SaveOutlined />}
+                  onClick={handleUpdate}
+                >
+                  Сохранить
+                </Button>
+                <Button
+                  onClick={handleCancelEdit}
+                >
+                  Отмена
+                </Button>
+              </>
+            )}
+            {appliedFilters && mode === 'add' && (
+              <>
+                <Button 
+                  type="primary"
+                  icon={<SaveOutlined />}
+                  onClick={handleSave}
+                >
+                  Сохранить
+                </Button>
+                <Button
+                  onClick={handleCancel}
+                >
+                  Отменить
+                </Button>
+              </>
+            )}
+            {appliedFilters && !Object.keys(editingRows).length && mode === 'view' && (
+              <Button
+                danger={deleteMode}
+                icon={<DeleteOutlined />}
+                onClick={() => {
+                  if (deleteMode && selectedRows.size > 0) {
+                    handleDeleteSelected()
+                  } else {
+                    setDeleteMode(!deleteMode)
+                    setSelectedRows(new Set())
+                  }
+                }}
+              >
+                {deleteMode && selectedRows.size > 0 
+                  ? `Удалить (${selectedRows.size})` 
+                  : deleteMode 
+                  ? 'Выйти из режима' 
+                  : 'Удалить'}
+              </Button>
+            )}
+            {deleteMode && selectedRows.size === 0 && (
+              <Button
+                onClick={() => {
+                  setDeleteMode(false)
+                  setSelectedRows(new Set())
+                }}
+              >
+                Отмена
+              </Button>
+            )}
+            {appliedFilters && mode === 'view' && (
+              <Button
+                icon={<UploadOutlined />}
+                onClick={openImport}
+                disabled={deleteMode || Object.keys(editingRows).length > 0}
+              >
+                Импорт
+              </Button>
+            )}
+          </Space>
         </div>
         
         {filtersExpanded && (
@@ -1682,47 +1746,12 @@ export default function Chessboard() {
                 allowClear
               />
               </Space>
-              <Space>
-                {appliedFilters && (
-                  <>
-                    <Button
-                      style={{ 
-                        borderColor: deleteMode && selectedRows.size > 0 ? '#fa8c16' : '#fa8c16', 
-                        color: deleteMode && selectedRows.size > 0 ? '#fff' : deleteMode ? '#fff' : '#fa8c16', 
-                        backgroundColor: deleteMode && selectedRows.size > 0 ? '#fa8c16' : deleteMode ? '#fa8c16' : 'transparent' 
-                      }}
-                      icon={<DeleteOutlined />}
-                      onClick={() => {
-                        if (deleteMode && selectedRows.size > 0) {
-                          handleDeleteSelected()
-                        } else {
-                          setDeleteMode(!deleteMode)
-                          setSelectedRows(new Set())
-                        }
-                      }}
-                    >
-                      {deleteMode && selectedRows.size > 0 ? `Удалить (${selectedRows.size})` : deleteMode ? 'Выйти из режима' : 'Удалить'}
-                    </Button>
-                    {deleteMode && selectedRows.size > 0 && (
-                      <Button
-                        onClick={() => {
-                          setSelectedRows(new Set())
-                        }}
-                      >
-                        Отмена
-                      </Button>
-                    )}
-                  </>
-                )}
-                <Button
-                  type="primary"
-                  icon={<SettingOutlined />}
-                  onClick={() => setColumnsSettingsOpen(true)}
-                  title="Настройка столбцов"
-                >
-                  Настройка столбцов
-                </Button>
-              </Space>
+              <Button
+                icon={<SettingOutlined />}
+                onClick={() => setColumnsSettingsOpen(true)}
+              >
+                Настройка столбцов
+              </Button>
             </div>
           </Card>
         )}

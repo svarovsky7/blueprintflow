@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Language Requirements
+
+**ВАЖНО**: Все ответы, комментарии, сообщения об ошибках, диалоги и любое другое общение с пользователем должно быть на русском языке. Код и технические термины остаются на английском.
+
 ## Project Overview
 
 BlueprintFlow is a React-based construction management portal for analyzing work documentation and cost estimation department of a construction general contractor. The system supports OAuth 2.0 authentication, Excel import capabilities, and real-time collaboration features for a team of 200+ employees.
@@ -230,6 +234,7 @@ From technical specification (`tech_task.md`):
 ### Documents (`/documents/*`)
 - Chessboard (`src/pages/documents/Chessboard.tsx`) - Complex material tracking with Excel import, filtering, and inline editing
 - VOR (`src/pages/documents/Vor.tsx`) - Volume of work documentation
+- Documentation (`src/pages/references/Documentation.tsx`) - Project documentation management with template "Document"
 
 ### References (`/references/*`)
 - Units of measurement
@@ -264,9 +269,138 @@ From technical specification (`tech_task.md`):
 - `.env.local` - Environment variables (contains actual Supabase credentials)
 - `.mcp.json` - MCP server configuration for Claude Code database access
 
+## UI Templates
+
+### Шаблон "Документ" (Document Template)
+
+Применяется для страниц категории справочников и документов. При указании использовать "шаблон Документ", применяются следующие требования:
+
+#### 1. Структура страницы
+- **Заголовок страницы** отображается в верхней части
+- **Два блока фильтров** под шапкой:
+  - **Статичный блок** - основные фильтры (проект, корпус и т.д.), всегда видимый
+  - **Скрываемый блок** - дополнительные фильтры с кнопкой свернуть/развернуть
+- **Таблица данных** - основное содержимое страницы
+
+#### 2. Режимы работы таблицы
+- **Режим просмотра** (view) - отображение данных
+- **Режим добавления** (add) - добавление новых строк
+- **Режим редактирования** (edit) - inline редактирование существующих строк
+- **Режим удаления** (delete) - массовое удаление с чекбоксами в первом столбце
+- **Массовое редактирование** - одновременное редактирование нескольких строк
+
+#### 3. Функциональность строк
+- **Добавление строки** - кнопка "+" или "Добавить строку"
+- **Копирование строки** - иконка копирования в столбце действий (только иконка, без текста)
+- **Редактирование** - inline редактирование по клику на кнопку редактирования (только иконка, без текста)
+- **Удаление** - единичное через иконку или массовое в режиме удаления (только иконка, без текста)
+- **Цветовая маркировка** - выбор цвета строки через color picker в левой части
+
+#### 4. Сохранение изменений
+- **Кнопка "Сохранить"** - сохранение всех изменений разом (появляется вместо кнопок Добавить/Удалить)
+- **Кнопка "Отмена"** - отмена всех несохраненных изменений
+- **Режимная логика кнопок**:
+  - В режиме добавления: Сохранить/Отмена
+  - В режиме редактирования: Сохранить/Отмена (вместо Добавить/Удалить)
+  - В режиме удаления: Удалить(N)/Отмена
+- **Условия отображения кнопок**:
+  - **Кнопка "Удалить"** показывается только после выбора проекта и применения фильтров (`appliedFilters.project_id`)
+  - **Кнопка "Отмена"** в режиме удаления также требует выбранного проекта
+- **Обработка конфликтов** - диалог при конфликте уникальных полей
+
+#### 5. Настройка столбцов
+- **Кнопка "Настройка столбцов"** в правой части скрываемого блока фильтров
+- **Стиль кнопки**: Обычная кнопка с иконкой (без `type="primary"` и `title`)
+- **Расположение**: В правой части блока с помощью `justify-content: space-between`
+- **Drawer справа** с шириной 350px, точно как в Шахматке
+- **Функции настройки**:
+  - **Чекбокс "Выделить все"** - массовое включение/отключение всех столбцов
+  - **Кнопка "По умолчанию"** - сброс к исходным настройкам
+  - **Список столбцов** с чекбоксами для включения/отключения видимости
+  - **Стрелки вверх/вниз** для изменения порядка столбцов
+  - Служебные столбцы (checkbox, actions) не управляются через настройки
+- **Сохранение в localStorage**:
+  - `{page-name}-column-visibility` - видимость столбцов
+  - `{page-name}-column-order` - порядок столбцов
+  - Автоматическое восстановление при следующем посещении страницы
+
+#### 6. Пагинация
+- **По умолчанию**: 100 строк на странице
+- **Варианты выбора**: 10, 20, 50, 100, 200, 500 строк
+- **Сохранение выбора** в localStorage
+
+#### 7. Закрепление элементов
+- **Sticky заголовок таблицы** - не уезжает при вертикальном скролле
+- **Блок фильтров** остается видимым при прокрутке
+- **Меню и шапка сайта** закреплены
+- **Горизонтальный и вертикальный скролл** таблицы с высотой calc(100vh - 300px)
+
+#### 8. Импорт/Экспорт
+- **Импорт из Excel** через drag-and-drop или выбор файла
+- **Обработка конфликтов** при импорте
+- **Экспорт в Excel** текущих отфильтрованных данных
+
+#### 9. Технические требования
+```typescript
+// Структура компонента
+interface DocumentTemplateProps {
+  // Основные данные
+  data: any[]
+  loading: boolean
+  
+  // Фильтры
+  filters: Record<string, any>
+  onFiltersChange: (filters: Record<string, any>) => void
+  
+  // Режимы
+  mode: 'view' | 'add' | 'edit' | 'delete'
+  
+  // Колбэки
+  onSave: (rows: any[]) => Promise<void>
+  onDelete: (ids: string[]) => Promise<void>
+  onImport: (data: any[]) => Promise<void>
+}
+
+// Состояния для управления столбцами
+const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({})
+const [columnOrder, setColumnOrder] = useState<string[]>([])
+
+// Функции управления столбцами  
+const toggleColumnVisibility = (key: string) => void
+const selectAllColumns = (select: boolean, allColumns: Array<{key: string, title: string}>) => void
+const resetToDefaults = (allColumns: Array<{key: string, title: string}>) => void
+const moveColumn = (key: string, direction: 'up' | 'down') => void
+
+// Сохранение настроек в localStorage
+localStorage.setItem('{page-name}-column-visibility', JSON.stringify(columnVisibility))
+localStorage.setItem('{page-name}-column-order', JSON.stringify(columnOrder))
+```
+
+#### 10. Стили и верстка
+- **Ant Design компоненты** для единообразия
+- **Responsive дизайн** с адаптацией под разные экраны
+- **Минимальная высота таблицы**: calc(100vh - 300px)
+- **Размер кнопок**: Стандартный размер (без указания size="large") для всех кнопок включая "Добавить", для соответствия странице Шахматка
+- **Кнопки в столбце "Действия"**: Только иконки без текста (title/tooltip разрешен)
+- **Цветовая схема строк**:
+  - green: #d9f7be
+  - yellow: #fff1b8
+  - blue: #e6f7ff
+  - red: #ffa39e
+
+#### Пример использования шаблона
+
+При создании новой страницы с применением шаблона "Документ":
+
+1. Копировать структуру из `src/pages/documents/Chessboard.tsx`
+2. Адаптировать под конкретную сущность
+3. Сохранять все принципы работы с данными
+4. Использовать единые паттерны для фильтров и действий
+
 ## Important Notes
 - Excel import headers are flexible - use fuzzy matching
 - Cascading logic: When cost category changes, reset cost type and location
 - Row operations: Support add, copy, edit, delete with proper state management
 - Filtering: Applied filters persist through mode changes (view/add/edit)
 - Column settings saved in localStorage for persistence across sessions
+- При применении шаблона "Документ" все компоненты страницы должны следовать описанным выше принципам

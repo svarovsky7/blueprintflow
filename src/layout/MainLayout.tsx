@@ -19,13 +19,13 @@ const items: MenuProps['items'] = [
       { key: '/documents/estimate-monolith', label: <Link to="/documents/estimate-monolith">Шахматка монолит</Link> },
       { key: '/documents/work-volume', label: <Link to="/documents/work-volume">ВОР для подрядчиков</Link> },
       { key: '/documents/cost', label: <Link to="/documents/cost">Смета</Link> },
+      { key: '/documents/documentation', label: <Link to="/documents/documentation">Документация</Link> },
     ],
   },
   {
     key: 'library',
     label: 'Библиотека',
     children: [
-      { key: '/library/docs', label: <Link to="/library/docs">Документация</Link> },
       { key: '/library/rd-codes', label: <Link to="/library/rd-codes">Шифры РД</Link> },
       { key: '/library/pd-codes', label: <Link to="/library/pd-codes">Шифры ПД</Link> },
     ],

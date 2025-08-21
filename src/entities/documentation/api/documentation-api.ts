@@ -186,27 +186,16 @@ export const documentationApi = {
           })
         }
         
-        // Пытаемся найти версию с датой или ссылкой
-        const versionWithData = versions.find((v: DocumentationVersion) => {
-          const hasDate = v.issue_date !== null && v.issue_date !== undefined && v.issue_date !== ''
-          const hasUrl = v.file_url !== null && v.file_url !== undefined && v.file_url !== ''
-          return hasDate || hasUrl
-        })
+        // Находим версию с максимальным номером версии
+        const maxVersion = versions.reduce((max: DocumentationVersion, current: DocumentationVersion) => {
+          return current.version_number > max.version_number ? current : max
+        }, versions[0])
         
-        if (versionWithData) {
-          defaultSelectedVersionId = versionWithData.id
-          defaultSelectedVersionNumber = versionWithData.version_number
-          
-          if (index < 3) {
-            console.log(`Doc ${doc.code}: Selected version with data - id: ${versionWithData.id}, date: ${versionWithData.issue_date}, url: ${versionWithData.file_url}`)
-          }
-        } else {
-          // Если нет версий с данными, берем первую версию
-          defaultSelectedVersionId = versions[0].id
-          defaultSelectedVersionNumber = versions[0].version_number
-          if (index < 3) {
-            console.log(`Doc ${doc.code}: No versions with data, selected first version`)
-          }
+        defaultSelectedVersionId = maxVersion.id
+        defaultSelectedVersionNumber = maxVersion.version_number
+        
+        if (index < 3) {
+          console.log(`Doc ${doc.code}: Selected max version ${maxVersion.version_number} (id: ${maxVersion.id})`)
         }
       }
 
@@ -314,6 +303,72 @@ export const documentationApi = {
     return data as DocumentationVersion
   },
 
+  // Создание или обновление версии документации
+  async upsertVersion(
+    documentationId: string,
+    versionNumber: number,
+    issueDate?: string,
+    fileUrl?: string,
+    status: DocumentationVersion['status'] = 'not_filled'
+  ) {
+    if (!supabase) throw new Error('Supabase client not initialized')
+
+    // Сначала проверяем, существует ли версия
+    const { data: existingVersion } = await supabase
+      .from('documentation_versions')
+      .select('id')
+      .eq('documentation_id', documentationId)
+      .eq('version_number', versionNumber)
+      .single()
+
+    const versionData = {
+      documentation_id: documentationId,
+      version_number: versionNumber,
+      issue_date: issueDate || null,
+      file_url: fileUrl || null,
+      status,
+    }
+    
+    if (existingVersion) {
+      // Обновляем существующую версию
+      console.log('Updating existing version:', existingVersion.id)
+      const { data, error } = await supabase
+        .from('documentation_versions')
+        .update({
+          issue_date: issueDate || null,
+          file_url: fileUrl || null,
+          status,
+        })
+        .eq('id', existingVersion.id)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Failed to update documentation version:', error)
+        throw error
+      }
+
+      console.log('Version updated successfully:', data)
+      return data as DocumentationVersion
+    } else {
+      // Создаем новую версию
+      console.log('Creating new version')
+      const { data, error } = await supabase
+        .from('documentation_versions')
+        .insert(versionData)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Failed to create documentation version:', error)
+        throw error
+      }
+
+      console.log('Version created successfully:', data)
+      return data as DocumentationVersion
+    }
+  },
+
   // Обновление статуса версии
   async updateVersionStatus(versionId: string, status: DocumentationVersion['status']) {
     if (!supabase) throw new Error('Supabase client not initialized')
@@ -339,6 +394,13 @@ export const documentationApi = {
 
     const conflicts: ImportConflict[] = []
     const uniqueCodes = [...new Set(rows.map(r => r.code))]
+    
+    // Получаем project_id из первой строки (все строки импорта относятся к одному проекту)
+    const projectId = rows[0]?.project_id
+    
+    if (!projectId) {
+      console.warn('No project_id in import rows, checking conflicts globally')
+    }
 
     // Получаем существующие записи с этими кодами
     const { data: existingDocs } = await supabase
@@ -346,21 +408,55 @@ export const documentationApi = {
       .select(`
         *,
         tag:documentation_tags(*),
-        versions:documentation_versions(*)
+        versions:documentation_versions(*),
+        project_mappings:documentations_projects_mapping!inner(
+          project_id,
+          block_id
+        )
       `)
       .in('code', uniqueCodes)
 
     if (existingDocs && existingDocs.length > 0) {
-      const existingMap = new Map(existingDocs.map(doc => [doc.code, doc]))
+      // Фильтруем документы по проекту, если указан
+      const relevantDocs = projectId 
+        ? existingDocs.filter(doc => 
+            doc.project_mappings?.some((mapping: any) => mapping.project_id === projectId)
+          )
+        : existingDocs
+      
+      // Создаем карту существующих документов с учетом версий
+      const existingMap = new Map<string, any>()
+      
+      relevantDocs.forEach(doc => {
+        if (doc.versions && doc.versions.length > 0) {
+          doc.versions.forEach((version: any) => {
+            const key = `${doc.code}_${version.version_number}`
+            existingMap.set(key, { ...doc, conflictVersion: version })
+          })
+        } else {
+          // Если нет версий, все равно добавляем документ для проверки конфликта по коду
+          existingMap.set(doc.code, doc)
+        }
+      })
       
       rows.forEach((row, index) => {
-        const existing = existingMap.get(row.code)
-        if (existing) {
+        // Проверяем конфликт по сочетанию код + версия
+        const versionKey = `${row.code}_${row.version_number}`
+        const existingWithVersion = existingMap.get(versionKey)
+        
+        if (existingWithVersion) {
           conflicts.push({
             row,
-            existingData: existing,
+            existingData: existingWithVersion,
             index
           })
+        } else {
+          // Проверяем, существует ли документ с таким кодом (для новых версий)
+          const existingDoc = existingMap.get(row.code)
+          if (existingDoc && !existingDoc.conflictVersion) {
+            // Документ существует, но это новая версия - не конфликт
+            console.log(`Document ${row.code} exists, but version ${row.version_number} is new - no conflict`)
+          }
         }
       })
     }
@@ -396,7 +492,10 @@ export const documentationApi = {
       })
       
       // Проверяем, есть ли решение для этой строки
-      if (resolutions?.has(i) && resolutions.get(i) === 'skip') {
+      const hasResolution = resolutions?.has(i)
+      const resolution = resolutions?.get(i)
+      
+      if (hasResolution && resolution === 'skip') {
         console.log(`Row ${i + 1} skipped by user resolution`)
         skipped.push({ row, reason: 'Пропущено пользователем' })
         continue
@@ -423,6 +522,9 @@ export const documentationApi = {
           }
         }
 
+        // Если пользователь выбрал "Принять" при конфликте, устанавливаем флаг перезаписи
+        const forceOverwrite = hasResolution && resolution === 'accept'
+        
         // Используем комплексный метод сохранения для Excel импорта
         console.log(`Calling saveDocumentationComplete for row ${i + 1} with:`, {
           code: row.code,
@@ -433,7 +535,8 @@ export const documentationApi = {
           versionNumber: row.version_number,
           issueDate: row.issue_date,
           fileUrl: row.file_url,
-          status: 'not_filled'
+          status: 'not_filled',
+          forceOverwrite
         })
         
         const result = await this.saveDocumentationComplete({
@@ -445,7 +548,8 @@ export const documentationApi = {
           versionNumber: row.version_number,
           issueDate: row.issue_date,
           fileUrl: row.file_url,
-          status: 'not_filled'
+          status: 'not_filled',
+          forceOverwrite
         })
 
         console.log(`Row ${i + 1} imported successfully:`, result)
@@ -543,6 +647,7 @@ export const documentationApi = {
     fileUrl?: string
     status?: DocumentationVersion['status']
     comment?: string
+    forceOverwrite?: boolean // Флаг для принудительной перезаписи при конфликте
   }) {
     if (!supabase) throw new Error('Supabase client not initialized')
 
@@ -561,24 +666,39 @@ export const documentationApi = {
       )
       console.log('Documentation upserted:', doc)
 
-      // 2. Создаем версию документации, если указаны данные версии
+      // 2. Создаем или обновляем версию документации
       let version: DocumentationVersion | null = null
       if (data.versionNumber) {
-        console.log('Step 2: Creating version with:', {
+        console.log('Step 2: Upserting version with:', {
           documentationId: doc.id,
           versionNumber: data.versionNumber,
           issueDate: data.issueDate,
           fileUrl: data.fileUrl,
-          status: data.status || 'not_filled'
+          status: data.status || 'not_filled',
+          forceOverwrite: data.forceOverwrite
         })
-        version = await this.createVersion(
-          doc.id,
-          data.versionNumber,
-          data.issueDate,
-          data.fileUrl,
-          data.status || 'not_filled'
-        )
-        console.log('Version created:', version)
+        
+        // Если флаг forceOverwrite установлен, используем upsertVersion для перезаписи
+        if (data.forceOverwrite) {
+          version = await this.upsertVersion(
+            doc.id,
+            data.versionNumber,
+            data.issueDate,
+            data.fileUrl,
+            data.status || 'not_filled'
+          )
+          console.log('Version upserted (overwritten):', version)
+        } else {
+          // Иначе пытаемся создать новую версию
+          version = await this.createVersion(
+            doc.id,
+            data.versionNumber,
+            data.issueDate,
+            data.fileUrl,
+            data.status || 'not_filled'
+          )
+          console.log('Version created:', version)
+        }
       } else {
         console.log('Step 2: Skipping version creation (no version number)')
       }
