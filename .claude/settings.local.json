@@ -11,7 +11,8 @@
       "WebSearch",
       "WebFetch(domain:supabase.com)",
       "Bash(npx:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(git add:*)"
     ],
     "defaultMode": "acceptEdits"
   }

@@ -4,9 +4,7 @@ import {
   Button,
   Select,
   Space,
-  Dropdown,
   Upload,
-  message,
   Checkbox,
   Modal,
   Typography,
@@ -17,12 +15,12 @@ import {
   Badge,
   Popconfirm,
   Empty,
+  Form,
+  App,
 } from 'antd'
 import {
   UploadOutlined,
   SettingOutlined,
-  FileTextOutlined,
-  TableOutlined,
   InboxOutlined,
   FilterOutlined,
   CaretUpFilled,
@@ -32,7 +30,6 @@ import {
   DeleteOutlined,
   SaveOutlined,
   CloseOutlined,
-  BgColorsOutlined,
   CopyOutlined,
   ArrowDownOutlined,
 } from '@ant-design/icons'
@@ -46,58 +43,38 @@ import {
   type DocumentationFilters,
   type DocumentationColumnSettings,
   type DocumentationImportRow,
-  STATUS_COLORS,
-  STATUS_LABELS,
+  type DocumentationVersion,
+  type ImportConflict,
+  type ConflictResolution,
 } from '@/entities/documentation'
 import { documentationTagsApi } from '@/entities/documentation-tags'
 import { supabase } from '@/lib/supabase'
+import { DOCUMENT_STAGES } from '@/shared/types'
+import ConflictResolutionDialog from '@/components/ConflictResolutionDialog'
 
 const { Text } = Typography
 
 type RowColor = '' | 'green' | 'yellow' | 'blue' | 'red'
 
-const colorMap: Record<RowColor, string> = {
-  green: '#d9f7be',
-  yellow: '#fff1b8',
-  blue: '#e6f7ff',
-  red: '#ffa39e',
-  '': '',
+// Функция для форматирования даты из ISO в DD.MM.YYYY
+const formatDate = (isoDate: string | null | undefined): string => {
+  if (!isoDate) return '-'
+  try {
+    const [year, month, day] = isoDate.split('-')
+    return `${day}.${month}.${year}`
+  } catch {
+    return isoDate
+  }
 }
 
-// Компонент выбора цвета строки
-const RowColorPicker = ({
-  value,
-  onChange,
-}: {
-  value: RowColor
-  onChange: (c: RowColor) => void
-}) => (
-  <Dropdown
-    trigger={['click']}
-    menu={{
-      items: (['', 'green', 'yellow', 'blue', 'red'] as RowColor[]).map((c) => ({
-        key: c,
-        label: (
-          <div
-            style={{
-              width: 16,
-              height: 16,
-              background: colorMap[c],
-              border: c ? undefined : '1px solid #d9d9d9',
-            }}
-          />
-        ),
-      })),
-      onClick: ({ key }) => onChange(key as RowColor),
-    }}
-  >
-    <Button
-      type="text"
-      icon={<BgColorsOutlined />}
-      style={{ background: value ? colorMap[value] : undefined }}
-    />
-  </Dropdown>
-)
+// Note: Color functionality is temporarily disabled until the 'color' column is added to the database
+// const colorMap: Record<RowColor, string> = {
+//   green: '#d9f7be',
+//   yellow: '#fff1b8',
+//   blue: '#e6f7ff',
+//   red: '#ffa39e',
+//   '': '',
+// }
 
 // Получаем сохраненные настройки столбцов из localStorage
 const getColumnSettings = (): DocumentationColumnSettings => {
@@ -126,6 +103,7 @@ const saveColumnSettings = (settings: DocumentationColumnSettings) => {
 }
 
 export default function Documentation() {
+  const { message } = App.useApp()
   const queryClient = useQueryClient()
   const [filters, setFilters] = useState<DocumentationFilters>({})
   const [appliedFilters, setAppliedFilters] = useState<DocumentationFilters>({})
@@ -139,6 +117,11 @@ export default function Documentation() {
   const [newRows, setNewRows] = useState<DocumentationTableRow[]>([])
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [selectedVersions, setSelectedVersions] = useState<Record<string, number>>({})
+  const [importForm] = Form.useForm()
+  const [importConflicts, setImportConflicts] = useState<ImportConflict[]>([])
+  const [conflictDialogVisible, setConflictDialogVisible] = useState(false)
+  const [pendingImportData, setPendingImportData] = useState<DocumentationImportRow[]>([])
+  const [resolvingConflicts, setResolvingConflicts] = useState(false)
 
   // Загрузка данных - только если выбран проект
   const { data: documentation = [], isLoading } = useQuery({
@@ -186,48 +169,6 @@ export default function Documentation() {
     },
     enabled: !!filters.project_id,
   })
-
-  // Компонент для отображения статуса версии
-  const VersionStatus = ({ 
-    version
-  }: { 
-    version: { id: string; version_number: number; status: string }
-  }) => {
-    const menuItems = [
-      {
-        key: 'chessboard',
-        label: 'Шахматка',
-        icon: <TableOutlined />,
-        disabled: true, // Пока не реализовано
-      },
-      {
-        key: 'document',
-        label: 'Документ',
-        icon: <FileTextOutlined />,
-        disabled: true, // Пока не реализовано
-      },
-    ]
-
-    return (
-      <Dropdown
-        menu={{ items: menuItems }}
-        trigger={['click']}
-      >
-        <div
-          style={{
-            width: 30,
-            height: 30,
-            backgroundColor: STATUS_COLORS[version.status as keyof typeof STATUS_COLORS],
-            borderRadius: 4,
-            cursor: 'pointer',
-            display: 'inline-block',
-            margin: '0 4px',
-          }}
-          title={STATUS_LABELS[version.status as keyof typeof STATUS_LABELS]}
-        />
-      </Dropdown>
-    )
-  }
 
   // Копирование строки
   const handleCopyRow = useCallback((record: DocumentationTableRow) => {
@@ -299,24 +240,6 @@ export default function Documentation() {
       } catch (error) {
         console.error('Delete error:', error)
         message.error('Ошибка при удалении записи')
-      }
-    }
-  }, [queryClient])
-
-  // Изменение цвета строки
-  const handleColorChange = useCallback(async (record: DocumentationTableRow, color: RowColor) => {
-    if (record.isNew) {
-      setNewRows(prev => prev.map(r => 
-        r.id === record.id ? { ...r, color } : r
-      ))
-    } else {
-      try {
-        await documentationApi.updateDocumentationColor(record.documentation_id, color || null)
-        queryClient.invalidateQueries({ queryKey: ['documentation'] })
-        message.success('Цвет успешно обновлен')
-      } catch (error) {
-        console.error('Failed to update color:', error)
-        message.error('Ошибка при обновлении цвета')
       }
     }
   }, [queryClient])
@@ -542,11 +465,31 @@ export default function Documentation() {
             )
           }
           // Показываем дату выбранной версии
-          const versionNumber = selectedVersions[record.id] || 
-            record.selected_version || 
-            record.versions[record.versions.length - 1]?.version_number
-          const selectedVersion = record.versions.find(v => v.version_number === versionNumber)
-          return selectedVersion?.issue_date || '-'
+          // Используем ID версии если все версии имеют одинаковый номер
+          let selectedVersion: DocumentationVersion | undefined
+          
+          if (record.selected_version_id && record.versions.every(v => v.version_number === 1)) {
+            // Все версии имеют номер 1, используем ID
+            selectedVersion = record.versions.find(v => v.id === record.selected_version_id)
+          } else {
+            // Обычный случай - используем номер версии
+            const versionNumber = selectedVersions[record.id] || 
+              record.selected_version || 
+              record.versions[record.versions.length - 1]?.version_number
+            selectedVersion = record.versions.find(v => v.version_number === versionNumber)
+          }
+          
+          // Debug для первых записей
+          if (record.project_code && record.project_code.startsWith('СТ26/01-14-АР')) {
+            console.log('Date render debug:', {
+              code: record.project_code,
+              selectedVersionId: record.selected_version_id,
+              selectedVersion,
+              date: selectedVersion?.issue_date
+            })
+          }
+          
+          return formatDate(selectedVersion?.issue_date)
         },
         visible: true,
       },
@@ -573,10 +516,29 @@ export default function Documentation() {
             )
           }
           // Показываем файл выбранной версии
-          const versionNumber = selectedVersions[record.id] || 
-            record.selected_version || 
-            record.versions[record.versions.length - 1]?.version_number
-          const selectedVersion = record.versions.find(v => v.version_number === versionNumber)
+          // Используем ID версии если все версии имеют одинаковый номер
+          let selectedVersion: DocumentationVersion | undefined
+          
+          if (record.selected_version_id && record.versions.every(v => v.version_number === 1)) {
+            // Все версии имеют номер 1, используем ID
+            selectedVersion = record.versions.find(v => v.id === record.selected_version_id)
+          } else {
+            // Обычный случай - используем номер версии
+            const versionNumber = selectedVersions[record.id] || 
+              record.selected_version || 
+              record.versions[record.versions.length - 1]?.version_number
+            selectedVersion = record.versions.find(v => v.version_number === versionNumber)
+          }
+          
+          // Debug для первых записей
+          if (record.project_code && record.project_code.startsWith('СТ26/01-14-АР')) {
+            console.log('File URL render debug:', {
+              code: record.project_code,
+              selectedVersionId: record.selected_version_id,
+              selectedVersion,
+              fileUrl: selectedVersion?.file_url
+            })
+          }
           
           if (selectedVersion?.file_url) {
             return (
@@ -701,53 +663,183 @@ export default function Documentation() {
     // Удаляем свойство visible перед возвратом
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     return visibleColumns.map(({ visible, ...col }) => col) as ColumnsType<DocumentationTableRow>
-  // eslint-disable-next-line react-hooks/exhaustive-deps  
-  }, [columnSettings, newRows, editingKey, tags, selectedVersions, handleColorChange, handleAddRowAfter, handleCopyRow, handleDeleteNew, handleDelete])
+  }, [columnSettings, newRows, editingKey, tags, selectedVersions, handleAddRowAfter, handleCopyRow, handleDeleteNew, handleDelete])
 
   // Обработка импорта Excel
   const handleImportExcel = async () => {
-    if (fileList.length === 0) {
-      message.error('Выберите файл для импорта')
-      return
-    }
-
-    setImportLoading(true)
-    const file = fileList[0].originFileObj
-
     try {
-      const arrayBuffer = await file!.arrayBuffer()
-      const workbook = XLSX.read(arrayBuffer, { type: 'array' })
-      const sheetName = workbook.SheetNames[0]
-      const worksheet = workbook.Sheets[sheetName]
-      const jsonData = XLSX.utils.sheet_to_json(worksheet)
-
-      // Преобразуем данные в нужный формат
-      const importData: DocumentationImportRow[] = (jsonData as Record<string, string>[]).map((row) => ({
-        tag: row['Раздел'] || '',
-        code: row['Шифр проекта'] || row['Шифр'] || '',
-        version_number: parseInt(row['Номер версии'] || row['Версия'] || '1'),
-        issue_date: row['Дата выдачи версии'] || row['Дата выдачи'] || undefined,
-      }))
-
-      // Импортируем данные
-      const result = await documentationApi.importFromExcel(importData)
-
-      if (result.errors.length > 0) {
-        message.warning(`Импортировано ${result.results.length} записей, ошибок: ${result.errors.length}`)
-      } else {
-        message.success(`Успешно импортировано ${result.results.length} записей`)
+      const values = await importForm.validateFields()
+      
+      if (fileList.length === 0) {
+        message.error('Выберите файл для импорта')
+        return
       }
 
-      // Обновляем данные
-      queryClient.invalidateQueries({ queryKey: ['documentation'] })
-      setImportModalOpen(false)
-      setFileList([])
+      setImportLoading(true)
+      const file = fileList[0].originFileObj
+
+      const arrayBuffer = await file!.arrayBuffer()
+      const workbook = XLSX.read(arrayBuffer, { 
+        type: 'array',
+        cellDates: false, // Не преобразовывать даты автоматически, чтобы получить числовые значения
+        dateNF: 'dd.mm.yyyy' // Формат даты по умолчанию
+      })
+      const sheetName = workbook.SheetNames[0]
+      const worksheet = workbook.Sheets[sheetName]
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+        raw: true, // Получать сырые значения (числа для дат)
+        defval: undefined // Значение по умолчанию для пустых ячеек
+      })
+
+      // Функция для преобразования Excel serial date в формат YYYY-MM-DD
+      const excelDateToISO = (excelDate: string | number | undefined): string | undefined => {
+        if (!excelDate) return undefined
+        
+        // Если это уже строка в формате даты (DD.MM.YYYY), преобразуем её
+        if (typeof excelDate === 'string' && excelDate.includes('.')) {
+          const [day, month, year] = excelDate.split('.')
+          if (day && month && year) {
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+          }
+        }
+        
+        // Если это число (Excel serial date)
+        const serialDate = typeof excelDate === 'string' ? parseFloat(excelDate) : excelDate
+        if (!isNaN(serialDate)) {
+          // Excel's date system: January 1, 1900 is serial date 1
+          // Excel incorrectly treats 1900 as a leap year, so we need to adjust
+          let adjustedDate = serialDate
+          
+          // Adjust for Excel's leap year bug (for dates after Feb 28, 1900)
+          // Excel serial date 60 = Feb 29, 1900 (which doesn't exist)
+          // So for serial dates > 60, we subtract 1
+          if (serialDate > 60) {
+            adjustedDate = serialDate - 1
+          }
+          
+          // Create date from Excel serial number
+          // Excel date 1 = Jan 1, 1900, but JS Date needs milliseconds since Jan 1, 1970
+          // Days between Jan 1, 1900 and Jan 1, 1970 = 25567
+          const jsDate = new Date((adjustedDate - 25567) * 86400 * 1000)
+          
+          // Adjust for timezone offset to get the correct date
+          const utcDate = new Date(jsDate.getTime() + jsDate.getTimezoneOffset() * 60000)
+          
+          const year = utcDate.getFullYear()
+          const month = String(utcDate.getMonth() + 1).padStart(2, '0')
+          const day = String(utcDate.getDate()).padStart(2, '0')
+          
+          return `${year}-${month}-${day}`
+        }
+        
+        return undefined
+      }
+
+      // Преобразуем данные в нужный формат с учетом выбранного проекта и стадии
+      const importData: DocumentationImportRow[] = (jsonData as Record<string, string | number | undefined>[]).map((row, index) => {
+        const processedRow = {
+          tag: (row['Раздел'] || '').toString().trim(),
+          code: (row['Шифр проекта'] || row['Шифр'] || '').toString().trim(),
+          version_number: parseInt((row['Номер версии'] || row['Версия'] || '1').toString()),
+          issue_date: excelDateToISO(row['Дата выдачи версии'] || row['Дата выдачи']),
+          file_url: (row['Ссылка'] || row['Ссылка на документ'] || '').toString().trim() || undefined,
+          project_id: values.project_id,
+          stage: values.stage,
+        }
+        
+        // Логируем первые несколько строк для отладки
+        if (index < 3) {
+          console.log(`Row ${index + 1}:`, {
+            raw_date_value: row['Дата выдачи версии'] || row['Дата выдачи'],
+            date_type: typeof (row['Дата выдачи версии'] || row['Дата выдачи']),
+            converted_date: processedRow.issue_date,
+            raw_url_value: row['Ссылка'] || row['Ссылка на документ'],
+            file_url: processedRow.file_url,
+            all_fields: Object.keys(row)
+          })
+        }
+        
+        return processedRow
+      })
+
+      // Проверяем на конфликты
+      const conflicts = await documentationApi.checkForConflicts(importData)
+      
+      if (conflicts.length > 0) {
+        // Есть конфликты - показываем диалог
+        setImportConflicts(conflicts)
+        setPendingImportData(importData)
+        setConflictDialogVisible(true)
+        setImportLoading(false)
+        setImportModalOpen(false) // Закрываем модальное окно импорта
+      } else {
+        // Нет конфликтов - импортируем сразу
+        const result = await documentationApi.importFromExcel(importData)
+
+        if (result.errors.length > 0) {
+          message.warning(`Импортировано ${result.results.length} записей, ошибок: ${result.errors.length}`)
+        } else {
+          message.success(`Успешно импортировано ${result.results.length} записей`)
+        }
+
+        // Обновляем данные
+        queryClient.invalidateQueries({ queryKey: ['documentation'] })
+        setImportModalOpen(false)
+        setFileList([])
+        importForm.resetFields()
+        setImportLoading(false)
+      }
     } catch (error) {
       console.error('Import error:', error)
       message.error('Ошибка при импорте файла')
-    } finally {
       setImportLoading(false)
     }
+  }
+
+  // Обработка разрешения конфликтов
+  const handleConflictResolution = async (resolutions: Map<number, ConflictResolution>) => {
+    try {
+      setResolvingConflicts(true)
+      
+      const result = await documentationApi.importFromExcelWithResolutions(
+        pendingImportData,
+        resolutions
+      )
+
+      let message_text = `Импортировано: ${result.results.length} записей`
+      if (result.skipped && result.skipped.length > 0) {
+        message_text += `, пропущено: ${result.skipped.length}`
+      }
+      if (result.errors.length > 0) {
+        message_text += `, ошибок: ${result.errors.length}`
+      }
+
+      message.success(message_text)
+
+      // Обновляем данные
+      queryClient.invalidateQueries({ queryKey: ['documentation'] })
+      
+      // Очищаем состояние
+      setConflictDialogVisible(false)
+      setImportConflicts([])
+      setPendingImportData([])
+      setFileList([])
+      importForm.resetFields()
+    } catch (error) {
+      console.error('Error resolving conflicts:', error)
+      message.error('Ошибка при обработке конфликтов')
+    } finally {
+      setResolvingConflicts(false)
+    }
+  }
+
+  // Отмена импорта при конфликтах
+  const handleCancelConflictResolution = () => {
+    setConflictDialogVisible(false)
+    setImportConflicts([])
+    setPendingImportData([])
+    // Возвращаем модальное окно импорта
+    setImportModalOpen(true)
   }
 
   // Обновление настроек столбцов
@@ -868,6 +960,18 @@ export default function Documentation() {
                 }
                 return false
               }}
+            />
+            <Select
+              style={{ width: 100 }}
+              placeholder="Стадия"
+              allowClear
+              size="large"
+              value={filters.stage}
+              onChange={(value) => setFilters({ ...filters, stage: value })}
+              options={[
+                { label: 'П', value: DOCUMENT_STAGES.P },
+                { label: 'Р', value: DOCUMENT_STAGES.R },
+              ]}
             />
             <Select
               style={{ width: 200 }}
@@ -1067,29 +1171,85 @@ export default function Documentation() {
         onCancel={() => {
           setImportModalOpen(false)
           setFileList([])
+          importForm.resetFields()
         }}
         confirmLoading={importLoading}
         okText="Импортировать"
         cancelText="Отмена"
+        width={600}
       >
-        <Upload.Dragger
-          fileList={fileList}
-          onChange={({ fileList }) => setFileList(fileList.slice(-1))}
-          beforeUpload={() => false}
-          accept=".xlsx,.xls"
-          maxCount={1}
+        <Form
+          form={importForm}
+          layout="vertical"
+          initialValues={{
+            stage: DOCUMENT_STAGES.P,
+          }}
         >
-          <p className="ant-upload-drag-icon">
-            <InboxOutlined />
-          </p>
-          <p className="ant-upload-text">Нажмите или перетащите файл для загрузки</p>
-          <p className="ant-upload-hint">
-            Поддерживаются файлы Excel (.xlsx, .xls)
-            <br />
-            Файл должен содержать столбцы: Раздел, Шифр проекта, Номер версии, Дата выдачи версии
-          </p>
-        </Upload.Dragger>
+          <Form.Item
+            name="project_id"
+            label="Проект"
+            rules={[{ required: true, message: 'Выберите проект' }]}
+          >
+            <Select
+              placeholder="Выберите проект"
+              options={projects?.map((p) => ({ 
+                value: p.id, 
+                label: p.name,
+              })) ?? []}
+              showSearch
+              filterOption={(input, option) => {
+                const label = option?.label
+                if (typeof label === 'string') {
+                  return label.toLowerCase().includes(input.toLowerCase())
+                }
+                return false
+              }}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="stage"
+            label="Тип документа"
+            rules={[{ required: true, message: 'Выберите тип документа' }]}
+          >
+            <Select
+              options={[
+                { label: 'П (Проект)', value: DOCUMENT_STAGES.P },
+                { label: 'Р (Рабочий)', value: DOCUMENT_STAGES.R },
+              ]}
+            />
+          </Form.Item>
+
+          <Form.Item label="Файл для импорта">
+            <Upload.Dragger
+              fileList={fileList}
+              onChange={({ fileList }) => setFileList(fileList.slice(-1))}
+              beforeUpload={() => false}
+              accept=".xlsx,.xls"
+              maxCount={1}
+            >
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
+              <p className="ant-upload-text">Нажмите или перетащите файл для загрузки</p>
+              <p className="ant-upload-hint">
+                Поддерживаются файлы Excel (.xlsx, .xls)
+                <br />
+                Файл должен содержать столбцы: Раздел, Шифр проекта, Номер версии, Дата выдачи версии, Ссылка
+              </p>
+            </Upload.Dragger>
+          </Form.Item>
+        </Form>
       </Modal>
+
+      {/* Диалог разрешения конфликтов */}
+      <ConflictResolutionDialog
+        visible={conflictDialogVisible}
+        conflicts={importConflicts}
+        onResolve={handleConflictResolution}
+        onCancel={handleCancelConflictResolution}
+        loading={resolvingConflicts}
+      />
     </div>
   )
 }

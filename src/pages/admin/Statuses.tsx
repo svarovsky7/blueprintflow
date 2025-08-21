@@ -1,17 +1,17 @@
-import { useState, useCallback } from 'react'
-import { Table, Button, Space, Input, Modal, Form, message, Popconfirm, InputNumber, Switch, Select } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons'
+import { useState } from 'react'
+import { Table, Button, Space, Input, Modal, Form, message, Popconfirm, Switch, Select, Checkbox, Tag } from 'antd'
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { ColumnsType } from 'antd/es/table'
 import { supabase } from '@/lib/supabase'
+import { PORTAL_PAGES, type PortalPageKey } from '@/shared/types'
 
 interface Status {
   id: string
   name: string
-  code: string
   color?: string
-  sort_order: number
   is_active: boolean
+  applicable_pages?: PortalPageKey[]
   created_at: string
   updated_at: string
 }
@@ -37,7 +37,7 @@ export default function Statuses() {
       const { data, error } = await supabase
         .from('statuses')
         .select('*')
-        .order('sort_order', { ascending: true })
+        .order('name', { ascending: true })
       
       if (error) throw error
       return data as Status[]
@@ -150,13 +150,7 @@ export default function Statuses() {
       title: 'Название',
       dataIndex: 'name',
       key: 'name',
-      width: 300,
-    },
-    {
-      title: 'Код',
-      dataIndex: 'code',
-      key: 'code',
-      width: 200,
+      width: 250,
     },
     {
       title: 'Цвет',
@@ -181,11 +175,27 @@ export default function Statuses() {
       },
     },
     {
-      title: 'Порядок',
-      dataIndex: 'sort_order',
-      key: 'sort_order',
-      width: 100,
-      align: 'center',
+      title: 'Применяется к страницам',
+      dataIndex: 'applicable_pages',
+      key: 'applicable_pages',
+      width: 400,
+      render: (pages: PortalPageKey[]) => {
+        if (!pages || pages.length === 0) {
+          return <span style={{ color: '#999' }}>Не указано</span>
+        }
+        return (
+          <Space size={4} wrap>
+            {pages.map(pageKey => {
+              const page = PORTAL_PAGES.find(p => p.key === pageKey)
+              return page ? (
+                <Tag key={pageKey} color="blue">
+                  {page.label}
+                </Tag>
+              ) : null
+            })}
+          </Space>
+        )
+      },
     },
     {
       title: 'Активен',
@@ -272,8 +282,8 @@ export default function Statuses() {
           form={form}
           layout="vertical"
           initialValues={{
-            sort_order: 0,
             is_active: true,
+            applicable_pages: [],
           }}
         >
           <Form.Item
@@ -282,17 +292,6 @@ export default function Statuses() {
             rules={[{ required: true, message: 'Введите название статуса' }]}
           >
             <Input placeholder="Введите название статуса" />
-          </Form.Item>
-
-          <Form.Item
-            name="code"
-            label="Код"
-            rules={[
-              { required: true, message: 'Введите код статуса' },
-              { pattern: /^[a-z_]+$/, message: 'Только латинские буквы и подчеркивание' },
-            ]}
-          >
-            <Input placeholder="Например: filled_recalc" />
           </Form.Item>
 
           <Form.Item
@@ -322,10 +321,18 @@ export default function Statuses() {
           </Form.Item>
 
           <Form.Item
-            name="sort_order"
-            label="Порядок сортировки"
+            name="applicable_pages"
+            label="Применяется к страницам"
           >
-            <InputNumber min={0} style={{ width: '100%' }} />
+            <Checkbox.Group style={{ width: '100%' }}>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                {PORTAL_PAGES.map(page => (
+                  <Checkbox key={page.key} value={page.key}>
+                    {page.label}
+                  </Checkbox>
+                ))}
+              </Space>
+            </Checkbox.Group>
           </Form.Item>
 
           <Form.Item

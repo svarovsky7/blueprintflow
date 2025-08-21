@@ -10,5 +10,8 @@ export type {
   DocumentationTableRow,
   DocumentationFilters,
   DocumentationColumnSettings,
+  ImportConflict,
+  ConflictResolution,
+  ConflictResolutionState,
 } from './types'
 export { STATUS_COLORS, STATUS_LABELS } from './types'

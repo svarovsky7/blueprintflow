@@ -66,6 +66,9 @@ export interface DocumentationImportRow {
   code: string // Шифр проекта  
   version_number: number // Номер версии
   issue_date?: string // Дата выдачи версии
+  file_url?: string // Ссылка на документ
+  project_id?: string // ID проекта
+  stage?: 'П' | 'Р' // Стадия документа
 }
 
 // Display types
@@ -79,6 +82,7 @@ export interface DocumentationTableRow {
   version_count: number
   versions: DocumentationVersion[]
   selected_version?: number // Выбранная версия для отображения
+  selected_version_id?: string // ID выбранной версии (для случаев когда все версии имеют одинаковый номер)
   comments: string
   project_id: string | null  // UUID
   block_id: string | null    // UUID
@@ -96,6 +100,7 @@ export interface DocumentationFilters {
   project_id?: string  // UUID
   tag_id?: number
   block_id?: string     // UUID
+  stage?: 'П' | 'Р'     // Стадия документа
   status?: string
   show_latest_only?: boolean
 }
@@ -124,3 +129,21 @@ export const STATUS_LABELS = {
   not_filled: 'Данные не заполнены',
   vor_created: 'Созданы ВОР',
 } as const
+
+// Import conflict types
+export interface ImportConflict {
+  row: DocumentationImportRow
+  existingData: Documentation & {
+    tag?: DocumentationTag
+    versions?: DocumentationVersion[]
+  }
+  index: number
+}
+
+export type ConflictResolution = 'accept' | 'skip'
+
+export interface ConflictResolutionState {
+  acceptAll: boolean
+  skipAll: boolean
+  resolutions: Map<number, ConflictResolution>
+}
