@@ -996,12 +996,19 @@ export default function Chessboard() {
                 options={
                   locations
                     ?.filter((l) => {
-                      const locId =
-                        record.locationId ||
-                        (appliedFilters?.typeId
-                          ? costTypes?.find((t) => String(t.id) === appliedFilters.typeId)?.location_id
-                          : undefined)
-                      return !locId || String(l.id) === String(locId)
+                      // Если выбран вид затрат, показываем только локализации, доступные для этого вида
+                      if (record.costTypeId) {
+                        const selectedType = costTypes?.find((t) => String(t.id) === record.costTypeId)
+                        if (selectedType) {
+                          // Находим все виды затрат с таким же названием
+                          const sameNameTypes = costTypes?.filter((t) => t.name === selectedType.name)
+                          // Получаем все location_id для этих видов затрат
+                          const availableLocationIds = sameNameTypes?.map((t) => String(t.location_id))
+                          return availableLocationIds?.includes(String(l.id))
+                        }
+                      }
+                      // Если вид затрат не выбран, показываем все локализации
+                      return true
                     })
                     .map((l) => ({ value: String(l.id), label: l.name })) ?? []
                 }
@@ -1193,10 +1200,10 @@ export default function Chessboard() {
                   costCategories
                     ?.sort((a, b) => {
                       // Сортируем по номеру, если он есть
-                      if (a.number && b.number) {
-                        const aNum = String(a.number)
-                        const bNum = String(b.number)
-                        return aNum.localeCompare(bNum)
+                      if (a.number !== undefined && a.number !== null && 
+                          b.number !== undefined && b.number !== null) {
+                        // Числовое сравнение для правильной сортировки
+                        return Number(a.number) - Number(b.number)
                       }
                       return a.name.localeCompare(b.name)
                     })
@@ -1230,7 +1237,25 @@ export default function Chessboard() {
                 style={{ width: 200 }}
                 value={edit.locationId}
                 onChange={(value) => handleEditChange(record.key, 'locationId', value)}
-                options={locations?.map((l) => ({ value: String(l.id), label: l.name })) ?? []}
+                options={
+                  locations
+                    ?.filter((l) => {
+                      // Если выбран вид затрат, показываем только локализации, доступные для этого вида
+                      if (edit.costTypeId) {
+                        const selectedType = costTypes?.find((t) => String(t.id) === edit.costTypeId)
+                        if (selectedType) {
+                          // Находим все виды затрат с таким же названием
+                          const sameNameTypes = costTypes?.filter((t) => t.name === selectedType.name)
+                          // Получаем все location_id для этих видов затрат
+                          const availableLocationIds = sameNameTypes?.map((t) => String(t.location_id))
+                          return availableLocationIds?.includes(String(l.id))
+                        }
+                      }
+                      // Если вид затрат не выбран, показываем все локализации
+                      return true
+                    })
+                    .map((l) => ({ value: String(l.id), label: l.name })) ?? []
+                }
               />
             )
           default:
@@ -1719,10 +1744,10 @@ export default function Chessboard() {
                   costCategories
                     ?.sort((a, b) => {
                       // Сортируем по номеру, если он есть
-                      if (a.number && b.number) {
-                        const aNum = String(a.number)
-                        const bNum = String(b.number)
-                        return aNum.localeCompare(bNum)
+                      if (a.number !== undefined && a.number !== null && 
+                          b.number !== undefined && b.number !== null) {
+                        // Числовое сравнение для правильной сортировки
+                        return Number(a.number) - Number(b.number)
                       }
                       return a.name.localeCompare(b.name)
                     })
