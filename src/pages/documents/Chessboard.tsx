@@ -863,10 +863,7 @@ export default function Chessboard() {
       const values = Array.from(
         new Set(viewRows.map((row) => row[map[col.dataIndex] as keyof ViewRow]).filter((v) => v)),
       )
-      const filters =
-        col.dataIndex === 'costCategoryId' || col.dataIndex === 'costTypeId' || col.dataIndex === 'block'
-          ? [{ text: 'НЕТ', value: '' }, ...values.map((v) => ({ text: String(v), value: String(v) }))]
-          : values.map((v) => ({ text: String(v), value: String(v) }))
+      const filters = values.map((v) => ({ text: String(v), value: String(v) }))
 
       const sorter = (a: TableRow, b: TableRow) => {
         const aVal = a[col.dataIndex]
@@ -934,10 +931,7 @@ export default function Chessboard() {
                   const name = blocks?.find((b) => b.id === value)?.name ?? ''
                   handleRowChange(record.key, 'block', name)
                 }}
-                options={[
-                  { value: '', label: 'НЕТ' },
-                  ...(blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []),
-                ]}
+                options={blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []}
               />
             )
           case 'floors':
@@ -1115,10 +1109,7 @@ export default function Chessboard() {
       const values = Array.from(
         new Set(viewRows.map((row) => row[col.dataIndex as keyof ViewRow]).filter((v) => v)),
       )
-      const filters =
-        col.dataIndex === 'costCategory' || col.dataIndex === 'costType' || col.dataIndex === 'block'
-          ? [{ text: 'НЕТ', value: '' }, ...values.map((v) => ({ text: String(v), value: String(v) }))]
-          : values.map((v) => ({ text: String(v), value: String(v) }))
+      const filters = values.map((v) => ({ text: String(v), value: String(v) }))
 
       const render: ColumnType<ViewRow>['render'] = (_, record) => {
         const edit = editingRows[record.key]
@@ -1175,10 +1166,7 @@ export default function Chessboard() {
                   const name = blocks?.find((b) => b.id === value)?.name ?? ''
                   handleEditChange(record.key, 'block', name)
                 }}
-                options={[
-                  { value: '', label: 'НЕТ' },
-                  ...(blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []),
-                ]}
+                options={blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []}
               />
             )
           case 'floors':
@@ -1200,11 +1188,22 @@ export default function Chessboard() {
                   handleEditChange(record.key, 'costTypeId', '')
                   handleEditChange(record.key, 'locationId', '')
                 }}
+                popupMatchSelectWidth={false}
                 options={
-                  costCategories?.map((c) => ({
-                    value: String(c.id),
-                    label: c.number ? `${c.number} ${c.name}` : c.name,
-                  })) ?? []
+                  costCategories
+                    ?.sort((a, b) => {
+                      // Сортируем по номеру, если он есть
+                      if (a.number && b.number) {
+                        const aNum = String(a.number)
+                        const bNum = String(b.number)
+                        return aNum.localeCompare(bNum)
+                      }
+                      return a.name.localeCompare(b.name)
+                    })
+                    .map((c) => ({
+                      value: String(c.id),
+                      label: c.name, // Отображаем только название без номера
+                    })) ?? []
                 }
               />
             )
@@ -1704,10 +1703,7 @@ export default function Chessboard() {
                 style={{ width: 200 }}
                 value={filters.blockId}
                 onChange={(value) => setFilters((f) => ({ ...f, blockId: value }))}
-                options={[
-                  { value: '', label: 'НЕТ' },
-                  ...(blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []),
-                ]}
+                options={blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []}
                 disabled={!filters.projectId}
                 allowClear
               />
@@ -1718,15 +1714,23 @@ export default function Chessboard() {
                 onChange={(value) =>
                   setFilters((f) => ({ ...f, categoryId: value, typeId: undefined }))
                 }
-                options={[
-                  { value: '', label: 'НЕТ' },
-                  ...(
-                    costCategories?.map((c) => ({
+                popupMatchSelectWidth={false}
+                options={
+                  costCategories
+                    ?.sort((a, b) => {
+                      // Сортируем по номеру, если он есть
+                      if (a.number && b.number) {
+                        const aNum = String(a.number)
+                        const bNum = String(b.number)
+                        return aNum.localeCompare(bNum)
+                      }
+                      return a.name.localeCompare(b.name)
+                    })
+                    .map((c) => ({
                       value: String(c.id),
-                      label: c.number ? `${c.number} ${c.name}` : c.name,
+                      label: c.name, // Отображаем только название без номера
                     })) ?? []
-                  ),
-                ]}
+                }
                 allowClear
               />
               <Select
@@ -1734,14 +1738,11 @@ export default function Chessboard() {
                 style={{ width: 200 }}
                 value={filters.typeId}
                 onChange={(value) => setFilters((f) => ({ ...f, typeId: value }))}
-                options={[
-                  { value: '', label: 'НЕТ' },
-                  ...(
-                    costTypes
-                      ?.filter((t) => String(t.cost_category_id) === filters.categoryId)
-                      .map((t) => ({ value: String(t.id), label: t.name })) ?? []
-                  ),
-                ]}
+                options={
+                  costTypes
+                    ?.filter((t) => String(t.cost_category_id) === filters.categoryId)
+                    .map((t) => ({ value: String(t.id), label: t.name })) ?? []
+                }
                 disabled={!filters.categoryId}
                 allowClear
               />
@@ -1853,13 +1854,21 @@ export default function Chessboard() {
                 locationId: undefined,
               }))
             }
-            options={[
-              { value: '', label: 'НЕТ' },
-              ...(costCategories?.map((c) => ({
-                value: String(c.id),
-                label: c.number ? `${c.number} ${c.name}` : c.name,
-              })) ?? []),
-            ]}
+            popupMatchSelectWidth={false}
+            options={costCategories
+                ?.sort((a, b) => {
+                  // Сортируем по номеру, если он есть
+                  if (a.number && b.number) {
+                    const aNum = String(a.number)
+                    const bNum = String(b.number)
+                    return aNum.localeCompare(bNum)
+                  }
+                  return a.name.localeCompare(b.name)
+                })
+                .map((c) => ({
+                  value: String(c.id),
+                  label: c.name, // Отображаем только название без номера
+                })) ?? []}
           />
           <Select
             placeholder="Вид затрат"
@@ -1873,12 +1882,9 @@ export default function Chessboard() {
                 locationId: loc ? String(loc) : undefined,
               }))
             }}
-            options={[
-              { value: '', label: 'НЕТ' },
-              ...(costTypes
+            options={costTypes
                 ?.filter((t) => String(t.cost_category_id) === importState.categoryId)
-                .map((t) => ({ value: String(t.id), label: t.name })) ?? []),
-            ]}
+                .map((t) => ({ value: String(t.id), label: t.name })) ?? []}
             disabled={!importState.categoryId}
           />
           <Select
@@ -1888,10 +1894,7 @@ export default function Chessboard() {
             onChange={(value) =>
               setImportState((s) => ({ ...s, locationId: value || undefined }))
             }
-            options={[
-              { value: '', label: 'НЕТ' },
-              ...(locations?.map((l) => ({ value: String(l.id), label: l.name })) ?? []),
-            ]}
+            options={locations?.map((l) => ({ value: String(l.id), label: l.name })) ?? []}
           />
         </Space>
       </Modal>
