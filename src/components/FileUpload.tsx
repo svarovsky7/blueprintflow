@@ -312,24 +312,26 @@ export default function FileUpload({ files, onChange, disabled, projectId, docum
         
         {/* Кнопка добавления файла */}
         {!disabled && (
-          <Upload
-            customRequest={handleUpload}
-            showUploadList={false}
-            accept=".xlsx,.xls,.docx,.doc,.pdf,.dwg"
-            disabled={disabled || uploading}
-          >
-            <Button 
-              type="text" 
-              size="small" 
-              icon={<UploadOutlined />} 
-              loading={uploading}
-              style={{ 
-                padding: '2px 4px',
-                height: 'auto',
-                minWidth: 'auto'
-              }}
-            />
-          </Upload>
+          <Tooltip title="Загрузка файлов pdf, xls/xlsx, doc/docx, dwg">
+            <Upload
+              customRequest={handleUpload}
+              showUploadList={false}
+              accept=".xlsx,.xls,.docx,.doc,.pdf,.dwg"
+              disabled={disabled || uploading}
+            >
+              <Button 
+                type="text" 
+                size="small" 
+                icon={<UploadOutlined />} 
+                loading={uploading}
+                style={{ 
+                  padding: '2px 4px',
+                  height: 'auto',
+                  minWidth: 'auto'
+                }}
+              />
+            </Upload>
+          </Tooltip>
         )}
       </Space>
 
