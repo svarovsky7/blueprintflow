@@ -915,23 +915,11 @@ export default function Rates() {
   const hasUnsavedChanges = newRows.length > 0 || Object.keys(editingRows).length > 0
 
   return (
-    <div style={{ height: 'calc(100vh - 96px)', display: 'flex', flexDirection: 'column' }}>
-      {/* Закрепленный блок: Заголовок + Фильтры */}
-      <div style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 100,
-        backgroundColor: 'white',
-        borderBottom: '1px solid #f0f0f0',
-        flexShrink: 0
-      }}>
-        {/* Заголовок */}
-        <div ref={headerRef} style={{ padding: '16px 24px 0' }}>
-          <Title level={2} style={{ margin: 0 }}>Расценки</Title>
-        </div>
-
+    <div>
+      <div style={{ marginBottom: 16 }}>
+        <Title level={2} style={{ margin: '0 0 16px 0' }}>Расценки</Title>
+        
         {/* Фильтры */}
-        <div ref={filtersRef} style={{ padding: '16px 24px' }}>
         {/* Статичный блок фильтров */}
         <div style={{ marginBottom: 16 }}>
           <Space wrap>
@@ -1054,42 +1042,19 @@ export default function Rates() {
             </Space>
           )}
         </div>
-        </div>
       </div>
 
       {/* Таблица */}
-      <div 
-        className="rates-table-section" 
-        style={{ 
-          flex: '1 1 auto', 
-          overflow: 'auto', 
-          minHeight: 0, 
-          padding: '0 24px 24px',
-          position: 'relative'
+      <Table
+        columns={visibleColumns}
+        dataSource={filteredData}
+        rowKey="id"
+        loading={isLoading}
+        sticky
+        scroll={{ 
+          x: 'max-content',
+          y: 'calc(100vh - 300px)'
         }}
-      >
-        <style>{`
-          .rates-table-section .ant-table-wrapper {
-            height: auto !important;
-            overflow: visible !important;
-          }
-          
-          .rates-table-section .ant-table-body {
-            overflow: visible !important;
-            max-height: none !important;
-          }
-          
-          .rates-table-section .ant-table-container {
-            overflow: visible !important;
-          }
-        `}</style>
-        <Table
-          columns={visibleColumns}
-          dataSource={filteredData}
-          rowKey="id"
-          loading={isLoading}
-          scroll={{ x: 'max-content' }}
-          sticky={false}
           pagination={{
             current: 1,
             pageSize,
@@ -1102,7 +1067,6 @@ export default function Rates() {
           }}
           locale={{ emptyText: <Empty description="Нет данных" /> }}
         />
-      </div>
 
       {/* Настройки столбцов */}
       <Drawer
