@@ -397,6 +397,58 @@ localStorage.setItem('{page-name}-column-order', JSON.stringify(columnOrder))
 3. Сохранять все принципы работы с данными
 4. Использовать единые паттерны для фильтров и действий
 
+## Table Scroll Configuration
+
+### ВАЖНО: Правильная настройка прокрутки для таблиц Ant Design
+
+При использовании Ant Design Table компонента избегайте установки фиксированной высоты через параметр `scroll.y`, так как это может вызвать неправильное позиционирование горизонтальной полосы прокрутки.
+
+#### Проблема
+Если установить `scroll={{ y: 'calc(100vh - 300px)' }}`, горизонтальная полоса прокрутки появится сразу после отфильтрованных строк, а не внизу страницы.
+
+#### Правильное решение
+Используйте CSS Flexbox для управления высотой контейнеров:
+
+```tsx
+// В компоненте Table НЕ используйте y в scroll:
+<Table
+  scroll={{ 
+    x: 'max-content'  // Только горизонтальная прокрутка
+  }}
+/>
+
+// Структура контейнеров с CSS:
+<div className="page-container">  // height: calc(100vh - 96px), display: flex, flex-direction: column
+  <div className="filters-section">  // flex: 0 0 auto
+    {/* Фильтры */}
+  </div>
+  <div className="table-section">  // flex: 1 1 auto, overflow: auto, min-height: 0
+    <Table />
+  </div>
+</div>
+```
+
+#### CSS стили
+```css
+.page-container {
+  height: calc(100vh - 96px);  /* Высота минус header и отступы */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.table-section {
+  flex: 1 1 auto;
+  overflow: auto;
+  min-height: 0;  /* Важно для правильной работы flexbox */
+}
+```
+
+Это обеспечит:
+- Горизонтальная полоса прокрутки всегда внизу видимой области
+- Вертикальная прокрутка работает корректно
+- Таблица занимает все доступное пространство
+
 ## Important Notes
 - Excel import headers are flexible - use fuzzy matching
 - Cascading logic: When cost category changes, reset cost type and location
@@ -404,3 +456,4 @@ localStorage.setItem('{page-name}-column-order', JSON.stringify(columnOrder))
 - Filtering: Applied filters persist through mode changes (view/add/edit)
 - Column settings saved in localStorage for persistence across sessions
 - При применении шаблона "Документ" все компоненты страницы должны следовать описанным выше принципам
+- НИКОГДА не используйте `scroll.y` в Table компоненте для управления высотой - используйте CSS контейнеры

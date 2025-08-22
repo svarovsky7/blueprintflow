@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict BkeOT84mMt9syHRuW6ZRIgQojEglRuLzBgdWfeN8OQOrgIxFwieFSFeV2l2vXMU
+\restrict BQ0vo6hkses2SSB7jIWAjjIFX2VlX2NSDASl1zKTQlrLbu3fvk25l6v8nMt88aq
 
 -- Dumped from database version 17.4
 -- Dumped by pg_dump version 17.6
@@ -2288,6 +2288,40 @@ CREATE TABLE public.chessboard (
 ALTER TABLE public.chessboard OWNER TO postgres;
 
 --
+-- Name: chessboard_documentation_mapping; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.chessboard_documentation_mapping (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    chessboard_id uuid NOT NULL,
+    documentation_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.chessboard_documentation_mapping OWNER TO postgres;
+
+--
+-- Name: TABLE chessboard_documentation_mapping; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE public.chessboard_documentation_mapping IS 'Связь записей шахматки с шифрами проектов (документацией)';
+
+
+--
+-- Name: COLUMN chessboard_documentation_mapping.chessboard_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.chessboard_documentation_mapping.chessboard_id IS 'ID записи в шахматке';
+
+
+--
+-- Name: COLUMN chessboard_documentation_mapping.documentation_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.chessboard_documentation_mapping.documentation_id IS 'ID документации (шифра проекта)';
+
+
+--
 -- Name: chessboard_floor_mapping; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -2638,8 +2672,6 @@ COMMENT ON COLUMN public.documentation_versions.id IS 'UUID версии док�
 CREATE TABLE public.documentations (
     code character varying(255) NOT NULL,
     tag_id integer,
-    project_id uuid,
-    block_id uuid,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2669,20 +2701,6 @@ COMMENT ON COLUMN public.documentations.code IS 'Шифр проекта';
 --
 
 COMMENT ON COLUMN public.documentations.tag_id IS 'ID раздела/тэга документации';
-
-
---
--- Name: COLUMN documentations.project_id; Type: COMMENT; Schema: public; Owner: postgres
---
-
-COMMENT ON COLUMN public.documentations.project_id IS 'ID проекта';
-
-
---
--- Name: COLUMN documentations.block_id; Type: COMMENT; Schema: public; Owner: postgres
---
-
-COMMENT ON COLUMN public.documentations.block_id IS 'ID корпуса/блока';
 
 
 --
@@ -2910,12 +2928,11 @@ ALTER TABLE public.reference_data OWNER TO postgres;
 CREATE TABLE public.statuses (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     name character varying(100) NOT NULL,
-    code character varying(50) NOT NULL,
     color character varying(20),
-    sort_order integer DEFAULT 0,
     is_active boolean DEFAULT true,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    applicable_pages jsonb DEFAULT '[]'::jsonb
 );
 
 
@@ -2943,13 +2960,6 @@ COMMENT ON COLUMN public.statuses.name IS 'Название статуса';
 
 
 --
--- Name: COLUMN statuses.code; Type: COMMENT; Schema: public; Owner: postgres
---
-
-COMMENT ON COLUMN public.statuses.code IS 'Код статуса (уникальный)';
-
-
---
 -- Name: COLUMN statuses.color; Type: COMMENT; Schema: public; Owner: postgres
 --
 
@@ -2957,17 +2967,17 @@ COMMENT ON COLUMN public.statuses.color IS 'Цвет для визуализац
 
 
 --
--- Name: COLUMN statuses.sort_order; Type: COMMENT; Schema: public; Owner: postgres
---
-
-COMMENT ON COLUMN public.statuses.sort_order IS 'Порядок сортировки';
-
-
---
 -- Name: COLUMN statuses.is_active; Type: COMMENT; Schema: public; Owner: postgres
 --
 
 COMMENT ON COLUMN public.statuses.is_active IS 'Активен ли статус';
+
+
+--
+-- Name: COLUMN statuses.applicable_pages; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.statuses.applicable_pages IS 'Array of page keys where this status is applicable';
 
 
 --
@@ -3828,6 +3838,15 @@ a23d8e8a-e8fc-4bda-8201-eacdd46b24cc	f9227acf-9446-42c8-a533-bfeb30fa07a4	м114	
 7e0de9b9-521c-4e37-ad7c-7bd32742b76d	f9227acf-9446-42c8-a533-bfeb30fa07a4	м112	2	2	2	92d5fd4d-eb25-4562-9292-a3defdcbb01e	2025-08-15 12:31:28.403279+00	\N	2025-08-15 12:31:28.403279+00	\N
 7460d9d7-dc64-47fa-9da2-b1bfa1ba07a4	f9227acf-9446-42c8-a533-bfeb30fa07a4	м113	3	3	3	92d5fd4d-eb25-4562-9292-a3defdcbb01e	2025-08-15 12:31:28.403279+00	\N	2025-08-15 12:31:28.403279+00	\N
 150ca51a-60b7-41b8-9010-101b141d5876	f9227acf-9446-42c8-a533-bfeb30fa07a4	Арматура 12 А500	10	8	9	b7eb7037-cb2b-4180-8a15-6e334e122e79	2025-08-14 06:51:17.716232+00	\N	2025-08-14 06:51:17.716232+00	red
+175defaa-4b67-46fd-9589-c66f7345109e	f9227acf-9446-42c8-a533-bfeb30fa07a4	лол	1	2	3	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-21 12:22:37.374625+00	\N	2025-08-21 12:22:37.374625+00	\N
+\.
+
+
+--
+-- Data for Name: chessboard_documentation_mapping; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.chessboard_documentation_mapping (id, chessboard_id, documentation_id) FROM stdin;
 \.
 
 
@@ -3908,6 +3927,7 @@ e87e0dd5-1247-42ed-b0fe-589cd5f6b3a5	c44f5021-ecef-4bf3-af8f-613405bf65fe	240	63
 d2e849c9-8815-4d64-99d3-3252cc4500de	8b51be6b-a2c4-43c8-aa64-21412899256c	240	631	2	2025-08-14 14:26:47.059006+00	2025-08-14 14:26:47.059006+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
 05719eb9-ae69-4c29-aa84-98789f2539f7	7dcbbd60-429d-4664-be97-4749b39bb307	240	631	2	2025-08-14 14:26:47.059006+00	2025-08-14 14:26:47.059006+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
 4201a8d8-3d3d-47a5-a232-7723b736e964	150ca51a-60b7-41b8-9010-101b141d5876	240	630	2	2025-08-14 06:51:17.846443+00	2025-08-14 06:51:17.846443+00	b5837d17-e31c-4cf0-b45e-6c47343aaa13
+959fdb0d-2243-42e1-aced-bfba5202847b	175defaa-4b67-46fd-9589-c66f7345109e	235	617	2	2025-08-21 12:22:37.666996+00	2025-08-21 12:22:37.666996+00	\N
 \.
 
 
@@ -4202,9 +4222,78 @@ COPY public.documentation_tags (id, tag_number, name, created_at, updated_at) FR
 --
 
 COPY public.documentation_versions (version_number, issue_date, file_url, status, created_at, updated_at, documentation_id, id) FROM stdin;
-1	2025-08-20	\N	not_filled	2025-08-20 12:57:03.533478+00	2025-08-20 12:57:03.533478+00	e4ef7e84-0ab4-441c-8523-38beba1aebfb	d648ab8b-caf5-4a4b-afd0-6877f0452682
-1	2025-08-20	\N	not_filled	2025-08-20 14:19:06.402843+00	2025-08-20 14:19:06.402843+00	9953817c-c512-4460-8dfd-4da3cef5d6a3	7e35910e-1916-429b-9077-34a716120c54
-2	2025-08-20	https://su10.bitrix24.ru/bitrix/tools/disk/uf.php?attachedId=28669&action=download&ncc=1	not_filled	2025-08-20 14:19:54.763674+00	2025-08-20 14:19:54.763674+00	9953817c-c512-4460-8dfd-4da3cef5d6a3	8c20cca8-89eb-4107-bc7a-a47e9c293996
+1	2025-05-01	https://su10.bitrix24.ru/company/personal/user/647/tasks/task/view/18899/	not_filled	2025-08-21 09:32:15.64795+00	2025-08-21 09:32:15.64795+00	ec3d749d-8d35-49bb-a3a2-8a1b61f35d06	5296b35c-baee-4198-9a9c-21f9a1853f55
+1	2025-05-01	https://su10.bitrix24.ru/company/personal/user/647/tasks/task/view/18903/	not_filled	2025-08-21 09:32:16.133758+00	2025-08-21 09:32:16.133758+00	6a5d7eb8-ba66-4cc5-b8c9-93c6cda93271	5861590d-5545-4c6b-9598-1a7b61b21ab2
+1	2025-05-01	https://su10.bitrix24.ru/company/personal/user/647/tasks/task/view/18887/	not_filled	2025-08-21 09:32:16.644253+00	2025-08-21 09:32:16.644253+00	ff07f546-c05a-4c0c-972a-7aee401714a1	2a89a862-ec93-46a5-a727-83df0aedb682
+2	2025-05-30	https://su10.bitrix24.ru/company/personal/user/945/tasks/task/view/19977/	not_filled	2025-08-21 09:32:17.099289+00	2025-08-21 09:32:17.099289+00	ff07f546-c05a-4c0c-972a-7aee401714a1	57db01ee-9fc7-4ce3-8a95-fd850077daaa
+1	2025-05-06	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18969/	not_filled	2025-08-21 09:32:17.517671+00	2025-08-21 09:32:17.517671+00	958177af-f289-4c50-8317-b7e064cf2ac1	0b03df71-7845-4e1e-baaf-92c696490525
+2	2025-06-17	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20321/	not_filled	2025-08-21 09:32:17.907104+00	2025-08-21 09:32:17.907104+00	958177af-f289-4c50-8317-b7e064cf2ac1	034dd85c-a866-4843-bb5d-f989b52565ca
+1	2025-06-17	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20323/	not_filled	2025-08-21 09:32:18.294854+00	2025-08-21 09:32:18.294854+00	e8693dc2-101d-4d9e-ac9c-5bf7d9d075a0	f21dde26-f81e-4cd7-862a-240f3b189d37
+1	2025-05-08	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19075/	not_filled	2025-08-21 09:32:18.740209+00	2025-08-21 09:32:18.740209+00	3f19c800-5d2c-4ba0-8036-fe37bc21f6d5	92a5efb3-d0f9-42a3-9cfe-b8ff5a7409b8
+1	2025-08-16	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22795/	not_filled	2025-08-21 09:32:19.10526+00	2025-08-21 09:32:19.10526+00	802689a5-100a-4ac5-a567-d958d595ff68	9c73b782-a6b7-49e8-9c6f-2cbfe1743f03
+1	2025-08-12	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22639/	not_filled	2025-08-21 09:32:19.474995+00	2025-08-21 09:32:19.474995+00	fa34f1a8-58c3-4c9e-8205-da6b56132658	7b62a552-7115-4c4b-a604-b318c5fe0c47
+1	2025-07-01	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20749/	not_filled	2025-08-21 09:32:19.848459+00	2025-08-21 09:32:19.848459+00	1c7d2354-8f96-4a15-a401-deae1d27bb85	31cd9dd7-162e-464f-9066-2d600300b4f8
+1	2025-05-08	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19079/	not_filled	2025-08-21 09:32:20.201399+00	2025-08-21 09:32:20.201399+00	62eb11c4-915f-43e4-89f7-6c3068f9ef77	4ecbf816-da2f-4675-86f0-42bbeb4c000d
+1	2025-07-01	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20753/	not_filled	2025-08-21 09:32:20.57278+00	2025-08-21 09:32:20.57278+00	122f8545-cf1a-485e-856e-b7caf0a4501d	f3108e7c-f56c-4b84-b0d6-71539cd810a9
+1	2025-07-01	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20757/	not_filled	2025-08-21 09:32:20.964754+00	2025-08-21 09:32:20.964754+00	336fd416-423a-49d6-a12c-afb1afc2f55f	2232b40c-b09e-411a-95aa-df330213cfef
+1	2025-05-06	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18965/	not_filled	2025-08-21 09:32:21.357933+00	2025-08-21 09:32:21.357933+00	b4961ea6-874a-4bea-bb5a-c755adf4351d	b119cf5c-5eb4-466d-9b2f-ede52fc29c99
+1	2025-04-29	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18829/	not_filled	2025-08-21 09:32:21.959851+00	2025-08-21 09:32:21.959851+00	e84db261-4d46-4828-bf1a-7002b1f8c342	1782c826-d6f0-4142-846d-e77d45d46f9f
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22279/	not_filled	2025-08-21 09:32:22.321441+00	2025-08-21 09:32:22.321441+00	e84db261-4d46-4828-bf1a-7002b1f8c342	14a62dd9-7272-4609-b628-e11ee8358ae8
+1	2025-04-29	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18823/	not_filled	2025-08-21 09:32:22.703108+00	2025-08-21 09:32:22.703108+00	76452def-f7e8-456c-bd9b-8dfb0db0d30e	0532d84a-0f64-456d-9807-e3772b384f1d
+2	2025-08-16	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22749/	not_filled	2025-08-21 09:32:23.089613+00	2025-08-21 09:32:23.089613+00	76452def-f7e8-456c-bd9b-8dfb0db0d30e	ddb1f183-b185-4fa9-ad64-a96f97987aa1
+1	2025-04-29	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18835/	not_filled	2025-08-21 09:32:23.477174+00	2025-08-21 09:32:23.477174+00	2cd997ba-d211-43b4-988a-57dc26fc197d	619cca68-0afc-4870-bc5b-db67f1d53267
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22285/	not_filled	2025-08-21 09:32:23.853931+00	2025-08-21 09:32:23.853931+00	2cd997ba-d211-43b4-988a-57dc26fc197d	ab337a2e-06be-4bde-939f-3a3f91d7f391
+1	2025-04-29	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18839/	not_filled	2025-08-21 09:32:24.22731+00	2025-08-21 09:32:24.22731+00	0e3905d8-9af3-446f-8a75-9c35ed6cdfc0	3f8080a7-5a67-444b-8746-3f1e4a9e0100
+1	2025-05-06	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18961/	not_filled	2025-08-21 09:32:24.624254+00	2025-08-21 09:32:24.624254+00	aa9e3f3e-7793-4116-9456-97263d75a1c5	ca761a6c-c6ab-4c65-92f3-a547f1be09c0
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22291/	not_filled	2025-08-21 09:32:25.01057+00	2025-08-21 09:32:25.01057+00	aa9e3f3e-7793-4116-9456-97263d75a1c5	e5913c5b-6d23-49a5-8a27-249bd91dd5b7
+1	2025-04-29	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18843/	not_filled	2025-08-21 09:32:25.41842+00	2025-08-21 09:32:25.41842+00	de703c63-895b-4117-a7a7-1dfc389f7cb5	f5c2b976-a541-415f-ab6c-d646a1f2a0a4
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22293/	not_filled	2025-08-21 09:32:25.788536+00	2025-08-21 09:32:25.788536+00	de703c63-895b-4117-a7a7-1dfc389f7cb5	3996d59e-e178-45db-a5ad-dc1bce1e329a
+3	2025-08-19	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22815/	not_filled	2025-08-21 09:32:26.157207+00	2025-08-21 09:32:26.157207+00	de703c63-895b-4117-a7a7-1dfc389f7cb5	95ca258d-6052-45df-855b-7618ee490b1b
+1	2025-06-13	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20301/	not_filled	2025-08-21 09:32:26.554738+00	2025-08-21 09:32:26.554738+00	91716c2b-9785-4268-b3c6-8df712438981	53c074b1-258b-408c-ad57-4fe2cda9da53
+2	2025-06-27	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20671/	not_filled	2025-08-21 09:32:26.943225+00	2025-08-21 09:32:26.943225+00	91716c2b-9785-4268-b3c6-8df712438981	9b05476e-842e-4c43-954f-3648f049c966
+3	2025-07-29	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22061/	not_filled	2025-08-21 09:32:27.339438+00	2025-08-21 09:32:27.339438+00	91716c2b-9785-4268-b3c6-8df712438981	f71a2870-97ea-48bf-890c-88acf2bb1ad4
+1	2025-05-28	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19767/	not_filled	2025-08-21 09:32:27.722816+00	2025-08-21 09:32:27.722816+00	b3540776-a64e-43a8-8e14-ec9a52fccd35	4b3cea1f-f9ca-43b1-99b9-b8b4f1c94f56
+2	2025-07-19	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21371/	not_filled	2025-08-21 09:32:28.075512+00	2025-08-21 09:32:28.075512+00	b3540776-a64e-43a8-8e14-ec9a52fccd35	0494f94c-5641-4bca-8b55-4b55626ba81d
+1	2025-05-28	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19771/	not_filled	2025-08-21 09:32:28.453512+00	2025-08-21 09:32:28.453512+00	370b50ca-b9f5-4430-848c-7afcd64ca6c0	8fe6911f-cb10-4115-8d3b-1ea5fc0b4950
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22273/	not_filled	2025-08-21 09:32:28.813309+00	2025-08-21 09:32:28.813309+00	370b50ca-b9f5-4430-848c-7afcd64ca6c0	11b8dc12-a931-435c-a26b-7f4c16641769
+1	2025-05-28	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19779/	not_filled	2025-08-21 09:32:29.188019+00	2025-08-21 09:32:29.188019+00	4a00e577-ff54-4471-a403-ef778bb11e6e	e0ec6c1c-a69d-4f2d-aafd-d9c97992798b
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22275/	not_filled	2025-08-21 09:32:29.570466+00	2025-08-21 09:32:29.570466+00	4a00e577-ff54-4471-a403-ef778bb11e6e	1927aee2-b09c-47dd-9c03-b889b3623951
+1	2025-05-28	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19775/	not_filled	2025-08-21 09:32:29.934705+00	2025-08-21 09:32:29.934705+00	788d290c-abc1-44f4-be93-bb72f26dad83	ce36e937-f0ce-4eae-b2b8-642bc248ec88
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22277/	not_filled	2025-08-21 09:32:30.356568+00	2025-08-21 09:32:30.356568+00	788d290c-abc1-44f4-be93-bb72f26dad83	a698c97a-14b4-40e8-869c-085d4da3a567
+1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21319/	not_filled	2025-08-21 09:32:30.720993+00	2025-08-21 09:32:30.720993+00	f3c1ac30-fecd-4179-9c2f-63d870f55251	1b8f98e2-96b7-4d0a-90d4-4d09d2f8becd
+1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21323/	not_filled	2025-08-21 09:32:31.077422+00	2025-08-21 09:32:31.077422+00	c7691b0e-1ad0-47c7-b64d-1fa765394ad0	1401385a-9214-48bc-b5ad-ff32b11f9fd1
+2	2025-07-19	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21373/	not_filled	2025-08-21 09:32:31.48301+00	2025-08-21 09:32:31.48301+00	c7691b0e-1ad0-47c7-b64d-1fa765394ad0	22af9f42-875f-4477-a087-3d282bedcf75
+1	2025-05-28	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19787/	not_filled	2025-08-21 09:32:31.83833+00	2025-08-21 09:32:31.83833+00	2c161a55-db1b-4450-a02f-68a1ad23d234	030ef1ef-18b3-4a75-aef5-97b18502eec8
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22281/	not_filled	2025-08-21 09:32:32.197455+00	2025-08-21 09:32:32.197455+00	2c161a55-db1b-4450-a02f-68a1ad23d234	64955b8e-119e-4fbd-8fe2-5fed46ebeabf
+1	2025-05-28	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19783/	not_filled	2025-08-21 09:32:32.565604+00	2025-08-21 09:32:32.565604+00	b3e96832-c6a2-47b1-b75b-41c5b9e44b58	079bbe65-d42c-4c3a-9c70-b14d8b572713
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22283/	not_filled	2025-08-21 09:32:32.944387+00	2025-08-21 09:32:32.944387+00	b3e96832-c6a2-47b1-b75b-41c5b9e44b58	46bd4c1e-6a75-4db1-8fa5-781674e649fe
+1	2025-06-03	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20067/	not_filled	2025-08-21 09:32:33.340538+00	2025-08-21 09:32:33.340538+00	e6ef80a1-ddf3-4d8d-a15a-be62755e795e	fccb7eb1-6714-4fd5-bc08-697702e2c989
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22287/	not_filled	2025-08-21 09:32:33.733788+00	2025-08-21 09:32:33.733788+00	e6ef80a1-ddf3-4d8d-a15a-be62755e795e	da90aa13-4d22-4fdd-be7e-72248032af7e
+1	2025-06-05	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20213/	not_filled	2025-08-21 09:32:34.11307+00	2025-08-21 09:32:34.11307+00	f23c37ab-490b-4f48-99fa-1bcc2a0c5d65	e877ddd4-760f-4a10-a360-e778138e69b7
+1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21339/	not_filled	2025-08-21 09:32:36.257947+00	2025-08-21 09:32:36.257947+00	28625b76-6624-40d9-b62f-af18ac2b2de7	043547b8-b824-4fc1-922d-5dba4e470967
+1	2025-07-19	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21377/	not_filled	2025-08-21 09:32:38.377647+00	2025-08-21 09:32:38.377647+00	bd03d3fb-bdd5-456d-ac7c-3abae6e109bd	cc080518-b6db-449b-bf20-d6c655ba8c96
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22289/	not_filled	2025-08-21 09:32:34.666343+00	2025-08-21 09:32:34.666343+00	f23c37ab-490b-4f48-99fa-1bcc2a0c5d65	775e33dc-dea8-4a77-a89a-a698d0253af8
+2	2025-08-07	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22523/	not_filled	2025-08-21 09:32:36.788977+00	2025-08-21 09:32:36.788977+00	28625b76-6624-40d9-b62f-af18ac2b2de7	967e83d1-c453-4157-be5c-95844df3d5ef
+1	2025-08-07	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22527/	not_filled	2025-08-21 09:32:38.786867+00	2025-08-21 09:32:38.786867+00	9ad69277-9144-4844-b5a9-8af0592db8cc	df046eca-221d-4e9c-88cb-fbecc0207989
+1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21331/	not_filled	2025-08-21 09:32:35.028335+00	2025-08-21 09:32:35.028335+00	2a439585-672a-4ef7-8c93-d7a9c5ec8cce	15eb44c1-f05e-4187-86da-cb39577554c2
+3	2025-08-12	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22601/	not_filled	2025-08-21 09:32:37.219885+00	2025-08-21 09:32:37.219885+00	28625b76-6624-40d9-b62f-af18ac2b2de7	6b47bdf8-0bc0-4a50-b56b-95f2fd26adb2
+2	2025-08-19	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22813/	not_filled	2025-08-21 09:32:39.176252+00	2025-08-21 09:32:39.176252+00	9ad69277-9144-4844-b5a9-8af0592db8cc	6fdcb640-7d42-48b6-8715-5c42919fce49
+1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21327/	not_filled	2025-08-21 09:32:35.432943+00	2025-08-21 09:32:35.432943+00	fd4ac328-da06-4d5e-bd9d-a867da1d3002	ac54eaa1-487b-4cdc-8968-027905d0c911
+4	2025-08-16	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22747/	not_filled	2025-08-21 09:32:37.594921+00	2025-08-21 09:32:37.594921+00	28625b76-6624-40d9-b62f-af18ac2b2de7	a112c784-c3df-42b8-9980-e12a8e29eacb
+1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21335/	not_filled	2025-08-21 09:32:35.866755+00	2025-08-21 09:32:35.866755+00	9374198d-6171-425d-b097-796d824c5b25	928dc22a-7ad1-4692-ab9d-dc22300b9590
+1	2025-05-30	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19941/	not_filled	2025-08-21 09:32:37.990795+00	2025-08-21 09:32:37.990795+00	0d2b3ef0-f533-46b7-9421-0a8d9c4429b1	faefb477-007b-47fa-bd70-9cf7475aea2c
+1	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22271/	not_filled	2025-08-21 09:32:39.537102+00	2025-08-21 09:32:39.537102+00	3df6f514-8768-4282-b31c-79c4b5b65394	02d70795-5dd3-4004-9faf-2b1287e946a5
+1	2025-08-06	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22479/	not_filled	2025-08-21 09:32:39.922676+00	2025-08-21 09:32:39.922676+00	c3b9179e-74cc-407a-a5ee-a82a1f890ebe	bee4b9d5-75ca-4da1-ad37-ab78b5a3ba11
+2	2025-08-20	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22827/	not_filled	2025-08-21 09:32:40.375888+00	2025-08-21 09:32:40.375888+00	c3b9179e-74cc-407a-a5ee-a82a1f890ebe	c8667533-f207-4d32-b418-3759e72cfdc3
+1	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22297/	not_filled	2025-08-21 09:32:41.231764+00	2025-08-21 09:32:41.231764+00	650b14a9-07f2-4861-8637-091a8aa30398	5718bd2c-ea9d-42b0-8039-20760f7131f6
+1	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22301/	not_filled	2025-08-21 09:32:41.635789+00	2025-08-21 09:32:41.635789+00	85733f4c-8afa-467b-ab16-038cfa6cf558	4b6362da-18ac-436d-9e42-a131c9584c0f
+2	2025-08-06	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22485/	not_filled	2025-08-21 09:32:42.156746+00	2025-08-21 09:32:42.156746+00	85733f4c-8afa-467b-ab16-038cfa6cf558	1686563c-9578-4516-90bb-d6e9193d9f8a
+1	2025-08-19	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22823/	not_filled	2025-08-21 09:32:42.514881+00	2025-08-21 09:32:42.514881+00	926738bf-c167-4625-8125-6f7327dcaef1	539e3c83-da72-432a-9ab6-aaf1358b1ef0
+1	2025-08-12	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22599/	not_filled	2025-08-21 09:32:42.891636+00	2025-08-21 09:32:42.891636+00	888fdda1-e306-4fa1-ac1a-4c61a66ebdac	52578446-19f2-4324-9a08-66e9f5817138
+1	2025-08-14	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22661/	not_filled	2025-08-21 09:32:43.297095+00	2025-08-21 09:32:43.297095+00	8865eec6-d7b2-446b-ba08-4dbdf32f40cc	184475e3-cf78-406a-aad7-53fb5627d3be
+1	2025-08-06	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22483/	not_filled	2025-08-21 09:32:43.687645+00	2025-08-21 09:32:43.687645+00	e43c2fb6-e302-4c80-b05c-a7a9a5d3a740	d81dbc39-0172-4470-8df7-d4aefe80c2df
+1	2025-08-20	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22835/	not_filled	2025-08-21 09:32:44.114987+00	2025-08-21 09:32:44.114987+00	42a7bee4-a86e-4dcd-8c71-cd2d79512dbb	0c181bf0-1250-451c-951e-7d7092f9e92e
+1	2025-06-20	https://su10.bitrix24.ru/company/personal/user/29/tasks/task/view/20433/	not_filled	2025-08-21 09:32:44.474499+00	2025-08-21 09:32:44.474499+00	2d22a0a2-ab12-4b9a-8334-b05b87110a2e	2d8c4354-8d24-488a-a281-f869f903a2bb
 \.
 
 
@@ -4212,9 +4301,54 @@ COPY public.documentation_versions (version_number, issue_date, file_url, status
 -- Data for Name: documentations; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.documentations (code, tag_id, project_id, block_id, created_at, updated_at, id, stage) FROM stdin;
-пос1	1	\N	\N	2025-08-20 12:57:03.243824+00	2025-08-20 12:57:03.243824+00	e4ef7e84-0ab4-441c-8523-38beba1aebfb	\N
-пос2	1	\N	\N	2025-08-20 14:19:05.886662+00	2025-08-20 14:19:54.547037+00	9953817c-c512-4460-8dfd-4da3cef5d6a3	Р
+COPY public.documentations (code, tag_id, created_at, updated_at, id, stage) FROM stdin;
+СТ26/01-14-КЖ-АС-01.2-РД	2	2025-08-21 09:32:39.347354+00	2025-08-21 09:32:39.347354+00	3df6f514-8768-4282-b31c-79c4b5b65394	Р
+СТ26/01-14-КЖ4-0.3-РД	2	2025-08-21 09:32:39.721295+00	2025-08-21 09:32:40.141779+00	c3b9179e-74cc-407a-a5ee-a82a1f890ebe	Р
+СТ26/01-14-КЖ2-02.1-РД	2	2025-08-21 09:32:21.76628+00	2025-08-21 09:32:22.143218+00	e84db261-4d46-4828-bf1a-7002b1f8c342	Р
+СТ26/01-14-КЖ4-1.1-РД	2	2025-08-21 09:32:41.007782+00	2025-08-21 09:32:41.007782+00	650b14a9-07f2-4861-8637-091a8aa30398	Р
+СТ26/01-14-КЖ4-1.2-РД	2	2025-08-21 09:32:41.417269+00	2025-08-21 09:32:41.970266+00	85733f4c-8afa-467b-ab16-038cfa6cf558	Р
+СТ26/01-14-КЖ4-2.1-РД	2	2025-08-21 09:32:42.338067+00	2025-08-21 09:32:42.338067+00	926738bf-c167-4625-8125-6f7327dcaef1	Р
+СТ26/01-14-КЖ3-02.1-РД	2	2025-08-21 09:32:22.50861+00	2025-08-21 09:32:22.872746+00	76452def-f7e8-456c-bd9b-8dfb0db0d30e	Р
+СТ26/01-14-КЖ4-2.2-РД	2	2025-08-21 09:32:42.693091+00	2025-08-21 09:32:42.693091+00	888fdda1-e306-4fa1-ac1a-4c61a66ebdac	Р
+СТ26/01-14-КЖ7-1.1-РД	2	2025-08-21 09:32:43.069138+00	2025-08-21 09:32:43.069138+00	8865eec6-d7b2-446b-ba08-4dbdf32f40cc	Р
+СТ26/01-14-КЖ7-1.2-РД	2	2025-08-21 09:32:43.488739+00	2025-08-21 09:32:43.488739+00	e43c2fb6-e302-4c80-b05c-a7a9a5d3a740	Р
+СТ26/01-14-КЖ7-2.2-РД	2	2025-08-21 09:32:43.87343+00	2025-08-21 09:32:43.87343+00	42a7bee4-a86e-4dcd-8c71-cd2d79512dbb	Р
+СТ2601-14-КЖ.ЭГ	5	2025-08-21 09:32:44.292916+00	2025-08-21 09:32:44.292916+00	2d22a0a2-ab12-4b9a-8334-b05b87110a2e	Р
+СТ26/01-14-КЖ4-02.1-РД	2	2025-08-21 09:32:23.284665+00	2025-08-21 09:32:23.656691+00	2cd997ba-d211-43b4-988a-57dc26fc197d	Р
+СТ26/01-14-КЖ5-02.1-РД	2	2025-08-21 09:32:24.044921+00	2025-08-21 09:32:24.044921+00	0e3905d8-9af3-446f-8a75-9c35ed6cdfc0	Р
+СТ26/01-14-КЖ6-02.1-РД	2	2025-08-21 09:32:24.425579+00	2025-08-21 09:32:24.801487+00	aa9e3f3e-7793-4116-9456-97263d75a1c5	Р
+СТ26/01-14-КЖ7-02.1-РД	2	2025-08-21 09:32:25.222721+00	2025-08-21 09:32:25.977148+00	de703c63-895b-4117-a7a7-1dfc389f7cb5	Р
+СТ26/01-14-КЖ-АС-02.1-РД	2	2025-08-21 09:32:26.355635+00	2025-08-21 09:32:27.137885+00	91716c2b-9785-4268-b3c6-8df712438981	Р
+СТ26/01-14-КЖ1-01.1-РД	2	2025-08-21 09:32:27.537735+00	2025-08-21 09:32:27.892873+00	b3540776-a64e-43a8-8e14-ec9a52fccd35	Р
+СТ26/01-14-КЖ1-01.2-РД	2	2025-08-21 09:32:28.254479+00	2025-08-21 09:32:28.627132+00	370b50ca-b9f5-4430-848c-7afcd64ca6c0	Р
+СТ26/01-14-КЖ2-01.1-РД	2	2025-08-21 09:32:29.00396+00	2025-08-21 09:32:29.374789+00	4a00e577-ff54-4471-a403-ef778bb11e6e	Р
+СТ26/01-14-КЖ2-01.2-РД	2	2025-08-21 09:32:29.761845+00	2025-08-21 09:32:30.147563+00	788d290c-abc1-44f4-be93-bb72f26dad83	Р
+СТ26/01-14-ПОС1	1	2025-08-21 09:32:15.367463+00	2025-08-21 09:32:15.367463+00	ec3d749d-8d35-49bb-a3a2-8a1b61f35d06	Р
+СТ26/01-14-ПОС2	1	2025-08-21 09:32:15.884949+00	2025-08-21 09:32:15.884949+00	6a5d7eb8-ba66-4cc5-b8c9-93c6cda93271	Р
+СТ26/01-14-КР-РД	1	2025-08-21 09:32:16.371817+00	2025-08-21 09:32:16.838681+00	ff07f546-c05a-4c0c-972a-7aee401714a1	Р
+СТ26/01-14-ДК-РД (2280.Р.ДР/ГИ)	1	2025-08-21 09:32:17.305068+00	2025-08-21 09:32:17.714392+00	958177af-f289-4c50-8317-b7e064cf2ac1	Р
+СТ26/01-14-ДК1-РД(2280.Р.ДР2)	1	2025-08-21 09:32:18.103856+00	2025-08-21 09:32:18.103856+00	e8693dc2-101d-4d9e-ac9c-5bf7d9d075a0	Р
+СТ26/01-14-ГП-1-РД	1	2025-08-21 09:32:18.49243+00	2025-08-21 09:32:18.49243+00	3f19c800-5d2c-4ba0-8036-fe37bc21f6d5	Р
+СТ26/01-14-АР0-АС-2-РД	3	2025-08-21 09:32:18.930329+00	2025-08-21 09:32:18.930329+00	802689a5-100a-4ac5-a567-d958d595ff68	Р
+СТ26/01-14-АР0-АС-1-РД	3	2025-08-21 09:32:19.29011+00	2025-08-21 09:32:19.29011+00	fa34f1a8-58c3-4c9e-8205-da6b56132658	Р
+СТ26/01-14-КЖ2-02.2-РД	2	2025-08-21 09:32:19.661031+00	2025-08-21 09:32:19.661031+00	1c7d2354-8f96-4a15-a401-deae1d27bb85	Р
+СТ26/01-14-КЖ3-02.2-РД	2	2025-08-21 09:32:20.023616+00	2025-08-21 09:32:20.023616+00	62eb11c4-915f-43e4-89f7-6c3068f9ef77	Р
+СТ26/01-14-КЖ5-02.2-РД	2	2025-08-21 09:32:20.394229+00	2025-08-21 09:32:20.394229+00	122f8545-cf1a-485e-856e-b7caf0a4501d	Р
+СТ26/01-14-КЖ6-02.2-РД	2	2025-08-21 09:32:20.76099+00	2025-08-21 09:32:20.76099+00	336fd416-423a-49d6-a12c-afb1afc2f55f	Р
+СТ26/01-14-КЖ1-02.1-РД	2	2025-08-21 09:32:21.152148+00	2025-08-21 09:32:21.152148+00	b4961ea6-874a-4bea-bb5a-c755adf4351d	Р
+СТ26/01-14-КЖ3-01.1-РД	2	2025-08-21 09:32:30.536115+00	2025-08-21 09:32:30.536115+00	f3c1ac30-fecd-4179-9c2f-63d870f55251	Р
+СТ26/01-14-КЖ3-01.2-РД	2	2025-08-21 09:32:30.899008+00	2025-08-21 09:32:31.272344+00	c7691b0e-1ad0-47c7-b64d-1fa765394ad0	Р
+СТ26/01-14-КЖ4-01.1-РД	2	2025-08-21 09:32:31.664627+00	2025-08-21 09:32:32.015113+00	2c161a55-db1b-4450-a02f-68a1ad23d234	Р
+СТ26/01-14-КЖ4-01.2-РД	2	2025-08-21 09:32:32.387323+00	2025-08-21 09:32:32.743195+00	b3e96832-c6a2-47b1-b75b-41c5b9e44b58	Р
+СТ26/01-14-КЖ5-01.1-РД	2	2025-08-21 09:32:33.132986+00	2025-08-21 09:32:33.541278+00	e6ef80a1-ddf3-4d8d-a15a-be62755e795e	Р
+СТ26/01-14-КЖ5-01.2-РД	2	2025-08-21 09:32:33.923974+00	2025-08-21 09:32:34.303167+00	f23c37ab-490b-4f48-99fa-1bcc2a0c5d65	Р
+СТ26/01-14-КЖ6-01.1-РД	2	2025-08-21 09:32:34.847248+00	2025-08-21 09:32:34.847248+00	2a439585-672a-4ef7-8c93-d7a9c5ec8cce	Р
+СТ26/01-14-КЖ6-01.2-РД	2	2025-08-21 09:32:35.245841+00	2025-08-21 09:32:35.245841+00	fd4ac328-da06-4d5e-bd9d-a867da1d3002	Р
+СТ26/01-14-КЖ7-01.1-РД	2	2025-08-21 09:32:35.670255+00	2025-08-21 09:32:35.670255+00	9374198d-6171-425d-b097-796d824c5b25	Р
+СТ26/01-14-КЖ7-01.2-РД	2	2025-08-21 09:32:36.055519+00	2025-08-21 09:32:37.406333+00	28625b76-6624-40d9-b62f-af18ac2b2de7	Р
+СТ26/01-14-КЖ-АС-2-РД	2	2025-08-21 09:32:37.792877+00	2025-08-21 09:32:37.792877+00	0d2b3ef0-f533-46b7-9421-0a8d9c4429b1	Р
+СТ26/01-14-КЖ-АС-01.1а-РД	2	2025-08-21 09:32:38.188013+00	2025-08-21 09:32:38.188013+00	bd03d3fb-bdd5-456d-ac7c-3abae6e109bd	Р
+СТ26/01-14-КЖ-АС-01.1-РД	2	2025-08-21 09:32:38.56658+00	2025-08-21 09:32:38.984169+00	9ad69277-9144-4844-b5a9-8af0592db8cc	Р
 \.
 
 
@@ -4223,8 +4357,53 @@ COPY public.documentations (code, tag_id, project_id, block_id, created_at, upda
 --
 
 COPY public.documentations_projects_mapping (documentation_id, project_id, block_id) FROM stdin;
-e4ef7e84-0ab4-441c-8523-38beba1aebfb	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
-9953817c-c512-4460-8dfd-4da3cef5d6a3	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+ec3d749d-8d35-49bb-a3a2-8a1b61f35d06	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+6a5d7eb8-ba66-4cc5-b8c9-93c6cda93271	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+ff07f546-c05a-4c0c-972a-7aee401714a1	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+958177af-f289-4c50-8317-b7e064cf2ac1	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+e8693dc2-101d-4d9e-ac9c-5bf7d9d075a0	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+3f19c800-5d2c-4ba0-8036-fe37bc21f6d5	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+802689a5-100a-4ac5-a567-d958d595ff68	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+fa34f1a8-58c3-4c9e-8205-da6b56132658	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+1c7d2354-8f96-4a15-a401-deae1d27bb85	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+62eb11c4-915f-43e4-89f7-6c3068f9ef77	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+122f8545-cf1a-485e-856e-b7caf0a4501d	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+336fd416-423a-49d6-a12c-afb1afc2f55f	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+b4961ea6-874a-4bea-bb5a-c755adf4351d	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+e84db261-4d46-4828-bf1a-7002b1f8c342	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+76452def-f7e8-456c-bd9b-8dfb0db0d30e	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+2cd997ba-d211-43b4-988a-57dc26fc197d	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+0e3905d8-9af3-446f-8a75-9c35ed6cdfc0	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+aa9e3f3e-7793-4116-9456-97263d75a1c5	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+de703c63-895b-4117-a7a7-1dfc389f7cb5	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+91716c2b-9785-4268-b3c6-8df712438981	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+b3540776-a64e-43a8-8e14-ec9a52fccd35	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+370b50ca-b9f5-4430-848c-7afcd64ca6c0	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+4a00e577-ff54-4471-a403-ef778bb11e6e	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+788d290c-abc1-44f4-be93-bb72f26dad83	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+f3c1ac30-fecd-4179-9c2f-63d870f55251	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+c7691b0e-1ad0-47c7-b64d-1fa765394ad0	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+2c161a55-db1b-4450-a02f-68a1ad23d234	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+b3e96832-c6a2-47b1-b75b-41c5b9e44b58	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+e6ef80a1-ddf3-4d8d-a15a-be62755e795e	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+f23c37ab-490b-4f48-99fa-1bcc2a0c5d65	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+2a439585-672a-4ef7-8c93-d7a9c5ec8cce	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+fd4ac328-da06-4d5e-bd9d-a867da1d3002	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+9374198d-6171-425d-b097-796d824c5b25	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+28625b76-6624-40d9-b62f-af18ac2b2de7	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+0d2b3ef0-f533-46b7-9421-0a8d9c4429b1	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+bd03d3fb-bdd5-456d-ac7c-3abae6e109bd	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+9ad69277-9144-4844-b5a9-8af0592db8cc	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+3df6f514-8768-4282-b31c-79c4b5b65394	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+c3b9179e-74cc-407a-a5ee-a82a1f890ebe	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+650b14a9-07f2-4861-8637-091a8aa30398	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+85733f4c-8afa-467b-ab16-038cfa6cf558	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+926738bf-c167-4625-8125-6f7327dcaef1	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+888fdda1-e306-4fa1-ac1a-4c61a66ebdac	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+8865eec6-d7b2-446b-ba08-4dbdf32f40cc	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+e43c2fb6-e302-4c80-b05c-a7a9a5d3a740	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+42a7bee4-a86e-4dcd-8c71-cd2d79512dbb	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+2d22a0a2-ab12-4b9a-8334-b05b87110a2e	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 \.
 
 
@@ -4413,8 +4592,8 @@ COPY public.location (id, name, created_at, updated_at) FROM stdin;
 COPY public.projects (id, name, address) FROM stdin;
 c95e1507-9c01-47c5-9858-40452f907466	Алия	Летная 54
 2785fec1-eea9-4047-8287-2a897dfddc20	Проект 2	ул. Курьи ножки
-f9227acf-9446-42c8-a533-bfeb30fa07a4	Проект 1	Летная 555
 cf1eb082-1907-49c8-92e7-2616e4b2027d	Кинг	Мосфильмовская
+f9227acf-9446-42c8-a533-bfeb30fa07a4	Примавера 14	Летная 555
 \.
 
 
@@ -4451,11 +4630,11 @@ COPY public.reference_data (id, name, data, created_at, updated_at) FROM stdin;
 -- Data for Name: statuses; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.statuses (id, name, code, color, sort_order, is_active, created_at, updated_at) FROM stdin;
-8316b4f0-6b0f-4a21-9d12-6c0953e490fd	Данные заполнены по пересчету РД	filled_recalc	green	1	t	2025-08-20 12:42:58.534299+00	2025-08-20 12:42:58.534299+00
-c724b4ff-81fa-4c30-9962-b9e7e9cda8c7	Данные заполнены по спеке РД	filled_spec	yellow	2	t	2025-08-20 12:42:58.534299+00	2025-08-20 12:42:58.534299+00
-0b9a8738-7c97-4cd0-9dd0-019a9b3be970	Данные не заполнены	not_filled	red	3	t	2025-08-20 12:42:58.534299+00	2025-08-20 12:42:58.534299+00
-0661a184-5e66-4e11-b47f-db38f2a7e91e	Созданы ВОР	vor_created	blue	4	t	2025-08-20 12:42:58.534299+00	2025-08-20 12:42:58.534299+00
+COPY public.statuses (id, name, color, is_active, created_at, updated_at, applicable_pages) FROM stdin;
+8316b4f0-6b0f-4a21-9d12-6c0953e490fd	Данные заполнены по пересчету РД	green	t	2025-08-20 12:42:58.534299+00	2025-08-20 12:42:58.534299+00	[]
+c724b4ff-81fa-4c30-9962-b9e7e9cda8c7	Данные заполнены по спеке РД	yellow	t	2025-08-20 12:42:58.534299+00	2025-08-20 12:42:58.534299+00	[]
+0b9a8738-7c97-4cd0-9dd0-019a9b3be970	Данные не заполнены	red	t	2025-08-20 12:42:58.534299+00	2025-08-20 12:42:58.534299+00	[]
+0661a184-5e66-4e11-b47f-db38f2a7e91e	Созданы ВОР	blue	t	2025-08-20 12:42:58.534299+00	2025-08-20 12:42:58.534299+00	[]
 \.
 
 
@@ -4887,6 +5066,22 @@ ALTER TABLE ONLY public.blocks
 
 
 --
+-- Name: chessboard_documentation_mapping chessboard_documentation_mapping_chessboard_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.chessboard_documentation_mapping
+    ADD CONSTRAINT chessboard_documentation_mapping_chessboard_id_key UNIQUE (chessboard_id);
+
+
+--
+-- Name: chessboard_documentation_mapping chessboard_documentation_mapping_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.chessboard_documentation_mapping
+    ADD CONSTRAINT chessboard_documentation_mapping_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: chessboard_floor_mapping chessboard_floor_mapping_chessboard_id_floor_number_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -5076,14 +5271,6 @@ ALTER TABLE ONLY public.projects
 
 ALTER TABLE ONLY public.reference_data
     ADD CONSTRAINT reference_data_pkey PRIMARY KEY (id);
-
-
---
--- Name: statuses statuses_code_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.statuses
-    ADD CONSTRAINT statuses_code_key UNIQUE (code);
 
 
 --
@@ -5516,6 +5703,20 @@ CREATE INDEX idx_block_floor_mapping_floor_number ON public.block_floor_mapping 
 
 
 --
+-- Name: idx_chessboard_documentation_mapping_chessboard_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_chessboard_documentation_mapping_chessboard_id ON public.chessboard_documentation_mapping USING btree (chessboard_id);
+
+
+--
+-- Name: idx_chessboard_documentation_mapping_documentation_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_chessboard_documentation_mapping_documentation_id ON public.chessboard_documentation_mapping USING btree (documentation_id);
+
+
+--
 -- Name: idx_chessboard_floor_mapping_chessboard_id; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -5579,24 +5780,10 @@ CREATE INDEX idx_documentation_versions_version ON public.documentation_versions
 
 
 --
--- Name: idx_documentations_block_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_documentations_block_id ON public.documentations USING btree (block_id);
-
-
---
 -- Name: idx_documentations_code; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_documentations_code ON public.documentations USING btree (code);
-
-
---
--- Name: idx_documentations_project_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_documentations_project_id ON public.documentations USING btree (project_id);
 
 
 --
@@ -5649,24 +5836,10 @@ CREATE INDEX idx_entity_comments_mapping_type_id ON public.entity_comments_mappi
 
 
 --
--- Name: idx_statuses_code; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_statuses_code ON public.statuses USING btree (code);
-
-
---
 -- Name: idx_statuses_is_active; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_statuses_is_active ON public.statuses USING btree (is_active);
-
-
---
--- Name: idx_statuses_sort_order; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_statuses_sort_order ON public.statuses USING btree (sort_order);
 
 
 --
@@ -5886,6 +6059,22 @@ ALTER TABLE ONLY public.block_floor_mapping
 
 
 --
+-- Name: chessboard_documentation_mapping chessboard_documentation_mapping_chessboard_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.chessboard_documentation_mapping
+    ADD CONSTRAINT chessboard_documentation_mapping_chessboard_id_fkey FOREIGN KEY (chessboard_id) REFERENCES public.chessboard(id) ON DELETE CASCADE;
+
+
+--
+-- Name: chessboard_documentation_mapping chessboard_documentation_mapping_documentation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.chessboard_documentation_mapping
+    ADD CONSTRAINT chessboard_documentation_mapping_documentation_id_fkey FOREIGN KEY (documentation_id) REFERENCES public.documentations(id) ON DELETE CASCADE;
+
+
+--
 -- Name: chessboard_floor_mapping chessboard_floor_mapping_chessboard_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -5971,22 +6160,6 @@ ALTER TABLE ONLY public.cost_categories
 
 ALTER TABLE ONLY public.detail_cost_categories
     ADD CONSTRAINT detail_cost_categories_unit_id_fkey FOREIGN KEY (unit_id) REFERENCES public.units(id);
-
-
---
--- Name: documentations documentation_codes_block_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.documentations
-    ADD CONSTRAINT documentation_codes_block_id_fkey FOREIGN KEY (block_id) REFERENCES public.blocks(id) ON DELETE SET NULL;
-
-
---
--- Name: documentations documentation_codes_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.documentations
-    ADD CONSTRAINT documentation_codes_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
 
 
 --
@@ -7242,6 +7415,15 @@ GRANT ALL ON TABLE public.chessboard TO service_role;
 
 
 --
+-- Name: TABLE chessboard_documentation_mapping; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.chessboard_documentation_mapping TO anon;
+GRANT ALL ON TABLE public.chessboard_documentation_mapping TO authenticated;
+GRANT ALL ON TABLE public.chessboard_documentation_mapping TO service_role;
+
+
+--
 -- Name: TABLE chessboard_floor_mapping; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -7863,5 +8045,5 @@ ALTER EVENT TRIGGER pgrst_drop_watch OWNER TO supabase_admin;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict BkeOT84mMt9syHRuW6ZRIgQojEglRuLzBgdWfeN8OQOrgIxFwieFSFeV2l2vXMU
+\unrestrict BQ0vo6hkses2SSB7jIWAjjIFX2VlX2NSDASl1zKTQlrLbu3fvk25l6v8nMt88aq
 

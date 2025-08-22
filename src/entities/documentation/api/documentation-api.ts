@@ -89,6 +89,32 @@ export const documentationApi = {
 
     console.log('Getting documentation with filters:', filters)
 
+    // Если есть фильтр по проекту или блоку, сначала получаем документы через маппинг
+    let documentationIds: string[] | null = null
+    
+    if (filters?.project_id || filters?.block_id) {
+      let mappingQuery = supabase
+        .from('documentations_projects_mapping')
+        .select('documentation_id')
+      
+      if (filters.project_id) {
+        mappingQuery = mappingQuery.eq('project_id', filters.project_id)
+      }
+      if (filters.block_id) {
+        mappingQuery = mappingQuery.eq('block_id', filters.block_id)
+      }
+
+      const { data: mappingData, error: mappingError } = await mappingQuery
+
+      if (mappingError) {
+        console.error('Failed to fetch project mapping:', mappingError)
+        throw mappingError
+      }
+
+      documentationIds = mappingData?.map(m => m.documentation_id) || []
+      console.log('🔍 FILTERING - Documentation IDs from mapping:', documentationIds.length)
+    }
+
     let query = supabase
       .from('documentations')
       .select(`
@@ -112,16 +138,16 @@ export const documentationApi = {
       .order('code', { ascending: true })
 
     // Применяем фильтры
-    if (filters?.project_id) {
-      // Фильтруем через таблицу маппинга
-      query = query.eq('project_mappings.project_id', filters.project_id)
+    if (documentationIds !== null) {
+      if (documentationIds.length === 0) {
+        // Если нет документов для данного проекта/блока, возвращаем пустой результат
+        return []
+      }
+      query = query.in('id', documentationIds)
     }
+    
     if (filters?.tag_id) {
       query = query.eq('tag_id', filters.tag_id)
-    }
-    if (filters?.block_id) {
-      // Фильтруем через таблицу маппинга
-      query = query.eq('project_mappings.block_id', filters.block_id)
     }
     if (filters?.stage) {
       query = query.eq('stage', filters.stage)
@@ -203,6 +229,7 @@ export const documentationApi = {
         id: doc.id, // Используем UUID как есть
         documentation_id: doc.id,
         stage: doc.stage || 'П',
+        tag_id: doc.tag_id, // Добавляем tag_id для фильтрации
         tag_name: doc.tag?.name || '',
         tag_number: doc.tag?.tag_number || 0,
         project_code: doc.code,

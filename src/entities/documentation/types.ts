@@ -78,6 +78,7 @@ export interface DocumentationTableRow {
   id: string // Уникальный ключ для React
   documentation_id: string // UUID
   stage?: 'П' | 'Р' | null   // Стадия проектирования
+  tag_id: number | null // ID тега для фильтрации
   tag_name: string
   tag_number: number
   project_code: string

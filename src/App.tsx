@@ -16,6 +16,7 @@ import Admin from './pages/Admin'
 import DocumentationTags from './pages/admin/DocumentationTags'
 import Statuses from './pages/admin/Statuses'
 import PortalHeader from './components/PortalHeader'
+import TestTableStructure from './pages/TestTableStructure'
 
 const { Sider, Content } = Layout
 
@@ -440,6 +441,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                 <Route path="documentation-tags" element={<DocumentationTags />} />
                 <Route path="statuses" element={<Statuses />} />
               </Route>
+              <Route path="/test-table" element={<TestTableStructure />} />
             </Routes>
           </Content>
         </Layout>

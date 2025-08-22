@@ -288,6 +288,7 @@ export default function Documentation() {
         id: `new-${Date.now()}`,
         documentation_id: '', // Пустой UUID для новых записей
         stage: record.stage || 'П',
+        tag_id: null, // Будет заполнено при сохранении
         tag_name: record.tag_name,
         tag_number: record.tag_number,
         project_code: '',
@@ -344,7 +345,7 @@ export default function Documentation() {
       key: 'checkbox',
       width: 50,
       fixed: 'left' as const,
-      render: (__, record: DocumentationTableRow) => (
+      render: (_: any, record: DocumentationTableRow) => (
         <Checkbox
           checked={selectedRowsForDelete.has(record.id)}
           onChange={() => {
@@ -498,7 +499,12 @@ export default function Documentation() {
             </Space>
           </div>
         ),
-        onFilter: (value, record) => record.project_code.toLowerCase().includes(value.toLowerCase()),
+        onFilter: (value, record) => {
+          if (typeof value === 'string') {
+            return record.project_code.toLowerCase().includes(value.toLowerCase())
+          }
+          return false
+        },
         visible: columnSettings.visible.code,
         render: (text, record: DocumentationTableRow) => {
           if (record.isNew || editingKey === record.id || editingRows[record.id]) {
@@ -587,7 +593,7 @@ export default function Documentation() {
             />
           )
         },
-        visible: columnSettings.visible.version_count,
+        visible: columnVisibility.version !== false,
       },
       {
         title: 'Дата выдачи',
@@ -643,7 +649,7 @@ export default function Documentation() {
           
           return formatDate(selectedVersion?.issue_date)
         },
-        visible: true,
+        visible: columnVisibility.issue_date !== false,
       },
       {
         title: 'Файл',
@@ -703,14 +709,16 @@ export default function Documentation() {
           
           if (selectedVersion?.file_url) {
             return (
-              <a href={selectedVersion.file_url} target="_blank" rel="noopener noreferrer">
-                Открыть
-              </a>
+              <Tooltip title="Открыть файл">
+                <a href={selectedVersion.file_url} target="_blank" rel="noopener noreferrer" style={{ maxWidth: '200px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {selectedVersion.file_url}
+                </a>
+              </Tooltip>
             )
           }
           return '-'
         },
-        visible: true,
+        visible: columnVisibility.file !== false,
       },
       {
         title: 'Комментарии',
@@ -880,7 +888,10 @@ export default function Documentation() {
     
     // Удаляем свойство visible перед возвратом
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    return finalColumns.map(({ visible, ...col }) => col) as ColumnsType<DocumentationTableRow>
+    return finalColumns.map((col: any) => {
+      const { visible, ...rest } = col
+      return rest
+    }) as ColumnsType<DocumentationTableRow>
   }, [columnSettings, newRows, editingKey, editingRows, tags, selectedVersions, handleAddRowAfter, handleCopyRow, handleDeleteNew, handleDelete, deleteMode, selectedRowsForDelete, message, queryClient, columnVisibility, columnOrder])
 
   // Получаем все столбцы для управления настройками
@@ -889,7 +900,8 @@ export default function Documentation() {
       { key: 'stage', title: 'Стадия' },
       { key: 'tag', title: 'Раздел' },
       { key: 'code', title: 'Шифр проекта' },
-      { key: 'version_count', title: 'Версия' },
+      { key: 'version', title: 'Версия' },
+      { key: 'file', title: 'Файл' },
       { key: 'project', title: 'Проект' },
       { key: 'block', title: 'Корпус' },
       { key: 'status', title: 'Статус' },
@@ -1268,6 +1280,7 @@ export default function Documentation() {
       id: `new-${Date.now()}`,
       documentation_id: '', // Пустой UUID для новых записей
       stage: 'П' as 'П' | 'Р', // По умолчанию П (проект)
+      tag_id: null, // Будет заполнено при сохранении
       tag_name: '',
       tag_number: 0,
       project_code: '',

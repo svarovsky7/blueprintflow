@@ -5,6 +5,8 @@ import { ArrowDownOutlined, ArrowUpOutlined, BgColorsOutlined, CopyOutlined, Del
 import { useQuery } from '@tanstack/react-query'
 import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
+import { documentationApi } from '@/entities/documentation'
+import { documentationTagsApi } from '@/entities/documentation-tags'
 
 type RowColor = '' | 'green' | 'yellow' | 'blue' | 'red'
 
@@ -64,6 +66,10 @@ interface RowData {
   locationId: string
   floors: string
   color: RowColor
+  documentationId?: string
+  tagId?: string
+  tagName?: string
+  projectCode?: string
 }
 
 interface ViewRow {
@@ -80,6 +86,9 @@ interface ViewRow {
   location: string
   floors: string
   color: RowColor
+  documentationId?: string
+  tagName?: string
+  projectCode?: string
 }
 
 interface TableRow extends RowData {
@@ -117,6 +126,20 @@ interface DbRow {
     cost_categories?: { name: string | null } | null
     detail_cost_categories?: { name: string | null } | null
     location?: { name: string | null } | null
+  } | null
+  chessboard_documentation_mapping?: {
+    documentation_id: string | null
+    documentations?: {
+      id: string
+      code: string
+      tag_id: number | null
+      stage: string | null
+      tag?: {
+        id: number
+        name: string
+        tag_number: number | null
+      } | null
+    } | null
   } | null
 }
 
@@ -206,9 +229,11 @@ const collapseMap: Record<string, HiddenColKey> = {
 
 export default function Chessboard() {
   const { message } = App.useApp()
-  const [filters, setFilters] = useState<{ projectId?: string; blockId?: string; categoryId?: string; typeId?: string }>({})
+  
+  
+  const [filters, setFilters] = useState<{ projectId?: string; blockId?: string; categoryId?: string; typeId?: string; tagId?: string; documentationId?: string }>({})
   const [appliedFilters, setAppliedFilters] = useState<
-    { projectId: string; blockId?: string; categoryId?: string; typeId?: string } | null
+    { projectId: string; blockId?: string; categoryId?: string; typeId?: string; tagId?: string; documentationId?: string } | null
   >(null)
   const [mode, setMode] = useState<'view' | 'add'>('view')
   const [rows, setRows] = useState<RowData[]>([])
@@ -327,6 +352,55 @@ export default function Chessboard() {
     },
   })
 
+  // Загрузка тэгов документации
+  const { data: documentationTags } = useQuery({
+    queryKey: ['documentation-tags'],
+    queryFn: documentationTagsApi.getAll,
+  })
+
+  // Загрузка документации для выбранного проекта  
+  const { data: documentations } = useQuery<any[]>({
+    queryKey: ['documentations', appliedFilters?.projectId],
+    queryFn: async () => {
+      console.log('📚 DOCUMENTATION QUERY - Executing:', { 
+        projectId: appliedFilters?.projectId,
+        enabled: !!appliedFilters?.projectId 
+      })
+      if (!appliedFilters?.projectId) {
+        console.log('⚠️ DOCUMENTATION QUERY - No project ID, returning empty array')
+        return []
+      }
+      const fetchFilters: any = { project_id: appliedFilters.projectId }
+      const result = await documentationApi.getDocumentation(fetchFilters)
+      
+      console.log('✅ DOCUMENTATION QUERY - Loaded:', {
+        projectId: appliedFilters.projectId,
+        totalCount: result.length,
+        uniqueTagIds: [...new Set(result.map(doc => doc.tag_id))],
+        sampleData: result.slice(0, 5).map(doc => ({
+          id: doc.id,
+          code: doc.project_code,
+          tag_id: doc.tag_id,
+          tag_name: doc.tag_name,
+          tag_number: doc.tag_number
+        }))
+      })
+      return result
+    },
+    enabled: !!appliedFilters?.projectId,
+  })
+
+  // Логируем состояние каждый рендер
+  console.log('🎯 CHESSBOARD STATE:', {
+    appliedFiltersProjectId: appliedFilters?.projectId,
+    queryEnabled: !!appliedFilters?.projectId,
+    documentationsLoaded: !!documentations,
+    documentationsCount: documentations?.length ?? 'undefined',
+    mode,
+    editingRowsCount: Object.keys(editingRows).length,
+    addRowsCount: rows.length
+  })
+
   const { data: tableData, refetch } = useQuery<DbRow[]>({
     queryKey: ['chessboard', appliedFilters],
     enabled: !!appliedFilters?.projectId,
@@ -339,7 +413,9 @@ export default function Chessboard() {
       const query = supabase
         .from('chessboard')
         .select(
-          `id, material, quantityPd, quantitySpec, quantityRd, unit_id, color, units(name), ${relation}(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name))`,
+          `id, material, quantityPd, quantitySpec, quantityRd, unit_id, color, units(name), 
+          ${relation}(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name)),
+          chessboard_documentation_mapping(documentation_id, documentations(id, code, tag_id, stage, tag:documentation_tags(id, name, tag_number)))`,
         )
         .eq('project_id', appliedFilters.projectId)
       if (appliedFilters.blockId)
@@ -348,6 +424,12 @@ export default function Chessboard() {
         query.eq('chessboard_mapping.cost_category_id', Number(appliedFilters.categoryId))
       if (appliedFilters.typeId)
         query.eq('chessboard_mapping.cost_type_id', Number(appliedFilters.typeId))
+      // Фильтрация по документации
+      if (appliedFilters.documentationId) {
+        query.eq('chessboard_documentation_mapping.documentation_id', appliedFilters.documentationId)
+      } else if (appliedFilters.tagId) {
+        query.eq('chessboard_documentation_mapping.documentations.tag_id', Number(appliedFilters.tagId))
+      }
       const { data, error } = await query.order('created_at', { ascending: false })
       if (error) {
         message.error('Не удалось загрузить данные')
@@ -393,21 +475,28 @@ export default function Chessboard() {
 
   const viewRows = useMemo<ViewRow[]>(
     () =>
-      (tableData ?? []).map((item) => ({
-        key: item.id,
-        material: item.material ?? '',
-        quantityPd: item.quantityPd !== null && item.quantityPd !== undefined ? String(item.quantityPd) : '',
-        quantitySpec: item.quantitySpec !== null && item.quantitySpec !== undefined ? String(item.quantitySpec) : '',
-        quantityRd: item.quantityRd !== null && item.quantityRd !== undefined ? String(item.quantityRd) : '',
-        unit: item.units?.name ?? '',
-        blockId: item.chessboard_mapping?.block_id ?? '',
-        block: item.chessboard_mapping?.blocks?.name ?? '',
-        costCategory: item.chessboard_mapping?.cost_categories?.name ?? '',
-        costType: item.chessboard_mapping?.detail_cost_categories?.name ?? '',
-        location: item.chessboard_mapping?.location?.name ?? '',
-        floors: item.floors ?? '',
-        color: (item.color as RowColor | null) ?? '',
-      })),
+      (tableData ?? []).map((item) => {
+        const documentation = item.chessboard_documentation_mapping?.documentations
+        const tag = documentation?.tag
+        return {
+          key: item.id,
+          material: item.material ?? '',
+          quantityPd: item.quantityPd !== null && item.quantityPd !== undefined ? String(item.quantityPd) : '',
+          quantitySpec: item.quantitySpec !== null && item.quantitySpec !== undefined ? String(item.quantitySpec) : '',
+          quantityRd: item.quantityRd !== null && item.quantityRd !== undefined ? String(item.quantityRd) : '',
+          unit: item.units?.name ?? '',
+          blockId: item.chessboard_mapping?.block_id ?? '',
+          block: item.chessboard_mapping?.blocks?.name ?? '',
+          costCategory: item.chessboard_mapping?.cost_categories?.name ?? '',
+          costType: item.chessboard_mapping?.detail_cost_categories?.name ?? '',
+          location: item.chessboard_mapping?.location?.name ?? '',
+          floors: item.floors ?? '',
+          color: (item.color as RowColor | null) ?? '',
+          documentationId: documentation?.id,
+          tagName: tag ? `${tag.tag_number || ''} ${tag.name}`.trim() : '',
+          projectCode: documentation?.code ?? '',
+        }
+      }),
     [tableData],
   )
 
@@ -444,6 +533,8 @@ export default function Chessboard() {
       blockId?: string
       categoryId?: string
       typeId?: string
+      tagId?: string
+      documentationId?: string
     })
     setMode('view')
   }
@@ -594,6 +685,14 @@ export default function Chessboard() {
               : '',
             floors: dbRow.floors ?? '',
             color: (dbRow.color as RowColor | null) ?? '',
+            documentationId: dbRow.chessboard_documentation_mapping?.documentation_id ?? '',
+            tagId: dbRow.chessboard_documentation_mapping?.documentations?.tag_id 
+              ? String(dbRow.chessboard_documentation_mapping.documentations.tag_id) 
+              : '',
+            tagName: dbRow.chessboard_documentation_mapping?.documentations?.tag
+              ? `${dbRow.chessboard_documentation_mapping.documentations.tag.tag_number || ''} ${dbRow.chessboard_documentation_mapping.documentations.tag.name}`.trim()
+              : '',
+            projectCode: dbRow.chessboard_documentation_mapping?.documentations?.code ?? '',
           },
         }
       })
@@ -648,7 +747,25 @@ export default function Chessboard() {
         }
       }
       
-      return Promise.all([updateChessboard, updateMapping, updateFloors()])
+      // Обновляем связь с документацией
+      const updateDocumentationMapping = async () => {
+        if (r.documentationId) {
+          await supabase!.from('chessboard_documentation_mapping').upsert(
+            {
+              chessboard_id: r.key,
+              documentation_id: r.documentationId,
+            },
+            { onConflict: 'chessboard_id' }
+          )
+        } else {
+          // Если документация не выбрана, удаляем связь
+          await supabase!.from('chessboard_documentation_mapping')
+            .delete()
+            .eq('chessboard_id', r.key)
+        }
+      }
+      
+      return Promise.all([updateChessboard, updateMapping, updateFloors(), updateDocumentationMapping()])
     })
     
     try {
@@ -816,6 +933,20 @@ export default function Chessboard() {
         }
       }
     }
+    
+    // Сохраняем связь с документацией
+    for (let idx = 0; idx < data.length; idx++) {
+      if (rows[idx].documentationId) {
+        const { error: docError } = await supabase.from('chessboard_documentation_mapping').insert({
+          chessboard_id: data[idx].id,
+          documentation_id: rows[idx].documentationId
+        })
+        if (docError) {
+          console.error(`Не удалось сохранить связь с документацией: ${docError.message}`)
+        }
+      }
+    }
+    
     message.success('Данные успешно сохранены')
     setMode('view')
     setRows([])
@@ -842,6 +973,8 @@ export default function Chessboard() {
     }
 
     const base: Array<{ title: string; dataIndex: keyof TableRow; width?: number }> = [
+      { title: 'Раздел', dataIndex: 'tagName', width: 200 },
+      { title: 'Шифр проекта', dataIndex: 'projectCode', width: 150 },
       { title: 'Материал', dataIndex: 'material', width: 300 },
       { title: 'Кол-во по ПД', dataIndex: 'quantityPd', width: 120 },
       { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', width: 150 },
@@ -856,8 +989,22 @@ export default function Chessboard() {
 
     const dataColumns = base
       .filter((col) => {
+        // Проверяем видимость столбца
+        if (columnVisibility[col.dataIndex] === false) {
+          return false
+        }
+        // Старая логика для обратной совместимости
         const key = collapseMap[col.dataIndex as string]
         return key ? !hiddenCols[key] : true
+      })
+      .sort((a, b) => {
+        // Сортируем столбцы согласно columnOrder
+        const aIndex = columnOrder.indexOf(a.dataIndex)
+        const bIndex = columnOrder.indexOf(b.dataIndex)
+        if (aIndex === -1 && bIndex === -1) return 0
+        if (aIndex === -1) return 1
+        if (bIndex === -1) return -1
+        return aIndex - bIndex
       })
       .map((col) => {
       const values = Array.from(
@@ -880,6 +1027,90 @@ export default function Chessboard() {
       const render: ColumnType<TableRow>['render'] = (_, record) => {
         if (record.isExisting) return record[col.dataIndex] as string
         switch (col.dataIndex) {
+          case 'tagName':
+            return (
+              <Select
+                style={{ width: 200 }}
+                value={record.tagId}
+                onChange={(value) => {
+                  handleRowChange(record.key, 'tagId', value)
+                  const tag = documentationTags?.find((t) => String(t.id) === value)
+                  handleRowChange(record.key, 'tagName', tag ? `${tag.tag_number || ''} ${tag.name}`.trim() : '')
+                  // Сбрасываем выбранный документ при смене тэга
+                  handleRowChange(record.key, 'documentationId', '')
+                  handleRowChange(record.key, 'projectCode', '')
+                }}
+                options={
+                  documentationTags?.map((tag) => ({
+                    value: String(tag.id),
+                    label: `${tag.tag_number || ''} ${tag.name}`.trim()
+                  })) ?? []
+                }
+                allowClear
+                showSearch
+                filterOption={(input, option) => {
+                  const label = option?.label
+                  if (typeof label === 'string') {
+                    return label.toLowerCase().includes(input.toLowerCase())
+                  }
+                  return false
+                }}
+              />
+            )
+          case 'projectCode':
+            return (
+              <Select
+                style={{ width: 150 }}
+                value={record.documentationId}
+                onDropdownVisibleChange={(open) => {
+                  if (open) {
+                    const filteredDocs = documentations?.filter((doc: any) => !record.tagId || String(doc.tag_id) === record.tagId) ?? []
+                    console.log('🔽 ADD MODE - Project Code dropdown opened:', {
+                      recordKey: record.key,
+                      tagId: record.tagId,
+                      totalDocs: documentations?.length ?? 0,
+                      filteredDocs: filteredDocs.length,
+                      availableOptions: filteredDocs.length
+                    })
+                  }
+                }}
+                onChange={(value) => {
+                  console.log('✏️ ADD MODE - Project Code selected:', { value, recordKey: record.key })
+                  handleRowChange(record.key, 'documentationId', value)
+                  const doc = documentations?.find((d: any) => d.id === value)
+                  handleRowChange(record.key, 'projectCode', doc?.project_code ?? '')
+                }}
+                options={
+                  documentations
+                    ?.filter((doc: any) => {
+                      const matches = !record.tagId || String(doc.tag_id) === record.tagId
+                      console.log('🔍 ADD MODE - Filtering documentation:', {
+                        docId: doc.id,
+                        docCode: doc.project_code,
+                        docTagId: doc.tag_id,
+                        recordTagId: record.tagId,
+                        matches,
+                        docTagName: doc.tag_name
+                      })
+                      return matches
+                    })
+                    .map((doc: any) => ({
+                      value: doc.id,
+                      label: doc.project_code
+                    })) ?? []
+                }
+                disabled={!record.tagId}
+                allowClear
+                showSearch
+                filterOption={(input, option) => {
+                  const label = option?.label
+                  if (typeof label === 'string') {
+                    return label.toLowerCase().includes(input.toLowerCase())
+                  }
+                  return false
+                }}
+              />
+            )
           case 'material':
             return (
               <Input
@@ -1070,6 +1301,8 @@ export default function Chessboard() {
     costTypes,
     locations,
     blocks,
+    documentationTags,
+    documentations,
     appliedFilters,
     startEdit,
     handleDelete,
@@ -1077,6 +1310,8 @@ export default function Chessboard() {
     copyRow,
     rows,
     hiddenCols,
+    columnVisibility,
+    columnOrder,
   ])
 
   const viewColumns: ColumnsType<ViewRow> = useMemo(() => {
@@ -1095,6 +1330,8 @@ export default function Chessboard() {
     } : null
     
     const base: Array<{ title: string; dataIndex: string; width?: number }> = [
+      { title: 'Раздел', dataIndex: 'tagName', width: 200 },
+      { title: 'Шифр проекта', dataIndex: 'projectCode', width: 150 },
       { title: 'Материал', dataIndex: 'material', width: 300 },
       { title: 'Кол-во по ПД', dataIndex: 'quantityPd', width: 120 },
       { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', width: 150 },
@@ -1109,8 +1346,22 @@ export default function Chessboard() {
 
     const dataColumns = base
       .filter((col) => {
+        // Проверяем видимость столбца
+        if (columnVisibility[col.dataIndex] === false) {
+          return false
+        }
+        // Старая логика для обратной совместимости
         const key = collapseMap[col.dataIndex as string]
         return key ? !hiddenCols[key] : true
+      })
+      .sort((a, b) => {
+        // Сортируем столбцы согласно columnOrder
+        const aIndex = columnOrder.indexOf(a.dataIndex)
+        const bIndex = columnOrder.indexOf(b.dataIndex)
+        if (aIndex === -1 && bIndex === -1) return 0
+        if (aIndex === -1) return 1
+        if (bIndex === -1) return -1
+        return aIndex - bIndex
       })
       .map((col) => {
       const values = Array.from(
@@ -1122,6 +1373,90 @@ export default function Chessboard() {
         const edit = editingRows[record.key]
         if (!edit) return record[col.dataIndex as keyof ViewRow]
         switch (col.dataIndex) {
+          case 'tagName':
+            return (
+              <Select
+                style={{ width: 200 }}
+                value={edit.tagId}
+                onChange={(value) => {
+                  handleEditChange(record.key, 'tagId', value)
+                  const tag = documentationTags?.find((t) => String(t.id) === value)
+                  handleEditChange(record.key, 'tagName', tag ? `${tag.tag_number || ''} ${tag.name}`.trim() : '')
+                  // Сбрасываем выбранный документ при смене тэга
+                  handleEditChange(record.key, 'documentationId', '')
+                  handleEditChange(record.key, 'projectCode', '')
+                }}
+                options={
+                  documentationTags?.map((tag) => ({
+                    value: String(tag.id),
+                    label: `${tag.tag_number || ''} ${tag.name}`.trim()
+                  })) ?? []
+                }
+                allowClear
+                showSearch
+                filterOption={(input, option) => {
+                  const label = option?.label
+                  if (typeof label === 'string') {
+                    return label.toLowerCase().includes(input.toLowerCase())
+                  }
+                  return false
+                }}
+              />
+            )
+          case 'projectCode':
+            return (
+              <Select
+                style={{ width: 150 }}
+                value={edit.documentationId}
+                onDropdownVisibleChange={(open) => {
+                  if (open) {
+                    const filteredDocs = documentations?.filter((doc: any) => !edit.tagId || String(doc.tag_id) === edit.tagId) ?? []
+                    console.log('🔽 EDIT MODE - Project Code dropdown opened:', {
+                      recordKey: record.key,
+                      tagId: edit.tagId,
+                      totalDocs: documentations?.length ?? 0,
+                      filteredDocs: filteredDocs.length,
+                      availableOptions: filteredDocs.length
+                    })
+                  }
+                }}
+                onChange={(value) => {
+                  console.log('✏️ EDIT MODE - Project Code selected:', { value, recordKey: record.key })
+                  handleEditChange(record.key, 'documentationId', value)
+                  const doc = documentations?.find((d: any) => d.id === value)
+                  handleEditChange(record.key, 'projectCode', doc?.project_code ?? '')
+                }}
+                options={
+                  documentations
+                    ?.filter((doc: any) => {
+                      const matches = !edit.tagId || String(doc.tag_id) === edit.tagId
+                      console.log('🔍 EDIT MODE - Filtering documentation:', {
+                        docId: doc.id,
+                        docCode: doc.project_code,
+                        docTagId: doc.tag_id,
+                        editTagId: edit.tagId,
+                        matches,
+                        docTagName: doc.tag_name
+                      })
+                      return matches
+                    })
+                    .map((doc: any) => ({
+                      value: doc.id,
+                      label: doc.project_code
+                    })) ?? []
+                }
+                disabled={!edit.tagId}
+                allowClear
+                showSearch
+                filterOption={(input, option) => {
+                  const label = option?.label
+                  if (typeof label === 'string') {
+                    return label.toLowerCase().includes(input.toLowerCase())
+                  }
+                  return false
+                }}
+              />
+            )
           case 'material':
             return (
               <Input
@@ -1336,16 +1671,22 @@ export default function Chessboard() {
     costCategories,
     costTypes,
     locations,
+    documentationTags,
+    documentations,
     hiddenCols,
     deleteMode,
     selectedRows,
     toggleRowSelection,
+    columnVisibility,
+    columnOrder,
   ])
 
   const { Text } = Typography
 
   // Инициализация порядка и видимости столбцов
   const allColumns = useMemo(() => [
+    { key: 'tagName', title: 'Раздел' },
+    { key: 'projectCode', title: 'Шифр проекта' },
     { key: 'block', title: 'Корпус' },
     { key: 'floors', title: 'Этажи' },
     { key: 'costCategory', title: 'Категория затрат' },
@@ -1368,12 +1709,18 @@ export default function Chessboard() {
       try {
         const parsed = JSON.parse(savedVisibility)
         // Проверяем, есть ли новые столбцы, которых нет в сохраненных настройках
+        let hasNewColumns = false
         allColumns.forEach(col => {
           if (!(col.key in parsed)) {
             parsed[col.key] = true
+            hasNewColumns = true
           }
         })
         setColumnVisibility(parsed)
+        // Если были добавлены новые столбцы, обновляем localStorage
+        if (hasNewColumns) {
+          localStorage.setItem('chessboard-column-visibility', JSON.stringify(parsed))
+        }
       } catch {
         const initialVisibility: Record<string, boolean> = {}
         allColumns.forEach(col => {
@@ -1394,21 +1741,34 @@ export default function Chessboard() {
         const parsed = JSON.parse(savedOrder)
         // Добавляем новые столбцы, которых нет в сохраненном порядке
         const missingColumns = allColumns.filter(col => !parsed.includes(col.key))
-        // Добавляем новые столбцы после 'block' или в конец
+        // Добавляем новые столбцы в начало (tagName и projectCode должны быть первыми)
         if (missingColumns.length > 0) {
-          const blockIndex = parsed.indexOf('block')
-          if (blockIndex !== -1) {
-            // Вставляем floors после block
-            const floorsCol = missingColumns.find(c => c.key === 'floors')
-            if (floorsCol) {
-              parsed.splice(blockIndex + 1, 0, 'floors')
-              missingColumns.splice(missingColumns.indexOf(floorsCol), 1)
-            }
+          const tagNameCol = missingColumns.find(c => c.key === 'tagName')
+          const projectCodeCol = missingColumns.find(c => c.key === 'projectCode')
+          const newOrder = []
+          
+          // Добавляем tagName и projectCode в начало
+          if (tagNameCol) {
+            newOrder.push('tagName')
+            missingColumns.splice(missingColumns.indexOf(tagNameCol), 1)
           }
-          // Остальные новые столбцы добавляем в конец
-          parsed.push(...missingColumns.map(c => c.key))
+          if (projectCodeCol) {
+            newOrder.push('projectCode')
+            missingColumns.splice(missingColumns.indexOf(projectCodeCol), 1)
+          }
+          
+          // Затем все остальные существующие столбцы
+          newOrder.push(...parsed)
+          
+          // И оставшиеся новые столбцы в конец
+          newOrder.push(...missingColumns.map(c => c.key))
+          
+          setColumnOrder(newOrder)
+          // Обновляем localStorage
+          localStorage.setItem('chessboard-column-order', JSON.stringify(newOrder))
+        } else {
+          setColumnOrder(parsed)
         }
-        setColumnOrder(parsed)
       } catch {
         setColumnOrder(allColumns.map(c => c.key))
       }
@@ -1564,8 +1924,71 @@ export default function Chessboard() {
   }, [addColumns, columnOrder, columnVisibility])
 
   return (
-    <div>
-      <div style={{ marginBottom: 16 }}>
+    <>
+      <style>
+        {`
+          /* Контейнер страницы должен заполнять всю высоту */
+          .chessboard-page-container {
+            height: calc(100vh - 96px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+          }
+          
+          .chessboard-filters-section {
+            flex-shrink: 0;
+            margin-bottom: 16px;
+          }
+          
+          .chessboard-table-section {
+            flex: 1 1 auto;
+            overflow: auto;
+            min-height: 0;
+            position: relative;
+          }
+          
+          /* Убираем прокрутку у всех внутренних элементов таблицы */
+          .chessboard-table-section .ant-table-wrapper {
+            height: auto !important;
+            overflow: visible !important;
+          }
+          
+          .chessboard-table-section .ant-table {
+            height: auto !important;
+          }
+          
+          .chessboard-table-section .ant-table-container {
+            overflow: visible !important;
+            height: auto !important;
+          }
+          
+          .chessboard-table-section .ant-table-content {
+            overflow: visible !important;
+            height: auto !important;
+          }
+          
+          .chessboard-table-section .ant-table-body {
+            overflow: visible !important;
+            height: auto !important;
+          }
+          
+          /* Убираем стандартные стили Ant Design для прокрутки */
+          .chessboard-table-section .ant-table-content table {
+            width: auto !important;
+            min-width: 100% !important;
+          }
+          
+          .chessboard-table-section .ant-table-scroll {
+            overflow: visible !important;
+          }
+          
+          .chessboard-table-section .ant-table-hide-scrollbar {
+            overflow: visible !important;
+          }
+        `}
+      </style>
+      <div className="chessboard-page-container">
+        <div className="chessboard-filters-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
           <Space align="center" size="middle">
             <Text style={{ fontSize: '16px' }}>Объект:</Text>
@@ -1607,7 +2030,7 @@ export default function Chessboard() {
               Применить
             </Button>
             <Badge 
-              count={[filters.blockId, filters.categoryId, filters.typeId].filter(Boolean).length} 
+              count={[filters.blockId, filters.categoryId, filters.typeId, filters.tagId, filters.documentationId].filter(Boolean).length} 
               size="small"
               style={{ marginRight: '8px' }}
             >
@@ -1771,6 +2194,51 @@ export default function Chessboard() {
                 disabled={!filters.categoryId}
                 allowClear
               />
+              <Select
+                placeholder="Раздел"
+                style={{ width: 200 }}
+                value={filters.tagId}
+                onChange={(value) => setFilters((f) => ({ ...f, tagId: value, documentationId: undefined }))}
+                options={
+                  documentationTags?.map((tag) => ({
+                    value: String(tag.id),
+                    label: `${tag.tag_number || ''} ${tag.name}`.trim()
+                  })) ?? []
+                }
+                allowClear
+                showSearch
+                filterOption={(input, option) => {
+                  const label = option?.label
+                  if (typeof label === 'string') {
+                    return label.toLowerCase().includes(input.toLowerCase())
+                  }
+                  return false
+                }}
+              />
+              <Select
+                placeholder="Шифр документа"
+                style={{ width: 200 }}
+                value={filters.documentationId}
+                onChange={(value) => setFilters((f) => ({ ...f, documentationId: value }))}
+                options={
+                  documentations
+                    ?.filter((doc: any) => !filters.tagId || String(doc.tag_id) === filters.tagId)
+                    .map((doc: any) => ({
+                      value: doc.id,
+                      label: doc.project_code
+                    })) ?? []
+                }
+                disabled={!filters.tagId}
+                allowClear
+                showSearch
+                filterOption={(input, option) => {
+                  const label = option?.label
+                  if (typeof label === 'string') {
+                    return label.toLowerCase().includes(input.toLowerCase())
+                  }
+                  return false
+                }}
+              />
               </Space>
               <Button
                 icon={<SettingOutlined />}
@@ -1782,19 +2250,18 @@ export default function Chessboard() {
           </Card>
         )}
       </div>
-      {appliedFilters &&
-        (mode === 'add' ? (
-          <Table<TableRow>
+      {appliedFilters && (
+        <div className="chessboard-table-section">
+          {mode === 'add' ? (
+            <Table<TableRow>
             dataSource={tableRows}
             columns={orderedAddColumns}
             pagination={false}
             rowKey="key"
             scroll={{ 
-              x: 'max-content',
-              y: 'calc(100vh - 300px)',
-              scrollToFirstRowOnChange: false 
+              x: 'max-content'
             }}
-            sticky
+            sticky={false}
             rowClassName={(record) => (record.color ? `row-${record.color}` : '')}
           />
         ) : (
@@ -1804,17 +2271,17 @@ export default function Chessboard() {
             pagination={false}
             rowKey="key"
             scroll={{ 
-              x: 'max-content',
-              y: 'calc(100vh - 300px)',
-              scrollToFirstRowOnChange: false 
+              x: 'max-content'
             }}
-            sticky
+            sticky={false}
             rowClassName={(record) => {
               const color = editingRows[record.key]?.color ?? record.color
               return color ? `row-${color}` : ''
             }}
           />
-        ))}
+        )}
+        </div>
+      )}
       <Modal
         title="Импорт из Excel"
         open={importOpen}
@@ -1981,6 +2448,7 @@ export default function Chessboard() {
         />
       </Drawer>
     </div>
+    </>
   )
 }
 
