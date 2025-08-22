@@ -1058,13 +1058,13 @@ export default function Rates() {
       </div>
 
       {/* Таблица */}
-      <div style={{ flex: '1 1 auto', overflow: 'hidden', minHeight: 0, padding: '0 24px 24px' }}>
+      <div style={{ flex: '1 1 auto', overflow: 'auto', minHeight: 0, padding: '0 24px 24px' }}>
         <Table
           columns={visibleColumns}
           dataSource={filteredData}
           rowKey="id"
           loading={isLoading}
-          scroll={{ x: 'max-content', y: '100%' }}
+          scroll={{ x: 'max-content', y: 'calc(100vh - 280px)' }}
           sticky={false}
           pagination={{
             current: 1,
