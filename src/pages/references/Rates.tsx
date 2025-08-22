@@ -83,11 +83,9 @@ export default function Rates() {
   const [filtersExpanded, setFiltersExpanded] = useState(true)
   const [costCategoryFilter, setCostCategoryFilter] = useState<number | undefined>()
   const [detailCostCategoryFilter, setDetailCostCategoryFilter] = useState<number | undefined>()
-  const [workSetFilter, setWorkSetFilter] = useState<string | undefined>()
   const [appliedFilters, setAppliedFilters] = useState<{
     costCategory?: number
     detailCostCategory?: number
-    workSet?: string
   }>({})
   
   // Настройки столбцов
@@ -220,11 +218,6 @@ export default function Rates() {
       )
     }
     
-    if (appliedFilters.workSet) {
-      result = result.filter(row => 
-        row.work_set?.toLowerCase().includes(appliedFilters.workSet!.toLowerCase())
-      )
-    }
     
     return result
   }, [rates, newRows, appliedFilters])
@@ -233,10 +226,9 @@ export default function Rates() {
   const applyFilters = useCallback(() => {
     setAppliedFilters({
       costCategory: costCategoryFilter,
-      detailCostCategory: detailCostCategoryFilter,
-      workSet: workSetFilter
+      detailCostCategory: detailCostCategoryFilter
     })
-  }, [costCategoryFilter, detailCostCategoryFilter, workSetFilter])
+  }, [costCategoryFilter, detailCostCategoryFilter])
   
   // Отфильтрованные виды затрат на основе выбранной категории
   const filteredDetailCategories = useMemo(() => {
@@ -900,14 +892,6 @@ export default function Rates() {
         {filtersExpanded && (
           <div style={{ marginTop: 16, padding: 16, backgroundColor: '#fafafa', borderRadius: 6 }}>
             <Space wrap>
-              <Input
-                placeholder="Рабочий набор"
-                value={workSetFilter}
-                onChange={(e) => setWorkSetFilter(e.target.value || undefined)}
-                allowClear
-                style={{ width: 200 }}
-              />
-              
               <Button
                 icon={<SettingOutlined />}
                 onClick={() => setSettingsDrawerOpen(true)}
@@ -989,7 +973,8 @@ export default function Rates() {
           dataSource={filteredData}
           rowKey="id"
           loading={isLoading}
-          scroll={{ x: 'max-content' }}
+          scroll={{ x: 'max-content', y: 'calc(100vh - 320px)' }}
+          sticky={{ offsetHeader: 64 }}
           pagination={{
             current: 1,
             pageSize,
