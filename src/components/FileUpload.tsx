@@ -248,14 +248,16 @@ export default function FileUpload({ files, onChange, disabled, projectId, docum
       <Space size={4} align="center">
         {/* Ссылка на онлайн документ */}
         {onlineFileUrl && (
-          <Button 
-            type="link" 
-            size="small"
-            onClick={() => window.open(onlineFileUrl, '_blank')}
-            style={{ padding: 0, height: 'auto' }}
-          >
-            Открыть
-          </Button>
+          <Tooltip title={onlineFileUrl}>
+            <Button 
+              type="link" 
+              size="small"
+              onClick={() => window.open(onlineFileUrl, '_blank')}
+              style={{ padding: 0, height: 'auto' }}
+            >
+              Открыть
+            </Button>
+          </Tooltip>
         )}
         
         {/* Список загруженных файлов - только иконки */}
