@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Upload, Button, Space, Typography, Tooltip, App } from 'antd'
-import { UploadOutlined, FileExcelOutlined, FileWordOutlined, FilePdfOutlined, FileOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Upload, Button, Space, Typography, Tooltip, App, Dropdown, Modal } from 'antd'
+import { UploadOutlined, FileExcelOutlined, FileWordOutlined, FilePdfOutlined, FileOutlined, DeleteOutlined, DownloadOutlined, EyeOutlined } from '@ant-design/icons'
 import type { UploadProps } from 'antd/es/upload'
+import type { MenuProps } from 'antd'
 import type { LocalFile } from '@/entities/documentation'
 
 const { Text } = Typography
@@ -87,6 +88,9 @@ const saveFileLocally = async (file: File, filePath: string, projectId: string, 
 
 export default function FileUpload({ files, onChange, disabled, projectId, documentationCode, onlineFileUrl }: FileUploadProps) {
   const [uploading, setUploading] = useState(false)
+  const [previewModalOpen, setPreviewModalOpen] = useState(false)
+  const [previewFile, setPreviewFile] = useState<LocalFile | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string>('')
   const { modal, message } = App.useApp()
 
   const handleUpload: UploadProps['customRequest'] = async (options) => {
@@ -120,7 +124,7 @@ export default function FileUpload({ files, onChange, disabled, projectId, docum
       const updatedFiles = [...files, newFile]
       onChange(updatedFiles)
 
-      onSuccess?.(null, file as any)
+      onSuccess?.(null, file as unknown as XMLHttpRequestResponseType)
       
       console.log(`🎉 Upload completed successfully:`, {
         fileName: file.name,
@@ -166,34 +170,57 @@ export default function FileUpload({ files, onChange, disabled, projectId, docum
     })
   }
 
-  const openFile = (file: LocalFile) => {
-    console.log('📂 Opening file:', file.path)
-    console.log('📍 Full local path:', `C:\\Users\\eugene\\WebstormProjects\\blueprintflow\\${file.path}`)
-    
+  // Функция для открытия файла в модальном окне
+  const openFileInModal = async (file: LocalFile) => {
     try {
-      // Пытаемся получить blob URL из sessionStorage
       const fileKey = `file_${projectId}_${documentationCode}_${file.name}`
       const blobUrl = sessionStorage.getItem(fileKey)
       
       if (blobUrl) {
-        // Открываем файл через blob URL в новой вкладке
+        const ext = file.extension.toLowerCase()
+        
+        // Проверяем, можно ли открыть файл в браузере
+        if (['pdf', 'xlsx', 'xls', 'docx', 'doc'].includes(ext)) {
+          setPreviewFile(file)
+          setPreviewUrl(blobUrl)
+          setPreviewModalOpen(true)
+          console.log(`👁️ Opening file in modal: ${file.name}`)
+        } else {
+          message.warning(`Файл формата .${ext} нельзя открыть в браузере`)
+        }
+      } else {
+        message.error('Файл не найден в текущей сессии. Попробуйте загрузить его снова.')
+      }
+    } catch (error) {
+      console.error('❌ Error opening file:', error)
+      message.error('Не удалось открыть файл')
+    }
+  }
+
+  // Функция для сохранения файла
+  const saveFile = (file: LocalFile) => {
+    try {
+      const fileKey = `file_${projectId}_${documentationCode}_${file.name}`
+      const blobUrl = sessionStorage.getItem(fileKey)
+      
+      if (blobUrl) {
+        // Создаем ссылку для скачивания
         const link = document.createElement('a')
         link.href = blobUrl
         link.download = file.name
-        link.target = '_blank'
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
         
-        console.log(`🚀 File opened via blob URL: ${file.name}`)
+        message.success(`Файл "${file.name}" сохранен`)
+        console.log(`💾 File saved: ${file.name}`)
       } else {
-        // Если blob URL не найден, показываем информацию о локальном пути
+        // Показываем путь к файлу если blob URL не найден
         modal.info({
-          title: 'Открытие файла',
+          title: 'Сохранение файла',
           content: (
             <div>
               <p><strong>Файл:</strong> {file.name}</p>
-              <p><strong>Размер:</strong> {(file.size / 1024 / 1024).toFixed(2)} МБ</p>
               <p><strong>Локальный путь:</strong></p>
               <code style={{ 
                 background: '#f5f5f5', 
@@ -205,26 +232,33 @@ export default function FileUpload({ files, onChange, disabled, projectId, docum
               }}>
                 C:\Users\eugene\WebstormProjects\blueprintflow\{file.path}
               </code>
-              <p style={{ marginTop: '12px', color: '#666' }}>
-                Файл сохранен локально. Для открытия перейдите по указанному пути.
-              </p>
             </div>
           ),
           width: 600,
           okText: 'OK'
         })
-        
-        console.log(`ℹ️  File location shown: ${file.name}`)
       }
     } catch (error) {
-      console.error('❌ Error opening file:', error)
-      modal.error({
-        title: 'Ошибка открытия файла',
-        content: `Не удалось открыть файл ${file.name}. Проверьте путь: ${file.path}`,
-        okText: 'OK'
-      })
+      console.error('❌ Error saving file:', error)
+      message.error('Не удалось сохранить файл')
     }
   }
+
+  // Создание меню для файла
+  const getFileMenuItems = (file: LocalFile): MenuProps['items'] => [
+    {
+      key: 'open',
+      icon: <EyeOutlined />,
+      label: 'Открыть',
+      onClick: () => openFileInModal(file),
+    },
+    {
+      key: 'save',
+      icon: <DownloadOutlined />,
+      label: 'Сохранить',
+      onClick: () => saveFile(file),
+    },
+  ]
 
   return (
     <Space direction="vertical" style={{ width: '100%' }}>
@@ -244,57 +278,61 @@ export default function FileUpload({ files, onChange, disabled, projectId, docum
       {files.length > 0 && (
         <Space wrap size={[8, 8]}>
           {files.map((file, index) => (
-            <div
+            <Dropdown
               key={index}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                padding: '4px 8px',
-                backgroundColor: getFileColor(file.extension),
-                borderRadius: '6px',
-                border: '1px solid #d9d9d9',
-                cursor: 'pointer',
-                minWidth: 'fit-content'
-              }}
-              onClick={() => openFile(file)}
+              menu={{ items: getFileMenuItems(file) }}
+              trigger={['click']}
             >
-              <Space size={4}>
-                {getFileIcon(file.extension)}
-                <Tooltip title={`${file.name} (${(file.size / 1024).toFixed(1)} KB)`}>
-                  <Text 
-                    style={{ 
-                      fontSize: '12px', 
-                      maxWidth: '100px',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {file.name}
-                  </Text>
-                </Tooltip>
-                {!disabled && (
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<DeleteOutlined />}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleRemoveFile(file)
-                    }}
-                    style={{ 
-                      minWidth: 'auto',
-                      width: '20px',
-                      height: '20px',
-                      padding: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  />
-                )}
-              </Space>
-            </div>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '4px 8px',
+                  backgroundColor: getFileColor(file.extension),
+                  borderRadius: '6px',
+                  border: '1px solid #d9d9d9',
+                  cursor: 'pointer',
+                  minWidth: 'fit-content'
+                }}
+              >
+                <Space size={4}>
+                  {getFileIcon(file.extension)}
+                  <Tooltip title={`${file.name} (${(file.size / 1024).toFixed(1)} KB)`}>
+                    <Text 
+                      style={{ 
+                        fontSize: '12px', 
+                        maxWidth: '100px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {file.name}
+                    </Text>
+                  </Tooltip>
+                  {!disabled && (
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<DeleteOutlined />}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRemoveFile(file)
+                      }}
+                      style={{ 
+                        minWidth: 'auto',
+                        width: '20px',
+                        height: '20px',
+                        padding: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    />
+                  )}
+                </Space>
+              </div>
+            </Dropdown>
           ))}
         </Space>
       )}
@@ -312,6 +350,84 @@ export default function FileUpload({ files, onChange, disabled, projectId, docum
           </Button>
         </div>
       )}
+
+      {/* Модальное окно для предпросмотра */}
+      <Modal
+        title={previewFile ? `Просмотр: ${previewFile.name}` : 'Просмотр файла'}
+        open={previewModalOpen}
+        onCancel={() => {
+          setPreviewModalOpen(false)
+          setPreviewFile(null)
+          setPreviewUrl('')
+        }}
+        width="90%"
+        style={{ maxWidth: '1200px' }}
+        footer={[
+          <Button key="close" onClick={() => {
+            setPreviewModalOpen(false)
+            setPreviewFile(null)
+            setPreviewUrl('')
+          }}>
+            Закрыть
+          </Button>,
+          <Button 
+            key="download" 
+            type="primary" 
+            icon={<DownloadOutlined />}
+            onClick={() => previewFile && saveFile(previewFile)}
+          >
+            Скачать
+          </Button>
+        ]}
+      >
+        {previewUrl && previewFile && (
+          <div style={{ height: '70vh' }}>
+            {previewFile.extension.toLowerCase() === 'pdf' ? (
+              <iframe
+                src={previewUrl}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+                title={previewFile.name}
+              />
+            ) : ['xlsx', 'xls', 'docx', 'doc'].includes(previewFile.extension.toLowerCase()) ? (
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                height: '100%', 
+                gap: '20px' 
+              }}>
+                <div style={{ fontSize: '48px' }}>
+                  {getFileIcon(previewFile.extension)}
+                </div>
+                <Text style={{ fontSize: '16px' }}>{previewFile.name}</Text>
+                <Text type="secondary">
+                  Размер: {(previewFile.size / 1024 / 1024).toFixed(2)} MB
+                </Text>
+                <Text type="secondary">
+                  Для просмотра файлов Microsoft Office используйте соответствующее приложение
+                </Text>
+                <Button 
+                  type="primary" 
+                  icon={<DownloadOutlined />}
+                  onClick={() => saveFile(previewFile)}
+                >
+                  Скачать и открыть
+                </Button>
+              </div>
+            ) : (
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                height: '100%' 
+              }}>
+                <Text>Предпросмотр недоступен для данного типа файла</Text>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
     </Space>
   )
 }
