@@ -916,13 +916,22 @@ export default function Rates() {
 
   return (
     <div style={{ height: 'calc(100vh - 96px)', display: 'flex', flexDirection: 'column' }}>
-      {/* Заголовок */}
-      <div ref={headerRef} style={{ padding: '16px 24px 0', flexShrink: 0 }}>
-        <Title level={2} style={{ margin: 0 }}>Расценки</Title>
-      </div>
+      {/* Закрепленный блок: Заголовок + Фильтры */}
+      <div style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        backgroundColor: 'white',
+        borderBottom: '1px solid #f0f0f0',
+        flexShrink: 0
+      }}>
+        {/* Заголовок */}
+        <div ref={headerRef} style={{ padding: '16px 24px 0' }}>
+          <Title level={2} style={{ margin: 0 }}>Расценки</Title>
+        </div>
 
-      {/* Фильтры */}
-      <div ref={filtersRef} style={{ padding: '16px 24px', flexShrink: 0 }}>
+        {/* Фильтры */}
+        <div ref={filtersRef} style={{ padding: '16px 24px' }}>
         {/* Статичный блок фильтров */}
         <div style={{ marginBottom: 16 }}>
           <Space wrap>
@@ -1045,32 +1054,18 @@ export default function Rates() {
             </Space>
           )}
         </div>
+        </div>
       </div>
 
       {/* Таблица */}
-      <div style={{ flex: '1 1 auto', overflow: 'auto', minHeight: 0, padding: '0 24px 24px' }}>
+      <div style={{ flex: '1 1 auto', overflow: 'hidden', minHeight: 0, padding: '0 24px 24px' }}>
         <Table
           columns={visibleColumns}
           dataSource={filteredData}
           rowKey="id"
           loading={isLoading}
-          scroll={{ x: 'max-content', y: 'calc(100vh - 320px)' }}
-          sticky={{ 
-            offsetHeader: 64,
-            getContainer: () => {
-              console.log('🏠 Table sticky container запрошен')
-              const container = window
-              console.log('📦 Возвращаем контейнер:', container)
-              return container
-            }
-          }}
-          onHeaderRow={() => {
-            console.log('📋 onHeaderRow вызван для таблицы')
-            return {
-              onMouseEnter: () => console.log('🖱️ Мышь вошла в заголовок таблицы'),
-              onMouseLeave: () => console.log('🖱️ Мышь покинула заголовок таблицы')
-            }
-          }}
+          scroll={{ x: 'max-content', y: '100%' }}
+          sticky={false}
           pagination={{
             current: 1,
             pageSize,
