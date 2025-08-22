@@ -35,24 +35,6 @@ const getFileIcon = (extension: string) => {
   }
 }
 
-// Функция для получения цвета фона по расширению
-const getFileColor = (extension: string) => {
-  const ext = extension.toLowerCase()
-  switch (ext) {
-    case 'xlsx':
-    case 'xls':
-      return '#E8F5E8'
-    case 'docx':
-    case 'doc':
-      return '#E8F0FF'
-    case 'pdf':
-      return '#FFE8E8'
-    case 'dwg':
-      return '#FFF2E8'
-    default:
-      return '#F5F5F5'
-  }
-}
 
 // Функция для создания пути к файлу (используем прямые слэши для веб)
 const createFilePath = (projectId: string, documentationCode: string, fileName: string): string => {
@@ -261,95 +243,93 @@ export default function FileUpload({ files, onChange, disabled, projectId, docum
   ]
 
   return (
-    <Space direction="vertical" style={{ width: '100%' }}>
-      {/* Кнопка загрузки */}
-      <Upload
-        customRequest={handleUpload}
-        showUploadList={false}
-        accept=".xlsx,.xls,.docx,.doc,.pdf,.dwg"
-        disabled={disabled || uploading}
-      >
-        <Button icon={<UploadOutlined />} loading={uploading} disabled={disabled}>
-          Загрузить файлы
-        </Button>
-      </Upload>
-
-      {/* Список загруженных файлов */}
-      {files.length > 0 && (
-        <Space wrap size={[8, 8]}>
-          {files.map((file, index) => (
-            <Dropdown
-              key={index}
-              menu={{ items: getFileMenuItems(file) }}
-              trigger={['click']}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '4px 8px',
-                  backgroundColor: getFileColor(file.extension),
-                  borderRadius: '6px',
-                  border: '1px solid #d9d9d9',
-                  cursor: 'pointer',
-                  minWidth: 'fit-content'
-                }}
-              >
-                <Space size={4}>
-                  {getFileIcon(file.extension)}
-                  <Tooltip title={`${file.name} (${(file.size / 1024).toFixed(1)} KB)`}>
-                    <Text 
-                      style={{ 
-                        fontSize: '12px', 
-                        maxWidth: '100px',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      {file.name}
-                    </Text>
-                  </Tooltip>
-                  {!disabled && (
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<DeleteOutlined />}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleRemoveFile(file)
-                      }}
-                      style={{ 
-                        minWidth: 'auto',
-                        width: '20px',
-                        height: '20px',
-                        padding: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    />
-                  )}
-                </Space>
-              </div>
-            </Dropdown>
-          ))}
-        </Space>
-      )}
-
-      {/* Ссылка на онлайн документ */}
-      {onlineFileUrl && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Text>Онлайн документ:</Text>
+    <div>
+      {/* Файлы и ссылка в одной строке */}
+      <Space size={4} align="center">
+        {/* Ссылка на онлайн документ */}
+        {onlineFileUrl && (
           <Button 
             type="link" 
             size="small"
             onClick={() => window.open(onlineFileUrl, '_blank')}
+            style={{ padding: 0, height: 'auto' }}
           >
             Открыть
           </Button>
-        </div>
-      )}
+        )}
+        
+        {/* Список загруженных файлов - только иконки */}
+        {files.map((file, index) => (
+          <Dropdown
+            key={index}
+            menu={{ items: getFileMenuItems(file) }}
+            trigger={['click']}
+          >
+            <Tooltip title={`${file.name} (${(file.size / 1024).toFixed(1)} KB)`}>
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  position: 'relative'
+                }}
+              >
+                {getFileIcon(file.extension)}
+                {!disabled && (
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleRemoveFile(file)
+                    }}
+                    style={{ 
+                      position: 'absolute',
+                      top: -8,
+                      right: -8,
+                      minWidth: 'auto',
+                      width: '16px',
+                      height: '16px',
+                      padding: 0,
+                      display: 'none',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '10px',
+                      background: 'white',
+                      border: '1px solid #d9d9d9',
+                      borderRadius: '50%'
+                    }}
+                    className="delete-btn"
+                  />
+                )}
+              </div>
+            </Tooltip>
+          </Dropdown>
+        ))}
+        
+        {/* Кнопка добавления файла */}
+        {!disabled && (
+          <Upload
+            customRequest={handleUpload}
+            showUploadList={false}
+            accept=".xlsx,.xls,.docx,.doc,.pdf,.dwg"
+            disabled={disabled || uploading}
+          >
+            <Button 
+              type="text" 
+              size="small" 
+              icon={<UploadOutlined />} 
+              loading={uploading}
+              style={{ 
+                padding: '2px 4px',
+                height: 'auto',
+                minWidth: 'auto'
+              }}
+            />
+          </Upload>
+        )}
+      </Space>
 
       {/* Модальное окно для предпросмотра */}
       <Modal
@@ -428,6 +408,6 @@ export default function FileUpload({ files, onChange, disabled, projectId, docum
           </div>
         )}
       </Modal>
-    </Space>
+    </div>
   )
 }
