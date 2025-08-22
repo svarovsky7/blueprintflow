@@ -39,6 +39,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile } from 'antd/es/upload'
 import * as XLSX from 'xlsx'
+import FileUpload from '@/components/FileUpload'
 import {
   documentationApi,
   type DocumentationTableRow,
@@ -682,7 +683,8 @@ export default function Documentation() {
               />
             )
           }
-          // Показываем файл выбранной версии
+          
+          // Показываем файлы выбранной версии
           // Используем ID версии если все версии имеют одинаковый номер
           let selectedVersion: DocumentationVersion | undefined
           
@@ -696,27 +698,31 @@ export default function Documentation() {
               record.versions[record.versions.length - 1]?.version_number
             selectedVersion = record.versions.find(v => v.version_number === versionNumber)
           }
-          
-          // Debug для первых записей
-          if (record.project_code && record.project_code.startsWith('СТ26/01-14-АР')) {
-            console.log('File URL render debug:', {
-              code: record.project_code,
-              selectedVersionId: record.selected_version_id,
-              selectedVersion,
-              fileUrl: selectedVersion?.file_url
-            })
-          }
-          
-          if (selectedVersion?.file_url) {
-            return (
-              <Tooltip title="Открыть файл">
-                <a href={selectedVersion.file_url} target="_blank" rel="noopener noreferrer" style={{ maxWidth: '200px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {selectedVersion.file_url}
-                </a>
-              </Tooltip>
-            )
-          }
-          return '-'
+
+          // Получаем проект для создания путей к файлам
+          const project = record.project_id ? { id: record.project_id } : null
+
+          return (
+            <FileUpload
+              files={selectedVersion?.local_files || []}
+              onChange={async (files) => {
+                if (selectedVersion) {
+                  try {
+                    await documentationApi.updateVersionLocalFiles(selectedVersion.id, files)
+                    // Перезагружаем данные
+                    queryClient.invalidateQueries({ queryKey: ['documentation'] })
+                  } catch (error) {
+                    console.error('Failed to update files:', error)
+                    message.error('Не удалось обновить файлы')
+                  }
+                }
+              }}
+              disabled={false}
+              projectId={project?.id || ''}
+              documentationCode={record.documentation_id}
+              onlineFileUrl={selectedVersion?.file_url || undefined}
+            />
+          )
         },
         visible: columnVisibility.file !== false,
       },

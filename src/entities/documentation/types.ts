@@ -17,12 +17,22 @@ export interface Documentation {
   }>
 }
 
+export interface LocalFile {
+  name: string
+  path: string
+  size: number
+  type: string
+  extension: string
+  uploadedAt: string
+}
+
 export interface DocumentationVersion {
   id: string // UUID
   documentation_id: string // UUID
   version_number: number
   issue_date: string | null
   file_url: string | null
+  local_files: LocalFile[]
   status: 'filled_recalc' | 'filled_spec' | 'not_filled' | 'vor_created'
   created_at: string
   updated_at: string

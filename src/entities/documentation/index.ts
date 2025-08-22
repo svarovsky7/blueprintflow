@@ -2,6 +2,7 @@ export { documentationApi } from './api/documentation-api'
 export type {
   Documentation,
   DocumentationVersion,
+  LocalFile,
   Comment,
   DocumentationTag,
   Project,

@@ -126,6 +126,7 @@ export const documentationApi = {
           version_number,
           issue_date,
           file_url,
+          local_files,
           status,
           created_at,
           updated_at
@@ -409,6 +410,25 @@ export const documentationApi = {
 
     if (error) {
       console.error('Failed to update version status:', error)
+      throw error
+    }
+
+    return data as DocumentationVersion
+  },
+
+  // Обновление локальных файлов версии
+  async updateVersionLocalFiles(versionId: string, localFiles: any[]) {
+    if (!supabase) throw new Error('Supabase client not initialized')
+
+    const { data, error } = await supabase
+      .from('documentation_versions')
+      .update({ local_files: localFiles })
+      .eq('id', versionId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Failed to update version local files:', error)
       throw error
     }
 

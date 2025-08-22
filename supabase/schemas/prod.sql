@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict BQ0vo6hkses2SSB7jIWAjjIFX2VlX2NSDASl1zKTQlrLbu3fvk25l6v8nMt88aq
+\restrict gjghgyD5eVNhi90KpFx960HjECN3BhhoxaWSz6bYg4fmclNMH2JgjrVrPrUYfiA
 
 -- Dumped from database version 17.4
 -- Dumped by pg_dump version 17.6
@@ -2617,7 +2617,9 @@ CREATE TABLE public.documentation_versions (
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     documentation_id uuid,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    CONSTRAINT documentation_versions_status_check CHECK (((status)::text = ANY ((ARRAY['filled_recalc'::character varying, 'filled_spec'::character varying, 'not_filled'::character varying, 'vor_created'::character varying])::text[])))
+    local_files jsonb DEFAULT '[]'::jsonb,
+    CONSTRAINT documentation_versions_status_check CHECK (((status)::text = ANY ((ARRAY['filled_recalc'::character varying, 'filled_spec'::character varying, 'not_filled'::character varying, 'vor_created'::character varying])::text[]))),
+    CONSTRAINT local_files_is_array CHECK ((jsonb_typeof(local_files) = 'array'::text))
 );
 
 
@@ -2663,6 +2665,13 @@ COMMENT ON COLUMN public.documentation_versions.status IS 'Статус запо
 --
 
 COMMENT ON COLUMN public.documentation_versions.id IS 'UUID версии документации';
+
+
+--
+-- Name: COLUMN documentation_versions.local_files; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.documentation_versions.local_files IS 'Локальные файлы версии документации в формате JSON';
 
 
 --
@@ -3847,6 +3856,7 @@ a23d8e8a-e8fc-4bda-8201-eacdd46b24cc	f9227acf-9446-42c8-a533-bfeb30fa07a4	м114	
 --
 
 COPY public.chessboard_documentation_mapping (id, chessboard_id, documentation_id) FROM stdin;
+70ec0324-1a67-4441-b2db-fc2695a48f5b	175defaa-4b67-46fd-9589-c66f7345109e	fa34f1a8-58c3-4c9e-8205-da6b56132658
 \.
 
 
@@ -3889,6 +3899,7 @@ e7dfda48-4712-4682-81b0-ee3c1b670431	7dcbbd60-429d-4664-be97-4749b39bb307	4	2025
 
 COPY public.chessboard_mapping (id, chessboard_id, cost_category_id, cost_type_id, location_id, created_at, updated_at, block_id) FROM stdin;
 481e9ea1-23c2-4139-a305-18272003287b	dbe4f647-f47f-417d-87fa-412ffa230ed2	234	604	1	2025-08-14 10:52:34.672667+00	2025-08-14 10:52:34.672667+00	\N
+959fdb0d-2243-42e1-aced-bfba5202847b	175defaa-4b67-46fd-9589-c66f7345109e	235	617	2	2025-08-21 12:22:37.666996+00	2025-08-21 12:22:37.666996+00	\N
 5e5670f4-f2cb-49b8-ac94-5b870d7eedfa	1d616d5a-253f-48b5-8e2b-d7adb4085f6c	234	607	1	2025-08-14 07:07:42.310432+00	2025-08-14 07:07:42.310432+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
 4b6574c1-c107-4772-a837-dcdb861fa8a9	4008d3be-7fa4-4d15-81d7-58557337a06f	234	604	1	2025-08-14 10:51:17.779116+00	2025-08-14 10:51:17.779116+00	\N
 0fc0c254-dc3a-416f-9575-268d4e3a0c5e	43cd8c94-7986-44f3-b3a4-792a7a57e091	234	604	1	2025-08-14 10:51:17.779116+00	2025-08-14 10:51:17.779116+00	\N
@@ -3927,7 +3938,6 @@ e87e0dd5-1247-42ed-b0fe-589cd5f6b3a5	c44f5021-ecef-4bf3-af8f-613405bf65fe	240	63
 d2e849c9-8815-4d64-99d3-3252cc4500de	8b51be6b-a2c4-43c8-aa64-21412899256c	240	631	2	2025-08-14 14:26:47.059006+00	2025-08-14 14:26:47.059006+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
 05719eb9-ae69-4c29-aa84-98789f2539f7	7dcbbd60-429d-4664-be97-4749b39bb307	240	631	2	2025-08-14 14:26:47.059006+00	2025-08-14 14:26:47.059006+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
 4201a8d8-3d3d-47a5-a232-7723b736e964	150ca51a-60b7-41b8-9010-101b141d5876	240	630	2	2025-08-14 06:51:17.846443+00	2025-08-14 06:51:17.846443+00	b5837d17-e31c-4cf0-b45e-6c47343aaa13
-959fdb0d-2243-42e1-aced-bfba5202847b	175defaa-4b67-46fd-9589-c66f7345109e	235	617	2	2025-08-21 12:22:37.666996+00	2025-08-21 12:22:37.666996+00	\N
 \.
 
 
@@ -4221,79 +4231,224 @@ COPY public.documentation_tags (id, tag_number, name, created_at, updated_at) FR
 -- Data for Name: documentation_versions; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.documentation_versions (version_number, issue_date, file_url, status, created_at, updated_at, documentation_id, id) FROM stdin;
-1	2025-05-01	https://su10.bitrix24.ru/company/personal/user/647/tasks/task/view/18899/	not_filled	2025-08-21 09:32:15.64795+00	2025-08-21 09:32:15.64795+00	ec3d749d-8d35-49bb-a3a2-8a1b61f35d06	5296b35c-baee-4198-9a9c-21f9a1853f55
-1	2025-05-01	https://su10.bitrix24.ru/company/personal/user/647/tasks/task/view/18903/	not_filled	2025-08-21 09:32:16.133758+00	2025-08-21 09:32:16.133758+00	6a5d7eb8-ba66-4cc5-b8c9-93c6cda93271	5861590d-5545-4c6b-9598-1a7b61b21ab2
-1	2025-05-01	https://su10.bitrix24.ru/company/personal/user/647/tasks/task/view/18887/	not_filled	2025-08-21 09:32:16.644253+00	2025-08-21 09:32:16.644253+00	ff07f546-c05a-4c0c-972a-7aee401714a1	2a89a862-ec93-46a5-a727-83df0aedb682
-2	2025-05-30	https://su10.bitrix24.ru/company/personal/user/945/tasks/task/view/19977/	not_filled	2025-08-21 09:32:17.099289+00	2025-08-21 09:32:17.099289+00	ff07f546-c05a-4c0c-972a-7aee401714a1	57db01ee-9fc7-4ce3-8a95-fd850077daaa
-1	2025-05-06	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18969/	not_filled	2025-08-21 09:32:17.517671+00	2025-08-21 09:32:17.517671+00	958177af-f289-4c50-8317-b7e064cf2ac1	0b03df71-7845-4e1e-baaf-92c696490525
-2	2025-06-17	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20321/	not_filled	2025-08-21 09:32:17.907104+00	2025-08-21 09:32:17.907104+00	958177af-f289-4c50-8317-b7e064cf2ac1	034dd85c-a866-4843-bb5d-f989b52565ca
-1	2025-06-17	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20323/	not_filled	2025-08-21 09:32:18.294854+00	2025-08-21 09:32:18.294854+00	e8693dc2-101d-4d9e-ac9c-5bf7d9d075a0	f21dde26-f81e-4cd7-862a-240f3b189d37
-1	2025-05-08	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19075/	not_filled	2025-08-21 09:32:18.740209+00	2025-08-21 09:32:18.740209+00	3f19c800-5d2c-4ba0-8036-fe37bc21f6d5	92a5efb3-d0f9-42a3-9cfe-b8ff5a7409b8
-1	2025-08-16	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22795/	not_filled	2025-08-21 09:32:19.10526+00	2025-08-21 09:32:19.10526+00	802689a5-100a-4ac5-a567-d958d595ff68	9c73b782-a6b7-49e8-9c6f-2cbfe1743f03
-1	2025-08-12	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22639/	not_filled	2025-08-21 09:32:19.474995+00	2025-08-21 09:32:19.474995+00	fa34f1a8-58c3-4c9e-8205-da6b56132658	7b62a552-7115-4c4b-a604-b318c5fe0c47
-1	2025-07-01	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20749/	not_filled	2025-08-21 09:32:19.848459+00	2025-08-21 09:32:19.848459+00	1c7d2354-8f96-4a15-a401-deae1d27bb85	31cd9dd7-162e-464f-9066-2d600300b4f8
-1	2025-05-08	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19079/	not_filled	2025-08-21 09:32:20.201399+00	2025-08-21 09:32:20.201399+00	62eb11c4-915f-43e4-89f7-6c3068f9ef77	4ecbf816-da2f-4675-86f0-42bbeb4c000d
-1	2025-07-01	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20753/	not_filled	2025-08-21 09:32:20.57278+00	2025-08-21 09:32:20.57278+00	122f8545-cf1a-485e-856e-b7caf0a4501d	f3108e7c-f56c-4b84-b0d6-71539cd810a9
-1	2025-07-01	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20757/	not_filled	2025-08-21 09:32:20.964754+00	2025-08-21 09:32:20.964754+00	336fd416-423a-49d6-a12c-afb1afc2f55f	2232b40c-b09e-411a-95aa-df330213cfef
-1	2025-05-06	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18965/	not_filled	2025-08-21 09:32:21.357933+00	2025-08-21 09:32:21.357933+00	b4961ea6-874a-4bea-bb5a-c755adf4351d	b119cf5c-5eb4-466d-9b2f-ede52fc29c99
-1	2025-04-29	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18829/	not_filled	2025-08-21 09:32:21.959851+00	2025-08-21 09:32:21.959851+00	e84db261-4d46-4828-bf1a-7002b1f8c342	1782c826-d6f0-4142-846d-e77d45d46f9f
-2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22279/	not_filled	2025-08-21 09:32:22.321441+00	2025-08-21 09:32:22.321441+00	e84db261-4d46-4828-bf1a-7002b1f8c342	14a62dd9-7272-4609-b628-e11ee8358ae8
-1	2025-04-29	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18823/	not_filled	2025-08-21 09:32:22.703108+00	2025-08-21 09:32:22.703108+00	76452def-f7e8-456c-bd9b-8dfb0db0d30e	0532d84a-0f64-456d-9807-e3772b384f1d
-2	2025-08-16	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22749/	not_filled	2025-08-21 09:32:23.089613+00	2025-08-21 09:32:23.089613+00	76452def-f7e8-456c-bd9b-8dfb0db0d30e	ddb1f183-b185-4fa9-ad64-a96f97987aa1
-1	2025-04-29	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18835/	not_filled	2025-08-21 09:32:23.477174+00	2025-08-21 09:32:23.477174+00	2cd997ba-d211-43b4-988a-57dc26fc197d	619cca68-0afc-4870-bc5b-db67f1d53267
-2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22285/	not_filled	2025-08-21 09:32:23.853931+00	2025-08-21 09:32:23.853931+00	2cd997ba-d211-43b4-988a-57dc26fc197d	ab337a2e-06be-4bde-939f-3a3f91d7f391
-1	2025-04-29	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18839/	not_filled	2025-08-21 09:32:24.22731+00	2025-08-21 09:32:24.22731+00	0e3905d8-9af3-446f-8a75-9c35ed6cdfc0	3f8080a7-5a67-444b-8746-3f1e4a9e0100
-1	2025-05-06	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18961/	not_filled	2025-08-21 09:32:24.624254+00	2025-08-21 09:32:24.624254+00	aa9e3f3e-7793-4116-9456-97263d75a1c5	ca761a6c-c6ab-4c65-92f3-a547f1be09c0
-2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22291/	not_filled	2025-08-21 09:32:25.01057+00	2025-08-21 09:32:25.01057+00	aa9e3f3e-7793-4116-9456-97263d75a1c5	e5913c5b-6d23-49a5-8a27-249bd91dd5b7
-1	2025-04-29	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18843/	not_filled	2025-08-21 09:32:25.41842+00	2025-08-21 09:32:25.41842+00	de703c63-895b-4117-a7a7-1dfc389f7cb5	f5c2b976-a541-415f-ab6c-d646a1f2a0a4
-2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22293/	not_filled	2025-08-21 09:32:25.788536+00	2025-08-21 09:32:25.788536+00	de703c63-895b-4117-a7a7-1dfc389f7cb5	3996d59e-e178-45db-a5ad-dc1bce1e329a
-3	2025-08-19	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22815/	not_filled	2025-08-21 09:32:26.157207+00	2025-08-21 09:32:26.157207+00	de703c63-895b-4117-a7a7-1dfc389f7cb5	95ca258d-6052-45df-855b-7618ee490b1b
-1	2025-06-13	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20301/	not_filled	2025-08-21 09:32:26.554738+00	2025-08-21 09:32:26.554738+00	91716c2b-9785-4268-b3c6-8df712438981	53c074b1-258b-408c-ad57-4fe2cda9da53
-2	2025-06-27	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20671/	not_filled	2025-08-21 09:32:26.943225+00	2025-08-21 09:32:26.943225+00	91716c2b-9785-4268-b3c6-8df712438981	9b05476e-842e-4c43-954f-3648f049c966
-3	2025-07-29	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22061/	not_filled	2025-08-21 09:32:27.339438+00	2025-08-21 09:32:27.339438+00	91716c2b-9785-4268-b3c6-8df712438981	f71a2870-97ea-48bf-890c-88acf2bb1ad4
-1	2025-05-28	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19767/	not_filled	2025-08-21 09:32:27.722816+00	2025-08-21 09:32:27.722816+00	b3540776-a64e-43a8-8e14-ec9a52fccd35	4b3cea1f-f9ca-43b1-99b9-b8b4f1c94f56
-2	2025-07-19	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21371/	not_filled	2025-08-21 09:32:28.075512+00	2025-08-21 09:32:28.075512+00	b3540776-a64e-43a8-8e14-ec9a52fccd35	0494f94c-5641-4bca-8b55-4b55626ba81d
-1	2025-05-28	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19771/	not_filled	2025-08-21 09:32:28.453512+00	2025-08-21 09:32:28.453512+00	370b50ca-b9f5-4430-848c-7afcd64ca6c0	8fe6911f-cb10-4115-8d3b-1ea5fc0b4950
-2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22273/	not_filled	2025-08-21 09:32:28.813309+00	2025-08-21 09:32:28.813309+00	370b50ca-b9f5-4430-848c-7afcd64ca6c0	11b8dc12-a931-435c-a26b-7f4c16641769
-1	2025-05-28	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19779/	not_filled	2025-08-21 09:32:29.188019+00	2025-08-21 09:32:29.188019+00	4a00e577-ff54-4471-a403-ef778bb11e6e	e0ec6c1c-a69d-4f2d-aafd-d9c97992798b
-2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22275/	not_filled	2025-08-21 09:32:29.570466+00	2025-08-21 09:32:29.570466+00	4a00e577-ff54-4471-a403-ef778bb11e6e	1927aee2-b09c-47dd-9c03-b889b3623951
-1	2025-05-28	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19775/	not_filled	2025-08-21 09:32:29.934705+00	2025-08-21 09:32:29.934705+00	788d290c-abc1-44f4-be93-bb72f26dad83	ce36e937-f0ce-4eae-b2b8-642bc248ec88
-2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22277/	not_filled	2025-08-21 09:32:30.356568+00	2025-08-21 09:32:30.356568+00	788d290c-abc1-44f4-be93-bb72f26dad83	a698c97a-14b4-40e8-869c-085d4da3a567
-1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21319/	not_filled	2025-08-21 09:32:30.720993+00	2025-08-21 09:32:30.720993+00	f3c1ac30-fecd-4179-9c2f-63d870f55251	1b8f98e2-96b7-4d0a-90d4-4d09d2f8becd
-1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21323/	not_filled	2025-08-21 09:32:31.077422+00	2025-08-21 09:32:31.077422+00	c7691b0e-1ad0-47c7-b64d-1fa765394ad0	1401385a-9214-48bc-b5ad-ff32b11f9fd1
-2	2025-07-19	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21373/	not_filled	2025-08-21 09:32:31.48301+00	2025-08-21 09:32:31.48301+00	c7691b0e-1ad0-47c7-b64d-1fa765394ad0	22af9f42-875f-4477-a087-3d282bedcf75
-1	2025-05-28	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19787/	not_filled	2025-08-21 09:32:31.83833+00	2025-08-21 09:32:31.83833+00	2c161a55-db1b-4450-a02f-68a1ad23d234	030ef1ef-18b3-4a75-aef5-97b18502eec8
-2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22281/	not_filled	2025-08-21 09:32:32.197455+00	2025-08-21 09:32:32.197455+00	2c161a55-db1b-4450-a02f-68a1ad23d234	64955b8e-119e-4fbd-8fe2-5fed46ebeabf
-1	2025-05-28	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19783/	not_filled	2025-08-21 09:32:32.565604+00	2025-08-21 09:32:32.565604+00	b3e96832-c6a2-47b1-b75b-41c5b9e44b58	079bbe65-d42c-4c3a-9c70-b14d8b572713
-2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22283/	not_filled	2025-08-21 09:32:32.944387+00	2025-08-21 09:32:32.944387+00	b3e96832-c6a2-47b1-b75b-41c5b9e44b58	46bd4c1e-6a75-4db1-8fa5-781674e649fe
-1	2025-06-03	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20067/	not_filled	2025-08-21 09:32:33.340538+00	2025-08-21 09:32:33.340538+00	e6ef80a1-ddf3-4d8d-a15a-be62755e795e	fccb7eb1-6714-4fd5-bc08-697702e2c989
-2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22287/	not_filled	2025-08-21 09:32:33.733788+00	2025-08-21 09:32:33.733788+00	e6ef80a1-ddf3-4d8d-a15a-be62755e795e	da90aa13-4d22-4fdd-be7e-72248032af7e
-1	2025-06-05	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20213/	not_filled	2025-08-21 09:32:34.11307+00	2025-08-21 09:32:34.11307+00	f23c37ab-490b-4f48-99fa-1bcc2a0c5d65	e877ddd4-760f-4a10-a360-e778138e69b7
-1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21339/	not_filled	2025-08-21 09:32:36.257947+00	2025-08-21 09:32:36.257947+00	28625b76-6624-40d9-b62f-af18ac2b2de7	043547b8-b824-4fc1-922d-5dba4e470967
-1	2025-07-19	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21377/	not_filled	2025-08-21 09:32:38.377647+00	2025-08-21 09:32:38.377647+00	bd03d3fb-bdd5-456d-ac7c-3abae6e109bd	cc080518-b6db-449b-bf20-d6c655ba8c96
-2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22289/	not_filled	2025-08-21 09:32:34.666343+00	2025-08-21 09:32:34.666343+00	f23c37ab-490b-4f48-99fa-1bcc2a0c5d65	775e33dc-dea8-4a77-a89a-a698d0253af8
-2	2025-08-07	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22523/	not_filled	2025-08-21 09:32:36.788977+00	2025-08-21 09:32:36.788977+00	28625b76-6624-40d9-b62f-af18ac2b2de7	967e83d1-c453-4157-be5c-95844df3d5ef
-1	2025-08-07	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22527/	not_filled	2025-08-21 09:32:38.786867+00	2025-08-21 09:32:38.786867+00	9ad69277-9144-4844-b5a9-8af0592db8cc	df046eca-221d-4e9c-88cb-fbecc0207989
-1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21331/	not_filled	2025-08-21 09:32:35.028335+00	2025-08-21 09:32:35.028335+00	2a439585-672a-4ef7-8c93-d7a9c5ec8cce	15eb44c1-f05e-4187-86da-cb39577554c2
-3	2025-08-12	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22601/	not_filled	2025-08-21 09:32:37.219885+00	2025-08-21 09:32:37.219885+00	28625b76-6624-40d9-b62f-af18ac2b2de7	6b47bdf8-0bc0-4a50-b56b-95f2fd26adb2
-2	2025-08-19	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22813/	not_filled	2025-08-21 09:32:39.176252+00	2025-08-21 09:32:39.176252+00	9ad69277-9144-4844-b5a9-8af0592db8cc	6fdcb640-7d42-48b6-8715-5c42919fce49
-1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21327/	not_filled	2025-08-21 09:32:35.432943+00	2025-08-21 09:32:35.432943+00	fd4ac328-da06-4d5e-bd9d-a867da1d3002	ac54eaa1-487b-4cdc-8968-027905d0c911
-4	2025-08-16	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22747/	not_filled	2025-08-21 09:32:37.594921+00	2025-08-21 09:32:37.594921+00	28625b76-6624-40d9-b62f-af18ac2b2de7	a112c784-c3df-42b8-9980-e12a8e29eacb
-1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21335/	not_filled	2025-08-21 09:32:35.866755+00	2025-08-21 09:32:35.866755+00	9374198d-6171-425d-b097-796d824c5b25	928dc22a-7ad1-4692-ab9d-dc22300b9590
-1	2025-05-30	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19941/	not_filled	2025-08-21 09:32:37.990795+00	2025-08-21 09:32:37.990795+00	0d2b3ef0-f533-46b7-9421-0a8d9c4429b1	faefb477-007b-47fa-bd70-9cf7475aea2c
-1	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22271/	not_filled	2025-08-21 09:32:39.537102+00	2025-08-21 09:32:39.537102+00	3df6f514-8768-4282-b31c-79c4b5b65394	02d70795-5dd3-4004-9faf-2b1287e946a5
-1	2025-08-06	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22479/	not_filled	2025-08-21 09:32:39.922676+00	2025-08-21 09:32:39.922676+00	c3b9179e-74cc-407a-a5ee-a82a1f890ebe	bee4b9d5-75ca-4da1-ad37-ab78b5a3ba11
-2	2025-08-20	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22827/	not_filled	2025-08-21 09:32:40.375888+00	2025-08-21 09:32:40.375888+00	c3b9179e-74cc-407a-a5ee-a82a1f890ebe	c8667533-f207-4d32-b418-3759e72cfdc3
-1	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22297/	not_filled	2025-08-21 09:32:41.231764+00	2025-08-21 09:32:41.231764+00	650b14a9-07f2-4861-8637-091a8aa30398	5718bd2c-ea9d-42b0-8039-20760f7131f6
-1	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22301/	not_filled	2025-08-21 09:32:41.635789+00	2025-08-21 09:32:41.635789+00	85733f4c-8afa-467b-ab16-038cfa6cf558	4b6362da-18ac-436d-9e42-a131c9584c0f
-2	2025-08-06	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22485/	not_filled	2025-08-21 09:32:42.156746+00	2025-08-21 09:32:42.156746+00	85733f4c-8afa-467b-ab16-038cfa6cf558	1686563c-9578-4516-90bb-d6e9193d9f8a
-1	2025-08-19	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22823/	not_filled	2025-08-21 09:32:42.514881+00	2025-08-21 09:32:42.514881+00	926738bf-c167-4625-8125-6f7327dcaef1	539e3c83-da72-432a-9ab6-aaf1358b1ef0
-1	2025-08-12	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22599/	not_filled	2025-08-21 09:32:42.891636+00	2025-08-21 09:32:42.891636+00	888fdda1-e306-4fa1-ac1a-4c61a66ebdac	52578446-19f2-4324-9a08-66e9f5817138
-1	2025-08-14	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22661/	not_filled	2025-08-21 09:32:43.297095+00	2025-08-21 09:32:43.297095+00	8865eec6-d7b2-446b-ba08-4dbdf32f40cc	184475e3-cf78-406a-aad7-53fb5627d3be
-1	2025-08-06	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22483/	not_filled	2025-08-21 09:32:43.687645+00	2025-08-21 09:32:43.687645+00	e43c2fb6-e302-4c80-b05c-a7a9a5d3a740	d81dbc39-0172-4470-8df7-d4aefe80c2df
-1	2025-08-20	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22835/	not_filled	2025-08-21 09:32:44.114987+00	2025-08-21 09:32:44.114987+00	42a7bee4-a86e-4dcd-8c71-cd2d79512dbb	0c181bf0-1250-451c-951e-7d7092f9e92e
-1	2025-06-20	https://su10.bitrix24.ru/company/personal/user/29/tasks/task/view/20433/	not_filled	2025-08-21 09:32:44.474499+00	2025-08-21 09:32:44.474499+00	2d22a0a2-ab12-4b9a-8334-b05b87110a2e	2d8c4354-8d24-488a-a281-f869f903a2bb
+COPY public.documentation_versions (version_number, issue_date, file_url, status, created_at, updated_at, documentation_id, id, local_files) FROM stdin;
+1	2025-05-01	https://su10.bitrix24.ru/company/personal/user/647/tasks/task/view/18899/	not_filled	2025-08-21 09:32:15.64795+00	2025-08-21 09:32:15.64795+00	ec3d749d-8d35-49bb-a3a2-8a1b61f35d06	5296b35c-baee-4198-9a9c-21f9a1853f55	[]
+1	2025-05-01	https://su10.bitrix24.ru/company/personal/user/647/tasks/task/view/18903/	not_filled	2025-08-21 09:32:16.133758+00	2025-08-21 09:32:16.133758+00	6a5d7eb8-ba66-4cc5-b8c9-93c6cda93271	5861590d-5545-4c6b-9598-1a7b61b21ab2	[]
+1	2025-05-01	https://su10.bitrix24.ru/company/personal/user/647/tasks/task/view/18887/	not_filled	2025-08-21 09:32:16.644253+00	2025-08-21 09:32:16.644253+00	ff07f546-c05a-4c0c-972a-7aee401714a1	2a89a862-ec93-46a5-a727-83df0aedb682	[]
+2	2025-05-30	https://su10.bitrix24.ru/company/personal/user/945/tasks/task/view/19977/	not_filled	2025-08-21 09:32:17.099289+00	2025-08-21 09:32:17.099289+00	ff07f546-c05a-4c0c-972a-7aee401714a1	57db01ee-9fc7-4ce3-8a95-fd850077daaa	[]
+1	2025-05-06	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18969/	not_filled	2025-08-21 09:32:17.517671+00	2025-08-21 09:32:17.517671+00	958177af-f289-4c50-8317-b7e064cf2ac1	0b03df71-7845-4e1e-baaf-92c696490525	[]
+2	2025-06-17	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20321/	not_filled	2025-08-21 09:32:17.907104+00	2025-08-21 09:32:17.907104+00	958177af-f289-4c50-8317-b7e064cf2ac1	034dd85c-a866-4843-bb5d-f989b52565ca	[]
+1	2025-06-17	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20323/	not_filled	2025-08-21 09:32:18.294854+00	2025-08-21 09:32:18.294854+00	e8693dc2-101d-4d9e-ac9c-5bf7d9d075a0	f21dde26-f81e-4cd7-862a-240f3b189d37	[]
+1	2025-05-08	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19075/	not_filled	2025-08-21 09:32:18.740209+00	2025-08-21 09:32:18.740209+00	3f19c800-5d2c-4ba0-8036-fe37bc21f6d5	92a5efb3-d0f9-42a3-9cfe-b8ff5a7409b8	[]
+1	2025-08-16	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22795/	not_filled	2025-08-21 09:32:19.10526+00	2025-08-21 09:32:19.10526+00	802689a5-100a-4ac5-a567-d958d595ff68	9c73b782-a6b7-49e8-9c6f-2cbfe1743f03	[]
+1	2025-08-12	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22639/	not_filled	2025-08-21 09:32:19.474995+00	2025-08-21 09:32:19.474995+00	fa34f1a8-58c3-4c9e-8205-da6b56132658	7b62a552-7115-4c4b-a604-b318c5fe0c47	[]
+1	2025-07-01	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20749/	not_filled	2025-08-21 09:32:19.848459+00	2025-08-21 09:32:19.848459+00	1c7d2354-8f96-4a15-a401-deae1d27bb85	31cd9dd7-162e-464f-9066-2d600300b4f8	[]
+1	2025-05-08	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19079/	not_filled	2025-08-21 09:32:20.201399+00	2025-08-21 09:32:20.201399+00	62eb11c4-915f-43e4-89f7-6c3068f9ef77	4ecbf816-da2f-4675-86f0-42bbeb4c000d	[]
+1	2025-07-01	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20753/	not_filled	2025-08-21 09:32:20.57278+00	2025-08-21 09:32:20.57278+00	122f8545-cf1a-485e-856e-b7caf0a4501d	f3108e7c-f56c-4b84-b0d6-71539cd810a9	[]
+1	2025-07-01	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20757/	not_filled	2025-08-21 09:32:20.964754+00	2025-08-21 09:32:20.964754+00	336fd416-423a-49d6-a12c-afb1afc2f55f	2232b40c-b09e-411a-95aa-df330213cfef	[]
+1	2025-05-06	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18965/	not_filled	2025-08-21 09:32:21.357933+00	2025-08-21 09:32:21.357933+00	b4961ea6-874a-4bea-bb5a-c755adf4351d	b119cf5c-5eb4-466d-9b2f-ede52fc29c99	[]
+1	2025-04-29	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18829/	not_filled	2025-08-21 09:32:21.959851+00	2025-08-21 09:32:21.959851+00	e84db261-4d46-4828-bf1a-7002b1f8c342	1782c826-d6f0-4142-846d-e77d45d46f9f	[]
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22279/	not_filled	2025-08-21 09:32:22.321441+00	2025-08-21 09:32:22.321441+00	e84db261-4d46-4828-bf1a-7002b1f8c342	14a62dd9-7272-4609-b628-e11ee8358ae8	[]
+1	2025-04-29	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18823/	not_filled	2025-08-21 09:32:22.703108+00	2025-08-21 09:32:22.703108+00	76452def-f7e8-456c-bd9b-8dfb0db0d30e	0532d84a-0f64-456d-9807-e3772b384f1d	[]
+2	2025-08-16	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22749/	not_filled	2025-08-21 09:32:23.089613+00	2025-08-21 09:32:23.089613+00	76452def-f7e8-456c-bd9b-8dfb0db0d30e	ddb1f183-b185-4fa9-ad64-a96f97987aa1	[]
+1	2025-04-29	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18835/	not_filled	2025-08-21 09:32:23.477174+00	2025-08-21 09:32:23.477174+00	2cd997ba-d211-43b4-988a-57dc26fc197d	619cca68-0afc-4870-bc5b-db67f1d53267	[]
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22285/	not_filled	2025-08-21 09:32:23.853931+00	2025-08-21 09:32:23.853931+00	2cd997ba-d211-43b4-988a-57dc26fc197d	ab337a2e-06be-4bde-939f-3a3f91d7f391	[]
+1	2025-04-29	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18839/	not_filled	2025-08-21 09:32:24.22731+00	2025-08-21 09:32:24.22731+00	0e3905d8-9af3-446f-8a75-9c35ed6cdfc0	3f8080a7-5a67-444b-8746-3f1e4a9e0100	[]
+1	2025-05-06	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18961/	not_filled	2025-08-21 09:32:24.624254+00	2025-08-21 09:32:24.624254+00	aa9e3f3e-7793-4116-9456-97263d75a1c5	ca761a6c-c6ab-4c65-92f3-a547f1be09c0	[]
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22291/	not_filled	2025-08-21 09:32:25.01057+00	2025-08-21 09:32:25.01057+00	aa9e3f3e-7793-4116-9456-97263d75a1c5	e5913c5b-6d23-49a5-8a27-249bd91dd5b7	[]
+1	2025-04-29	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18843/	not_filled	2025-08-21 09:32:25.41842+00	2025-08-21 09:32:25.41842+00	de703c63-895b-4117-a7a7-1dfc389f7cb5	f5c2b976-a541-415f-ab6c-d646a1f2a0a4	[]
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22293/	not_filled	2025-08-21 09:32:25.788536+00	2025-08-21 09:32:25.788536+00	de703c63-895b-4117-a7a7-1dfc389f7cb5	3996d59e-e178-45db-a5ad-dc1bce1e329a	[]
+3	2025-08-19	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22815/	not_filled	2025-08-21 09:32:26.157207+00	2025-08-21 09:32:26.157207+00	de703c63-895b-4117-a7a7-1dfc389f7cb5	95ca258d-6052-45df-855b-7618ee490b1b	[]
+1	2025-06-13	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20301/	not_filled	2025-08-21 09:32:26.554738+00	2025-08-21 09:32:26.554738+00	91716c2b-9785-4268-b3c6-8df712438981	53c074b1-258b-408c-ad57-4fe2cda9da53	[]
+2	2025-06-27	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20671/	not_filled	2025-08-21 09:32:26.943225+00	2025-08-21 09:32:26.943225+00	91716c2b-9785-4268-b3c6-8df712438981	9b05476e-842e-4c43-954f-3648f049c966	[]
+3	2025-07-29	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22061/	not_filled	2025-08-21 09:32:27.339438+00	2025-08-21 09:32:27.339438+00	91716c2b-9785-4268-b3c6-8df712438981	f71a2870-97ea-48bf-890c-88acf2bb1ad4	[]
+1	2025-05-28	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19767/	not_filled	2025-08-21 09:32:27.722816+00	2025-08-21 09:32:27.722816+00	b3540776-a64e-43a8-8e14-ec9a52fccd35	4b3cea1f-f9ca-43b1-99b9-b8b4f1c94f56	[]
+2	2025-07-19	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21371/	not_filled	2025-08-21 09:32:28.075512+00	2025-08-21 09:32:28.075512+00	b3540776-a64e-43a8-8e14-ec9a52fccd35	0494f94c-5641-4bca-8b55-4b55626ba81d	[]
+1	2025-05-28	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19771/	not_filled	2025-08-21 09:32:28.453512+00	2025-08-21 09:32:28.453512+00	370b50ca-b9f5-4430-848c-7afcd64ca6c0	8fe6911f-cb10-4115-8d3b-1ea5fc0b4950	[]
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22273/	not_filled	2025-08-21 09:32:28.813309+00	2025-08-21 09:32:28.813309+00	370b50ca-b9f5-4430-848c-7afcd64ca6c0	11b8dc12-a931-435c-a26b-7f4c16641769	[]
+1	2025-05-28	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19779/	not_filled	2025-08-21 09:32:29.188019+00	2025-08-21 09:32:29.188019+00	4a00e577-ff54-4471-a403-ef778bb11e6e	e0ec6c1c-a69d-4f2d-aafd-d9c97992798b	[]
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22275/	not_filled	2025-08-21 09:32:29.570466+00	2025-08-21 09:32:29.570466+00	4a00e577-ff54-4471-a403-ef778bb11e6e	1927aee2-b09c-47dd-9c03-b889b3623951	[]
+1	2025-05-28	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19775/	not_filled	2025-08-21 09:32:29.934705+00	2025-08-21 09:32:29.934705+00	788d290c-abc1-44f4-be93-bb72f26dad83	ce36e937-f0ce-4eae-b2b8-642bc248ec88	[]
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22277/	not_filled	2025-08-21 09:32:30.356568+00	2025-08-21 09:32:30.356568+00	788d290c-abc1-44f4-be93-bb72f26dad83	a698c97a-14b4-40e8-869c-085d4da3a567	[]
+1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21319/	not_filled	2025-08-21 09:32:30.720993+00	2025-08-21 09:32:30.720993+00	f3c1ac30-fecd-4179-9c2f-63d870f55251	1b8f98e2-96b7-4d0a-90d4-4d09d2f8becd	[]
+1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21323/	not_filled	2025-08-21 09:32:31.077422+00	2025-08-21 09:32:31.077422+00	c7691b0e-1ad0-47c7-b64d-1fa765394ad0	1401385a-9214-48bc-b5ad-ff32b11f9fd1	[]
+2	2025-07-19	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21373/	not_filled	2025-08-21 09:32:31.48301+00	2025-08-21 09:32:31.48301+00	c7691b0e-1ad0-47c7-b64d-1fa765394ad0	22af9f42-875f-4477-a087-3d282bedcf75	[]
+1	2025-05-28	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19787/	not_filled	2025-08-21 09:32:31.83833+00	2025-08-21 09:32:31.83833+00	2c161a55-db1b-4450-a02f-68a1ad23d234	030ef1ef-18b3-4a75-aef5-97b18502eec8	[]
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22281/	not_filled	2025-08-21 09:32:32.197455+00	2025-08-21 09:32:32.197455+00	2c161a55-db1b-4450-a02f-68a1ad23d234	64955b8e-119e-4fbd-8fe2-5fed46ebeabf	[]
+1	2025-05-28	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19783/	not_filled	2025-08-21 09:32:32.565604+00	2025-08-21 09:32:32.565604+00	b3e96832-c6a2-47b1-b75b-41c5b9e44b58	079bbe65-d42c-4c3a-9c70-b14d8b572713	[]
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22283/	not_filled	2025-08-21 09:32:32.944387+00	2025-08-21 09:32:32.944387+00	b3e96832-c6a2-47b1-b75b-41c5b9e44b58	46bd4c1e-6a75-4db1-8fa5-781674e649fe	[]
+1	2025-06-03	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20067/	not_filled	2025-08-21 09:32:33.340538+00	2025-08-21 09:32:33.340538+00	e6ef80a1-ddf3-4d8d-a15a-be62755e795e	fccb7eb1-6714-4fd5-bc08-697702e2c989	[]
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22287/	not_filled	2025-08-21 09:32:33.733788+00	2025-08-21 09:32:33.733788+00	e6ef80a1-ddf3-4d8d-a15a-be62755e795e	da90aa13-4d22-4fdd-be7e-72248032af7e	[]
+1	2025-06-05	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20213/	not_filled	2025-08-21 09:32:34.11307+00	2025-08-21 09:32:34.11307+00	f23c37ab-490b-4f48-99fa-1bcc2a0c5d65	e877ddd4-760f-4a10-a360-e778138e69b7	[]
+1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21339/	not_filled	2025-08-21 09:32:36.257947+00	2025-08-21 09:32:36.257947+00	28625b76-6624-40d9-b62f-af18ac2b2de7	043547b8-b824-4fc1-922d-5dba4e470967	[]
+1	2025-07-19	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21377/	not_filled	2025-08-21 09:32:38.377647+00	2025-08-21 09:32:38.377647+00	bd03d3fb-bdd5-456d-ac7c-3abae6e109bd	cc080518-b6db-449b-bf20-d6c655ba8c96	[]
+2	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22289/	not_filled	2025-08-21 09:32:34.666343+00	2025-08-21 09:32:34.666343+00	f23c37ab-490b-4f48-99fa-1bcc2a0c5d65	775e33dc-dea8-4a77-a89a-a698d0253af8	[]
+2	2025-08-07	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22523/	not_filled	2025-08-21 09:32:36.788977+00	2025-08-21 09:32:36.788977+00	28625b76-6624-40d9-b62f-af18ac2b2de7	967e83d1-c453-4157-be5c-95844df3d5ef	[]
+1	2025-08-07	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22527/	not_filled	2025-08-21 09:32:38.786867+00	2025-08-21 09:32:38.786867+00	9ad69277-9144-4844-b5a9-8af0592db8cc	df046eca-221d-4e9c-88cb-fbecc0207989	[]
+1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21331/	not_filled	2025-08-21 09:32:35.028335+00	2025-08-21 09:32:35.028335+00	2a439585-672a-4ef7-8c93-d7a9c5ec8cce	15eb44c1-f05e-4187-86da-cb39577554c2	[]
+3	2025-08-12	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22601/	not_filled	2025-08-21 09:32:37.219885+00	2025-08-21 09:32:37.219885+00	28625b76-6624-40d9-b62f-af18ac2b2de7	6b47bdf8-0bc0-4a50-b56b-95f2fd26adb2	[]
+2	2025-08-19	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22813/	not_filled	2025-08-21 09:32:39.176252+00	2025-08-21 09:32:39.176252+00	9ad69277-9144-4844-b5a9-8af0592db8cc	6fdcb640-7d42-48b6-8715-5c42919fce49	[]
+1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21327/	not_filled	2025-08-21 09:32:35.432943+00	2025-08-21 09:32:35.432943+00	fd4ac328-da06-4d5e-bd9d-a867da1d3002	ac54eaa1-487b-4cdc-8968-027905d0c911	[]
+4	2025-08-16	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22747/	not_filled	2025-08-21 09:32:37.594921+00	2025-08-21 09:32:37.594921+00	28625b76-6624-40d9-b62f-af18ac2b2de7	a112c784-c3df-42b8-9980-e12a8e29eacb	[]
+1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21335/	not_filled	2025-08-21 09:32:35.866755+00	2025-08-21 09:32:35.866755+00	9374198d-6171-425d-b097-796d824c5b25	928dc22a-7ad1-4692-ab9d-dc22300b9590	[]
+1	2025-05-30	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19941/	not_filled	2025-08-21 09:32:37.990795+00	2025-08-21 09:32:37.990795+00	0d2b3ef0-f533-46b7-9421-0a8d9c4429b1	faefb477-007b-47fa-bd70-9cf7475aea2c	[]
+1	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22271/	not_filled	2025-08-21 09:32:39.537102+00	2025-08-21 09:32:39.537102+00	3df6f514-8768-4282-b31c-79c4b5b65394	02d70795-5dd3-4004-9faf-2b1287e946a5	[]
+1	2025-08-06	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22479/	not_filled	2025-08-21 09:32:39.922676+00	2025-08-21 09:32:39.922676+00	c3b9179e-74cc-407a-a5ee-a82a1f890ebe	bee4b9d5-75ca-4da1-ad37-ab78b5a3ba11	[]
+2	2025-08-20	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22827/	not_filled	2025-08-21 09:32:40.375888+00	2025-08-21 09:32:40.375888+00	c3b9179e-74cc-407a-a5ee-a82a1f890ebe	c8667533-f207-4d32-b418-3759e72cfdc3	[]
+1	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22297/	not_filled	2025-08-21 09:32:41.231764+00	2025-08-21 09:32:41.231764+00	650b14a9-07f2-4861-8637-091a8aa30398	5718bd2c-ea9d-42b0-8039-20760f7131f6	[]
+1	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22301/	not_filled	2025-08-21 09:32:41.635789+00	2025-08-21 09:32:41.635789+00	85733f4c-8afa-467b-ab16-038cfa6cf558	4b6362da-18ac-436d-9e42-a131c9584c0f	[]
+2	2025-08-06	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22485/	not_filled	2025-08-21 09:32:42.156746+00	2025-08-21 09:32:42.156746+00	85733f4c-8afa-467b-ab16-038cfa6cf558	1686563c-9578-4516-90bb-d6e9193d9f8a	[]
+1	2025-08-19	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22823/	not_filled	2025-08-21 09:32:42.514881+00	2025-08-21 09:32:42.514881+00	926738bf-c167-4625-8125-6f7327dcaef1	539e3c83-da72-432a-9ab6-aaf1358b1ef0	[]
+1	2025-08-12	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22599/	not_filled	2025-08-21 09:32:42.891636+00	2025-08-21 09:32:42.891636+00	888fdda1-e306-4fa1-ac1a-4c61a66ebdac	52578446-19f2-4324-9a08-66e9f5817138	[]
+1	2025-08-14	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22661/	not_filled	2025-08-21 09:32:43.297095+00	2025-08-21 09:32:43.297095+00	8865eec6-d7b2-446b-ba08-4dbdf32f40cc	184475e3-cf78-406a-aad7-53fb5627d3be	[]
+1	2025-08-06	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22483/	not_filled	2025-08-21 09:32:43.687645+00	2025-08-21 09:32:43.687645+00	e43c2fb6-e302-4c80-b05c-a7a9a5d3a740	d81dbc39-0172-4470-8df7-d4aefe80c2df	[]
+1	2025-08-20	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22835/	not_filled	2025-08-21 09:32:44.114987+00	2025-08-21 09:32:44.114987+00	42a7bee4-a86e-4dcd-8c71-cd2d79512dbb	0c181bf0-1250-451c-951e-7d7092f9e92e	[]
+1	2025-06-20	https://su10.bitrix24.ru/company/personal/user/29/tasks/task/view/20433/	not_filled	2025-08-21 09:32:44.474499+00	2025-08-21 09:32:44.474499+00	2d22a0a2-ab12-4b9a-8334-b05b87110a2e	2d8c4354-8d24-488a-a281-f869f903a2bb	[]
+1	2025-07-12	https://su10.bitrix24.ru/company/personal/user/947/tasks/task/view/21151/	not_filled	2025-08-22 07:28:26.501854+00	2025-08-22 08:17:20.6775+00	536a19c1-be2e-4b3c-b3a1-2a1746e61378	3c67bef4-bdce-4a50-934d-85085acf5f4e	[]
+1	2025-07-12	https://su10.bitrix24.ru/company/personal/user/947/tasks/task/view/21155/	not_filled	2025-08-22 07:28:26.932957+00	2025-08-22 08:17:21.293405+00	b31ec789-9a2b-415a-ac22-bad844f443dc	9b8fda7f-1ccc-4cde-8c0b-292b628fc19a	[]
+1	2025-06-04	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20131/	not_filled	2025-08-22 07:28:27.313929+00	2025-08-22 08:17:21.888883+00	ae4733f7-d46e-4d32-84af-d4e564208646	3d60f0f0-6ab1-4878-9c9e-998143c25f14	[]
+4	2025-08-14	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22695/	not_filled	2025-08-22 07:28:28.44816+00	2025-08-22 08:17:23.516028+00	ae4733f7-d46e-4d32-84af-d4e564208646	4294802e-f603-49c4-89bb-2fd4a0aae098	[]
+2	2025-07-12	https://su10.bitrix24.ru/company/personal/user/947/tasks/task/view/21135/	not_filled	2025-08-22 07:28:29.226406+00	2025-08-22 08:17:24.658067+00	e734d241-860c-4f89-ac10-d20c9c6c5cac	e35b71d4-96f0-4974-a84d-ee25e3be4c0d	[]
+1	2025-07-29	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22079/	not_filled	2025-08-22 07:28:30.397091+00	2025-08-22 08:17:26.047947+00	8b533c59-f839-4ec2-9ce2-d19df88337dd	5d00e86b-2ce8-47d6-939c-01dc0050a142	[]
+1	2025-07-30	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22207/	not_filled	2025-08-22 07:28:31.127247+00	2025-08-22 08:17:27.264884+00	242a62fe-f985-49a2-88f0-de8ad166819d	8d40c346-ca63-4c03-8f99-e243650eab76	[]
+1	2025-02-04	https://su10.bitrix24.ru/company/personal/user/821/tasks/task/view/15135/	not_filled	2025-08-22 07:28:31.916127+00	2025-08-22 08:17:28.502094+00	69e9397f-34fe-4b91-84e6-7339f13c5c2d	45524342-5573-4d66-8795-35ca3957bb7d	[]
+2	2025-02-22	https://su10.bitrix24.ru/company/personal/user/821/tasks/task/view/15817/	not_filled	2025-08-22 07:28:32.272618+00	2025-08-22 08:17:29.306+00	69e9397f-34fe-4b91-84e6-7339f13c5c2d	9549e76c-dea1-4110-b576-83d11b0f2b02	[]
+1	2025-02-04	https://su10.bitrix24.ru/company/personal/user/821/tasks/task/view/15141/	not_filled	2025-08-22 07:28:32.995059+00	2025-08-22 08:17:30.497627+00	a4d1f99c-83a7-4e7b-a95f-bcd7eed2c90a	0c8b69cd-e4f7-496f-9704-f15dab63c9d2	[]
+3	2025-02-28	https://su10.bitrix24.ru/company/personal/user/821/tasks/task/view/16283/	not_filled	2025-08-22 07:28:33.714974+00	2025-08-22 08:17:31.675568+00	a4d1f99c-83a7-4e7b-a95f-bcd7eed2c90a	19d5ddec-ed1f-490c-8e6e-717caaafc49b	[]
+1	2025-02-16	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/15501/	not_filled	2025-08-22 07:28:34.441251+00	2025-08-22 08:17:32.811717+00	ed16c046-d590-4169-898d-45b17e06ded0	0ad6dd89-5304-4a7d-8fe0-29d448fa6be4	[]
+1	2025-02-16	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/15497/	not_filled	2025-08-22 07:28:35.168174+00	2025-08-22 08:17:33.765475+00	098c4ba0-c037-4603-9ea1-3c21a93f3718	ee3dd3f6-03f0-483d-b212-b5f6694b9392	[]
+1	2025-05-14	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19259/	not_filled	2025-08-22 07:28:35.935735+00	2025-08-22 08:17:34.920001+00	d99591b3-7dfb-4de8-8bf1-d99d074f0ce5	9721c085-de67-45f5-b987-69bd7622ea2e	[]
+1	2025-03-25	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/17291/	not_filled	2025-08-22 07:28:36.686468+00	2025-08-22 08:17:36.069548+00	937745b4-b809-43ef-98a0-582eb7ce7135	c7872b00-390d-49ce-806e-800367c2e5ac	[]
+2	2025-04-02	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/17669/	not_filled	2025-08-22 07:28:37.051921+00	2025-08-22 08:17:36.757208+00	937745b4-b809-43ef-98a0-582eb7ce7135	75d6f639-1916-4113-bb86-694137ec4d77	[]
+4	2025-04-19	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/18297/	not_filled	2025-08-22 07:28:37.791672+00	2025-08-22 08:17:38.06073+00	937745b4-b809-43ef-98a0-582eb7ce7135	6cfe6998-53a6-4a23-9981-0113ff1ad558	[]
+1	2025-02-25	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/15911/	not_filled	2025-08-22 07:28:38.541255+00	2025-08-22 08:17:39.276799+00	3a769d69-c897-47db-bfc1-5fc54b893a47	7817268e-6e88-4549-a13e-7592078629db	[]
+2	2025-03-04	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/16375/	not_filled	2025-08-22 07:28:38.908043+00	2025-08-22 08:17:39.832971+00	3a769d69-c897-47db-bfc1-5fc54b893a47	2b4d4523-bdcc-427c-960f-abfae677f61e	[]
+4	2025-05-17	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19467/	not_filled	2025-08-22 07:28:39.663819+00	2025-08-22 08:17:40.998469+00	3a769d69-c897-47db-bfc1-5fc54b893a47	6ca934cd-f2a9-4586-b24f-4533782e297a	[]
+5	2025-05-29	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19811/	not_filled	2025-08-22 07:28:40.01641+00	2025-08-22 08:17:41.564056+00	3a769d69-c897-47db-bfc1-5fc54b893a47	9ee5a342-7f53-4b40-84fc-4caf25bcfd45	[]
+1	2025-02-28	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/16289/	not_filled	2025-08-22 07:28:40.718886+00	2025-08-22 08:17:42.74816+00	d119e7a5-3055-43c1-b39c-8bf9dad1a531	3d673cc6-658d-4b00-a6f3-12b39c9f87a0	[]
+1	2025-03-12	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/16805/	not_filled	2025-08-22 07:28:41.399144+00	2025-08-22 08:17:43.950615+00	0bfd342a-d2ec-471e-b994-88ed37b75b6c	4fe95932-ad26-4689-b40a-6ffa4103faf2	[]
+2	2025-04-11	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/18061/	not_filled	2025-08-22 07:28:41.93616+00	2025-08-22 08:17:44.597636+00	0bfd342a-d2ec-471e-b994-88ed37b75b6c	d27c3453-32ff-4ec4-8ba4-4b6307be40f5	[]
+2	2025-05-15	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19347/	not_filled	2025-08-22 07:28:42.664855+00	2025-08-22 08:17:45.82796+00	3da7a8e8-e73d-4e78-a60a-e94bba3d8ed3	c22ab666-368d-4e50-85fd-f1f11ef4139a	[]
+1	2025-06-21	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20493/	not_filled	2025-08-22 07:28:43.342762+00	2025-08-22 08:17:47.049324+00	f1d98d56-134c-41d7-b627-cf145d6042c3	7a0c2ca0-28ed-4e07-893a-db4599376679	[]
+2	2025-06-26	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20601/	not_filled	2025-08-22 07:28:43.699629+00	2025-08-22 08:17:47.665847+00	f1d98d56-134c-41d7-b627-cf145d6042c3	59469bff-f0f5-446c-b9e3-d365d14fcbfc	[]
+4	2025-07-08	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/21033/	not_filled	2025-08-22 07:28:44.381631+00	2025-08-22 08:17:48.822424+00	f1d98d56-134c-41d7-b627-cf145d6042c3	845a6d60-c69f-48f5-ac53-094b1f6fa493	[]
+2	2025-07-02	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20827/	not_filled	2025-08-22 07:28:45.068865+00	2025-08-22 08:17:49.995875+00	3894bb58-3102-42b8-a210-0906ece8f431	4fb30d45-f11f-4db9-9149-6aa5bd4e15c7	[]
+3	2025-07-15	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/21175/	not_filled	2025-08-22 07:28:45.410952+00	2025-08-22 08:17:50.576308+00	3894bb58-3102-42b8-a210-0906ece8f431	c7414130-e51a-4ee2-afc0-379baeb87d7a	[]
+2	2025-07-01	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20725/	not_filled	2025-08-22 07:28:46.141826+00	2025-08-22 08:17:51.823639+00	17e81e5d-bdc1-4b08-81bb-cfd1ee5179a3	50999738-fb44-4ef9-89f5-41fff230d6ff	[]
+3	2025-07-08	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/21037/	not_filled	2025-08-22 07:28:46.49377+00	2025-08-22 08:17:52.434758+00	17e81e5d-bdc1-4b08-81bb-cfd1ee5179a3	5bfed41e-5253-43ca-acb4-0879edf3d688	[]
+2	2025-07-26	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22037/	not_filled	2025-08-22 07:28:48.195498+00	2025-08-22 08:17:55.483223+00	3d99658c-d013-4598-beb3-2136eb9c4548	83497f3d-817e-438e-9702-4ad1795bbb90	[]
+1	2025-08-01	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22387/	not_filled	2025-08-22 07:28:49.917285+00	2025-08-22 08:17:58.565777+00	f2bf8b78-faf9-41a9-8539-7b0765f913f5	fa9bc491-9058-42f1-9a5b-be16f46f0274	[]
+1	2025-08-14	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22675/	not_filled	2025-08-22 07:28:51.746803+00	2025-08-22 08:18:01.695009+00	b6111a7f-8322-41ad-82f2-d9cae09c7f9b	660396c8-ad36-41ff-8546-f5776f366634	[]
+1	2025-04-02	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/17663/?EVENT_TYPE=UPDATE&EVENT_TASK_ID=17663&EVENT_OPTIONS[STAY_AT_PAGE]=&EVENT_OPTIONS[SCOPE]=&EVENT_OPTIONS[FIRST_GRID_TASK_CREATION_TOUR_GUIDE]=	not_filled	2025-08-22 07:28:53.480762+00	2025-08-22 08:18:04.758144+00	1901815b-66c7-465a-a8bb-ad5aa8eff42d	74376713-c1b2-45ad-8fc5-0818a94718df	[]
+2	2025-05-15	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19351/	not_filled	2025-08-22 07:28:55.298653+00	2025-08-22 08:18:07.802959+00	8fbd85ce-682a-4e7a-8239-d6d385d7e85b	c3421616-28fd-43c8-9505-7d9b3c0d7b11	[]
+1	2025-06-19	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20409/	not_filled	2025-08-22 07:28:57.063825+00	2025-08-22 08:18:10.794099+00	d9d67333-5aab-492c-80a3-c90f7e7edc19	8cb7b488-179c-477e-94e5-e3abce067435	[]
+2	2025-08-08	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22551/	not_filled	2025-08-22 07:28:58.878423+00	2025-08-22 08:18:15.013811+00	4e9af931-8bf7-4f99-a215-d8883b17a691	9c502988-a0fa-4947-b5d6-a9ca3fa3fee1	[]
+1	2025-03-25	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/17299/?EVENT_TYPE=UPDATE&EVENT_TASK_ID=17299&EVENT_OPTIONS[STAY_AT_PAGE]=&EVENT_OPTIONS[SCOPE]=&EVENT_OPTIONS[FIRST_GRID_TASK_CREATION_TOUR_GUIDE]=	not_filled	2025-08-22 07:29:00.659538+00	2025-08-22 08:18:18.032217+00	bacf8633-8d7d-4d5d-bd69-c799b13c4a02	29d0be8f-083d-42d1-b721-b940ddf0b831	[]
+2	2025-05-18	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19497/?any=group%2F125%2Ftasks%2Ftask%2Fview%2F19497%2F	not_filled	2025-08-22 07:29:02.464835+00	2025-08-22 08:18:21.051746+00	806daac2-b7b5-4ce2-b852-95d2b3130475	6cf83dc7-c4b7-4fcf-8c60-803b9f5ec9bc	[]
+1	2025-06-21	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20447/	not_filled	2025-08-22 07:29:04.542969+00	2025-08-22 08:18:24.168766+00	6124c63f-4cae-43ef-ab34-95a50ddbf275	5635fcaf-310a-420d-9aa5-372da94eaaf9	[]
+3	2025-07-01	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20727/	not_filled	2025-08-22 07:29:06.401111+00	2025-08-22 08:18:26.914145+00	9d43afc4-e71a-4ccf-916a-8f85689587bf	285ce928-66fe-4f3e-aad4-3ac591828fbe	[]
+1	2025-07-15	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/21173/	not_filled	2025-08-22 07:28:46.825185+00	2025-08-22 08:17:53.050024+00	4553f0c2-ce2c-434c-9518-019553b62715	479714a9-c4d2-4c80-a267-da7de13a479e	[]
+3	2025-08-05	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22441/	not_filled	2025-08-22 07:28:48.531542+00	2025-08-22 08:17:56.109175+00	3d99658c-d013-4598-beb3-2136eb9c4548	b62fa27c-9cb1-4ff3-9ecc-2ac7e1a8deff	[]
+1	2025-08-01	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22391/	not_filled	2025-08-22 07:28:50.355096+00	2025-08-22 08:17:59.22508+00	df45486e-d998-4540-93df-4ab7e9c8d9cd	21548fbb-db4f-42ca-8f82-a0965141efde	[]
+1	2025-04-16	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/18211/	not_filled	2025-08-22 07:28:52.12498+00	2025-08-22 08:18:02.30398+00	a1e52472-dba3-498d-ad64-57ba3776876a	0cf47924-b94c-4c57-9991-a66f828f298a	[]
+2	2025-04-16	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/18213/	not_filled	2025-08-22 07:28:53.840143+00	2025-08-22 08:18:05.382548+00	1901815b-66c7-465a-a8bb-ad5aa8eff42d	ffadc36d-6252-4d97-9636-d6ec301f2ffd	[]
+3	2025-05-22	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19539/	not_filled	2025-08-22 07:28:55.641691+00	2025-08-22 08:18:08.367044+00	8fbd85ce-682a-4e7a-8239-d6d385d7e85b	ca9665d3-0741-440c-a600-c0b25d72ad41	[]
+2	2025-06-21	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20503/	not_filled	2025-08-22 07:28:57.435638+00	2025-08-22 08:18:11.452209+00	d9d67333-5aab-492c-80a3-c90f7e7edc19	1cfc724b-ebc0-474e-971a-6e96ca938a04	[]
+1	2025-08-01	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22363/	not_filled	2025-08-22 07:28:59.221622+00	2025-08-22 08:18:15.60707+00	648dba5f-0a84-4782-800a-1e03955c9136	fefc8544-6777-4357-869a-c03541db661e	[]
+2	2025-05-01	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/18907/	not_filled	2025-08-22 07:29:01.035364+00	2025-08-22 08:18:18.629113+00	bacf8633-8d7d-4d5d-bd69-c799b13c4a02	b27e38d9-02c7-4829-9750-c0454f8de0ae	[]
+1	2025-05-08	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19071/	not_filled	2025-08-22 07:29:02.806756+00	2025-08-22 08:18:21.72734+00	48ffc696-b127-4121-8d41-72e63ce27922	181d400a-5aea-48a8-a84a-ac8a0ad6ecc5	[]
+1	2025-06-21	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20451/	not_filled	2025-08-22 07:29:04.91551+00	2025-08-22 08:18:24.757743+00	2bb0b7a5-82c7-491f-b9d9-d2f874a00f85	89a54c7a-6611-4192-85ad-cd6d9b479f0e	[]
+1	2025-06-26	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20613/	not_filled	2025-08-22 07:29:06.749357+00	2025-08-22 08:18:27.506456+00	c116b14a-68a0-4ead-aa87-77dee7ecc984	22629e3e-e9a7-4fc2-9d33-1888e982d49b	[]
+1	2025-07-25	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/21859/	not_filled	2025-08-22 07:28:47.163968+00	2025-08-22 08:17:53.65545+00	39a2d76a-bbb9-4314-831a-d78603b8bb0f	1e2cd06d-d14f-44be-9bfb-4323c58ff021	[]
+1	2025-07-25	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/21871/	not_filled	2025-08-22 07:28:48.877787+00	2025-08-22 08:17:56.780731+00	bca2c0bc-a4c8-410e-bbad-3dafe1202c8d	cdabc224-6ee7-4a20-bdc8-9ca17a7f9f7c	[]
+2	2025-08-14	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22689/	not_filled	2025-08-22 07:28:50.709081+00	2025-08-22 08:17:59.825476+00	df45486e-d998-4540-93df-4ab7e9c8d9cd	5d71b37e-7043-44a7-96ba-5c8a8f303417	[]
+1	2025-04-11	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/18071/	not_filled	2025-08-22 07:28:52.449392+00	2025-08-22 08:18:02.909143+00	afd8017a-6d65-4432-a645-9c9c735bc6d6	2cc22364-a5de-4d05-9b77-120e184ae75a	[]
+3	2025-05-14	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19293/	not_filled	2025-08-22 07:28:54.224613+00	2025-08-22 08:18:05.986943+00	1901815b-66c7-465a-a8bb-ad5aa8eff42d	2dd4fa4b-1dc0-4242-afda-b98e7f6e59b2	[]
+1	2025-05-14	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19301/	not_filled	2025-08-22 07:28:55.9905+00	2025-08-22 08:18:08.964492+00	913c05cc-d6f0-4b07-8490-b1e18c1bae67	8b3afc7c-2b94-44a3-ac2d-a28269055b8d	[]
+1	2025-07-26	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22027/	not_filled	2025-08-22 07:28:57.787266+00	2025-08-22 08:18:12.402109+00	852f21db-e276-45ff-b7ae-574dc9f723db	19b4dcf6-3b5a-4932-a9aa-d748014c77b6	[]
+1	2025-05-31	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19993/	not_filled	2025-08-22 07:28:59.587267+00	2025-08-22 08:18:16.225077+00	6629caf2-f9b1-431c-822f-2d1eb2d4c097	cd217198-0a72-409e-9c5c-40c0300ea8af	[]
+1	2025-05-07	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19037/	not_filled	2025-08-22 07:29:01.37619+00	2025-08-22 08:18:19.245956+00	e9e5f6d6-fec8-4982-9b29-9540a1b6529e	e42908e9-9388-49f9-b65e-443b9bd31dd6	[]
+2	2025-05-15	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19353/	not_filled	2025-08-22 07:29:03.149308+00	2025-08-22 08:18:22.332775+00	48ffc696-b127-4121-8d41-72e63ce27922	6c3e4f0d-da1c-4ecd-9466-6ef7f083e74b	[]
+1	2025-06-26	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20605/	not_filled	2025-08-22 07:29:05.260296+00	2025-08-22 08:18:25.371438+00	e6eedd46-b64a-4278-9d6f-b7eb5d7a4123	578eaf83-31e1-4720-b4e3-3ec3c95287a9	[]
+1	2025-07-01	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20731/	not_filled	2025-08-22 07:29:07.105543+00	2025-08-22 08:18:28.124642+00	32656b43-1b53-44ae-b2e2-81befd9cd7a5	65678175-4fe3-430b-88c9-90bbb3193dd3	[]
+1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/21311/	not_filled	2025-08-22 07:28:47.500907+00	2025-08-22 08:17:54.264559+00	10f1d962-b920-4f8d-a675-84458469a4a0	2f20ebf5-5339-414f-8334-f8bd862b70d5	[]
+2	2025-08-08	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22565/	not_filled	2025-08-22 07:28:49.223854+00	2025-08-22 08:17:57.381528+00	bca2c0bc-a4c8-410e-bbad-3dafe1202c8d	02aa966a-b735-4aa3-b1df-03775ce5544b	[]
+1	2025-08-07	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22549/	not_filled	2025-08-22 07:28:51.086105+00	2025-08-22 08:18:00.43108+00	db6f62f5-676d-491f-9a45-d5743fc245f3	23b812ad-f098-4540-82fd-eae0e07b330f	[]
+2	2025-04-18	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/18285/	not_filled	2025-08-22 07:28:52.813317+00	2025-08-22 08:18:03.492961+00	afd8017a-6d65-4432-a645-9c9c735bc6d6	c9bcdf10-c926-4893-81c9-391b7c455e9b	[]
+4	2025-05-14	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19295/	not_filled	2025-08-22 07:28:54.561338+00	2025-08-22 08:18:06.606645+00	1901815b-66c7-465a-a8bb-ad5aa8eff42d	42179e6b-9fcb-4bcc-90c7-b85dcb47f225	[]
+2	2025-05-17	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19455/	not_filled	2025-08-22 07:28:56.323086+00	2025-08-22 08:18:09.582739+00	913c05cc-d6f0-4b07-8490-b1e18c1bae67	f565c75d-5c1d-437d-8d70-ec060bec48cc	[]
+2	2025-08-05	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22431/	not_filled	2025-08-22 07:28:58.136479+00	2025-08-22 08:18:13.69727+00	852f21db-e276-45ff-b7ae-574dc9f723db	6333d7d2-466e-4c03-8b8a-7bea9695fb95	[]
+1	2025-03-25	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/17295/?EVENT_TYPE=UPDATE&EVENT_TASK_ID=17295&EVENT_OPTIONS[STAY_AT_PAGE]=&EVENT_OPTIONS[SCOPE]=&EVENT_OPTIONS[FIRST_GRID_TASK_CREATION_TOUR_GUIDE]=	not_filled	2025-08-22 07:28:59.941689+00	2025-08-22 08:18:16.854012+00	a8768648-7398-4c2a-9179-4e8ac3ae3dc8	20c41a30-a653-44c9-b261-f597cb9d22d7	[]
+2	2025-05-14	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19311/	not_filled	2025-08-22 07:29:01.744207+00	2025-08-22 08:18:19.840891+00	e9e5f6d6-fec8-4982-9b29-9540a1b6529e	93a9eae4-6bfb-434f-8b1e-2583e637843b	[]
+3	2025-05-22	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19541/	not_filled	2025-08-22 07:29:03.515239+00	2025-08-22 08:18:22.940401+00	48ffc696-b127-4121-8d41-72e63ce27922	a4cab8d7-d880-40d6-92cb-e1827a95b66f	[]
+2	2025-07-12	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/21137/	not_filled	2025-08-22 07:29:07.440604+00	2025-08-22 08:18:28.747036+00	32656b43-1b53-44ae-b2e2-81befd9cd7a5	9c614da0-ed92-4a0f-9474-f6968530f81a	[]
+1	2025-01-17	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/14225/	not_filled	2025-08-22 07:28:25.028578+00	2025-08-22 08:17:18.727006+00	8dc51dec-082e-43cd-ad54-9b1de3599d00	972d3248-51e3-40bc-9fdd-2f4e52e78c26	[]
+1	2025-02-12	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/15373/?EVENT_TYPE=UPDATE&EVENT_TASK_ID=15373&EVENT_OPTIONS[STAY_AT_PAGE]=&EVENT_OPTIONS[SCOPE]=&EVENT_OPTIONS[FIRST_GRID_TASK_CREATION_TOUR_GUIDE]=	not_filled	2025-08-22 07:28:25.538273+00	2025-08-22 08:17:19.366813+00	82fb8525-b47b-4f21-84c3-5ea5ac30ac51	7349203b-49cb-4e95-ac64-7c3c65c6f131	[]
+1	2025-02-12	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/15365/?EVENT_TYPE=UPDATE&EVENT_TASK_ID=15365&EVENT_OPTIONS[STAY_AT_PAGE]=&EVENT_OPTIONS[SCOPE]=&EVENT_OPTIONS[FIRST_GRID_TASK_CREATION_TOUR_GUIDE]=	not_filled	2025-08-22 07:28:25.976259+00	2025-08-22 08:17:20.012681+00	e2393cc8-d3fe-4e8e-b2aa-e7014222dc9e	e1c41a51-624a-4ac1-9156-ed51cec579da	[]
+3	2025-07-22	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/21445/	not_filled	2025-08-22 07:28:28.076297+00	2025-08-22 08:17:22.950137+00	ae4733f7-d46e-4d32-84af-d4e564208646	97b348d2-4597-4d61-899d-6ec3495491b7	[]
+1	2025-06-04	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20137/	not_filled	2025-08-22 07:28:28.872611+00	2025-08-22 08:17:24.095962+00	e734d241-860c-4f89-ac10-d20c9c6c5cac	cae3596f-406f-401e-ac8f-4cd8a8ff9210	[]
+1	2025-07-30	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22203/	not_filled	2025-08-22 07:28:30.760579+00	2025-08-22 08:17:26.694332+00	0b710cac-6ff4-4b3f-8597-eba3dbdf2730	25da50fe-e9c1-42ca-b4b3-8134d0c1e310	[]
+2	2025-08-20	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22837/	not_filled	2025-08-22 07:28:31.490372+00	2025-08-22 08:17:27.835859+00	242a62fe-f985-49a2-88f0-de8ad166819d	0eec1856-1c2b-47d9-a844-2f32e9eb03c9	[]
+3	2025-02-28	https://su10.bitrix24.ru/company/personal/user/821/tasks/task/view/16285/	not_filled	2025-08-22 07:28:32.627636+00	2025-08-22 08:17:29.893661+00	69e9397f-34fe-4b91-84e6-7339f13c5c2d	f1c3e3e8-2954-4dc9-ad82-91c2ec16b5c4	[]
+2	2025-02-22	https://su10.bitrix24.ru/company/personal/user/821/tasks/task/view/15815/	not_filled	2025-08-22 07:28:33.358133+00	2025-08-22 08:17:31.114068+00	a4d1f99c-83a7-4e7b-a95f-bcd7eed2c90a	7e245274-4bf8-48c0-9f71-fbc9cfa5c89d	[]
+1	2025-02-12	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/15369/?EVENT_TYPE=UPDATE&EVENT_TASK_ID=15369&EVENT_OPTIONS[STAY_AT_PAGE]=&EVENT_OPTIONS[SCOPE]=&EVENT_OPTIONS[FIRST_GRID_TASK_CREATION_TOUR_GUIDE]=	not_filled	2025-08-22 07:28:34.068524+00	2025-08-22 08:17:32.252513+00	51c84359-43fc-4caf-b1e0-51ee514a1627	2b5d43b8-bb6e-4199-a7e4-12cdd4d381db	[]
+2	2025-03-15	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/16939/	not_filled	2025-08-22 07:28:35.568673+00	2025-08-22 08:17:34.323258+00	098c4ba0-c037-4603-9ea1-3c21a93f3718	37801599-d1a2-4002-b602-701531797410	[]
+2	2025-06-20	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20417/	not_filled	2025-08-22 07:28:36.295165+00	2025-08-22 08:17:35.503708+00	d99591b3-7dfb-4de8-8bf1-d99d074f0ce5	6afd9d17-3484-4440-98d1-c5cf1733a48b	[]
+3	2025-04-05	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/17839/	not_filled	2025-08-22 07:28:37.402348+00	2025-08-22 08:17:37.34131+00	937745b4-b809-43ef-98a0-582eb7ce7135	068c5d3a-e7d4-4017-9403-7a095104fed9	[]
+5	2025-06-20	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20421/	not_filled	2025-08-22 07:28:38.160165+00	2025-08-22 08:17:38.700634+00	937745b4-b809-43ef-98a0-582eb7ce7135	e183905d-120e-4379-b0c6-ced7db683474	[]
+3	2025-03-22	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/17137/	not_filled	2025-08-22 07:28:39.291635+00	2025-08-22 08:17:40.424424+00	3a769d69-c897-47db-bfc1-5fc54b893a47	868cbaee-79f1-4506-9547-7148a8bfa970	[]
+6	2025-06-21	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19813/	not_filled	2025-08-22 07:28:40.378407+00	2025-08-22 08:17:42.149342+00	3a769d69-c897-47db-bfc1-5fc54b893a47	bfb923b3-f65a-44f4-9ee9-44c41df1430c	[]
+1	2025-08-14	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22693/	not_filled	2025-08-22 07:28:49.555985+00	2025-08-22 08:17:57.970716+00	d3e02784-6af0-4efa-b33c-274bcfe33dc4	ca6bf2a1-1c19-4f8d-94c7-a4985ec9c072	[]
+1	2025-05-06	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/18975/	not_filled	2025-08-22 07:28:53.145506+00	2025-08-22 08:18:04.141224+00	24aaa6e0-1a3c-4c8a-94b0-96684d646b36	57e1e126-1bd8-4526-a782-fdb2144b7114	[]
+1	2025-05-14	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19305/	not_filled	2025-08-22 07:28:54.922447+00	2025-08-22 08:18:07.212447+00	8fbd85ce-682a-4e7a-8239-d6d385d7e85b	923217f5-4eac-45cf-a382-3eb72d98b594	[]
+1	2025-07-26	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22031/	not_filled	2025-08-22 07:28:58.52348+00	2025-08-22 08:18:14.421122+00	4e9af931-8bf7-4f99-a215-d8883b17a691	66349b2d-2300-425d-b144-b74a8115a4f8	[]
+1	2025-05-17	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19465/	not_filled	2025-08-22 07:29:04.199568+00	2025-08-22 08:18:23.550636+00	e6f22d45-bcc3-48bb-a26b-5a348f993321	1dcc646d-edfe-4ae7-a685-6c6c81baf97f	[]
+2	2025-06-27	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20673/	not_filled	2025-08-22 07:29:05.983413+00	2025-08-22 08:18:26.332043+00	9d43afc4-e71a-4ccf-916a-8f85689587bf	19e2ffcf-164a-459a-b2df-b6bb08656fe1	[]
+1	2025-07-03	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20903/	not_filled	2025-08-22 07:29:07.792317+00	2025-08-22 08:18:29.407248+00	5ecd96f4-75ab-481f-99b7-3b9c23a5fb28	25c64251-ceeb-4f25-b14f-fc9b4ba01c81	[]
+2	2025-07-15	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/21169/	not_filled	2025-08-22 07:29:08.520084+00	2025-08-22 08:18:30.652041+00	0c19a57a-b96e-4dc5-9f84-a7a816ccd4fc	676d7cf6-44c3-4dea-a354-c488b62b93bc	[]
+1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/21303/	not_filled	2025-08-22 07:29:08.865642+00	2025-08-22 08:18:31.264937+00	e7c92fe3-bb13-4214-bfe9-725070f9c2d5	655cffaf-3066-4e11-b3e5-15d4331fb919	[]
+2	2025-07-26	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22035/	not_filled	2025-08-22 07:29:09.544622+00	2025-08-22 08:18:32.609053+00	7b045b20-bf2d-4481-ab1a-0bbe2b11a30a	b2053879-5b7e-42e6-b349-08dfaf72c1ab	[]
+1	2025-08-08	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22555/	not_filled	2025-08-22 07:29:10.245869+00	2025-08-22 08:18:33.866241+00	ed6a8820-be59-4e7e-93f7-9864827e96c7	8f948d8b-e4bf-438e-8604-884d7d81087a	[]
+1	2025-06-17	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20351/	not_filled	2025-08-22 07:29:10.586646+00	2025-08-22 08:18:34.450826+00	7c6df5bb-a0d1-4ea1-b735-9d8bd6db3cba	959517b5-6bf8-4b5f-94fb-0d10451ee45d	[]
+1	2025-06-21	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20511/	not_filled	2025-08-22 07:29:11.324816+00	2025-08-22 08:18:35.586218+00	44359f67-fe61-43d9-90db-8752e2e48560	b1110dca-1265-4eed-ad0e-14031f1cfb0e	[]
+1	2025-06-21	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20515/	not_filled	2025-08-22 07:29:12.026223+00	2025-08-22 08:18:36.745451+00	776191f4-9508-429f-b3f2-48ef5502ad86	4ccd7284-2a25-4a14-992a-2824ab49b37f	[]
+1	2025-07-25	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/21855/	not_filled	2025-08-22 07:29:12.417262+00	2025-08-22 08:18:37.31216+00	86025732-906e-48c9-83fb-5c6a1f7bf7fd	a85b3619-691a-4656-9057-6ae1471f4b7d	[]
+3	2025-08-01	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22383/	not_filled	2025-08-22 07:29:13.114713+00	2025-08-22 08:18:38.421507+00	86025732-906e-48c9-83fb-5c6a1f7bf7fd	91771207-f7bc-489e-b2e1-6f6791fb1b2d	[]
+1	2025-06-26	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20595/	not_filled	2025-08-22 07:29:13.808391+00	2025-08-22 08:19:19.848041+00	bc1f1468-a2b7-417c-86e4-d994189f29bd	2133662a-9374-4cd7-bf85-9e171c032b95	[]
+2	2025-07-25	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/21851/	not_filled	2025-08-22 07:29:14.164951+00	2025-08-22 08:19:20.436784+00	bc1f1468-a2b7-417c-86e4-d994189f29bd	cdca919d-ce57-467c-90a6-401240d7273a	[]
+4	2025-08-01	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22371/	not_filled	2025-08-22 07:29:14.897878+00	2025-08-22 08:19:21.639098+00	bc1f1468-a2b7-417c-86e4-d994189f29bd	44468394-609d-4288-aa61-dd369ad1c39e	[]
+1	2025-07-03	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20877/	not_filled	2025-08-22 07:29:15.615827+00	2025-08-22 08:19:22.917398+00	035c59f2-9058-470e-a032-c7b492feda1f	9c526e0e-eaf0-4ee1-89cf-a7aebd65a69a	[]
+2	2025-07-25	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/21867/	not_filled	2025-08-22 07:29:15.948941+00	2025-08-22 08:19:23.494959+00	035c59f2-9058-470e-a032-c7b492feda1f	86dffd79-9618-4965-b338-37429de403b6	[]
+1	2025-07-25	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/21865/	not_filled	2025-08-22 07:29:16.656713+00	2025-08-22 08:19:25.301721+00	2f73d3c4-8b8b-485a-a8ab-661d492e75c9	83ee5e38-5923-4805-bef9-6fae41c14466	[]
+1	2025-08-01	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22381/	not_filled	2025-08-22 07:29:17.0272+00	2025-08-22 08:19:25.915768+00	59c63f22-0e2e-4f03-906e-d9f3883ae5da	27f3c283-bb29-4bdf-8324-481839461a9a	[]
+1	2025-08-14	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22679/	not_filled	2025-08-22 07:29:17.691497+00	2025-08-22 08:19:27.137429+00	3b3dbfc5-534a-4810-a27b-8c46294f0239	ca515118-6295-4c0d-b56d-eca341445c7b	[]
+1	2025-08-08	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22559/	not_filled	2025-08-22 07:29:18.394671+00	2025-08-22 08:19:28.352861+00	8f12b5c2-4304-49a6-bb1d-30bb9d92541e	2c8ad275-bac5-414a-9859-c707788ec148	[]
+2	2025-05-28	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19761/	not_filled	2025-08-22 07:29:19.110731+00	2025-08-22 08:19:29.519345+00	3f681dfc-6d8e-4e84-aaea-30f35ed686a7	1d35f6f1-0667-4b02-8452-41eee7a7d521	[]
+1	2025-07-18	https://su10.bitrix24.ru/company/personal/user/895/tasks/task/view/21279/	not_filled	2025-08-22 07:29:19.50894+00	2025-08-22 08:19:30.183839+00	b344f9a7-5d2c-4883-bd97-02cc41771cf6	b6186c24-43f1-46a2-ae7b-a9b57e351692	[]
+1	2025-03-12	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/16813/	not_filled	2025-08-22 07:28:41.057203+00	2025-08-22 08:17:43.334258+00	5f19327a-321b-48ad-9624-199e76c9444a	89f3ee99-8808-4035-8a67-8742375a2bd1	[]
+3	2025-07-01	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20723/	not_filled	2025-08-22 07:28:44.035301+00	2025-08-22 08:17:48.247717+00	f1d98d56-134c-41d7-b627-cf145d6042c3	4858fb0c-6dce-4d2f-9383-4b438b5eb9ef	[]
+1	2025-06-21	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20497/	not_filled	2025-08-22 07:28:44.722504+00	2025-08-22 08:17:49.411114+00	3894bb58-3102-42b8-a210-0906ece8f431	ffbc9f16-3262-4170-aea6-a6133d80ecb3	[]
+1	2025-03-12	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/16809/	not_filled	2025-08-22 07:28:42.314669+00	2025-08-22 08:17:45.219396+00	3da7a8e8-e73d-4e78-a60a-e94bba3d8ed3	3ed4a3f7-c9f9-415c-b1b2-baa604c4e826	[]
+1	2025-03-22	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/17141/	not_filled	2025-08-22 07:28:42.998005+00	2025-08-22 08:17:46.443942+00	4b947d29-2bf2-4182-a25a-e5bfb254a560	536d9021-108a-4443-891b-93fb77434d1e	[]
+1	2025-06-21	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20501/	not_filled	2025-08-22 07:28:45.774027+00	2025-08-22 08:17:51.222447+00	17e81e5d-bdc1-4b08-81bb-cfd1ee5179a3	190aa6a0-3c96-4758-92d4-3c473ab9c9c6	[]
+1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/21315/	not_filled	2025-08-22 07:28:47.837644+00	2025-08-22 08:17:54.87157+00	3d99658c-d013-4598-beb3-2136eb9c4548	f59c12a2-9ef3-46a4-940a-852ca6cb804f	[]
+1	2025-08-14	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22687/	not_filled	2025-08-22 07:28:51.405311+00	2025-08-22 08:18:01.089387+00	7610e7ea-65ad-4068-b1db-31ceefb3e40e	4c2e4773-8969-4a7d-b1d8-9ccf7048fe86	[]
+1	2025-06-19	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20405/	not_filled	2025-08-22 07:28:56.683128+00	2025-08-22 08:18:10.203366+00	9251803f-c3d8-4a69-8e51-640850e20690	99be415e-6998-4801-b92f-98a1c737ea0f	[]
+2	2025-04-22	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/18345/	not_filled	2025-08-22 07:29:00.302522+00	2025-08-22 08:18:17.426039+00	a8768648-7398-4c2a-9179-4e8ac3ae3dc8	c85018f3-dcb0-4188-af64-e6970bd90aeb	[]
+1	2025-04-02	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/17667/?EVENT_TYPE=UPDATE&EVENT_TASK_ID=17667&EVENT_OPTIONS[STAY_AT_PAGE]=&EVENT_OPTIONS[SCOPE]=&EVENT_OPTIONS[FIRST_GRID_TASK_CREATION_TOUR_GUIDE]=	not_filled	2025-08-22 07:29:02.106234+00	2025-08-22 08:18:20.436097+00	806daac2-b7b5-4ce2-b852-95d2b3130475	5d770cce-7c56-4f81-8437-0875fda853d9	[]
+1	2025-07-03	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20899/	not_filled	2025-08-22 07:29:08.147302+00	2025-08-22 08:18:30.016195+00	0c19a57a-b96e-4dc5-9f84-a7a816ccd4fc	832ac43a-4691-48fc-b679-4bb727d49df5	[]
+1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/21307/	not_filled	2025-08-22 07:29:09.206082+00	2025-08-22 08:18:31.986955+00	7b045b20-bf2d-4481-ab1a-0bbe2b11a30a	ce8362fd-7040-4877-b38f-ba89e6e3dd58	[]
+3	2025-08-05	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22437/	not_filled	2025-08-22 07:29:09.899628+00	2025-08-22 08:18:33.244292+00	7b045b20-bf2d-4481-ab1a-0bbe2b11a30a	e8d6b100-9815-4285-bd61-86bf5c9daba1	[]
+1	2025-08-14	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22671/	not_filled	2025-08-22 07:29:10.949702+00	2025-08-22 08:18:35.009443+00	58a92868-c1d1-453a-811d-e221265324d9	f575487e-df07-478e-8ebd-5f7af585259d	[]
+2	2025-07-05	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20947/	not_filled	2025-08-22 07:29:11.668439+00	2025-08-22 08:18:36.150224+00	44359f67-fe61-43d9-90db-8752e2e48560	b9503ac9-cb93-4b0f-9c2d-54731aba5bf2	[]
+2	2025-07-25	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/21873/	not_filled	2025-08-22 07:29:12.769431+00	2025-08-22 08:18:37.864913+00	86025732-906e-48c9-83fb-5c6a1f7bf7fd	70479c1d-23c9-45c5-a34c-362b9beae46a	[]
+4	2025-08-01	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22393/	not_filled	2025-08-22 07:29:13.454965+00	2025-08-22 08:18:38.980302+00	86025732-906e-48c9-83fb-5c6a1f7bf7fd	0d2a2e8e-e1dc-4605-b6f6-f47a7de26fe7	[]
+3	2025-07-25	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/21875/	not_filled	2025-08-22 07:29:14.559027+00	2025-08-22 08:19:21.045628+00	bc1f1468-a2b7-417c-86e4-d994189f29bd	5b1c0f8d-7a6f-48c8-935e-378a024a91cc	[]
+5	2025-08-02	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22401/	not_filled	2025-08-22 07:29:15.250718+00	2025-08-22 08:19:22.256376+00	bc1f1468-a2b7-417c-86e4-d994189f29bd	2573eb61-a260-4981-b132-47639d064d46	[]
+3	2025-08-05	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22435/	not_filled	2025-08-22 07:29:16.297287+00	2025-08-22 08:19:24.722956+00	035c59f2-9058-470e-a032-c7b492feda1f	9a1df6af-f330-411b-b35e-b05fb64fd9bf	[]
+2	2025-08-14	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22683/	not_filled	2025-08-22 07:29:17.353744+00	2025-08-22 08:19:26.517045+00	59c63f22-0e2e-4f03-906e-d9f3883ae5da	9de82006-e19e-457a-9d5f-58b9bbeda830	[]
+1	2025-08-08	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22563/	not_filled	2025-08-22 07:29:18.057689+00	2025-08-22 08:19:27.754993+00	5cbdd04c-f76e-4130-9a84-5667fcf18cdf	318160ac-7eee-4d07-99b7-203ab16822cc	[]
+1	2025-04-24	https://su10.bitrix24.ru/company/personal/user/111/tasks/task/view/18463/	not_filled	2025-08-22 07:29:18.75602+00	2025-08-22 08:19:28.933107+00	3f681dfc-6d8e-4e84-aaea-30f35ed686a7	07b06a85-492b-4937-a214-30a07ec0d633	[]
 \.
 
 
@@ -4316,13 +4471,26 @@ COPY public.documentations (code, tag_id, created_at, updated_at, id, stage) FRO
 СТ2601-14-КЖ.ЭГ	5	2025-08-21 09:32:44.292916+00	2025-08-21 09:32:44.292916+00	2d22a0a2-ab12-4b9a-8334-b05b87110a2e	Р
 СТ26/01-14-КЖ4-02.1-РД	2	2025-08-21 09:32:23.284665+00	2025-08-21 09:32:23.656691+00	2cd997ba-d211-43b4-988a-57dc26fc197d	Р
 СТ26/01-14-КЖ5-02.1-РД	2	2025-08-21 09:32:24.044921+00	2025-08-21 09:32:24.044921+00	0e3905d8-9af3-446f-8a75-9c35ed6cdfc0	Р
+13АВ-РД-АР3-К5	3	2025-08-22 07:28:30.949542+00	2025-08-22 08:17:27.440111+00	242a62fe-f985-49a2-88f0-de8ad166819d	Р
 СТ26/01-14-КЖ6-02.1-РД	2	2025-08-21 09:32:24.425579+00	2025-08-21 09:32:24.801487+00	aa9e3f3e-7793-4116-9456-97263d75a1c5	Р
+13АВ-РД-АР1.1-К4	3	2025-08-22 07:28:27.119303+00	2025-08-22 08:17:23.128962+00	ae4733f7-d46e-4d32-84af-d4e564208646	Р
+06/25-ГК-4-КЖ0	2	2025-08-22 07:28:32.819392+00	2025-08-22 08:17:31.305106+00	a4d1f99c-83a7-4e7b-a95f-bcd7eed2c90a	Р
+13АВ-РД-АР1.1-К5	3	2025-08-22 07:28:28.656802+00	2025-08-22 08:17:25.20303+00	e734d241-860c-4f89-ac10-d20c9c6c5cac	Р
 СТ26/01-14-КЖ7-02.1-РД	2	2025-08-21 09:32:25.222721+00	2025-08-21 09:32:25.977148+00	de703c63-895b-4117-a7a7-1dfc389f7cb5	Р
+13АВ-РД-КЖ0.2 -БК4	2	2025-08-22 07:28:34.24548+00	2025-08-22 08:17:32.978509+00	ed16c046-d590-4169-898d-45b17e06ded0	Р
 СТ26/01-14-КЖ-АС-02.1-РД	2	2025-08-21 09:32:26.355635+00	2025-08-21 09:32:27.137885+00	91716c2b-9785-4268-b3c6-8df712438981	Р
+13АВ-РД-СФ.2	2	2025-08-22 07:28:33.893094+00	2025-08-22 08:17:31.84992+00	51c84359-43fc-4caf-b1e0-51ee514a1627	Р
 СТ26/01-14-КЖ1-01.1-РД	2	2025-08-21 09:32:27.537735+00	2025-08-21 09:32:27.892873+00	b3540776-a64e-43a8-8e14-ec9a52fccd35	Р
+13АВ-РД-КЖ0.3-БК5	2	2025-08-22 07:28:34.982317+00	2025-08-22 08:17:33.942571+00	098c4ba0-c037-4603-9ea1-3c21a93f3718	Р
 СТ26/01-14-КЖ1-01.2-РД	2	2025-08-21 09:32:28.254479+00	2025-08-21 09:32:28.627132+00	370b50ca-b9f5-4430-848c-7afcd64ca6c0	Р
+13АВ-РД-КЖ0.1-ПА	2	2025-08-22 07:28:35.753785+00	2025-08-22 08:17:35.089341+00	d99591b3-7dfb-4de8-8bf1-d99d074f0ce5	Р
+13АВ-РД-СФ-К3	2	2025-08-22 07:28:40.538891+00	2025-08-22 08:17:42.333161+00	d119e7a5-3055-43c1-b39c-8bf9dad1a531	Р
 СТ26/01-14-КЖ2-01.1-РД	2	2025-08-21 09:32:29.00396+00	2025-08-21 09:32:29.374789+00	4a00e577-ff54-4471-a403-ef778bb11e6e	Р
+13АВ-РД-КЖ0.3-ПА	2	2025-08-22 07:28:38.33103+00	2025-08-22 08:17:41.758259+00	3a769d69-c897-47db-bfc1-5fc54b893a47	Р
+13АВ-РД-КЖ0-К3	2	2025-08-22 07:28:41.225497+00	2025-08-22 08:17:44.13364+00	0bfd342a-d2ec-471e-b994-88ed37b75b6c	Р
 СТ26/01-14-КЖ2-01.2-РД	2	2025-08-21 09:32:29.761845+00	2025-08-21 09:32:30.147563+00	788d290c-abc1-44f4-be93-bb72f26dad83	Р
+13АВ-РД-КЖ0-К6	2	2025-08-22 07:28:42.112245+00	2025-08-22 08:17:45.414107+00	3da7a8e8-e73d-4e78-a60a-e94bba3d8ed3	Р
+13АВ-РД-КЖ5.1.1-К3	2	2025-08-22 07:28:43.158841+00	2025-08-22 08:17:48.424112+00	f1d98d56-134c-41d7-b627-cf145d6042c3	Р
 СТ26/01-14-ПОС1	1	2025-08-21 09:32:15.367463+00	2025-08-21 09:32:15.367463+00	ec3d749d-8d35-49bb-a3a2-8a1b61f35d06	Р
 СТ26/01-14-ПОС2	1	2025-08-21 09:32:15.884949+00	2025-08-21 09:32:15.884949+00	6a5d7eb8-ba66-4cc5-b8c9-93c6cda93271	Р
 СТ26/01-14-КР-РД	1	2025-08-21 09:32:16.371817+00	2025-08-21 09:32:16.838681+00	ff07f546-c05a-4c0c-972a-7aee401714a1	Р
@@ -4349,6 +4517,73 @@ COPY public.documentations (code, tag_id, created_at, updated_at, id, stage) FRO
 СТ26/01-14-КЖ-АС-2-РД	2	2025-08-21 09:32:37.792877+00	2025-08-21 09:32:37.792877+00	0d2b3ef0-f533-46b7-9421-0a8d9c4429b1	Р
 СТ26/01-14-КЖ-АС-01.1а-РД	2	2025-08-21 09:32:38.188013+00	2025-08-21 09:32:38.188013+00	bd03d3fb-bdd5-456d-ac7c-3abae6e109bd	Р
 СТ26/01-14-КЖ-АС-01.1-РД	2	2025-08-21 09:32:38.56658+00	2025-08-21 09:32:38.984169+00	9ad69277-9144-4844-b5a9-8af0592db8cc	Р
+13АВ-РД-ВП	1	2025-08-22 07:28:25.315514+00	2025-08-22 08:17:18.937351+00	82fb8525-b47b-4f21-84c3-5ea5ac30ac51	Р
+13АВ-РД-ОК	1	2025-08-22 07:28:25.780253+00	2025-08-22 08:17:19.589949+00	e2393cc8-d3fe-4e8e-b2aa-e7014222dc9e	Р
+13АВ-РД-АР1.2-К5	3	2025-08-22 07:28:26.736844+00	2025-08-22 08:17:20.859916+00	b31ec789-9a2b-415a-ac22-bad844f443dc	Р
+1232-НВФ-КМ2	3	2025-08-22 07:28:30.211913+00	2025-08-22 08:17:25.58647+00	8b533c59-f839-4ec2-9ce2-d19df88337dd	Р
+13АВ-РД-АР3-К4	3	2025-08-22 07:28:30.574606+00	2025-08-22 08:17:26.243507+00	0b710cac-6ff4-4b3f-8597-eba3dbdf2730	Р
+06/25-ГК-5-КЖ0	2	2025-08-22 07:28:31.735514+00	2025-08-22 08:17:29.486863+00	69e9397f-34fe-4b91-84e6-7339f13c5c2d	Р
+13АВ-РД-КЖ0.2-ПА	2	2025-08-22 07:28:36.486707+00	2025-08-22 08:17:38.249369+00	937745b4-b809-43ef-98a0-582eb7ce7135	Р
+13АВ-РД-КЖ0.1-БК3	2	2025-08-22 07:28:40.894262+00	2025-08-22 08:17:42.935082+00	5f19327a-321b-48ad-9624-199e76c9444a	Р
+13АВ-РД-СФ-К6	2	2025-08-22 07:28:42.827835+00	2025-08-22 08:17:46.01555+00	4b947d29-2bf2-4182-a25a-e5bfb254a560	Р
+13АВ-РД-КЖ5.6-9.1-К3	2	2025-08-22 07:28:47.330548+00	2025-08-22 08:17:53.843957+00	10f1d962-b920-4f8d-a675-84458469a4a0	Р
+13АВ-РД-КЖ6.2-К4	2	2025-08-22 07:28:59.054962+00	2025-08-22 08:18:15.190199+00	648dba5f-0a84-4782-800a-1e03955c9136	Р
+13АВ-РД-КЖ5.3-9.1-К5	2	2025-08-22 07:29:02.637109+00	2025-08-22 08:18:22.522284+00	48ffc696-b127-4121-8d41-72e63ce27922	Р
+13АВ-РД-КЖ5.10.2-К5	2	2025-08-22 07:29:04.721435+00	2025-08-22 08:18:24.352976+00	2bb0b7a5-82c7-491f-b9d9-d2f874a00f85	Р
+13АВ-РД-КЖ5.1.2-К3	2	2025-08-22 07:28:44.554184+00	2025-08-22 08:17:50.170326+00	3894bb58-3102-42b8-a210-0906ece8f431	Р
+13АВ-РД-КЖ5.2.2-К3	2	2025-08-22 07:28:46.655259+00	2025-08-22 08:17:52.610976+00	4553f0c2-ce2c-434c-9518-019553b62715	Р
+13АВ-РД-КЖ5.13.1-К5	2	2025-08-22 07:29:06.583134+00	2025-08-22 08:18:27.091089+00	c116b14a-68a0-4ead-aa87-77dee7ecc984	Р
+13АВ-РД-КЖ5.10.2-К3	2	2025-08-22 07:28:50.184987+00	2025-08-22 08:17:59.419042+00	df45486e-d998-4540-93df-4ab7e9c8d9cd	Р
+13АВ-РД-КЖ5.1.1-К4	2	2025-08-22 07:28:51.914396+00	2025-08-22 08:18:01.887442+00	a1e52472-dba3-498d-ad64-57ba3776876a	Р
+13АВ-РД-КЖ5.3-9.2-К4	2	2025-08-22 07:28:55.824515+00	2025-08-22 08:18:09.151655+00	913c05cc-d6f0-4b07-8490-b1e18c1bae67	Р
+13АВ-РД-КЖ5.10-17.1-К4	2	2025-08-22 07:28:56.501716+00	2025-08-22 08:18:09.768071+00	9251803f-c3d8-4a69-8e51-640850e20690	Р
+13АВ-РД-КЖ5.18.1-К4	2	2025-08-22 07:28:57.607295+00	2025-08-22 08:18:12.861383+00	852f21db-e276-45ff-b7ae-574dc9f723db	Р
+13АВ-РД-КЖ6.1-К4	2	2025-08-22 07:28:58.307096+00	2025-08-22 08:18:14.59438+00	4e9af931-8bf7-4f99-a215-d8883b17a691	Р
+13АВ-РД-КЖ7.1-К4	2	2025-08-22 07:28:59.411723+00	2025-08-22 08:18:15.791462+00	6629caf2-f9b1-431c-822f-2d1eb2d4c097	Р
+13АВ-РД-КЖ5.2.1-К5	2	2025-08-22 07:29:01.198909+00	2025-08-22 08:18:19.433503+00	e9e5f6d6-fec8-4982-9b29-9540a1b6529e	Р
+13АВ-РД-КЖ5.2.1-К3	2	2025-08-22 07:28:45.587888+00	2025-08-22 08:17:52.004084+00	17e81e5d-bdc1-4b08-81bb-cfd1ee5179a3	Р
+13АВ-РД-КЖ5.3-5.1-К3	2	2025-08-22 07:28:46.991796+00	2025-08-22 08:17:53.235941+00	39a2d76a-bbb9-4314-831a-d78603b8bb0f	Р
+13АВ-РД-КЖ5.2.2-К5	2	2025-08-22 07:29:01.908258+00	2025-08-22 08:18:20.631208+00	806daac2-b7b5-4ce2-b852-95d2b3130475	Р
+13АВ-РД-КЖ5.3-9.2-К5	2	2025-08-22 07:29:03.704458+00	2025-08-22 08:18:23.132072+00	e6f22d45-bcc3-48bb-a26b-5a348f993321	Р
+13АВ-РД-КЖ5.6-9.2-К3	2	2025-08-22 07:28:47.669742+00	2025-08-22 08:17:55.66311+00	3d99658c-d013-4598-beb3-2136eb9c4548	Р
+13АВ-РД-КЖ5.11-12.1-К5	2	2025-08-22 07:29:05.082216+00	2025-08-22 08:18:24.940195+00	e6eedd46-b64a-4278-9d6f-b7eb5d7a4123	Р
+13АВ-РД-КЖ7.1-К3	2	2025-08-22 07:28:48.706538+00	2025-08-22 08:17:56.971002+00	bca2c0bc-a4c8-410e-bbad-3dafe1202c8d	Р
+13АВ-РД-КЖ7.2-К3	2	2025-08-22 07:28:49.38535+00	2025-08-22 08:17:57.552054+00	d3e02784-6af0-4efa-b33c-274bcfe33dc4	Р
+13АВ-РД-КЖ5.11-12.2-К3	2	2025-08-22 07:28:51.244753+00	2025-08-22 08:18:00.610322+00	7610e7ea-65ad-4068-b1db-31ceefb3e40e	Р
+13АВ-РД-КЖ5.1.2-К4	2	2025-08-22 07:28:52.284108+00	2025-08-22 08:18:03.097636+00	afd8017a-6d65-4432-a645-9c9c735bc6d6	Р
+13АВ-РД-КЖ5.2.1-К4	2	2025-08-22 07:28:52.984363+00	2025-08-22 08:18:03.675397+00	24aaa6e0-1a3c-4c8a-94b0-96684d646b36	Р
+13АВ-РД-КЖ5.13.2-К5	2	2025-08-22 07:29:06.92528+00	2025-08-22 08:18:28.326477+00	32656b43-1b53-44ae-b2e2-81befd9cd7a5	Р
+13АВ-РД-КЖ5.3-9.1-К4	2	2025-08-22 07:28:54.738849+00	2025-08-22 08:18:07.971401+00	8fbd85ce-682a-4e7a-8239-d6d385d7e85b	Р
+13АВ-РД-КЖ5.10-17.2-К4	2	2025-08-22 07:28:56.869804+00	2025-08-22 08:18:10.999627+00	d9d67333-5aab-492c-80a3-c90f7e7edc19	Р
+13АВ-РД-КЖ5.10.1-К3	2	2025-08-22 07:28:49.731569+00	2025-08-22 08:17:58.156872+00	f2bf8b78-faf9-41a9-8539-7b0765f913f5	Р
+13АВ-РД-КЖ5.1-К3К4	2	2025-08-22 07:28:51.564698+00	2025-08-22 08:18:01.285298+00	b6111a7f-8322-41ad-82f2-d9cae09c7f9b	Р
+13АВ-РД-КЖ5.1.2-К5	2	2025-08-22 07:29:00.470084+00	2025-08-22 08:18:18.219519+00	bacf8633-8d7d-4d5d-bd69-c799b13c4a02	Р
+13АВ-РД-КЖ5.10.1-К5	2	2025-08-22 07:29:04.371371+00	2025-08-22 08:18:23.746908+00	6124c63f-4cae-43ef-ab34-95a50ddbf275	Р
+13АВ-РД-КЖ5.2.2-К4	2	2025-08-22 07:28:53.313508+00	2025-08-22 08:18:06.177737+00	1901815b-66c7-465a-a8bb-ad5aa8eff42d	Р
+13АВ-РД-КЖ5.1.1-К5	2	2025-08-22 07:28:59.747684+00	2025-08-22 08:18:17.03575+00	a8768648-7398-4c2a-9179-4e8ac3ae3dc8	Р
+13АВ-РД-КЖ5.11-12.2-К5	2	2025-08-22 07:29:05.469187+00	2025-08-22 08:18:26.508779+00	9d43afc4-e71a-4ccf-916a-8f85689587bf	Р
+13АВ-РД-КЖ5.14.1-К5	2	2025-08-22 07:29:07.626113+00	2025-08-22 08:18:28.949469+00	5ecd96f4-75ab-481f-99b7-3b9c23a5fb28	Р
+13АВ-РД-КЖ5.14.2-К5	2	2025-08-22 07:29:07.958637+00	2025-08-22 08:18:30.218033+00	0c19a57a-b96e-4dc5-9f84-a7a816ccd4fc	Р
+1232-ПОС1	1	2025-08-22 07:28:24.628183+00	2025-08-22 08:17:18.250637+00	8dc51dec-082e-43cd-ad54-9b1de3599d00	Р
+13АВ-РД-АР1.2-К4	3	2025-08-22 07:28:26.254011+00	2025-08-22 08:17:20.274074+00	536a19c1-be2e-4b3c-b3a1-2a1746e61378	Р
+13АВ-РД-КЖ5.11-12.1-К3	2	2025-08-22 07:28:50.908822+00	2025-08-22 08:18:00.001728+00	db6f62f5-676d-491f-9a45-d5743fc245f3	Р
+13АВ-РД-КЖ5.15.1-К5	2	2025-08-22 07:29:08.691678+00	2025-08-22 08:18:30.845777+00	e7c92fe3-bb13-4214-bfe9-725070f9c2d5	Р
+13АВ-РД-КЖ6.1-К5	2	2025-08-22 07:29:09.036656+00	2025-08-22 08:18:32.820043+00	7b045b20-bf2d-4481-ab1a-0bbe2b11a30a	Р
+13АВ-РД-КЖ6.2-К5	2	2025-08-22 07:29:10.074637+00	2025-08-22 08:18:33.439851+00	ed6a8820-be59-4e7e-93f7-9864827e96c7	Р
+13АВ-РД-КЖ7.1-К5	2	2025-08-22 07:29:10.414668+00	2025-08-22 08:18:34.062437+00	7c6df5bb-a0d1-4ea1-b735-9d8bd6db3cba	Р
+13АВ-РД-КЖ5.1-К5К6	2	2025-08-22 07:29:10.77956+00	2025-08-22 08:18:34.617458+00	58a92868-c1d1-453a-811d-e221265324d9	Р
+13АВ-РД-КЖ5.1.1-К6	2	2025-08-22 07:29:11.125098+00	2025-08-22 08:18:35.762641+00	44359f67-fe61-43d9-90db-8752e2e48560	Р
+13АВ-РД-КЖ5.1.2-К6	2	2025-08-22 07:29:11.848433+00	2025-08-22 08:18:36.344898+00	776191f4-9508-429f-b3f2-48ef5502ad86	Р
+13АВ-РД-КЖ5.2.1-К6	2	2025-08-22 07:29:12.2436+00	2025-08-22 08:18:38.594327+00	86025732-906e-48c9-83fb-5c6a1f7bf7fd	Р
+13АВ-РД-КЖ5.2.2-К6	2	2025-08-22 07:29:13.633649+00	2025-08-22 08:19:21.809842+00	bc1f1468-a2b7-417c-86e4-d994189f29bd	Р
+13АВ-РД-КЖ5.3-9.1-К6	2	2025-08-22 07:29:15.440944+00	2025-08-22 08:19:24.308002+00	035c59f2-9058-470e-a032-c7b492feda1f	Р
+13АВ-РД-КЖ5.3-9.2-К6	2	2025-08-22 07:29:16.477847+00	2025-08-22 08:19:24.898498+00	2f73d3c4-8b8b-485a-a8ab-661d492e75c9	Р
+13АВ-РД-КЖ7.1-К6	2	2025-08-22 07:29:16.853626+00	2025-08-22 08:19:26.099362+00	59c63f22-0e2e-4f03-906e-d9f3883ae5da	Р
+13АВ-РД-КЖ7.2-К6	2	2025-08-22 07:29:17.514876+00	2025-08-22 08:19:26.704565+00	3b3dbfc5-534a-4810-a27b-8c46294f0239	Р
+13АВ-РД-КЖ5.10-12.1-К6	2	2025-08-22 07:29:17.874497+00	2025-08-22 08:19:27.326066+00	5cbdd04c-f76e-4130-9a84-5667fcf18cdf	Р
+13АВ-РД-КЖ5.10-12.2-К6	2	2025-08-22 07:29:18.225232+00	2025-08-22 08:19:27.936203+00	8f12b5c2-4304-49a6-bb1d-30bb9d92541e	Р
+2025-04-08_1232-ЧМ-КМ	3	2025-08-22 07:29:18.570967+00	2025-08-22 08:19:29.10909+00	3f681dfc-6d8e-4e84-aaea-30f35ed686a7	Р
+13АВ-РД-МЗ	5	2025-08-22 07:29:19.340394+00	2025-08-22 08:19:29.773306+00	b344f9a7-5d2c-4883-bd97-02cc41771cf6	Р
 \.
 
 
@@ -4375,6 +4610,7 @@ e84db261-4d46-4828-bf1a-7002b1f8c342	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 2cd997ba-d211-43b4-988a-57dc26fc197d	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 0e3905d8-9af3-446f-8a75-9c35ed6cdfc0	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 aa9e3f3e-7793-4116-9456-97263d75a1c5	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+f1d98d56-134c-41d7-b627-cf145d6042c3	c95e1507-9c01-47c5-9858-40452f907466	\N
 de703c63-895b-4117-a7a7-1dfc389f7cb5	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 91716c2b-9785-4268-b3c6-8df712438981	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 b3540776-a64e-43a8-8e14-ec9a52fccd35	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
@@ -4390,6 +4626,8 @@ f23c37ab-490b-4f48-99fa-1bcc2a0c5d65	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 2a439585-672a-4ef7-8c93-d7a9c5ec8cce	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 fd4ac328-da06-4d5e-bd9d-a867da1d3002	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 9374198d-6171-425d-b097-796d824c5b25	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+806daac2-b7b5-4ce2-b852-95d2b3130475	c95e1507-9c01-47c5-9858-40452f907466	\N
+17e81e5d-bdc1-4b08-81bb-cfd1ee5179a3	c95e1507-9c01-47c5-9858-40452f907466	\N
 28625b76-6624-40d9-b62f-af18ac2b2de7	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 0d2b3ef0-f533-46b7-9421-0a8d9c4429b1	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 bd03d3fb-bdd5-456d-ac7c-3abae6e109bd	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
@@ -4404,6 +4642,83 @@ c3b9179e-74cc-407a-a5ee-a82a1f890ebe	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 e43c2fb6-e302-4c80-b05c-a7a9a5d3a740	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 42a7bee4-a86e-4dcd-8c71-cd2d79512dbb	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 2d22a0a2-ab12-4b9a-8334-b05b87110a2e	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
+ae4733f7-d46e-4d32-84af-d4e564208646	c95e1507-9c01-47c5-9858-40452f907466	\N
+4553f0c2-ce2c-434c-9518-019553b62715	c95e1507-9c01-47c5-9858-40452f907466	\N
+e734d241-860c-4f89-ac10-d20c9c6c5cac	c95e1507-9c01-47c5-9858-40452f907466	\N
+242a62fe-f985-49a2-88f0-de8ad166819d	c95e1507-9c01-47c5-9858-40452f907466	\N
+a4d1f99c-83a7-4e7b-a95f-bcd7eed2c90a	c95e1507-9c01-47c5-9858-40452f907466	\N
+51c84359-43fc-4caf-b1e0-51ee514a1627	c95e1507-9c01-47c5-9858-40452f907466	\N
+ed16c046-d590-4169-898d-45b17e06ded0	c95e1507-9c01-47c5-9858-40452f907466	\N
+098c4ba0-c037-4603-9ea1-3c21a93f3718	c95e1507-9c01-47c5-9858-40452f907466	\N
+d99591b3-7dfb-4de8-8bf1-d99d074f0ce5	c95e1507-9c01-47c5-9858-40452f907466	\N
+ed6a8820-be59-4e7e-93f7-9864827e96c7	c95e1507-9c01-47c5-9858-40452f907466	\N
+d3e02784-6af0-4efa-b33c-274bcfe33dc4	c95e1507-9c01-47c5-9858-40452f907466	\N
+d119e7a5-3055-43c1-b39c-8bf9dad1a531	c95e1507-9c01-47c5-9858-40452f907466	\N
+bca2c0bc-a4c8-410e-bbad-3dafe1202c8d	c95e1507-9c01-47c5-9858-40452f907466	\N
+3a769d69-c897-47db-bfc1-5fc54b893a47	c95e1507-9c01-47c5-9858-40452f907466	\N
+0bfd342a-d2ec-471e-b994-88ed37b75b6c	c95e1507-9c01-47c5-9858-40452f907466	\N
+3da7a8e8-e73d-4e78-a60a-e94bba3d8ed3	c95e1507-9c01-47c5-9858-40452f907466	\N
+e6f22d45-bcc3-48bb-a26b-5a348f993321	c95e1507-9c01-47c5-9858-40452f907466	\N
+df45486e-d998-4540-93df-4ab7e9c8d9cd	c95e1507-9c01-47c5-9858-40452f907466	\N
+afd8017a-6d65-4432-a645-9c9c735bc6d6	c95e1507-9c01-47c5-9858-40452f907466	\N
+1901815b-66c7-465a-a8bb-ad5aa8eff42d	c95e1507-9c01-47c5-9858-40452f907466	\N
+9251803f-c3d8-4a69-8e51-640850e20690	c95e1507-9c01-47c5-9858-40452f907466	\N
+913c05cc-d6f0-4b07-8490-b1e18c1bae67	c95e1507-9c01-47c5-9858-40452f907466	\N
+d9d67333-5aab-492c-80a3-c90f7e7edc19	c95e1507-9c01-47c5-9858-40452f907466	\N
+852f21db-e276-45ff-b7ae-574dc9f723db	c95e1507-9c01-47c5-9858-40452f907466	\N
+4e9af931-8bf7-4f99-a215-d8883b17a691	c95e1507-9c01-47c5-9858-40452f907466	\N
+a8768648-7398-4c2a-9179-4e8ac3ae3dc8	c95e1507-9c01-47c5-9858-40452f907466	\N
+bacf8633-8d7d-4d5d-bd69-c799b13c4a02	c95e1507-9c01-47c5-9858-40452f907466	\N
+e9e5f6d6-fec8-4982-9b29-9540a1b6529e	c95e1507-9c01-47c5-9858-40452f907466	\N
+c116b14a-68a0-4ead-aa87-77dee7ecc984	c95e1507-9c01-47c5-9858-40452f907466	\N
+32656b43-1b53-44ae-b2e2-81befd9cd7a5	c95e1507-9c01-47c5-9858-40452f907466	\N
+0c19a57a-b96e-4dc5-9f84-a7a816ccd4fc	c95e1507-9c01-47c5-9858-40452f907466	\N
+86025732-906e-48c9-83fb-5c6a1f7bf7fd	c95e1507-9c01-47c5-9858-40452f907466	\N
+44359f67-fe61-43d9-90db-8752e2e48560	c95e1507-9c01-47c5-9858-40452f907466	\N
+59c63f22-0e2e-4f03-906e-d9f3883ae5da	c95e1507-9c01-47c5-9858-40452f907466	\N
+035c59f2-9058-470e-a032-c7b492feda1f	c95e1507-9c01-47c5-9858-40452f907466	\N
+2f73d3c4-8b8b-485a-a8ab-661d492e75c9	c95e1507-9c01-47c5-9858-40452f907466	\N
+3f681dfc-6d8e-4e84-aaea-30f35ed686a7	c95e1507-9c01-47c5-9858-40452f907466	\N
+8dc51dec-082e-43cd-ad54-9b1de3599d00	c95e1507-9c01-47c5-9858-40452f907466	\N
+82fb8525-b47b-4f21-84c3-5ea5ac30ac51	c95e1507-9c01-47c5-9858-40452f907466	\N
+e2393cc8-d3fe-4e8e-b2aa-e7014222dc9e	c95e1507-9c01-47c5-9858-40452f907466	\N
+536a19c1-be2e-4b3c-b3a1-2a1746e61378	c95e1507-9c01-47c5-9858-40452f907466	\N
+b31ec789-9a2b-415a-ac22-bad844f443dc	c95e1507-9c01-47c5-9858-40452f907466	\N
+8b533c59-f839-4ec2-9ce2-d19df88337dd	c95e1507-9c01-47c5-9858-40452f907466	\N
+0b710cac-6ff4-4b3f-8597-eba3dbdf2730	c95e1507-9c01-47c5-9858-40452f907466	\N
+69e9397f-34fe-4b91-84e6-7339f13c5c2d	c95e1507-9c01-47c5-9858-40452f907466	\N
+937745b4-b809-43ef-98a0-582eb7ce7135	c95e1507-9c01-47c5-9858-40452f907466	\N
+5f19327a-321b-48ad-9624-199e76c9444a	c95e1507-9c01-47c5-9858-40452f907466	\N
+4b947d29-2bf2-4182-a25a-e5bfb254a560	c95e1507-9c01-47c5-9858-40452f907466	\N
+3894bb58-3102-42b8-a210-0906ece8f431	c95e1507-9c01-47c5-9858-40452f907466	\N
+39a2d76a-bbb9-4314-831a-d78603b8bb0f	c95e1507-9c01-47c5-9858-40452f907466	\N
+10f1d962-b920-4f8d-a675-84458469a4a0	c95e1507-9c01-47c5-9858-40452f907466	\N
+3d99658c-d013-4598-beb3-2136eb9c4548	c95e1507-9c01-47c5-9858-40452f907466	\N
+f2bf8b78-faf9-41a9-8539-7b0765f913f5	c95e1507-9c01-47c5-9858-40452f907466	\N
+db6f62f5-676d-491f-9a45-d5743fc245f3	c95e1507-9c01-47c5-9858-40452f907466	\N
+7610e7ea-65ad-4068-b1db-31ceefb3e40e	c95e1507-9c01-47c5-9858-40452f907466	\N
+b6111a7f-8322-41ad-82f2-d9cae09c7f9b	c95e1507-9c01-47c5-9858-40452f907466	\N
+a1e52472-dba3-498d-ad64-57ba3776876a	c95e1507-9c01-47c5-9858-40452f907466	\N
+24aaa6e0-1a3c-4c8a-94b0-96684d646b36	c95e1507-9c01-47c5-9858-40452f907466	\N
+8fbd85ce-682a-4e7a-8239-d6d385d7e85b	c95e1507-9c01-47c5-9858-40452f907466	\N
+648dba5f-0a84-4782-800a-1e03955c9136	c95e1507-9c01-47c5-9858-40452f907466	\N
+6629caf2-f9b1-431c-822f-2d1eb2d4c097	c95e1507-9c01-47c5-9858-40452f907466	\N
+48ffc696-b127-4121-8d41-72e63ce27922	c95e1507-9c01-47c5-9858-40452f907466	\N
+6124c63f-4cae-43ef-ab34-95a50ddbf275	c95e1507-9c01-47c5-9858-40452f907466	\N
+2bb0b7a5-82c7-491f-b9d9-d2f874a00f85	c95e1507-9c01-47c5-9858-40452f907466	\N
+e6eedd46-b64a-4278-9d6f-b7eb5d7a4123	c95e1507-9c01-47c5-9858-40452f907466	\N
+9d43afc4-e71a-4ccf-916a-8f85689587bf	c95e1507-9c01-47c5-9858-40452f907466	\N
+5ecd96f4-75ab-481f-99b7-3b9c23a5fb28	c95e1507-9c01-47c5-9858-40452f907466	\N
+e7c92fe3-bb13-4214-bfe9-725070f9c2d5	c95e1507-9c01-47c5-9858-40452f907466	\N
+7b045b20-bf2d-4481-ab1a-0bbe2b11a30a	c95e1507-9c01-47c5-9858-40452f907466	\N
+7c6df5bb-a0d1-4ea1-b735-9d8bd6db3cba	c95e1507-9c01-47c5-9858-40452f907466	\N
+58a92868-c1d1-453a-811d-e221265324d9	c95e1507-9c01-47c5-9858-40452f907466	\N
+776191f4-9508-429f-b3f2-48ef5502ad86	c95e1507-9c01-47c5-9858-40452f907466	\N
+bc1f1468-a2b7-417c-86e4-d994189f29bd	c95e1507-9c01-47c5-9858-40452f907466	\N
+3b3dbfc5-534a-4810-a27b-8c46294f0239	c95e1507-9c01-47c5-9858-40452f907466	\N
+5cbdd04c-f76e-4130-9a84-5667fcf18cdf	c95e1507-9c01-47c5-9858-40452f907466	\N
+8f12b5c2-4304-49a6-bb1d-30bb9d92541e	c95e1507-9c01-47c5-9858-40452f907466	\N
+b344f9a7-5d2c-4883-bd97-02cc41771cf6	c95e1507-9c01-47c5-9858-40452f907466	\N
 \.
 
 
@@ -5763,6 +6078,13 @@ CREATE INDEX idx_documentation_versions_documentation_id ON public.documentation
 --
 
 CREATE INDEX idx_documentation_versions_issue_date ON public.documentation_versions USING btree (issue_date);
+
+
+--
+-- Name: idx_documentation_versions_local_files; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_documentation_versions_local_files ON public.documentation_versions USING gin (local_files);
 
 
 --
@@ -8045,5 +8367,5 @@ ALTER EVENT TRIGGER pgrst_drop_watch OWNER TO supabase_admin;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict BQ0vo6hkses2SSB7jIWAjjIFX2VlX2NSDASl1zKTQlrLbu3fvk25l6v8nMt88aq
+\unrestrict gjghgyD5eVNhi90KpFx960HjECN3BhhoxaWSz6bYg4fmclNMH2JgjrVrPrUYfiA
 
