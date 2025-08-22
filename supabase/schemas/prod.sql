@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict gjghgyD5eVNhi90KpFx960HjECN3BhhoxaWSz6bYg4fmclNMH2JgjrVrPrUYfiA
+\restrict RhOoDsh0Fugi8JWjXfhCwn6E2PDF3bFMqLcrBTmzANLSaJffPasFUGuvlmH2LJS
 
 -- Dumped from database version 17.4
 -- Dumped by pg_dump version 17.6
@@ -313,6 +313,18 @@ CREATE TYPE realtime.wal_rls AS (
 
 
 ALTER TYPE realtime.wal_rls OWNER TO supabase_admin;
+
+--
+-- Name: buckettype; Type: TYPE; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE TYPE storage.buckettype AS ENUM (
+    'STANDARD',
+    'ANALYTICS'
+);
+
+
+ALTER TYPE storage.buckettype OWNER TO supabase_storage_admin;
 
 --
 -- Name: email(); Type: FUNCTION; Schema: auth; Owner: supabase_auth_admin
@@ -757,6 +769,22 @@ $$;
 
 
 ALTER FUNCTION public.set_block_floor_range(p_block_id uuid, p_from_floor integer, p_to_floor integer) OWNER TO postgres;
+
+--
+-- Name: update_rates_updated_at(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.update_rates_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION public.update_rates_updated_at() OWNER TO postgres;
 
 --
 -- Name: update_updated_at_column(); Type: FUNCTION; Schema: public; Owner: postgres
@@ -1479,6 +1507,28 @@ $$;
 ALTER FUNCTION realtime.topic() OWNER TO supabase_realtime_admin;
 
 --
+-- Name: add_prefixes(text, text); Type: FUNCTION; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE FUNCTION storage.add_prefixes(_bucket_id text, _name text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+    prefixes text[];
+BEGIN
+    prefixes := "storage"."get_prefixes"("_name");
+
+    IF array_length(prefixes, 1) > 0 THEN
+        INSERT INTO storage.prefixes (name, bucket_id)
+        SELECT UNNEST(prefixes) as name, "_bucket_id" ON CONFLICT DO NOTHING;
+    END IF;
+END;
+$$;
+
+
+ALTER FUNCTION storage.add_prefixes(_bucket_id text, _name text) OWNER TO supabase_storage_admin;
+
+--
 -- Name: can_insert_object(text, text, uuid, jsonb); Type: FUNCTION; Schema: storage; Owner: supabase_storage_admin
 --
 
@@ -1498,20 +1548,98 @@ $$;
 ALTER FUNCTION storage.can_insert_object(bucketid text, name text, owner uuid, metadata jsonb) OWNER TO supabase_storage_admin;
 
 --
+-- Name: delete_prefix(text, text); Type: FUNCTION; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE FUNCTION storage.delete_prefix(_bucket_id text, _name text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+BEGIN
+    -- Check if we can delete the prefix
+    IF EXISTS(
+        SELECT FROM "storage"."prefixes"
+        WHERE "prefixes"."bucket_id" = "_bucket_id"
+          AND level = "storage"."get_level"("_name") + 1
+          AND "prefixes"."name" COLLATE "C" LIKE "_name" || '/%'
+        LIMIT 1
+    )
+    OR EXISTS(
+        SELECT FROM "storage"."objects"
+        WHERE "objects"."bucket_id" = "_bucket_id"
+          AND "storage"."get_level"("objects"."name") = "storage"."get_level"("_name") + 1
+          AND "objects"."name" COLLATE "C" LIKE "_name" || '/%'
+        LIMIT 1
+    ) THEN
+    -- There are sub-objects, skip deletion
+    RETURN false;
+    ELSE
+        DELETE FROM "storage"."prefixes"
+        WHERE "prefixes"."bucket_id" = "_bucket_id"
+          AND level = "storage"."get_level"("_name")
+          AND "prefixes"."name" = "_name";
+        RETURN true;
+    END IF;
+END;
+$$;
+
+
+ALTER FUNCTION storage.delete_prefix(_bucket_id text, _name text) OWNER TO supabase_storage_admin;
+
+--
+-- Name: delete_prefix_hierarchy_trigger(); Type: FUNCTION; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE FUNCTION storage.delete_prefix_hierarchy_trigger() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    prefix text;
+BEGIN
+    prefix := "storage"."get_prefix"(OLD."name");
+
+    IF coalesce(prefix, '') != '' THEN
+        PERFORM "storage"."delete_prefix"(OLD."bucket_id", prefix);
+    END IF;
+
+    RETURN OLD;
+END;
+$$;
+
+
+ALTER FUNCTION storage.delete_prefix_hierarchy_trigger() OWNER TO supabase_storage_admin;
+
+--
+-- Name: enforce_bucket_name_length(); Type: FUNCTION; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE FUNCTION storage.enforce_bucket_name_length() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+    if length(new.name) > 100 then
+        raise exception 'bucket name "%" is too long (% characters). Max is 100.', new.name, length(new.name);
+    end if;
+    return new;
+end;
+$$;
+
+
+ALTER FUNCTION storage.enforce_bucket_name_length() OWNER TO supabase_storage_admin;
+
+--
 -- Name: extension(text); Type: FUNCTION; Schema: storage; Owner: supabase_storage_admin
 --
 
 CREATE FUNCTION storage.extension(name text) RETURNS text
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql IMMUTABLE
     AS $$
 DECLARE
-_parts text[];
-_filename text;
+    _parts text[];
+    _filename text;
 BEGIN
-	select string_to_array(name, '/') into _parts;
-	select _parts[array_length(_parts,1)] into _filename;
-	-- @todo return the last part instead of 2
-	return reverse(split_part(reverse(_filename), '.', 1));
+    SELECT string_to_array(name, '/') INTO _parts;
+    SELECT _parts[array_length(_parts,1)] INTO _filename;
+    RETURN reverse(split_part(reverse(_filename), '.', 1));
 END
 $$;
 
@@ -1541,13 +1669,15 @@ ALTER FUNCTION storage.filename(name text) OWNER TO supabase_storage_admin;
 --
 
 CREATE FUNCTION storage.foldername(name text) RETURNS text[]
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql IMMUTABLE
     AS $$
 DECLARE
-_parts text[];
+    _parts text[];
 BEGIN
-	select string_to_array(name, '/') into _parts;
-	return _parts[1:array_length(_parts,1)-1];
+    -- Split on "/" to get path segments
+    SELECT string_to_array(name, '/') INTO _parts;
+    -- Return everything except the last segment
+    RETURN _parts[1 : array_length(_parts,1) - 1];
 END
 $$;
 
@@ -1555,15 +1685,75 @@ $$;
 ALTER FUNCTION storage.foldername(name text) OWNER TO supabase_storage_admin;
 
 --
+-- Name: get_level(text); Type: FUNCTION; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE FUNCTION storage.get_level(name text) RETURNS integer
+    LANGUAGE sql IMMUTABLE STRICT
+    AS $$
+SELECT array_length(string_to_array("name", '/'), 1);
+$$;
+
+
+ALTER FUNCTION storage.get_level(name text) OWNER TO supabase_storage_admin;
+
+--
+-- Name: get_prefix(text); Type: FUNCTION; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE FUNCTION storage.get_prefix(name text) RETURNS text
+    LANGUAGE sql IMMUTABLE STRICT
+    AS $_$
+SELECT
+    CASE WHEN strpos("name", '/') > 0 THEN
+             regexp_replace("name", '[\/]{1}[^\/]+\/?$', '')
+         ELSE
+             ''
+        END;
+$_$;
+
+
+ALTER FUNCTION storage.get_prefix(name text) OWNER TO supabase_storage_admin;
+
+--
+-- Name: get_prefixes(text); Type: FUNCTION; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE FUNCTION storage.get_prefixes(name text) RETURNS text[]
+    LANGUAGE plpgsql IMMUTABLE STRICT
+    AS $$
+DECLARE
+    parts text[];
+    prefixes text[];
+    prefix text;
+BEGIN
+    -- Split the name into parts by '/'
+    parts := string_to_array("name", '/');
+    prefixes := '{}';
+
+    -- Construct the prefixes, stopping one level below the last part
+    FOR i IN 1..array_length(parts, 1) - 1 LOOP
+            prefix := array_to_string(parts[1:i], '/');
+            prefixes := array_append(prefixes, prefix);
+    END LOOP;
+
+    RETURN prefixes;
+END;
+$$;
+
+
+ALTER FUNCTION storage.get_prefixes(name text) OWNER TO supabase_storage_admin;
+
+--
 -- Name: get_size_by_bucket(); Type: FUNCTION; Schema: storage; Owner: supabase_storage_admin
 --
 
 CREATE FUNCTION storage.get_size_by_bucket() RETURNS TABLE(size bigint, bucket_id text)
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql STABLE
     AS $$
 BEGIN
     return query
-        select sum((metadata->>'size')::int) as size, obj.bucket_id
+        select sum((metadata->>'size')::bigint) as size, obj.bucket_id
         from "storage".objects as obj
         group by obj.bucket_id;
 END
@@ -1667,6 +1857,68 @@ $_$;
 ALTER FUNCTION storage.list_objects_with_delimiter(bucket_id text, prefix_param text, delimiter_param text, max_keys integer, start_after text, next_token text) OWNER TO supabase_storage_admin;
 
 --
+-- Name: objects_insert_prefix_trigger(); Type: FUNCTION; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE FUNCTION storage.objects_insert_prefix_trigger() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    PERFORM "storage"."add_prefixes"(NEW."bucket_id", NEW."name");
+    NEW.level := "storage"."get_level"(NEW."name");
+
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION storage.objects_insert_prefix_trigger() OWNER TO supabase_storage_admin;
+
+--
+-- Name: objects_update_prefix_trigger(); Type: FUNCTION; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE FUNCTION storage.objects_update_prefix_trigger() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    old_prefixes TEXT[];
+BEGIN
+    -- Ensure this is an update operation and the name has changed
+    IF TG_OP = 'UPDATE' AND (NEW."name" <> OLD."name" OR NEW."bucket_id" <> OLD."bucket_id") THEN
+        -- Retrieve old prefixes
+        old_prefixes := "storage"."get_prefixes"(OLD."name");
+
+        -- Remove old prefixes that are only used by this object
+        WITH all_prefixes as (
+            SELECT unnest(old_prefixes) as prefix
+        ),
+        can_delete_prefixes as (
+             SELECT prefix
+             FROM all_prefixes
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM "storage"."objects"
+                 WHERE "bucket_id" = OLD."bucket_id"
+                   AND "name" <> OLD."name"
+                   AND "name" LIKE (prefix || '%')
+             )
+         )
+        DELETE FROM "storage"."prefixes" WHERE name IN (SELECT prefix FROM can_delete_prefixes);
+
+        -- Add new prefixes
+        PERFORM "storage"."add_prefixes"(NEW."bucket_id", NEW."name");
+    END IF;
+    -- Set the new level
+    NEW."level" := "storage"."get_level"(NEW."name");
+
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION storage.objects_update_prefix_trigger() OWNER TO supabase_storage_admin;
+
+--
 -- Name: operation(); Type: FUNCTION; Schema: storage; Owner: supabase_storage_admin
 --
 
@@ -1682,49 +1934,91 @@ $$;
 ALTER FUNCTION storage.operation() OWNER TO supabase_storage_admin;
 
 --
+-- Name: prefixes_insert_trigger(); Type: FUNCTION; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE FUNCTION storage.prefixes_insert_trigger() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    PERFORM "storage"."add_prefixes"(NEW."bucket_id", NEW."name");
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION storage.prefixes_insert_trigger() OWNER TO supabase_storage_admin;
+
+--
 -- Name: search(text, text, integer, integer, integer, text, text, text); Type: FUNCTION; Schema: storage; Owner: supabase_storage_admin
 --
 
 CREATE FUNCTION storage.search(prefix text, bucketname text, limits integer DEFAULT 100, levels integer DEFAULT 1, offsets integer DEFAULT 0, search text DEFAULT ''::text, sortcolumn text DEFAULT 'name'::text, sortorder text DEFAULT 'asc'::text) RETURNS TABLE(name text, id uuid, updated_at timestamp with time zone, created_at timestamp with time zone, last_accessed_at timestamp with time zone, metadata jsonb)
+    LANGUAGE plpgsql
+    AS $$
+declare
+    can_bypass_rls BOOLEAN;
+begin
+    SELECT rolbypassrls
+    INTO can_bypass_rls
+    FROM pg_roles
+    WHERE rolname = coalesce(nullif(current_setting('role', true), 'none'), current_user);
+
+    IF can_bypass_rls THEN
+        RETURN QUERY SELECT * FROM storage.search_v1_optimised(prefix, bucketname, limits, levels, offsets, search, sortcolumn, sortorder);
+    ELSE
+        RETURN QUERY SELECT * FROM storage.search_legacy_v1(prefix, bucketname, limits, levels, offsets, search, sortcolumn, sortorder);
+    END IF;
+end;
+$$;
+
+
+ALTER FUNCTION storage.search(prefix text, bucketname text, limits integer, levels integer, offsets integer, search text, sortcolumn text, sortorder text) OWNER TO supabase_storage_admin;
+
+--
+-- Name: search_legacy_v1(text, text, integer, integer, integer, text, text, text); Type: FUNCTION; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE FUNCTION storage.search_legacy_v1(prefix text, bucketname text, limits integer DEFAULT 100, levels integer DEFAULT 1, offsets integer DEFAULT 0, search text DEFAULT ''::text, sortcolumn text DEFAULT 'name'::text, sortorder text DEFAULT 'asc'::text) RETURNS TABLE(name text, id uuid, updated_at timestamp with time zone, created_at timestamp with time zone, last_accessed_at timestamp with time zone, metadata jsonb)
     LANGUAGE plpgsql STABLE
     AS $_$
 declare
-  v_order_by text;
-  v_sort_order text;
+    v_order_by text;
+    v_sort_order text;
 begin
-  case
-    when sortcolumn = 'name' then
-      v_order_by = 'name';
-    when sortcolumn = 'updated_at' then
-      v_order_by = 'updated_at';
-    when sortcolumn = 'created_at' then
-      v_order_by = 'created_at';
-    when sortcolumn = 'last_accessed_at' then
-      v_order_by = 'last_accessed_at';
-    else
-      v_order_by = 'name';
-  end case;
+    case
+        when sortcolumn = 'name' then
+            v_order_by = 'name';
+        when sortcolumn = 'updated_at' then
+            v_order_by = 'updated_at';
+        when sortcolumn = 'created_at' then
+            v_order_by = 'created_at';
+        when sortcolumn = 'last_accessed_at' then
+            v_order_by = 'last_accessed_at';
+        else
+            v_order_by = 'name';
+        end case;
 
-  case
-    when sortorder = 'asc' then
-      v_sort_order = 'asc';
-    when sortorder = 'desc' then
-      v_sort_order = 'desc';
-    else
-      v_sort_order = 'asc';
-  end case;
+    case
+        when sortorder = 'asc' then
+            v_sort_order = 'asc';
+        when sortorder = 'desc' then
+            v_sort_order = 'desc';
+        else
+            v_sort_order = 'asc';
+        end case;
 
-  v_order_by = v_order_by || ' ' || v_sort_order;
+    v_order_by = v_order_by || ' ' || v_sort_order;
 
-  return query execute
-    'with folders as (
-       select path_tokens[$1] as folder
-       from storage.objects
-         where objects.name ilike $2 || $3 || ''%''
-           and bucket_id = $4
-           and array_length(objects.path_tokens, 1) <> $1
-       group by folder
-       order by folder ' || v_sort_order || '
+    return query execute
+        'with folders as (
+           select path_tokens[$1] as folder
+           from storage.objects
+             where objects.name ilike $2 || $3 || ''%''
+               and bucket_id = $4
+               and array_length(objects.path_tokens, 1) <> $1
+           group by folder
+           order by folder ' || v_sort_order || '
      )
      (select folder as "name",
             null as id,
@@ -1750,7 +2044,126 @@ end;
 $_$;
 
 
-ALTER FUNCTION storage.search(prefix text, bucketname text, limits integer, levels integer, offsets integer, search text, sortcolumn text, sortorder text) OWNER TO supabase_storage_admin;
+ALTER FUNCTION storage.search_legacy_v1(prefix text, bucketname text, limits integer, levels integer, offsets integer, search text, sortcolumn text, sortorder text) OWNER TO supabase_storage_admin;
+
+--
+-- Name: search_v1_optimised(text, text, integer, integer, integer, text, text, text); Type: FUNCTION; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE FUNCTION storage.search_v1_optimised(prefix text, bucketname text, limits integer DEFAULT 100, levels integer DEFAULT 1, offsets integer DEFAULT 0, search text DEFAULT ''::text, sortcolumn text DEFAULT 'name'::text, sortorder text DEFAULT 'asc'::text) RETURNS TABLE(name text, id uuid, updated_at timestamp with time zone, created_at timestamp with time zone, last_accessed_at timestamp with time zone, metadata jsonb)
+    LANGUAGE plpgsql STABLE
+    AS $_$
+declare
+    v_order_by text;
+    v_sort_order text;
+begin
+    case
+        when sortcolumn = 'name' then
+            v_order_by = 'name';
+        when sortcolumn = 'updated_at' then
+            v_order_by = 'updated_at';
+        when sortcolumn = 'created_at' then
+            v_order_by = 'created_at';
+        when sortcolumn = 'last_accessed_at' then
+            v_order_by = 'last_accessed_at';
+        else
+            v_order_by = 'name';
+        end case;
+
+    case
+        when sortorder = 'asc' then
+            v_sort_order = 'asc';
+        when sortorder = 'desc' then
+            v_sort_order = 'desc';
+        else
+            v_sort_order = 'asc';
+        end case;
+
+    v_order_by = v_order_by || ' ' || v_sort_order;
+
+    return query execute
+        'with folders as (
+           select (string_to_array(name, ''/''))[level] as name
+           from storage.prefixes
+             where lower(prefixes.name) like lower($2 || $3) || ''%''
+               and bucket_id = $4
+               and level = $1
+           order by name ' || v_sort_order || '
+     )
+     (select name,
+            null as id,
+            null as updated_at,
+            null as created_at,
+            null as last_accessed_at,
+            null as metadata from folders)
+     union all
+     (select path_tokens[level] as "name",
+            id,
+            updated_at,
+            created_at,
+            last_accessed_at,
+            metadata
+     from storage.objects
+     where lower(objects.name) like lower($2 || $3) || ''%''
+       and bucket_id = $4
+       and level = $1
+     order by ' || v_order_by || ')
+     limit $5
+     offset $6' using levels, prefix, search, bucketname, limits, offsets;
+end;
+$_$;
+
+
+ALTER FUNCTION storage.search_v1_optimised(prefix text, bucketname text, limits integer, levels integer, offsets integer, search text, sortcolumn text, sortorder text) OWNER TO supabase_storage_admin;
+
+--
+-- Name: search_v2(text, text, integer, integer, text); Type: FUNCTION; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE FUNCTION storage.search_v2(prefix text, bucket_name text, limits integer DEFAULT 100, levels integer DEFAULT 1, start_after text DEFAULT ''::text) RETURNS TABLE(key text, name text, id uuid, updated_at timestamp with time zone, created_at timestamp with time zone, metadata jsonb)
+    LANGUAGE plpgsql STABLE
+    AS $_$
+BEGIN
+    RETURN query EXECUTE
+        $sql$
+        SELECT * FROM (
+            (
+                SELECT
+                    split_part(name, '/', $4) AS key,
+                    name || '/' AS name,
+                    NULL::uuid AS id,
+                    NULL::timestamptz AS updated_at,
+                    NULL::timestamptz AS created_at,
+                    NULL::jsonb AS metadata
+                FROM storage.prefixes
+                WHERE name COLLATE "C" LIKE $1 || '%'
+                AND bucket_id = $2
+                AND level = $4
+                AND name COLLATE "C" > $5
+                ORDER BY prefixes.name COLLATE "C" LIMIT $3
+            )
+            UNION ALL
+            (SELECT split_part(name, '/', $4) AS key,
+                name,
+                id,
+                updated_at,
+                created_at,
+                metadata
+            FROM storage.objects
+            WHERE name COLLATE "C" LIKE $1 || '%'
+                AND bucket_id = $2
+                AND level = $4
+                AND name COLLATE "C" > $5
+            ORDER BY name COLLATE "C" LIMIT $3)
+        ) obj
+        ORDER BY name COLLATE "C" LIMIT $3;
+        $sql$
+        USING prefix, bucket_name, limits, levels, start_after;
+END;
+$_$;
+
+
+ALTER FUNCTION storage.search_v2(prefix text, bucket_name text, limits integer, levels integer, start_after text) OWNER TO supabase_storage_admin;
 
 --
 -- Name: update_updated_at_column(); Type: FUNCTION; Schema: storage; Owner: supabase_storage_admin
@@ -2916,6 +3329,35 @@ CREATE TABLE public.projects_blocks (
 ALTER TABLE public.projects_blocks OWNER TO postgres;
 
 --
+-- Name: rates; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.rates (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    work_name text NOT NULL,
+    work_set text,
+    base_rate numeric NOT NULL,
+    unit_id uuid,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.rates OWNER TO postgres;
+
+--
+-- Name: rates_cost_categories_mapping; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.rates_cost_categories_mapping (
+    rate_id uuid NOT NULL,
+    cost_category_id integer NOT NULL
+);
+
+
+ALTER TABLE public.rates_cost_categories_mapping OWNER TO postgres;
+
+--
 -- Name: reference_data; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -3038,23 +3480,6 @@ CREATE TABLE public.work_progress (
 ALTER TABLE public.work_progress OWNER TO postgres;
 
 --
--- Name: work_types; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.work_types (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    uid text NOT NULL,
-    name text NOT NULL,
-    unit text NOT NULL,
-    cost numeric NOT NULL,
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
-ALTER TABLE public.work_types OWNER TO postgres;
-
---
 -- Name: messages; Type: TABLE; Schema: realtime; Owner: supabase_realtime_admin
 --
 
@@ -3130,7 +3555,8 @@ CREATE TABLE storage.buckets (
     avif_autodetection boolean DEFAULT false,
     file_size_limit bigint,
     allowed_mime_types text[],
-    owner_id text
+    owner_id text,
+    type storage.buckettype DEFAULT 'STANDARD'::storage.buckettype NOT NULL
 );
 
 
@@ -3142,6 +3568,21 @@ ALTER TABLE storage.buckets OWNER TO supabase_storage_admin;
 
 COMMENT ON COLUMN storage.buckets.owner IS 'Field is deprecated, use owner_id instead';
 
+
+--
+-- Name: buckets_analytics; Type: TABLE; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE TABLE storage.buckets_analytics (
+    id text NOT NULL,
+    type storage.buckettype DEFAULT 'ANALYTICS'::storage.buckettype NOT NULL,
+    format text DEFAULT 'ICEBERG'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE storage.buckets_analytics OWNER TO supabase_storage_admin;
 
 --
 -- Name: migrations; Type: TABLE; Schema: storage; Owner: supabase_storage_admin
@@ -3173,7 +3614,8 @@ CREATE TABLE storage.objects (
     path_tokens text[] GENERATED ALWAYS AS (string_to_array(name, '/'::text)) STORED,
     version text,
     owner_id text,
-    user_metadata jsonb
+    user_metadata jsonb,
+    level integer
 );
 
 
@@ -3185,6 +3627,21 @@ ALTER TABLE storage.objects OWNER TO supabase_storage_admin;
 
 COMMENT ON COLUMN storage.objects.owner IS 'Field is deprecated, use owner_id instead';
 
+
+--
+-- Name: prefixes; Type: TABLE; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE TABLE storage.prefixes (
+    bucket_id text NOT NULL,
+    name text NOT NULL COLLATE pg_catalog."C",
+    level integer GENERATED ALWAYS AS (storage.get_level(name)) STORED NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE storage.prefixes OWNER TO supabase_storage_admin;
 
 --
 -- Name: s3_multipart_uploads; Type: TABLE; Schema: storage; Owner: supabase_storage_admin
@@ -4241,7 +4698,6 @@ COPY public.documentation_versions (version_number, issue_date, file_url, status
 1	2025-06-17	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20323/	not_filled	2025-08-21 09:32:18.294854+00	2025-08-21 09:32:18.294854+00	e8693dc2-101d-4d9e-ac9c-5bf7d9d075a0	f21dde26-f81e-4cd7-862a-240f3b189d37	[]
 1	2025-05-08	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19075/	not_filled	2025-08-21 09:32:18.740209+00	2025-08-21 09:32:18.740209+00	3f19c800-5d2c-4ba0-8036-fe37bc21f6d5	92a5efb3-d0f9-42a3-9cfe-b8ff5a7409b8	[]
 1	2025-08-16	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22795/	not_filled	2025-08-21 09:32:19.10526+00	2025-08-21 09:32:19.10526+00	802689a5-100a-4ac5-a567-d958d595ff68	9c73b782-a6b7-49e8-9c6f-2cbfe1743f03	[]
-1	2025-08-12	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22639/	not_filled	2025-08-21 09:32:19.474995+00	2025-08-21 09:32:19.474995+00	fa34f1a8-58c3-4c9e-8205-da6b56132658	7b62a552-7115-4c4b-a604-b318c5fe0c47	[]
 1	2025-07-01	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20749/	not_filled	2025-08-21 09:32:19.848459+00	2025-08-21 09:32:19.848459+00	1c7d2354-8f96-4a15-a401-deae1d27bb85	31cd9dd7-162e-464f-9066-2d600300b4f8	[]
 1	2025-05-08	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19079/	not_filled	2025-08-21 09:32:20.201399+00	2025-08-21 09:32:20.201399+00	62eb11c4-915f-43e4-89f7-6c3068f9ef77	4ecbf816-da2f-4675-86f0-42bbeb4c000d	[]
 1	2025-07-01	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20753/	not_filled	2025-08-21 09:32:20.57278+00	2025-08-21 09:32:20.57278+00	122f8545-cf1a-485e-856e-b7caf0a4501d	f3108e7c-f56c-4b84-b0d6-71539cd810a9	[]
@@ -4314,7 +4770,6 @@ COPY public.documentation_versions (version_number, issue_date, file_url, status
 1	2025-02-04	https://su10.bitrix24.ru/company/personal/user/821/tasks/task/view/15135/	not_filled	2025-08-22 07:28:31.916127+00	2025-08-22 08:17:28.502094+00	69e9397f-34fe-4b91-84e6-7339f13c5c2d	45524342-5573-4d66-8795-35ca3957bb7d	[]
 2	2025-02-22	https://su10.bitrix24.ru/company/personal/user/821/tasks/task/view/15817/	not_filled	2025-08-22 07:28:32.272618+00	2025-08-22 08:17:29.306+00	69e9397f-34fe-4b91-84e6-7339f13c5c2d	9549e76c-dea1-4110-b576-83d11b0f2b02	[]
 1	2025-02-04	https://su10.bitrix24.ru/company/personal/user/821/tasks/task/view/15141/	not_filled	2025-08-22 07:28:32.995059+00	2025-08-22 08:17:30.497627+00	a4d1f99c-83a7-4e7b-a95f-bcd7eed2c90a	0c8b69cd-e4f7-496f-9704-f15dab63c9d2	[]
-3	2025-02-28	https://su10.bitrix24.ru/company/personal/user/821/tasks/task/view/16283/	not_filled	2025-08-22 07:28:33.714974+00	2025-08-22 08:17:31.675568+00	a4d1f99c-83a7-4e7b-a95f-bcd7eed2c90a	19d5ddec-ed1f-490c-8e6e-717caaafc49b	[]
 1	2025-02-16	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/15501/	not_filled	2025-08-22 07:28:34.441251+00	2025-08-22 08:17:32.811717+00	ed16c046-d590-4169-898d-45b17e06ded0	0ad6dd89-5304-4a7d-8fe0-29d448fa6be4	[]
 1	2025-02-16	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/15497/	not_filled	2025-08-22 07:28:35.168174+00	2025-08-22 08:17:33.765475+00	098c4ba0-c037-4603-9ea1-3c21a93f3718	ee3dd3f6-03f0-483d-b212-b5f6694b9392	[]
 1	2025-05-14	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/19259/	not_filled	2025-08-22 07:28:35.935735+00	2025-08-22 08:17:34.920001+00	d99591b3-7dfb-4de8-8bf1-d99d074f0ce5	9721c085-de67-45f5-b987-69bd7622ea2e	[]
@@ -4389,7 +4844,6 @@ COPY public.documentation_versions (version_number, issue_date, file_url, status
 1	2025-06-04	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/20137/	not_filled	2025-08-22 07:28:28.872611+00	2025-08-22 08:17:24.095962+00	e734d241-860c-4f89-ac10-d20c9c6c5cac	cae3596f-406f-401e-ac8f-4cd8a8ff9210	[]
 1	2025-07-30	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22203/	not_filled	2025-08-22 07:28:30.760579+00	2025-08-22 08:17:26.694332+00	0b710cac-6ff4-4b3f-8597-eba3dbdf2730	25da50fe-e9c1-42ca-b4b3-8134d0c1e310	[]
 2	2025-08-20	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22837/	not_filled	2025-08-22 07:28:31.490372+00	2025-08-22 08:17:27.835859+00	242a62fe-f985-49a2-88f0-de8ad166819d	0eec1856-1c2b-47d9-a844-2f32e9eb03c9	[]
-3	2025-02-28	https://su10.bitrix24.ru/company/personal/user/821/tasks/task/view/16285/	not_filled	2025-08-22 07:28:32.627636+00	2025-08-22 08:17:29.893661+00	69e9397f-34fe-4b91-84e6-7339f13c5c2d	f1c3e3e8-2954-4dc9-ad82-91c2ec16b5c4	[]
 2	2025-02-22	https://su10.bitrix24.ru/company/personal/user/821/tasks/task/view/15815/	not_filled	2025-08-22 07:28:33.358133+00	2025-08-22 08:17:31.114068+00	a4d1f99c-83a7-4e7b-a95f-bcd7eed2c90a	7e245274-4bf8-48c0-9f71-fbc9cfa5c89d	[]
 1	2025-02-12	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/15369/?EVENT_TYPE=UPDATE&EVENT_TASK_ID=15369&EVENT_OPTIONS[STAY_AT_PAGE]=&EVENT_OPTIONS[SCOPE]=&EVENT_OPTIONS[FIRST_GRID_TASK_CREATION_TOUR_GUIDE]=	not_filled	2025-08-22 07:28:34.068524+00	2025-08-22 08:17:32.252513+00	51c84359-43fc-4caf-b1e0-51ee514a1627	2b5d43b8-bb6e-4199-a7e4-12cdd4d381db	[]
 2	2025-03-15	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/16939/	not_filled	2025-08-22 07:28:35.568673+00	2025-08-22 08:17:34.323258+00	098c4ba0-c037-4603-9ea1-3c21a93f3718	37801599-d1a2-4002-b602-701531797410	[]
@@ -4449,6 +4903,9 @@ COPY public.documentation_versions (version_number, issue_date, file_url, status
 2	2025-08-14	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22683/	not_filled	2025-08-22 07:29:17.353744+00	2025-08-22 08:19:26.517045+00	59c63f22-0e2e-4f03-906e-d9f3883ae5da	9de82006-e19e-457a-9d5f-58b9bbeda830	[]
 1	2025-08-08	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/22563/	not_filled	2025-08-22 07:29:18.057689+00	2025-08-22 08:19:27.754993+00	5cbdd04c-f76e-4130-9a84-5667fcf18cdf	318160ac-7eee-4d07-99b7-203ab16822cc	[]
 1	2025-04-24	https://su10.bitrix24.ru/company/personal/user/111/tasks/task/view/18463/	not_filled	2025-08-22 07:29:18.75602+00	2025-08-22 08:19:28.933107+00	3f681dfc-6d8e-4e84-aaea-30f35ed686a7	07b06a85-492b-4937-a214-30a07ec0d633	[]
+3	2025-02-28	https://su10.bitrix24.ru/company/personal/user/821/tasks/task/view/16283/	not_filled	2025-08-22 07:28:33.714974+00	2025-08-22 09:50:20.482097+00	a4d1f99c-83a7-4e7b-a95f-bcd7eed2c90a	19d5ddec-ed1f-490c-8e6e-717caaafc49b	[{"name": "СТ2601-14-АР0-АС-1-РД.pdf", "path": "public./Documentation/c95e1507-9c01-47c5-9858-40452f907466/a4d1f99c-83a7-4e7b-a95f-bcd7eed2c90a/СТ2601-14-АР0-АС-1-РД.pdf", "size": 11937146, "type": "application/pdf", "extension": "pdf", "uploadedAt": "2025-08-22T09:35:05.932Z"}, {"name": "alliya.xlsx", "path": "public./Documentation/c95e1507-9c01-47c5-9858-40452f907466/a4d1f99c-83a7-4e7b-a95f-bcd7eed2c90a/alliya.xlsx", "size": 24881, "type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "extension": "xlsx", "uploadedAt": "2025-08-22T09:50:21.276Z"}]
+3	2025-02-28	https://su10.bitrix24.ru/company/personal/user/821/tasks/task/view/16285/	not_filled	2025-08-22 07:28:32.627636+00	2025-08-22 09:18:46.6357+00	69e9397f-34fe-4b91-84e6-7339f13c5c2d	f1c3e3e8-2954-4dc9-ad82-91c2ec16b5c4	[]
+1	2025-08-12	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22639/	not_filled	2025-08-21 09:32:19.474995+00	2025-08-22 10:54:48.132607+00	fa34f1a8-58c3-4c9e-8205-da6b56132658	7b62a552-7115-4c4b-a604-b318c5fe0c47	[{"name": "СТ2601-14-АР0-АС-1-РД.pdf", "path": "public./Documentation/f9227acf-9446-42c8-a533-bfeb30fa07a4/fa34f1a8-58c3-4c9e-8205-da6b56132658/СТ2601-14-АР0-АС-1-РД.pdf", "size": 11937146, "type": "application/pdf", "extension": "pdf", "uploadedAt": "2025-08-22T10:54:48.542Z"}]
 \.
 
 
@@ -4934,6 +5391,56 @@ cf1eb082-1907-49c8-92e7-2616e4b2027d	9f32283a-c8b7-43f2-8d86-e9e3370229eb	2025-0
 
 
 --
+-- Data for Name: rates; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.rates (id, work_name, work_set, base_rate, unit_id, created_at, updated_at) FROM stdin;
+e63413c9-9357-4869-9273-42721cda4470	Кладка СТЕН: толщиной 150мм из газосиликатных  блоков (ГСБ)	СТЕНЫ	3000	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-22 11:45:24.195158+00	2025-08-22 11:45:24.195158+00
+49e7b407-cdad-41b6-91ba-a796c64939b1	Кладка СТЕН: толщиной 200мм из газосиликатных  блоков (ГСБ)	СТЕНЫ	3000	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-22 11:45:24.527381+00	2025-08-22 11:45:24.527381+00
+ba563ef1-de3f-4839-95d0-168f1eed69f4	Кладка СТЕН: толщиной 250мм из газосиликатных  блоков (ГСБ)	СТЕНЫ	3000	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-22 11:45:24.765432+00	2025-08-22 11:45:24.765432+00
+82abd2a2-cc7c-4781-bd8c-000e799288ee	Кладка СТЕН: толщиной 300мм из газосиликатных  блоков (ГСБ)	СТЕНЫ	3000	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-22 11:45:24.95796+00	2025-08-22 11:45:24.95796+00
+3d2201e4-73ae-40fe-9b61-359355deb782	Кладка СТЕН: толщиной 190 мм : из легкобетонных блоков ( СКЦ ) полнотелых	СТЕНЫ	3600	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-22 11:45:25.21101+00	2025-08-22 11:45:25.21101+00
+a5524120-e8a5-4b39-be07-e6772186b225	Кладка СТЕН: толщиной 250 мм из кирпича одинарного рядового	СТЕНЫ	3600	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-22 11:45:25.491822+00	2025-08-22 11:45:25.491822+00
+314b7f4e-5fe6-4d34-b7e8-5003fc45774e	Кладка ПЕРЕГОРОДОК: толщиной 75 мм из Газосиликатных блоков	ПЕРЕГОРОДКИ	500	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-22 11:45:25.765309+00	2025-08-22 11:45:25.765309+00
+fa4fbce0-3de5-4e23-b32d-e2780f37ccf9	Кладка ПЕРЕГОРОДОК: толщиной 100 мм из Газосиликатных блоков	ПЕРЕГОРОДКИ	500	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-22 11:45:25.979479+00	2025-08-22 11:45:25.979479+00
+55ecacd0-4568-46e0-9bcb-76953f68bef1	Кладка ПЕРЕГОРОДОК: толщиной 80 мм из Пазогребниевых блоков	ПЕРЕГОРОДКИ	450	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-22 11:45:26.170523+00	2025-08-22 11:45:26.170523+00
+0c8412d5-9fe0-4596-9569-e0539059d440	Кладка ПЕРЕГОРОДОК: толщиной 100 мм из Пазогребниевых блоков	ПЕРЕГОРОДКИ	450	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-22 11:45:26.345372+00	2025-08-22 11:45:26.345372+00
+572df0e9-86fe-41a0-a098-87cd5c291518	Кладка ПЕРЕГОРОДОК: толщиной 90 мм из Легкобетонных блоков	ПЕРЕГОРОДКИ	600	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-22 11:45:26.527911+00	2025-08-22 11:45:26.527911+00
+937e1945-12ff-41f1-8ddc-d6d675eedaa8	Кладка ПЕРЕГОРОДОК: толщиной 120 мм из Кирпича	ПЕРЕГОРОДКИ	600	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-22 11:45:26.716408+00	2025-08-22 11:45:26.716408+00
+3f9583a4-559b-4525-baa9-ed0da3c2fafe	Кладка наружных стен толщиной 120 мм из кирпича облицовочного	СТЕНЫ	585	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-22 11:45:28.046428+00	2025-08-22 11:45:28.046428+00
+deb35b5b-3d63-4d06-803c-712e5b181f0c	Трассировка перегорордок в квартирах из гипсовых пазогребневых плит ПГП	ТРАССИРОВКА	225	05d8126b-a759-4a2b-86c5-fab955492e50	2025-08-22 11:45:27.330317+00	2025-08-22 11:46:57.100216+00
+6e0a041e-572a-4b49-9822-bf38a6e82b5b	Трассировка перегорордок в квартирах из ГСБ h=0,25м)  (с	ТРАССИРОВКА	150	05d8126b-a759-4a2b-86c5-fab955492e50	2025-08-22 11:45:26.903006+00	2025-08-22 11:46:57.672153+00
+48b95ff0-7804-442a-98d9-0ae6af830786	Монтаж металлоконструкций кладки: фахверковые колонны	ФАХВЕРКОВЫЕ КОЛОННЫ	20000	b7eb7037-cb2b-4180-8a15-6e334e122e79	2025-08-22 11:45:27.8388+00	2025-08-22 11:46:58.125186+00
+5aa92313-a6c8-4985-9f18-4aa25e0e230e	Изготовление металлоконструкций кладки: фахверковые колонны (	ФАХВЕРКОВЫЕ КОЛОННЫ	10000	b7eb7037-cb2b-4180-8a15-6e334e122e79	2025-08-22 11:45:27.524931+00	2025-08-22 11:46:58.572101+00
+\.
+
+
+--
+-- Data for Name: rates_cost_categories_mapping; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.rates_cost_categories_mapping (rate_id, cost_category_id) FROM stdin;
+e63413c9-9357-4869-9273-42721cda4470	242
+49e7b407-cdad-41b6-91ba-a796c64939b1	242
+ba563ef1-de3f-4839-95d0-168f1eed69f4	242
+82abd2a2-cc7c-4781-bd8c-000e799288ee	242
+3d2201e4-73ae-40fe-9b61-359355deb782	242
+a5524120-e8a5-4b39-be07-e6772186b225	242
+314b7f4e-5fe6-4d34-b7e8-5003fc45774e	242
+fa4fbce0-3de5-4e23-b32d-e2780f37ccf9	242
+55ecacd0-4568-46e0-9bcb-76953f68bef1	242
+0c8412d5-9fe0-4596-9569-e0539059d440	242
+572df0e9-86fe-41a0-a098-87cd5c291518	242
+937e1945-12ff-41f1-8ddc-d6d675eedaa8	242
+3f9583a4-559b-4525-baa9-ed0da3c2fafe	242
+deb35b5b-3d63-4d06-803c-712e5b181f0c	242
+6e0a041e-572a-4b49-9822-bf38a6e82b5b	242
+48b95ff0-7804-442a-98d9-0ae6af830786	242
+5aa92313-a6c8-4985-9f18-4aa25e0e230e	242
+\.
+
+
+--
 -- Data for Name: reference_data; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
@@ -4974,14 +5481,6 @@ c2e45369-70af-4049-b8d0-2a90d510c974	тн/м пог	2025-08-13 10:03:40.390082+0
 --
 
 COPY public.work_progress (id, project_id, description, quantity, unit_id, completed_at, created_at, updated_at) FROM stdin;
-\.
-
-
---
--- Data for Name: work_types; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.work_types (id, uid, name, unit, cost, created_at, updated_at) FROM stdin;
 \.
 
 
@@ -5068,7 +5567,15 @@ COPY realtime.subscription (id, subscription_id, entity, filters, claims, create
 -- Data for Name: buckets; Type: TABLE DATA; Schema: storage; Owner: supabase_storage_admin
 --
 
-COPY storage.buckets (id, name, owner, created_at, updated_at, public, avif_autodetection, file_size_limit, allowed_mime_types, owner_id) FROM stdin;
+COPY storage.buckets (id, name, owner, created_at, updated_at, public, avif_autodetection, file_size_limit, allowed_mime_types, owner_id, type) FROM stdin;
+\.
+
+
+--
+-- Data for Name: buckets_analytics; Type: TABLE DATA; Schema: storage; Owner: supabase_storage_admin
+--
+
+COPY storage.buckets_analytics (id, type, format, created_at, updated_at) FROM stdin;
 \.
 
 
@@ -5103,6 +5610,19 @@ COPY storage.migrations (id, name, hash, executed_at) FROM stdin;
 23	optimize-search-function	9d7e604cddc4b56a5422dc68c9313f4a1b6f132c	2025-08-11 06:16:23.556069
 24	operation-function	8312e37c2bf9e76bbe841aa5fda889206d2bf8aa	2025-08-11 06:16:23.561368
 25	custom-metadata	d974c6057c3db1c1f847afa0e291e6165693b990	2025-08-11 06:16:23.56625
+26	objects-prefixes	ef3f7871121cdc47a65308e6702519e853422ae2	2025-08-22 10:51:21.725302
+27	search-v2	33b8f2a7ae53105f028e13e9fcda9dc4f356b4a2	2025-08-22 10:51:21.82721
+28	object-bucket-name-sorting	ba85ec41b62c6a30a3f136788227ee47f311c436	2025-08-22 10:51:21.837354
+29	create-prefixes	a7b1a22c0dc3ab630e3055bfec7ce7d2045c5b7b	2025-08-22 10:51:21.846364
+30	update-object-levels	6c6f6cc9430d570f26284a24cf7b210599032db7	2025-08-22 10:51:21.85231
+31	objects-level-index	33f1fef7ec7fea08bb892222f4f0f5d79bab5eb8	2025-08-22 10:51:21.860265
+32	backward-compatible-index-on-objects	2d51eeb437a96868b36fcdfb1ddefdf13bef1647	2025-08-22 10:51:21.870381
+33	backward-compatible-index-on-prefixes	fe473390e1b8c407434c0e470655945b110507bf	2025-08-22 10:51:21.877748
+34	optimize-search-function-v1	82b0e469a00e8ebce495e29bfa70a0797f7ebd2c	2025-08-22 10:51:21.879778
+35	add-insert-trigger-prefixes	63bb9fd05deb3dc5e9fa66c83e82b152f0caf589	2025-08-22 10:51:21.887431
+36	optimise-existing-functions	81cf92eb0c36612865a18016a38496c530443899	2025-08-22 10:51:21.892035
+37	add-bucket-name-length-trigger	3944135b4e3e8b22d6d4cbb568fe3b0b51df15c1	2025-08-22 10:51:21.905119
+38	iceberg-catalog-flag-on-buckets	19a8bd89d5dfa69af7f222a46c726b7c41e462c5	2025-08-22 10:51:21.912871
 \.
 
 
@@ -5110,7 +5630,15 @@ COPY storage.migrations (id, name, hash, executed_at) FROM stdin;
 -- Data for Name: objects; Type: TABLE DATA; Schema: storage; Owner: supabase_storage_admin
 --
 
-COPY storage.objects (id, bucket_id, name, owner, created_at, updated_at, last_accessed_at, metadata, version, owner_id, user_metadata) FROM stdin;
+COPY storage.objects (id, bucket_id, name, owner, created_at, updated_at, last_accessed_at, metadata, version, owner_id, user_metadata, level) FROM stdin;
+\.
+
+
+--
+-- Data for Name: prefixes; Type: TABLE DATA; Schema: storage; Owner: supabase_storage_admin
+--
+
+COPY storage.prefixes (bucket_id, name, created_at, updated_at) FROM stdin;
 \.
 
 
@@ -5581,6 +6109,30 @@ ALTER TABLE ONLY public.projects
 
 
 --
+-- Name: rates_cost_categories_mapping rates_cost_categories_mapping_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.rates_cost_categories_mapping
+    ADD CONSTRAINT rates_cost_categories_mapping_pkey PRIMARY KEY (rate_id, cost_category_id);
+
+
+--
+-- Name: rates rates_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.rates
+    ADD CONSTRAINT rates_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rates rates_work_name_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.rates
+    ADD CONSTRAINT rates_work_name_key UNIQUE (work_name);
+
+
+--
 -- Name: reference_data reference_data_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -5629,22 +6181,6 @@ ALTER TABLE ONLY public.work_progress
 
 
 --
--- Name: work_types work_types_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.work_types
-    ADD CONSTRAINT work_types_pkey PRIMARY KEY (id);
-
-
---
--- Name: work_types work_types_uid_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.work_types
-    ADD CONSTRAINT work_types_uid_key UNIQUE (uid);
-
-
---
 -- Name: messages messages_pkey; Type: CONSTRAINT; Schema: realtime; Owner: supabase_realtime_admin
 --
 
@@ -5666,6 +6202,14 @@ ALTER TABLE ONLY realtime.subscription
 
 ALTER TABLE ONLY realtime.schema_migrations
     ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (version);
+
+
+--
+-- Name: buckets_analytics buckets_analytics_pkey; Type: CONSTRAINT; Schema: storage; Owner: supabase_storage_admin
+--
+
+ALTER TABLE ONLY storage.buckets_analytics
+    ADD CONSTRAINT buckets_analytics_pkey PRIMARY KEY (id);
 
 
 --
@@ -5698,6 +6242,14 @@ ALTER TABLE ONLY storage.migrations
 
 ALTER TABLE ONLY storage.objects
     ADD CONSTRAINT objects_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: prefixes prefixes_pkey; Type: CONSTRAINT; Schema: storage; Owner: supabase_storage_admin
+--
+
+ALTER TABLE ONLY storage.prefixes
+    ADD CONSTRAINT prefixes_pkey PRIMARY KEY (bucket_id, level, name);
 
 
 --
@@ -6158,6 +6710,34 @@ CREATE INDEX idx_entity_comments_mapping_type_id ON public.entity_comments_mappi
 
 
 --
+-- Name: idx_rates_cost_categories_mapping_cost_category_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_rates_cost_categories_mapping_cost_category_id ON public.rates_cost_categories_mapping USING btree (cost_category_id);
+
+
+--
+-- Name: idx_rates_cost_categories_mapping_rate_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_rates_cost_categories_mapping_rate_id ON public.rates_cost_categories_mapping USING btree (rate_id);
+
+
+--
+-- Name: idx_rates_updated_at; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_rates_updated_at ON public.rates USING btree (updated_at);
+
+
+--
+-- Name: idx_rates_work_name; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_rates_work_name ON public.rates USING btree (work_name);
+
+
+--
 -- Name: idx_statuses_is_active; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -6200,6 +6780,13 @@ CREATE INDEX idx_multipart_uploads_list ON storage.s3_multipart_uploads USING bt
 
 
 --
+-- Name: idx_name_bucket_level_unique; Type: INDEX; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE UNIQUE INDEX idx_name_bucket_level_unique ON storage.objects USING btree (name COLLATE "C", bucket_id, level);
+
+
+--
 -- Name: idx_objects_bucket_id_name; Type: INDEX; Schema: storage; Owner: supabase_storage_admin
 --
 
@@ -6207,10 +6794,38 @@ CREATE INDEX idx_objects_bucket_id_name ON storage.objects USING btree (bucket_i
 
 
 --
+-- Name: idx_objects_lower_name; Type: INDEX; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE INDEX idx_objects_lower_name ON storage.objects USING btree ((path_tokens[level]), lower(name) text_pattern_ops, bucket_id, level);
+
+
+--
+-- Name: idx_prefixes_lower_name; Type: INDEX; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE INDEX idx_prefixes_lower_name ON storage.prefixes USING btree (bucket_id, level, ((string_to_array(name, '/'::text))[level]), lower(name) text_pattern_ops);
+
+
+--
 -- Name: name_prefix_search; Type: INDEX; Schema: storage; Owner: supabase_storage_admin
 --
 
 CREATE INDEX name_prefix_search ON storage.objects USING btree (name text_pattern_ops);
+
+
+--
+-- Name: objects_bucket_id_level_idx; Type: INDEX; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE UNIQUE INDEX objects_bucket_id_level_idx ON storage.objects USING btree (bucket_id, level, name COLLATE "C");
+
+
+--
+-- Name: rates trigger_update_rates_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER trigger_update_rates_updated_at BEFORE UPDATE ON public.rates FOR EACH ROW EXECUTE FUNCTION public.update_rates_updated_at();
 
 
 --
@@ -6267,6 +6882,48 @@ CREATE TRIGGER update_statuses_updated_at BEFORE UPDATE ON public.statuses FOR E
 --
 
 CREATE TRIGGER tr_check_filters BEFORE INSERT OR UPDATE ON realtime.subscription FOR EACH ROW EXECUTE FUNCTION realtime.subscription_check_filters();
+
+
+--
+-- Name: buckets enforce_bucket_name_length_trigger; Type: TRIGGER; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE TRIGGER enforce_bucket_name_length_trigger BEFORE INSERT OR UPDATE OF name ON storage.buckets FOR EACH ROW EXECUTE FUNCTION storage.enforce_bucket_name_length();
+
+
+--
+-- Name: objects objects_delete_delete_prefix; Type: TRIGGER; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE TRIGGER objects_delete_delete_prefix AFTER DELETE ON storage.objects FOR EACH ROW EXECUTE FUNCTION storage.delete_prefix_hierarchy_trigger();
+
+
+--
+-- Name: objects objects_insert_create_prefix; Type: TRIGGER; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE TRIGGER objects_insert_create_prefix BEFORE INSERT ON storage.objects FOR EACH ROW EXECUTE FUNCTION storage.objects_insert_prefix_trigger();
+
+
+--
+-- Name: objects objects_update_create_prefix; Type: TRIGGER; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE TRIGGER objects_update_create_prefix BEFORE UPDATE ON storage.objects FOR EACH ROW WHEN (((new.name <> old.name) OR (new.bucket_id <> old.bucket_id))) EXECUTE FUNCTION storage.objects_update_prefix_trigger();
+
+
+--
+-- Name: prefixes prefixes_create_hierarchy; Type: TRIGGER; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE TRIGGER prefixes_create_hierarchy BEFORE INSERT ON storage.prefixes FOR EACH ROW WHEN ((pg_trigger_depth() < 1)) EXECUTE FUNCTION storage.prefixes_insert_trigger();
+
+
+--
+-- Name: prefixes prefixes_delete_hierarchy; Type: TRIGGER; Schema: storage; Owner: supabase_storage_admin
+--
+
+CREATE TRIGGER prefixes_delete_hierarchy AFTER DELETE ON storage.prefixes FOR EACH ROW EXECUTE FUNCTION storage.delete_prefix_hierarchy_trigger();
 
 
 --
@@ -6581,6 +7238,30 @@ ALTER TABLE ONLY public.projects_blocks
 
 
 --
+-- Name: rates_cost_categories_mapping rates_cost_categories_mapping_cost_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.rates_cost_categories_mapping
+    ADD CONSTRAINT rates_cost_categories_mapping_cost_category_id_fkey FOREIGN KEY (cost_category_id) REFERENCES public.cost_categories(id) ON DELETE CASCADE;
+
+
+--
+-- Name: rates_cost_categories_mapping rates_cost_categories_mapping_rate_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.rates_cost_categories_mapping
+    ADD CONSTRAINT rates_cost_categories_mapping_rate_id_fkey FOREIGN KEY (rate_id) REFERENCES public.rates(id) ON DELETE CASCADE;
+
+
+--
+-- Name: rates rates_unit_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.rates
+    ADD CONSTRAINT rates_unit_id_fkey FOREIGN KEY (unit_id) REFERENCES public.units(id) ON DELETE SET NULL;
+
+
+--
 -- Name: work_progress work_progress_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -6602,6 +7283,14 @@ ALTER TABLE ONLY public.work_progress
 
 ALTER TABLE ONLY storage.objects
     ADD CONSTRAINT "objects_bucketId_fkey" FOREIGN KEY (bucket_id) REFERENCES storage.buckets(id);
+
+
+--
+-- Name: prefixes prefixes_bucketId_fkey; Type: FK CONSTRAINT; Schema: storage; Owner: supabase_storage_admin
+--
+
+ALTER TABLE ONLY storage.prefixes
+    ADD CONSTRAINT "prefixes_bucketId_fkey" FOREIGN KEY (bucket_id) REFERENCES storage.buckets(id);
 
 
 --
@@ -6737,6 +7426,12 @@ ALTER TABLE realtime.messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE storage.buckets ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: buckets_analytics; Type: ROW SECURITY; Schema: storage; Owner: supabase_storage_admin
+--
+
+ALTER TABLE storage.buckets_analytics ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: migrations; Type: ROW SECURITY; Schema: storage; Owner: supabase_storage_admin
 --
 
@@ -6747,6 +7442,12 @@ ALTER TABLE storage.migrations ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: prefixes; Type: ROW SECURITY; Schema: storage; Owner: supabase_storage_admin
+--
+
+ALTER TABLE storage.prefixes ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: s3_multipart_uploads; Type: ROW SECURITY; Schema: storage; Owner: supabase_storage_admin
@@ -7377,6 +8078,15 @@ GRANT ALL ON FUNCTION public.set_block_floor_range(p_block_id uuid, p_from_floor
 
 
 --
+-- Name: FUNCTION update_rates_updated_at(); Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON FUNCTION public.update_rates_updated_at() TO anon;
+GRANT ALL ON FUNCTION public.update_rates_updated_at() TO authenticated;
+GRANT ALL ON FUNCTION public.update_rates_updated_at() TO service_role;
+
+
+--
 -- Name: FUNCTION update_updated_at_column(); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -7926,6 +8636,24 @@ GRANT ALL ON TABLE public.projects_blocks TO service_role;
 
 
 --
+-- Name: TABLE rates; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.rates TO anon;
+GRANT ALL ON TABLE public.rates TO authenticated;
+GRANT ALL ON TABLE public.rates TO service_role;
+
+
+--
+-- Name: TABLE rates_cost_categories_mapping; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.rates_cost_categories_mapping TO anon;
+GRANT ALL ON TABLE public.rates_cost_categories_mapping TO authenticated;
+GRANT ALL ON TABLE public.rates_cost_categories_mapping TO service_role;
+
+
+--
 -- Name: TABLE reference_data; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -7968,15 +8696,6 @@ GRANT ALL ON TABLE public.v_block_floor_range TO service_role;
 GRANT ALL ON TABLE public.work_progress TO anon;
 GRANT ALL ON TABLE public.work_progress TO authenticated;
 GRANT ALL ON TABLE public.work_progress TO service_role;
-
-
---
--- Name: TABLE work_types; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT ALL ON TABLE public.work_types TO anon;
-GRANT ALL ON TABLE public.work_types TO authenticated;
-GRANT ALL ON TABLE public.work_types TO service_role;
 
 
 --
@@ -8037,6 +8756,15 @@ GRANT ALL ON TABLE storage.buckets TO postgres WITH GRANT OPTION;
 
 
 --
+-- Name: TABLE buckets_analytics; Type: ACL; Schema: storage; Owner: supabase_storage_admin
+--
+
+GRANT ALL ON TABLE storage.buckets_analytics TO service_role;
+GRANT ALL ON TABLE storage.buckets_analytics TO authenticated;
+GRANT ALL ON TABLE storage.buckets_analytics TO anon;
+
+
+--
 -- Name: TABLE objects; Type: ACL; Schema: storage; Owner: supabase_storage_admin
 --
 
@@ -8044,6 +8772,15 @@ GRANT ALL ON TABLE storage.objects TO anon;
 GRANT ALL ON TABLE storage.objects TO authenticated;
 GRANT ALL ON TABLE storage.objects TO service_role;
 GRANT ALL ON TABLE storage.objects TO postgres WITH GRANT OPTION;
+
+
+--
+-- Name: TABLE prefixes; Type: ACL; Schema: storage; Owner: supabase_storage_admin
+--
+
+GRANT ALL ON TABLE storage.prefixes TO service_role;
+GRANT ALL ON TABLE storage.prefixes TO authenticated;
+GRANT ALL ON TABLE storage.prefixes TO anon;
 
 
 --
@@ -8367,5 +9104,5 @@ ALTER EVENT TRIGGER pgrst_drop_watch OWNER TO supabase_admin;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict gjghgyD5eVNhi90KpFx960HjECN3BhhoxaWSz6bYg4fmclNMH2JgjrVrPrUYfiA
+\unrestrict RhOoDsh0Fugi8JWjXfhCwn6E2PDF3bFMqLcrBTmzANLSaJffPasFUGuvlmH2LJS
 

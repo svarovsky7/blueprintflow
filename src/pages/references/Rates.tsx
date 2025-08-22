@@ -61,12 +61,13 @@ const defaultColumnVisibility = {
   work_name: true,
   work_set: true,
   cost_categories: true,
+  detail_cost_category: true,
   unit: true,
   base_rate: true,
   actions: true,
 }
 
-const defaultColumnOrder = ['work_name', 'work_set', 'cost_categories', 'unit', 'base_rate', 'actions']
+const defaultColumnOrder = ['work_name', 'work_set', 'cost_categories', 'detail_cost_category', 'unit', 'base_rate', 'actions']
 
 export default function Rates() {
   const { message } = App.useApp()
@@ -626,8 +627,6 @@ export default function Rates() {
         )
       }
     },
-    // Временно закомментировано до добавления поля detail_cost_category_id в базу данных
-    /*
     {
       title: 'Вид затрат',
       dataIndex: 'detail_cost_category',
@@ -664,7 +663,6 @@ export default function Rates() {
         return detailCategory?.name || '-'
       }
     },
-    */
     {
       title: 'Ед.изм.',
       dataIndex: 'unit',
@@ -884,32 +882,32 @@ export default function Rates() {
               ))}
             </Select>
             
-            <Input
-              placeholder="Рабочий набор"
-              value={workSetFilter}
-              onChange={(e) => setWorkSetFilter(e.target.value || undefined)}
-              allowClear
-              style={{ width: 200 }}
-            />
-            
             <Button type="primary" onClick={applyFilters}>
               Применить
             </Button>
-          </Space>
-        </div>
-
-        {/* Скрываемый блок фильтров */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            
             <Button
               type="text"
               icon={filtersExpanded ? <CaretUpFilled /> : <CaretDownFilled />}
               onClick={() => setFiltersExpanded(!filtersExpanded)}
             >
-              <FilterOutlined /> Дополнительные фильтры
+              <FilterOutlined /> Фильтры
             </Button>
-            
-            <Space>
+          </Space>
+        </div>
+
+        {/* Скрываемый блок фильтров */}
+        {filtersExpanded && (
+          <div style={{ marginTop: 16, padding: 16, backgroundColor: '#fafafa', borderRadius: 6 }}>
+            <Space wrap>
+              <Input
+                placeholder="Рабочий набор"
+                value={workSetFilter}
+                onChange={(e) => setWorkSetFilter(e.target.value || undefined)}
+                allowClear
+                style={{ width: 200 }}
+              />
+              
               <Button
                 icon={<SettingOutlined />}
                 onClick={() => setSettingsDrawerOpen(true)}
@@ -918,15 +916,7 @@ export default function Rates() {
               </Button>
             </Space>
           </div>
-
-          {filtersExpanded && (
-            <div style={{ marginTop: 16, padding: 16, backgroundColor: '#fafafa', borderRadius: 6 }}>
-              <Space wrap>
-                <Text type="secondary">Дополнительные фильтры будут добавлены по мере необходимости</Text>
-              </Space>
-            </div>
-          )}
-        </div>
+        )}
 
         {/* Кнопки действий */}
         <div style={{ marginTop: 16 }}>
