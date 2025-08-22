@@ -915,8 +915,13 @@ export default function Rates() {
   const hasUnsavedChanges = newRows.length > 0 || Object.keys(editingRows).length > 0
 
   return (
-    <div>
-      <div style={{ marginBottom: 16 }}>
+    <div style={{ 
+      height: 'calc(100vh - 64px)', 
+      display: 'flex', 
+      flexDirection: 'column',
+      overflow: 'hidden'
+    }}>
+      <div style={{ flexShrink: 0, paddingBottom: 16 }}>
         <Title level={2} style={{ margin: '0 0 16px 0' }}>Расценки</Title>
         
         {/* Фильтры */}
@@ -1045,7 +1050,8 @@ export default function Rates() {
       </div>
 
       {/* Таблица */}
-      <Table
+      <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+        <Table
         columns={visibleColumns}
         dataSource={filteredData}
         rowKey="id"
@@ -1053,7 +1059,7 @@ export default function Rates() {
         sticky
         scroll={{ 
           x: 'max-content',
-          y: 'calc(100vh - 300px)'
+          y: '100%'
         }}
           pagination={{
             current: 1,
@@ -1067,6 +1073,7 @@ export default function Rates() {
           }}
           locale={{ emptyText: <Empty description="Нет данных" /> }}
         />
+      </div>
 
       {/* Настройки столбцов */}
       <Drawer

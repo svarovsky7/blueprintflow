@@ -1924,8 +1924,13 @@ export default function Chessboard() {
   }, [addColumns, columnOrder, columnVisibility])
 
   return (
-    <>
-      <div style={{ marginBottom: 16 }}>
+    <div style={{ 
+      height: 'calc(100vh - 64px)', 
+      display: 'flex', 
+      flexDirection: 'column',
+      overflow: 'hidden'
+    }}>
+      <div style={{ flexShrink: 0, paddingBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
           <Space align="center" size="middle">
             <Text style={{ fontSize: '16px' }}>Объект:</Text>
@@ -2190,7 +2195,7 @@ export default function Chessboard() {
       
       {/* Таблица */}
       {appliedFilters && (
-        <>
+        <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
           {mode === 'add' ? (
             <Table<TableRow>
             dataSource={tableRows}
@@ -2200,7 +2205,7 @@ export default function Chessboard() {
             sticky
             scroll={{ 
               x: 'max-content',
-              y: 'calc(100vh - 300px)'
+              y: '100%'
             }}
             rowClassName={(record) => (record.color ? `row-${record.color}` : '')}
           />
@@ -2213,7 +2218,7 @@ export default function Chessboard() {
             sticky
             scroll={{ 
               x: 'max-content',
-              y: 'calc(100vh - 300px)'
+              y: '100%'
             }}
             rowClassName={(record) => {
               const color = editingRows[record.key]?.color ?? record.color
@@ -2221,7 +2226,7 @@ export default function Chessboard() {
             }}
           />
         )}
-        </>
+        </div>
       )}
       <Modal
         title="Импорт из Excel"
@@ -2388,7 +2393,7 @@ export default function Chessboard() {
           )}
         />
       </Drawer>
-    </>
+    </div>
   )
 }
 
