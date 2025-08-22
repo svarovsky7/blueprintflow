@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import {
   Table,
   Button,
@@ -72,6 +72,87 @@ const defaultColumnOrder = ['work_name', 'work_set', 'cost_categories', 'detail_
 export default function Rates() {
   const { message } = App.useApp()
   const queryClient = useQueryClient()
+  const headerRef = useRef<HTMLDivElement>(null)
+  const filtersRef = useRef<HTMLDivElement>(null)
+  
+  // Логгирование для диагностики
+  useEffect(() => {
+    const logElementInfo = () => {
+      console.log('=== ДИАГНОСТИКА ЗАКРЕПЛЕННЫХ ЭЛЕМЕНТОВ ===')
+      
+      if (headerRef.current) {
+        const headerRect = headerRef.current.getBoundingClientRect()
+        console.log('📋 Шапка портала:', {
+          top: headerRect.top,
+          bottom: headerRect.bottom,
+          height: headerRect.height,
+          position: window.getComputedStyle(headerRef.current).position,
+          zIndex: window.getComputedStyle(headerRef.current).zIndex
+        })
+      }
+      
+      if (filtersRef.current) {
+        const filtersRect = filtersRef.current.getBoundingClientRect()
+        console.log('🔍 Блок фильтров:', {
+          top: filtersRect.top,
+          bottom: filtersRect.bottom,
+          height: filtersRect.height,
+          position: window.getComputedStyle(filtersRef.current).position,
+          zIndex: window.getComputedStyle(filtersRef.current).zIndex
+        })
+      }
+      
+      const tableHeader = document.querySelector('.ant-table-thead')
+      if (tableHeader) {
+        const tableHeaderRect = tableHeader.getBoundingClientRect()
+        console.log('📊 Шапка таблицы:', {
+          top: tableHeaderRect.top,
+          bottom: tableHeaderRect.bottom,
+          height: tableHeaderRect.height,
+          position: window.getComputedStyle(tableHeader as Element).position,
+          zIndex: window.getComputedStyle(tableHeader as Element).zIndex
+        })
+      }
+      
+      const stickyTable = document.querySelector('.ant-table-sticky-holder')
+      if (stickyTable) {
+        const stickyRect = stickyTable.getBoundingClientRect()
+        console.log('🔗 Sticky таблица:', {
+          top: stickyRect.top,
+          bottom: stickyRect.bottom,
+          height: stickyRect.height,
+          position: window.getComputedStyle(stickyTable as Element).position,
+          zIndex: window.getComputedStyle(stickyTable as Element).zIndex
+        })
+      }
+      
+      console.log('📜 Общие параметры:', {
+        windowHeight: window.innerHeight,
+        scrollY: window.scrollY,
+        documentHeight: document.body.scrollHeight
+      })
+      
+      console.log('=== КОНЕЦ ДИАГНОСТИКИ ===')
+    }
+    
+    // Лог при загрузке компонента
+    const timer = setTimeout(logElementInfo, 1000)
+    
+    // Лог при прокрутке
+    const handleScroll = () => {
+      console.log('📜 Прокрутка:', { scrollY: window.scrollY })
+      logElementInfo()
+    }
+    
+    window.addEventListener('scroll', handleScroll)
+    window.addEventListener('resize', logElementInfo)
+    
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('resize', logElementInfo)
+    }
+  }, [])
   
   // Основные состояния
   const [mode, setMode] = useState<TableMode>('view')
@@ -836,12 +917,12 @@ export default function Rates() {
   return (
     <div style={{ height: 'calc(100vh - 96px)', display: 'flex', flexDirection: 'column' }}>
       {/* Заголовок */}
-      <div style={{ padding: '16px 24px 0', flexShrink: 0 }}>
+      <div ref={headerRef} style={{ padding: '16px 24px 0', flexShrink: 0 }}>
         <Title level={2} style={{ margin: 0 }}>Расценки</Title>
       </div>
 
       {/* Фильтры */}
-      <div style={{ padding: '16px 24px', flexShrink: 0 }}>
+      <div ref={filtersRef} style={{ padding: '16px 24px', flexShrink: 0 }}>
         {/* Статичный блок фильтров */}
         <div style={{ marginBottom: 16 }}>
           <Space wrap>
@@ -974,7 +1055,22 @@ export default function Rates() {
           rowKey="id"
           loading={isLoading}
           scroll={{ x: 'max-content', y: 'calc(100vh - 320px)' }}
-          sticky={{ offsetHeader: 64 }}
+          sticky={{ 
+            offsetHeader: 64,
+            getContainer: () => {
+              console.log('🏠 Table sticky container запрошен')
+              const container = window
+              console.log('📦 Возвращаем контейнер:', container)
+              return container
+            }
+          }}
+          onHeaderRow={() => {
+            console.log('📋 onHeaderRow вызван для таблицы')
+            return {
+              onMouseEnter: () => console.log('🖱️ Мышь вошла в заголовок таблицы'),
+              onMouseLeave: () => console.log('🖱️ Мышь покинула заголовок таблицы')
+            }
+          }}
           pagination={{
             current: 1,
             pageSize,
