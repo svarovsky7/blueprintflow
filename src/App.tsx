@@ -1,7 +1,8 @@
 
 import { useState, useEffect } from 'react'
-import { Layout, Menu, Popover } from 'antd'
+import { Layout, Menu, Popover, Switch } from 'antd'
 import { Link, Route, Routes, useNavigate, useLocation } from 'react-router-dom'
+import { MoonOutlined } from '@ant-design/icons'
 import Dashboard from './pages/Dashboard'
 import Documents from './pages/Documents'
 import Chessboard from './pages/documents/Chessboard'
@@ -12,6 +13,7 @@ import CostCategories from './pages/references/CostCategories'
 import Projects from './pages/references/Projects'
 import Locations from './pages/references/Locations'
 import Documentation from './pages/references/Documentation'
+import Rates from './pages/references/Rates'
 import Admin from './pages/Admin'
 import DocumentationTags from './pages/admin/DocumentationTags'
 import Statuses from './pages/admin/Statuses'
@@ -138,6 +140,17 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     textDecoration: 'none',
   }
 
+  const TeletubbySun = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="12" cy="12" r="6" fill="#ffeb3b"/>
+      <circle cx="9" cy="10" r="1" fill="#000"/>
+      <circle cx="15" cy="10" r="1" fill="#000"/>
+      <path d="M8.5 14 Q12 16 15.5 14" stroke="#000" strokeWidth="0.8" fill="none"/>
+      <path d="M6 6 L3 3 M18 6 L21 3 M6 18 L3 21 M18 18 L21 21" stroke="#ffeb3b" strokeWidth="2"/>
+      <path d="M12 2 L12 6 M12 18 L12 22 M2 12 L6 12 M18 12 L22 12" stroke="#ffeb3b" strokeWidth="2"/>
+    </svg>
+  )
+
   const documentsSubmenu = (
     <div style={{ backgroundColor: isDark ? '#1f1f1f' : '#fff', borderRadius: 4, padding: '4px 0' }}>
       <div 
@@ -199,6 +212,15 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           Локализации
         </Link>
       </div>
+      <div 
+        style={menuItemStyle}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+      >
+        <Link to="/references/rates" style={linkStyle}>
+          Расценки
+        </Link>
+      </div>
     </div>
   )
 
@@ -223,14 +245,18 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         </Link>
       </div>
       <div 
-        style={{ ...menuItemStyle, cursor: 'pointer' }} 
-        onClick={toggleTheme}
+        style={{ ...menuItemStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
       >
-        <span style={linkStyle}>
-          {isDark ? 'Светлая тема' : 'Темная тема'}
-        </span>
+        <span style={linkStyle}>Тема</span>
+        <Switch
+          checked={isDark}
+          onChange={toggleTheme}
+          checkedChildren={<MoonOutlined />}
+          unCheckedChildren={<TeletubbySun />}
+          size="small"
+        />
       </div>
     </div>
   )
@@ -266,6 +292,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         },
         { key: 'projects', label: <Link to="/references/projects">Проекты</Link> },
         { key: 'locations', label: <Link to="/references/locations">Локализации</Link> },
+        { key: 'rates', label: <Link to="/references/rates">Расценки</Link> },
       ],
     },
     {
@@ -282,13 +309,21 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           key: 'statuses',
           label: <Link to="/admin/statuses">Статусы</Link>
         },
-        { 
-          key: 'theme-toggle', 
+        {
+          key: 'theme-toggle',
           label: (
-            <span onClick={toggleTheme} style={{ cursor: 'pointer' }}>
-              {isDark ? 'Светлая тема' : 'Темная тема'}
-            </span>
-          ) 
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Тема</span>
+              <Switch
+                checked={isDark}
+                onChange={toggleTheme}
+                checkedChildren={<MoonOutlined />}
+                unCheckedChildren={<TeletubbySun />}
+                size="small"
+                style={{ marginLeft: 8 }}
+              />
+            </div>
+          )
         },
       ],
     },
@@ -407,6 +442,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               location.pathname.startsWith('/references/cost-categories') ? 'cost-categories' :
               location.pathname.startsWith('/references/projects') ? 'projects' :
               location.pathname.startsWith('/references/locations') ? 'locations' :
+              location.pathname.startsWith('/references/rates') ? 'rates' :
               location.pathname.startsWith('/references') ? 'units' :
               location.pathname.startsWith('/admin/documentation-tags') ? 'documentation-tags' :
               location.pathname
@@ -436,6 +472,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                 <Route path="cost-categories" element={<CostCategories />} />
                 <Route path="projects" element={<Projects />} />
                 <Route path="locations" element={<Locations />} />
+                <Route path="rates" element={<Rates />} />
               </Route>
               <Route path="/admin" element={<Admin />}>
                 <Route path="documentation-tags" element={<DocumentationTags />} />
