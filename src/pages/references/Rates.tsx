@@ -1058,13 +1058,37 @@ export default function Rates() {
       </div>
 
       {/* Таблица */}
-      <div style={{ flex: '1 1 auto', overflow: 'auto', minHeight: 0, padding: '0 24px 24px' }}>
+      <div 
+        className="rates-table-section" 
+        style={{ 
+          flex: '1 1 auto', 
+          overflow: 'auto', 
+          minHeight: 0, 
+          padding: '0 24px 24px',
+          position: 'relative'
+        }}
+      >
+        <style>{`
+          .rates-table-section .ant-table-wrapper {
+            height: auto !important;
+            overflow: visible !important;
+          }
+          
+          .rates-table-section .ant-table-body {
+            overflow: visible !important;
+            max-height: none !important;
+          }
+          
+          .rates-table-section .ant-table-container {
+            overflow: visible !important;
+          }
+        `}</style>
         <Table
           columns={visibleColumns}
           dataSource={filteredData}
           rowKey="id"
           loading={isLoading}
-          scroll={{ x: 'max-content', y: 'calc(100vh - 280px)' }}
+          scroll={{ x: 'max-content' }}
           sticky={false}
           pagination={{
             current: 1,
