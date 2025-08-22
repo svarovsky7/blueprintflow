@@ -1925,70 +1925,7 @@ export default function Chessboard() {
 
   return (
     <>
-      <style>
-        {`
-          /* Контейнер страницы должен заполнять всю высоту */
-          .chessboard-page-container {
-            height: calc(100vh - 96px);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-          }
-          
-          .chessboard-filters-section {
-            flex-shrink: 0;
-            margin-bottom: 16px;
-          }
-          
-          .chessboard-table-section {
-            flex: 1 1 auto;
-            overflow: auto;
-            min-height: 0;
-            position: relative;
-          }
-          
-          /* Убираем прокрутку у всех внутренних элементов таблицы */
-          .chessboard-table-section .ant-table-wrapper {
-            height: auto !important;
-            overflow: visible !important;
-          }
-          
-          .chessboard-table-section .ant-table {
-            height: auto !important;
-          }
-          
-          .chessboard-table-section .ant-table-container {
-            overflow: visible !important;
-            height: auto !important;
-          }
-          
-          .chessboard-table-section .ant-table-content {
-            overflow: visible !important;
-            height: auto !important;
-          }
-          
-          .chessboard-table-section .ant-table-body {
-            overflow: visible !important;
-            height: auto !important;
-          }
-          
-          /* Убираем стандартные стили Ant Design для прокрутки */
-          .chessboard-table-section .ant-table-content table {
-            width: auto !important;
-            min-width: 100% !important;
-          }
-          
-          .chessboard-table-section .ant-table-scroll {
-            overflow: visible !important;
-          }
-          
-          .chessboard-table-section .ant-table-hide-scrollbar {
-            overflow: visible !important;
-          }
-        `}
-      </style>
-      <div className="chessboard-page-container">
-        <div className="chessboard-filters-section">
+      <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
           <Space align="center" size="middle">
             <Text style={{ fontSize: '16px' }}>Объект:</Text>
@@ -2250,18 +2187,21 @@ export default function Chessboard() {
           </Card>
         )}
       </div>
+      
+      {/* Таблица */}
       {appliedFilters && (
-        <div className="chessboard-table-section">
+        <>
           {mode === 'add' ? (
             <Table<TableRow>
             dataSource={tableRows}
             columns={orderedAddColumns}
             pagination={false}
             rowKey="key"
+            sticky
             scroll={{ 
-              x: 'max-content'
+              x: 'max-content',
+              y: 'calc(100vh - 300px)'
             }}
-            sticky={false}
             rowClassName={(record) => (record.color ? `row-${record.color}` : '')}
           />
         ) : (
@@ -2270,17 +2210,18 @@ export default function Chessboard() {
             columns={orderedViewColumns}
             pagination={false}
             rowKey="key"
+            sticky
             scroll={{ 
-              x: 'max-content'
+              x: 'max-content',
+              y: 'calc(100vh - 300px)'
             }}
-            sticky={false}
             rowClassName={(record) => {
               const color = editingRows[record.key]?.color ?? record.color
               return color ? `row-${color}` : ''
             }}
           />
         )}
-        </div>
+        </>
       )}
       <Modal
         title="Импорт из Excel"
@@ -2447,7 +2388,6 @@ export default function Chessboard() {
           )}
         />
       </Drawer>
-    </div>
     </>
   )
 }
