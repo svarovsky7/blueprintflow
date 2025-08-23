@@ -916,7 +916,7 @@ export default function Rates() {
 
   return (
     <div style={{ 
-      height: 'calc(100vh - 64px)', 
+      height: 'calc(100vh - 96px)', 
       display: 'flex', 
       flexDirection: 'column',
       overflow: 'hidden'
@@ -1059,7 +1059,7 @@ export default function Rates() {
         sticky
         scroll={{ 
           x: 'max-content',
-          y: '100%'
+          y: 'calc(100vh - 350px)'
         }}
           pagination={{
             current: 1,

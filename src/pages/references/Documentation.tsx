@@ -140,6 +140,66 @@ export default function Documentation() {
   // Состояния для управления столбцами
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({})
   const [columnOrder, setColumnOrder] = useState<string[]>([])
+  
+  // Диагностика двойного скролла
+  useEffect(() => {
+    const checkScrollbars = () => {
+      const body = document.body
+      const html = document.documentElement
+      const table = document.querySelector('.ant-table-wrapper')
+      const tableContainer = document.querySelector('.ant-table-container')
+      const tableBody = document.querySelector('.ant-table-body')
+      const mainContent = document.querySelector('.ant-layout-content')
+      
+      console.log('📊 Documentation Scroll diagnostics:')
+      console.log('Body height:', body.scrollHeight, 'Client height:', body.clientHeight)
+      console.log('Body has scroll:', body.scrollHeight > body.clientHeight)
+      console.log('HTML height:', html.scrollHeight, 'Client height:', html.clientHeight)
+      console.log('HTML has scroll:', html.scrollHeight > html.clientHeight)
+      console.log('Window inner height:', window.innerHeight)
+      console.log('Document height:', document.documentElement.scrollHeight)
+      
+      if (mainContent) {
+        console.log('Main content:', mainContent.scrollHeight, mainContent.clientHeight)
+        console.log('Main content overflow:', window.getComputedStyle(mainContent).overflow)
+      }
+      
+      if (table) {
+        console.log('Table wrapper:', table.scrollHeight, table.clientHeight)
+        const tableRect = table.getBoundingClientRect()
+        console.log('Table position:', { top: tableRect.top, height: tableRect.height, bottom: tableRect.bottom })
+      }
+      if (tableContainer) {
+        console.log('Table container:', tableContainer.scrollHeight, tableContainer.clientHeight)
+      }
+      if (tableBody) {
+        console.log('Table body:', tableBody.scrollHeight, tableBody.clientHeight)
+        console.log('Table body overflow:', window.getComputedStyle(tableBody).overflow)
+      }
+      
+      // Проверяем стили overflow
+      console.log('Body overflow:', window.getComputedStyle(body).overflow)
+      console.log('HTML overflow:', window.getComputedStyle(html).overflow)
+      
+      // Проверяем все элементы со скроллом
+      const scrollableElements = Array.from(document.querySelectorAll('*')).filter(el => {
+        const style = window.getComputedStyle(el)
+        return (style.overflow === 'auto' || style.overflow === 'scroll' || 
+                style.overflowY === 'auto' || style.overflowY === 'scroll') &&
+                el.scrollHeight > el.clientHeight
+      })
+      console.log('Elements with scroll:', scrollableElements.length)
+      scrollableElements.forEach(el => {
+        console.log('Scrollable element:', el.className, el.scrollHeight, el.clientHeight)
+      })
+    }
+    
+    // Проверяем после рендера
+    setTimeout(checkScrollbars, 500)
+    window.addEventListener('resize', checkScrollbars)
+    
+    return () => window.removeEventListener('resize', checkScrollbars)
+  }, [appliedFilters])
 
   // Функции управления столбцами
   const toggleColumnVisibility = useCallback((key: string) => {
@@ -1354,8 +1414,13 @@ export default function Documentation() {
   }, [newRows, documentation])
 
   return (
-    <div>
-      <div style={{ marginBottom: 16 }}>
+    <div style={{ 
+      height: 'calc(100vh - 96px)',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden'
+    }}>
+      <div style={{ flexShrink: 0, paddingBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
           <Space align="center" size="middle">
             <Text style={{ fontSize: '16px' }}>Проект:</Text>
@@ -1593,32 +1658,33 @@ export default function Documentation() {
       </div>
 
       {/* Таблица */}
-      {!appliedFilters.project_id ? (
-        <Empty
-          description="Выберите проект для просмотра документации"
-          style={{ marginTop: 48 }}
-        />
-      ) : (
-        <Table
-          columns={columns}
-          dataSource={tableData}
-          rowKey="id"
-          loading={isLoading}
-          pagination={{
-            showSizeChanger: true,
-            showTotal: (total) => `Всего: ${total}`,
-            defaultPageSize: pageSize,
-            pageSizeOptions: ['10', '20', '50', '100', '200', '500'],
-            onShowSizeChange: (_, size) => {
-              setPageSize(size)
-              localStorage.setItem('documentation_page_size', size.toString())
-            },
-          }}
-          sticky
-          scroll={{ 
-            x: 'max-content',
-            y: 'calc(100vh - 300px)'
-          }}
+      <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+        {!appliedFilters.project_id ? (
+          <Empty
+            description="Выберите проект для просмотра документации"
+            style={{ marginTop: 48 }}
+          />
+        ) : (
+          <Table
+            columns={columns}
+            dataSource={tableData}
+            rowKey="id"
+            loading={isLoading}
+            pagination={{
+              showSizeChanger: true,
+              showTotal: (total) => `Всего: ${total}`,
+              defaultPageSize: pageSize,
+              pageSizeOptions: ['10', '20', '50', '100', '200', '500'],
+              onShowSizeChange: (_, size) => {
+                setPageSize(size)
+                localStorage.setItem('documentation_page_size', size.toString())
+              },
+            }}
+            sticky
+            scroll={{ 
+              x: 'max-content',
+              y: 'calc(100vh - 300px)'
+            }}
           // TODO: раскомментировать после добавления колонки color в БД
           /*onRow={(record: DocumentationTableRow) => ({
             style: {
@@ -1627,6 +1693,7 @@ export default function Documentation() {
           })}*/
         />
       )}
+      </div>
 
       {/* Drawer настроек столбцов */}
       <Drawer

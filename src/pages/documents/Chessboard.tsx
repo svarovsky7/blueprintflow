@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type Key } from 'react'
+import { useCallback, useMemo, useState, useEffect, type Key } from 'react'
 import { App, Badge, Button, Card, Checkbox, Drawer, Dropdown, Input, List, Modal, Popconfirm, Select, Space, Table, Typography, Upload } from 'antd'
 import type { ColumnType, ColumnsType } from 'antd/es/table'
 import { ArrowDownOutlined, ArrowUpOutlined, BgColorsOutlined, CopyOutlined, DeleteOutlined, EditOutlined, InboxOutlined, PlusOutlined, SaveOutlined, SettingOutlined, FilterOutlined, CaretUpFilled, CaretDownFilled, UploadOutlined } from '@ant-design/icons'
@@ -230,6 +230,41 @@ const collapseMap: Record<string, HiddenColKey> = {
 export default function Chessboard() {
   const { message } = App.useApp()
   
+  // Диагностика скролла
+  useEffect(() => {
+    const checkScrollbars = () => {
+      const body = document.body
+      const html = document.documentElement
+      const mainContainer = document.querySelector('.ant-layout-content')
+      
+      console.log('🎯 Chessboard Scroll diagnostics:')
+      console.log('Body height:', body.scrollHeight, 'Client height:', body.clientHeight)
+      console.log('Body has scroll:', body.scrollHeight > body.clientHeight)
+      console.log('HTML height:', html.scrollHeight, 'Client height:', html.clientHeight)
+      console.log('HTML has scroll:', html.scrollHeight > html.clientHeight)
+      console.log('Window inner height:', window.innerHeight)
+      
+      if (mainContainer) {
+        console.log('Main content:', mainContainer.scrollHeight, mainContainer.clientHeight)
+        console.log('Main content overflow:', window.getComputedStyle(mainContainer).overflow)
+      }
+      
+      // Проверяем все элементы со скроллом
+      const scrollableElements = Array.from(document.querySelectorAll('*')).filter(el => {
+        const style = window.getComputedStyle(el)
+        return (style.overflow === 'auto' || style.overflow === 'scroll' || 
+                style.overflowY === 'auto' || style.overflowY === 'scroll') &&
+                el.scrollHeight > el.clientHeight
+      })
+      console.log('Elements with scroll:', scrollableElements.length)
+      scrollableElements.forEach(el => {
+        console.log('Scrollable element:', el.className || el.tagName, el.scrollHeight, el.clientHeight)
+      })
+    }
+    
+    setTimeout(checkScrollbars, 500)
+    return () => {}
+  })
   
   const [filters, setFilters] = useState<{ projectId?: string; blockId?: string; categoryId?: string; typeId?: string; tagId?: string; documentationId?: string }>({})
   const [appliedFilters, setAppliedFilters] = useState<
@@ -1925,10 +1960,11 @@ export default function Chessboard() {
 
   return (
     <div style={{ 
-      height: 'calc(100vh - 64px)', 
+      height: 'calc(100vh - 96px)', 
       display: 'flex', 
       flexDirection: 'column',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      position: 'relative'
     }}>
       <div style={{ flexShrink: 0, paddingBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -2195,7 +2231,7 @@ export default function Chessboard() {
       
       {/* Таблица */}
       {appliedFilters && (
-        <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+        <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
           {mode === 'add' ? (
             <Table<TableRow>
             dataSource={tableRows}
@@ -2205,7 +2241,7 @@ export default function Chessboard() {
             sticky
             scroll={{ 
               x: 'max-content',
-              y: '100%'
+              y: 'calc(100vh - 300px)'
             }}
             rowClassName={(record) => (record.color ? `row-${record.color}` : '')}
           />
@@ -2218,7 +2254,7 @@ export default function Chessboard() {
             sticky
             scroll={{ 
               x: 'max-content',
-              y: '100%'
+              y: 'calc(100vh - 300px)'
             }}
             rowClassName={(record) => {
               const color = editingRows[record.key]?.color ?? record.color
