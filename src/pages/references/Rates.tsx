@@ -309,6 +309,7 @@ export default function Rates() {
       costCategory: costCategoryFilter,
       detailCostCategory: detailCostCategoryFilter
     })
+    setFiltersExpanded(false) // Сворачиваем блок фильтров после применения
   }, [costCategoryFilter, detailCostCategoryFilter])
   
   // Отфильтрованные виды затрат на основе выбранной категории

@@ -572,6 +572,7 @@ export default function Chessboard() {
       documentationId?: string
     })
     setMode('view')
+    setFiltersExpanded(false) // Сворачиваем блок фильтров после применения
   }
 
   const addRow = useCallback(

@@ -1338,6 +1338,7 @@ export default function Documentation() {
     setAddMode(false)
     setNewRows([])
     setSelectedVersions({}) // Очищаем выбранные версии при смене фильтров
+    setFiltersExpanded(false) // Сворачиваем блок фильтров после применения
   }
 
   // Добавление новой строки

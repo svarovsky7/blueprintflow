@@ -214,6 +214,34 @@ From technical specification (`tech_task.md`):
 - Display page title in header on all new portal pages
 - **Multi-language**: UI is in Russian, maintain Russian labels for user-facing elements
 
+### Filter Components Requirements
+- **All Select components in filters MUST include:**
+  - `allowClear` - enables X button to clear selection
+  - `showSearch` - enables search by typing
+  - `filterOption` - custom filter function for Russian text support
+
+```typescript
+// Standard filter Select component pattern
+<Select
+  placeholder="Выберите значение"
+  allowClear
+  showSearch
+  filterOption={(input, option) => {
+    const text = (option?.children || option?.label)?.toString() || ""
+    return text.toLowerCase().includes(input.toLowerCase())
+  }}
+  // ... other props
+>
+  {options.map(item => (
+    <Select.Option key={item.id} value={item.id}>
+      {item.name}
+    </Select.Option>
+  ))}
+</Select>
+```
+
+**Note:** For Select with `options` prop, use `option?.label`. For `Select.Option` children, use `option?.children`.
+
 ## Code Standards
 - Component names: `PascalCase`
 - Variables and functions: `camelCase`
