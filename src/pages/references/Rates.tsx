@@ -680,6 +680,12 @@ export default function Rates() {
                 }
               }}
               placeholder="Выберите категории"
+              allowClear
+              showSearch
+              filterOption={(input, option) => {
+                const text = (option?.children || option?.label)?.toString() || ""
+                return text.toLowerCase().includes(input.toLowerCase())
+              }}
               style={{ width: '100%' }}
             >
               {costCategories.map(cat => (
@@ -724,6 +730,11 @@ export default function Rates() {
               placeholder="Выберите вид затрат"
               style={{ width: '100%' }}
               allowClear
+              showSearch
+              filterOption={(input, option) => {
+                const text = (option?.children || option?.label)?.toString() || ""
+                return text.toLowerCase().includes(input.toLowerCase())
+              }}
             >
               {detailCostCategories.map(detail => (
                 <Select.Option key={detail.id} value={detail.id}>
@@ -760,6 +771,11 @@ export default function Rates() {
               placeholder="Выберите единицу"
               style={{ width: '100%' }}
               allowClear
+              showSearch
+              filterOption={(input, option) => {
+                const text = (option?.children || option?.label)?.toString() || ""
+                return text.toLowerCase().includes(input.toLowerCase())
+              }}
             >
               {units.map(unit => (
                 <Select.Option key={unit.id} value={unit.id}>
@@ -933,6 +949,11 @@ export default function Rates() {
               value={costCategoryFilter}
               onChange={setCostCategoryFilter}
               allowClear
+              showSearch
+              filterOption={(input, option) => {
+                const text = (option?.children || option?.label)?.toString() || ""
+                return text.toLowerCase().includes(input.toLowerCase())
+              }}
               style={{ width: 200 }}
             >
               {costCategories.map(cat => (
@@ -947,6 +968,11 @@ export default function Rates() {
               value={detailCostCategoryFilter}
               onChange={setDetailCostCategoryFilter}
               allowClear
+              showSearch
+              filterOption={(input, option) => {
+                const text = (option?.children || option?.label)?.toString() || ""
+                return text.toLowerCase().includes(input.toLowerCase())
+              }}
               style={{ width: 200 }}
               disabled={!costCategoryFilter}
             >

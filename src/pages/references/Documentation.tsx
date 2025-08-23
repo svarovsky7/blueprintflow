@@ -1434,6 +1434,7 @@ export default function Documentation() {
                 value: p.id, 
                 label: <span style={{ fontWeight: 'bold' }}>{p.name}</span> 
               })) ?? []}
+              allowClear
               showSearch
               filterOption={(input, option) => {
                 const label = option?.label
@@ -1467,6 +1468,19 @@ export default function Documentation() {
               style={{ width: 200 }}
               placeholder="Тэг"
               allowClear
+              showSearch
+              filterOption={(input, option) => {
+                const label = option?.label
+                if (!label) return false
+                if (typeof label === 'object' && 'props' in label) {
+                  const text = ((label as React.ReactElement).props as { children?: string })?.children || ''
+                  if (typeof text === 'string') {
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }
+                  return false
+                }
+                return String(label).toLowerCase().includes(input.toLowerCase())
+              }}
               size="large"
               value={filters.tag_id}
               onChange={(value) => setFilters({ ...filters, tag_id: value })}
@@ -1627,6 +1641,19 @@ export default function Documentation() {
                   style={{ width: 200 }}
                   placeholder="Корпус"
                   allowClear
+                  showSearch
+              filterOption={(input, option) => {
+                const label = option?.label
+                if (!label) return false
+                if (typeof label === 'object' && 'props' in label) {
+                  const text = ((label as React.ReactElement).props as { children?: string })?.children || ''
+                  if (typeof text === 'string') {
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }
+                  return false
+                }
+                return String(label).toLowerCase().includes(input.toLowerCase())
+              }}
                   disabled={!filters.project_id}
                   value={filters.block_id}
                   onChange={(value) => setFilters({ ...filters, block_id: value })}
@@ -1636,6 +1663,19 @@ export default function Documentation() {
                   style={{ width: 200 }}
                   placeholder="Статус"
                   allowClear
+                  showSearch
+              filterOption={(input, option) => {
+                const label = option?.label
+                if (!label) return false
+                if (typeof label === 'object' && 'props' in label) {
+                  const text = ((label as React.ReactElement).props as { children?: string })?.children || ''
+                  if (typeof text === 'string') {
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }
+                  return false
+                }
+                return String(label).toLowerCase().includes(input.toLowerCase())
+              }}
                   value={filters.status}
                   onChange={(value) => setFilters({ ...filters, status: value })}
                   options={[

@@ -1084,6 +1084,15 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
+                showSearch
+                filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
+                filterOption={(input, option) => {
                   const label = option?.label
                   if (typeof label === 'string') {
                     return label.toLowerCase().includes(input.toLowerCase())
@@ -1137,6 +1146,15 @@ export default function Chessboard() {
                 disabled={!record.tagId}
                 allowClear
                 showSearch
+                filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
+                showSearch
+                filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
                 filterOption={(input, option) => {
                   const label = option?.label
                   if (typeof label === 'string') {
@@ -1430,6 +1448,15 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
+                showSearch
+                filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
+                filterOption={(input, option) => {
                   const label = option?.label
                   if (typeof label === 'string') {
                     return label.toLowerCase().includes(input.toLowerCase())
@@ -1483,6 +1510,15 @@ export default function Chessboard() {
                 disabled={!edit.tagId}
                 allowClear
                 showSearch
+                filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
+                showSearch
+                filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
                 filterOption={(input, option) => {
                   const label = option?.label
                   if (typeof label === 'string') {
@@ -1974,6 +2010,17 @@ export default function Chessboard() {
               placeholder="Выберите проект"
               style={{ width: 280 }}
               size="large"
+              allowClear
+                showSearch
+                filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
+              showSearch
+                filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
               value={filters.projectId}
               onChange={(value) => setFilters({ projectId: value })}
               options={projects?.map((p) => ({ 
@@ -1981,6 +2028,10 @@ export default function Chessboard() {
                 label: <span style={{ fontWeight: 'bold' }}>{p.name}</span> 
               })) ?? []}
               showSearch
+                filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
               filterOption={(input, option) => {
                 const label = option?.label
                 if (!label) return false
@@ -2132,6 +2183,16 @@ export default function Chessboard() {
                 options={blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []}
                 disabled={!filters.projectId}
                 allowClear
+                showSearch
+                filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
+                showSearch
+                filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
               />
               <Select
                 placeholder="Категория затрат"
@@ -2158,6 +2219,11 @@ export default function Chessboard() {
                     })) ?? []
                 }
                 allowClear
+                showSearch
+                filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
               />
               <Select
                 placeholder="Вид затрат"
@@ -2171,6 +2237,11 @@ export default function Chessboard() {
                 }
                 disabled={!filters.categoryId}
                 allowClear
+                showSearch
+                filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
               />
               <Select
                 placeholder="Раздел"
@@ -2185,6 +2256,15 @@ export default function Chessboard() {
                 }
                 allowClear
                 showSearch
+                filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
+                showSearch
+                filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
                 filterOption={(input, option) => {
                   const label = option?.label
                   if (typeof label === 'string') {
@@ -2209,6 +2289,15 @@ export default function Chessboard() {
                 disabled={!filters.tagId}
                 allowClear
                 showSearch
+                filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
+                showSearch
+                filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
                 filterOption={(input, option) => {
                   const label = option?.label
                   if (typeof label === 'string') {
