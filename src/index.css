@@ -69,3 +69,19 @@ body[data-theme='dark'] {
 .row-purple * {
   color: #000000 !important;
 }
+
+/* Гарантируем, что горизонтальный скролл таблицы шахматки всегда внизу */
+.chessboard-table {
+  height: 100%;
+}
+
+.chessboard-table .ant-table-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.chessboard-table .ant-table-body {
+  flex: 1;
+  min-height: calc(100vh - 300px);
+}
