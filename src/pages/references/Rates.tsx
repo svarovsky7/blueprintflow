@@ -15,7 +15,6 @@ import {
   Empty,
   App,
   InputNumber,
-  Tag,
 } from 'antd'
 import {
   UploadOutlined,
@@ -60,14 +59,14 @@ interface RateTableRow extends RateWithRelations {
 const defaultColumnVisibility = {
   work_name: true,
   work_set: true,
-  cost_categories: true,
+  cost_category: true,
   detail_cost_category: true,
   unit: true,
   base_rate: true,
   actions: true,
 }
 
-const defaultColumnOrder = ['work_name', 'work_set', 'cost_categories', 'detail_cost_category', 'unit', 'base_rate', 'actions']
+const defaultColumnOrder = ['work_name', 'work_set', 'cost_category', 'detail_cost_category', 'unit', 'base_rate', 'actions']
 
 export default function Rates() {
   const { message } = App.useApp()
@@ -286,20 +285,19 @@ export default function Rates() {
   // Фильтрация данных
   const filteredData = useMemo(() => {
     let result = [...rates, ...newRows]
-    
+
     if (appliedFilters.costCategory !== undefined) {
-      result = result.filter(row => 
-        row.cost_categories?.some(cat => cat.id === appliedFilters.costCategory)
+      result = result.filter(row =>
+        row.detail_cost_category?.cost_category?.id === appliedFilters.costCategory
       )
     }
-    
+
     if (appliedFilters.detailCostCategory !== undefined) {
-      result = result.filter(row => 
+      result = result.filter(row =>
         row.detail_cost_category?.id === appliedFilters.detailCostCategory
       )
     }
-    
-    
+
     return result
   }, [rates, newRows, appliedFilters])
   
@@ -342,8 +340,7 @@ export default function Rates() {
       detail_cost_category_id: undefined,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      isNew: true,
-      cost_categories: []
+      isNew: true
     }])
   }, [])
 
@@ -371,8 +368,7 @@ export default function Rates() {
           work_set: newRow.work_set || undefined,
           base_rate: newRow.base_rate,
           unit_id: newRow.unit_id || undefined,
-          detail_cost_category_id: newRow.detail_cost_category_id,
-          cost_category_ids: newRow.cost_categories?.map(cat => cat.id) || []
+          detail_cost_category_id: newRow.detail_cost_category_id
         }
         
         await ratesApi.create(formData)
@@ -385,8 +381,7 @@ export default function Rates() {
           work_set: editedRow.work_set || undefined,
           base_rate: editedRow.base_rate,
           unit_id: editedRow.unit_id || undefined,
-          detail_cost_category_id: editedRow.detail_cost_category_id,
-          cost_category_ids: editedRow.cost_categories?.map(cat => cat.id) || []
+          detail_cost_category_id: editedRow.detail_cost_category_id
         }
         
         await ratesApi.update(id, formData)
@@ -431,24 +426,25 @@ export default function Rates() {
         }
         
         // Fuzzy matching для заголовков
-        const findColumnValue = (possibleNames: string[]) => {
-          const rowKeys = Object.keys(row)
-          for (const possibleName of possibleNames) {
-            // Точное совпадение
-            if ((row as any)[possibleName] !== undefined) {
-              return (row as any)[possibleName]
+          const findColumnValue = (possibleNames: string[]) => {
+            const typedRow = row as unknown as Record<string, unknown>
+            const rowKeys = Object.keys(typedRow)
+            for (const possibleName of possibleNames) {
+              // Точное совпадение
+              if (typedRow[possibleName] !== undefined) {
+                return typedRow[possibleName]
+              }
+              // Поиск по частичному совпадению (нечувствительно к регистру)
+              const fuzzyMatch = rowKeys.find(key =>
+                key.toLowerCase().includes(possibleName.toLowerCase()) ||
+                possibleName.toLowerCase().includes(key.toLowerCase())
+              )
+              if (fuzzyMatch && typedRow[fuzzyMatch] !== undefined) {
+                return typedRow[fuzzyMatch]
+              }
             }
-            // Поиск по частичному совпадению (нечувствительно к регистру)
-            const fuzzyMatch = rowKeys.find(key => 
-              key.toLowerCase().includes(possibleName.toLowerCase()) ||
-              possibleName.toLowerCase().includes(key.toLowerCase())
-            )
-            if (fuzzyMatch && (row as any)[fuzzyMatch] !== undefined) {
-              return (row as any)[fuzzyMatch]
-            }
+            return undefined
           }
-          return undefined
-        }
         
         const workName = findColumnValue(['НАИМЕНОВАНИЕ РАБОТ', 'наименование работ', 'работы', 'наименование', 'название работ', 'название'])?.toString().trim()
         console.log(`🏷️ Наименование работ в строке ${i}:`, { workName, available_keys: Object.keys(row) })
@@ -463,24 +459,17 @@ export default function Rates() {
         const unit = unitName ? units.find(u => u.name.toLowerCase() === unitName.toLowerCase()) : undefined
         console.log(`📏 Единица измерения в строке ${i}:`, { unitName, unit, availableUnits: units.length })
         
-        // Поиск категорий затрат
+        // Поиск категорий и вида затрат
         const categoryName = findColumnValue(['Категории затрат', 'категории затрат', 'категория затрат', 'категория', 'затраты'])?.toString().trim()
         const costTypeName = findColumnValue(['Вид затрат', 'вид затрат', 'тип затрат', 'подкategория'])?.toString().trim()
-        
-        const matchingCategories = costCategories.filter(cat => {
-          if (categoryName && !cat.name.toLowerCase().includes(categoryName.toLowerCase())) {
-            return false
-          }
-          return true
-        })
-        console.log(`🏷️ Категории затрат в строке ${i}:`, { categoryName, matchingCategories, availableCategories: costCategories.length })
-        
-        // Поиск вида затрат
+
         let detailCostCategoryId: number | undefined
-        if (costTypeName && matchingCategories.length > 0) {
+        if (costTypeName) {
           const matchingDetailCategory = detailCostCategories.find(detail => {
             const nameMatches = detail.name.toLowerCase().includes(costTypeName.toLowerCase())
-            const categoryMatches = matchingCategories.some(cat => cat.id === detail.cost_category?.id)
+            const categoryMatches = categoryName
+              ? detail.cost_category?.name.toLowerCase().includes(categoryName.toLowerCase())
+              : true
             return nameMatches && categoryMatches
           })
           detailCostCategoryId = matchingDetailCategory?.id
@@ -497,8 +486,7 @@ export default function Rates() {
           work_set: workSet || undefined,
           base_rate: baseRate,
           unit_id: unit?.id,
-          detail_cost_category_id: detailCostCategoryId,
-          cost_category_ids: matchingCategories.map(cat => cat.id)
+          detail_cost_category_id: detailCostCategoryId
         }
         
         console.log(`✅ Создаем объект расценки для строки ${i}:`, rateData)
@@ -537,7 +525,7 @@ export default function Rates() {
       console.error('Process import error:', error)
       message.error('Ошибка при обработке импорта')
     }
-  }, [rates, units, costCategories, detailCostCategories, queryClient, message])
+  }, [rates, units, detailCostCategories, queryClient, message])
 
   const handleImport = useCallback(async (file: File) => {
     console.log('📁 Начало импорта файла:', { fileName: file.name, fileSize: file.size, fileType: file.type })
@@ -655,63 +643,16 @@ export default function Rates() {
       }
     },
     {
-      title: 'Категории затрат',
-      dataIndex: 'cost_categories',
-      key: 'cost_categories',
-      render: (categories: any[], record) => {
-        if (record.isNew || editingRows[record.id]) {
-          const selectedIds = editingRows[record.id]?.cost_categories?.map(cat => cat.id) ?? 
-                             record.cost_categories?.map(cat => cat.id) ?? []
-          
-          return (
-            <Select
-              mode="multiple"
-              value={selectedIds}
-              onChange={(values) => {
-                const selectedCategories = costCategories.filter(cat => values.includes(cat.id))
-                if (record.isNew) {
-                  setNewRows(prev => prev.map(row => 
-                    row.id === record.id ? { ...row, cost_categories: selectedCategories } : row
-                  ))
-                } else {
-                  setEditingRows(prev => ({
-                    ...prev,
-                    [record.id]: { ...record, ...prev[record.id], cost_categories: selectedCategories }
-                  }))
-                }
-              }}
-              placeholder="Выберите категории"
-              allowClear
-              showSearch
-              filterOption={(input, option) => {
-                const text = (option?.children || option?.label)?.toString() || ""
-                return text.toLowerCase().includes(input.toLowerCase())
-              }}
-              style={{ width: '100%' }}
-            >
-              {costCategories.map(cat => (
-                <Select.Option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </Select.Option>
-              ))}
-            </Select>
-          )
-        }
-        
-        return (
-          <Space size={[0, 4]} wrap>
-            {categories?.map(cat => (
-              <Tag key={cat.id} color="blue">{cat.name}</Tag>
-            ))}
-          </Space>
-        )
-      }
+      title: 'Категория затрат',
+      dataIndex: 'detail_cost_category',
+      key: 'cost_category',
+      render: (_: unknown, record: RateTableRow) => record.detail_cost_category?.cost_category?.name || '-'
     },
     {
       title: 'Вид затрат',
       dataIndex: 'detail_cost_category',
       key: 'detail_cost_category',
-      render: (detailCategory, record) => {
+        render: (detailCategory: { name: string } | undefined, record: RateTableRow) => {
         if (record.isNew || editingRows[record.id]) {
           return (
             <Select
@@ -825,7 +766,7 @@ export default function Rates() {
       title: 'Действия',
       key: 'actions',
       width: 120,
-      render: (_, record) => {
+          render: (_: unknown, record: RateTableRow) => {
         if (mode === 'delete') return null
         if (record.isNew) return null
         
@@ -882,7 +823,7 @@ export default function Rates() {
         )
       }
     }
-  ], [mode, editingRows, costCategories, detailCostCategories, units, queryClient, message])
+  ], [mode, editingRows, detailCostCategories, units, queryClient, message])
 
   // Конфигурация столбцов с учетом настроек
   const visibleColumns = useMemo(() => {
@@ -908,7 +849,7 @@ export default function Rates() {
         ),
         key: 'selection',
         width: 50,
-        render: (_: any, record: RateTableRow) => (
+          render: (_: unknown, record: RateTableRow) => (
           <Checkbox
             checked={selectedRowsForDelete.has(record.id)}
             onChange={(e) => {
