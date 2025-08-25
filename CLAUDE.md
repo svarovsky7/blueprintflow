@@ -20,6 +20,7 @@ BlueprintFlow is a React-based construction management portal for analyzing work
 - **Excel Processing**: xlsx 0.18 library for import/export
 - **Utilities**: Day.js 1.11 for dates
 - **Routing**: React Router DOM 6.27
+- **Development**: ESLint, Prettier, dotenv for environment management
 - **Editor**: WebStorm
 
 ## Commands
@@ -53,14 +54,17 @@ node -e "import('@supabase/supabase-js').then(m => {const c = m.createClient('ht
 ```
 src/
 ├── app/          # App-level providers, routing
-├── pages/        # Route pages  
-├── widgets/      # Complex reusable UI blocks
-├── features/     # User interactions, business features
-├── entities/     # Business entities and their APIs
-├── shared/       # Shared utilities, UI components, types
-├── lib/          # External library configurations (Supabase, etc.)
-└── components/   # Legacy UI components (migrate to FSD gradually)
+├── pages/        # Route pages (main pages, admin/, documents/, references/)
+├── widgets/      # Complex reusable UI blocks (empty - to be populated)
+├── features/     # User interactions, business features (auth/)
+├── entities/     # Business entities and their APIs (chessboard/, documentation/, rates/, etc.)
+├── shared/       # Shared utilities, UI components, types (lib/, types/, ui/)
+├── layout/       # Layout components (MainLayout.tsx)
+├── lib/          # External library configurations (supabase.ts)
+└── components/   # Legacy UI components (ConflictResolutionDialog, DataTable, FileUpload, etc.)
 ```
+
+**Note**: The project is in transition to FSD architecture. Current entities include: chessboard, documentation, documentation-tags, and rates.
 
 ### Key Patterns
 - **Public API**: Each slice exposes through `index.ts`
@@ -124,7 +128,9 @@ for file in sql/*.sql; do psql "$DATABASE_URL" -f "$file"; done
 - `cost_categories`, `detail_cost_categories` - Cost categorization
 - `location` - Location/localization data
 - `projects`, `blocks` - Project structure
-- **Migration files**: `supabase.sql` and `sql/` directory
+- `documentation` - Document management
+- `rates` - Rate management with cost categories
+- **Migration files**: `supabase.sql` and `sql/` directory (includes rates table creation)
 
 ### Database Rules
 - All tables MUST include `created_at` and `updated_at` fields
@@ -262,16 +268,23 @@ From technical specification (`tech_task.md`):
 ### Documents (`/documents/*`)
 - Chessboard (`src/pages/documents/Chessboard.tsx`) - Complex material tracking with Excel import, filtering, and inline editing
 - VOR (`src/pages/documents/Vor.tsx`) - Volume of work documentation
-- Documentation (`src/pages/references/Documentation.tsx`) - Project documentation management with template "Document"
 
 ### References (`/references/*`)
-- Units of measurement
-- Cost categories
-- Projects
-- Locations
+- Units (`src/pages/references/Units.tsx`) - Units of measurement
+- Cost Categories (`src/pages/references/CostCategories.tsx`) - Cost categorization
+- Projects (`src/pages/references/Projects.tsx`) - Project management
+- Locations (`src/pages/references/Locations.tsx`) - Location management
+- Documentation (`src/pages/references/Documentation.tsx`) - Project documentation with "Document" template
+- Rates (`src/pages/references/Rates.tsx`) - Rate management
 
-### Dashboard
-- Analytics widgets for completed work
+### Admin Pages (`/admin/*`)
+- Documentation Tags (`src/pages/admin/DocumentationTags.tsx`) - Tag management
+- Statuses (`src/pages/admin/Statuses.tsx`) - Status management
+
+### Additional Pages
+- Dashboard (`src/pages/Dashboard.tsx`) - Analytics widgets for completed work
+- Blueprints PD/RD (`src/pages/BlueprintsPD.tsx`, `src/pages/BlueprintsRD.tsx`) - Blueprint management
+- Estimate/Smeta (`src/pages/Estimate.tsx`, `src/pages/Smeta.tsx`) - Cost estimation pages
 
 ## Git Workflow
 - Work in feature branches

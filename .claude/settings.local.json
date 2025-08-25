@@ -22,9 +22,16 @@
       "Bash(psql:*)",
       "mcp__supabase__list_tables",
       "mcp__supabase__apply_migration",
-      "mcp__supabase__execute_sql"
+      "mcp__supabase__execute_sql",
+      "Bash(grep:*)",
+      "Bash(sed:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(where context7)"
     ],
-    "defaultMode": "acceptEdits"
+    "defaultMode": "acceptEdits",
+    "additionalDirectories": [
+      "C:\\Users\\eugene"
+    ]
   },
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
