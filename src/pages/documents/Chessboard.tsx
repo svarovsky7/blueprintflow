@@ -2321,37 +2321,37 @@ export default function Chessboard() {
       
       {/* Таблица */}
       {appliedFilters && (
-        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
           {mode === 'add' ? (
             <Table<TableRow>
-              dataSource={tableRows}
-              columns={orderedAddColumns}
-              pagination={false}
-              rowKey="key"
-              sticky
-              scroll={{
-                x: 'max-content',
-                y: '100%'
-              }}
-              rowClassName={(record) => (record.color ? `row-${record.color}` : '')}
-            />
-          ) : (
-            <Table<ViewRow>
-              dataSource={viewRows}
-              columns={orderedViewColumns}
-              pagination={false}
-              rowKey="key"
-              sticky
-              scroll={{
-                x: 'max-content',
-                y: '100%'
-              }}
-              rowClassName={(record) => {
-                const color = editingRows[record.key]?.color ?? record.color
-                return color ? `row-${color}` : ''
-              }}
-            />
-          )}
+            dataSource={tableRows}
+            columns={orderedAddColumns}
+            pagination={false}
+            rowKey="key"
+            sticky
+            scroll={{ 
+              x: 'max-content',
+              y: 'calc(100vh - 300px)'
+            }}
+            rowClassName={(record) => (record.color ? `row-${record.color}` : '')}
+          />
+        ) : (
+          <Table<ViewRow>
+            dataSource={viewRows}
+            columns={orderedViewColumns}
+            pagination={false}
+            rowKey="key"
+            sticky
+            scroll={{ 
+              x: 'max-content',
+              y: 'calc(100vh - 300px)'
+            }}
+            rowClassName={(record) => {
+              const color = editingRows[record.key]?.color ?? record.color
+              return color ? `row-${color}` : ''
+            }}
+          />
+        )}
         </div>
       )}
       <Modal
