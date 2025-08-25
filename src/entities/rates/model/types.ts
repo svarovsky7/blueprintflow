@@ -23,6 +23,11 @@ export interface RateWithRelations extends Rate {
       number: number
     }
   }
+  cost_categories?: Array<{
+    id: number
+    name: string
+    number: number
+  }>
 }
 
 export interface RateExcelRow {
@@ -40,4 +45,5 @@ export interface RateFormData {
   base_rate: number
   unit_id?: string
   detail_cost_category_id?: number
+  cost_category_ids: number[]
 }

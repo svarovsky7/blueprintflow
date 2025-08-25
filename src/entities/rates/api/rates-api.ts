@@ -14,8 +14,8 @@ export const ratesApi = {
       .select(`
         *,
         unit:units(id, name),
-        detail_mapping:rates_detail_cost_categories_mapping(
-          detail_cost_category:detail_cost_categories(id, name, cost_category:cost_categories(id, name, number))
+        cost_categories:rates_cost_categories_mapping(
+          cost_category:cost_categories(id, name, number)
         )
       `)
       .order('created_at', { ascending: false })
@@ -27,9 +27,10 @@ export const ratesApi = {
       throw error
     }
     
-    const result = data.map(({ detail_mapping, ...rate }) => ({
+    const result = data.map(rate => ({
       ...rate,
-      detail_cost_category: detail_mapping?.[0]?.detail_cost_category || null
+      cost_categories: rate.cost_categories?.map((mapping: any) => mapping.cost_category).filter(Boolean) || [],
+      detail_cost_category: null
     })) as RateWithRelations[]
     
     console.log('✅ Данные обработаны', { count: result.length, result })
@@ -39,12 +40,12 @@ export const ratesApi = {
   async create(data: RateFormData): Promise<Rate> {
     if (!supabase) throw new Error('Supabase is not configured')
     
-    const { detail_cost_category_id, ...rateData } = data
-
+    const { cost_category_ids, detail_cost_category_id, ...rateData } = data
+    
     // Создаем запись расценки
     const { data: rate, error: rateError } = await supabase
       .from('rates')
-      .insert({ ...rateData, detail_cost_category_id })
+      .insert(rateData)
       .select()
       .single()
     
@@ -53,14 +54,19 @@ export const ratesApi = {
       throw rateError
     }
     
-    // Создаем связь с видом затрат
-    if (detail_cost_category_id) {
+    // Создаем связи с категориями затрат
+    if (cost_category_ids.length > 0) {
+      const mappings = cost_category_ids.map(cost_category_id => ({
+        rate_id: rate.id,
+        cost_category_id
+      }))
+      
       const { error: mappingError } = await supabase
-        .from('rates_detail_cost_categories_mapping')
-        .insert({ rate_id: rate.id, detail_cost_category_id })
-
+        .from('rates_cost_categories_mapping')
+        .insert(mappings)
+      
       if (mappingError) {
-        console.error('Failed to create rate-detail cost category mapping:', mappingError)
+        console.error('Failed to create rate-cost category mappings:', mappingError)
         throw mappingError
       }
     }
@@ -71,12 +77,12 @@ export const ratesApi = {
   async update(id: string, data: RateFormData): Promise<Rate> {
     if (!supabase) throw new Error('Supabase is not configured')
     
-    const { detail_cost_category_id, ...rateData } = data
-
+    const { cost_category_ids, detail_cost_category_id, ...rateData } = data
+    
     // Обновляем запись расценки
     const { data: rate, error: rateError } = await supabase
       .from('rates')
-      .update({ ...rateData, detail_cost_category_id })
+      .update(rateData)
       .eq('id', id)
       .select()
       .single()
@@ -86,26 +92,31 @@ export const ratesApi = {
       throw rateError
     }
     
-    // Обновляем связь с видом затрат
+    // Обновляем связи с категориями затрат
     // Удаляем старые связи
     const { error: deleteError } = await supabase
-      .from('rates_detail_cost_categories_mapping')
+      .from('rates_cost_categories_mapping')
       .delete()
       .eq('rate_id', id)
-
+    
     if (deleteError) {
-      console.error('Failed to delete old rate-detail cost category mapping:', deleteError)
+      console.error('Failed to delete old rate-cost category mappings:', deleteError)
       throw deleteError
     }
-
-    // Создаем новую связь
-    if (detail_cost_category_id) {
+    
+    // Создаем новые связи
+    if (cost_category_ids.length > 0) {
+      const mappings = cost_category_ids.map(cost_category_id => ({
+        rate_id: id,
+        cost_category_id
+      }))
+      
       const { error: mappingError } = await supabase
-        .from('rates_detail_cost_categories_mapping')
-        .insert({ rate_id: id, detail_cost_category_id })
-
+        .from('rates_cost_categories_mapping')
+        .insert(mappings)
+      
       if (mappingError) {
-        console.error('Failed to create new rate-detail cost category mapping:', mappingError)
+        console.error('Failed to create new rate-cost category mappings:', mappingError)
         throw mappingError
       }
     }
