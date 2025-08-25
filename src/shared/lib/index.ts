@@ -4,7 +4,7 @@ export const formatDate = (date: string | Date): string => {
   return d.toLocaleDateString('ru-RU')
 }
 
-export const debounce = <T extends (...args: any[]) => any>(
+export const debounce = <T extends (...args: unknown[]) => unknown>(
   func: T,
   wait: number,
 ): ((...args: Parameters<T>) => void) => {
