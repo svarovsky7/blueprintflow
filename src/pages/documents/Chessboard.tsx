@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
 import { documentationApi } from '@/entities/documentation'
 import { documentationTagsApi } from '@/entities/documentation-tags'
+import { ratesApi, type RateWithRelations } from '@/entities/rates'
 
 type RowColor = '' | 'green' | 'yellow' | 'blue' | 'red'
 
@@ -55,6 +56,8 @@ const RowColorPicker = ({
 interface RowData {
   key: string
   material: string
+  rateId: string
+  rate?: string
   quantityPd: string
   quantitySpec: string
   quantityRd: string
@@ -75,6 +78,7 @@ interface RowData {
 interface ViewRow {
   key: string
   material: string
+  rate: string
   quantityPd: string
   quantitySpec: string
   quantityRd: string
@@ -110,6 +114,7 @@ interface LocationOption { id: number; name: string }
 interface DbRow {
   id: string
   material: string | null
+  rate_id: string | null
   quantityPd: number | null
   quantitySpec: number | null
   quantityRd: number | null
@@ -117,6 +122,7 @@ interface DbRow {
   color: string | null
   floors?: string
   units?: { name: string | null } | null
+  rates?: { work_name: string | null } | null
   chessboard_mapping?: {
     block_id: string | null
     blocks?: { name: string | null } | null
@@ -202,6 +208,7 @@ const parseFloorsString = (floorsStr: string): number[] => {
 const emptyRow = (defaults: Partial<RowData>): RowData => ({
   key: Math.random().toString(36).slice(2),
   material: '',
+  rateId: '',
   quantityPd: '',
   quantitySpec: '',
   quantityRd: '',
@@ -377,6 +384,30 @@ export default function Chessboard() {
     },
   })
 
+  const { data: rates } = useQuery<RateWithRelations[]>({
+    queryKey: ['rates'],
+    queryFn: ratesApi.getAll,
+  })
+
+  const getRateOptions = useCallback(
+    (categoryId: string, typeId: string) => {
+      if (!rates) return []
+      if (typeId) {
+        return rates.filter(r => String(r.detail_cost_category_id) === typeId)
+      }
+      if (categoryId) {
+        const catId = Number(categoryId)
+        return rates.filter(
+          r =>
+            r.cost_category_ids?.includes(catId) ||
+            r.detail_cost_category?.cost_category?.id === catId,
+        )
+      }
+      return rates
+    },
+    [rates],
+  )
+
   const { data: locations } = useQuery<LocationOption[]>({
     queryKey: ['locations'],
     queryFn: async () => {
@@ -448,7 +479,7 @@ export default function Chessboard() {
       const query = supabase
         .from('chessboard')
         .select(
-          `id, material, quantityPd, quantitySpec, quantityRd, unit_id, color, units(name), 
+          `id, material, rate_id, quantityPd, quantitySpec, quantityRd, unit_id, color, units(name), rates(work_name),
           ${relation}(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name)),
           chessboard_documentation_mapping(documentation_id, documentations(id, code, tag_id, stage, tag:documentation_tags(id, name, tag_number)))`,
         )
@@ -513,13 +544,14 @@ export default function Chessboard() {
       (tableData ?? []).map((item) => {
         const documentation = item.chessboard_documentation_mapping?.documentations
         const tag = documentation?.tag
-        return {
-          key: item.id,
-          material: item.material ?? '',
-          quantityPd: item.quantityPd !== null && item.quantityPd !== undefined ? String(item.quantityPd) : '',
-          quantitySpec: item.quantitySpec !== null && item.quantitySpec !== undefined ? String(item.quantitySpec) : '',
-          quantityRd: item.quantityRd !== null && item.quantityRd !== undefined ? String(item.quantityRd) : '',
-          unit: item.units?.name ?? '',
+      return {
+        key: item.id,
+        material: item.material ?? '',
+        rate: item.rates?.work_name ?? '',
+        quantityPd: item.quantityPd !== null && item.quantityPd !== undefined ? String(item.quantityPd) : '',
+        quantitySpec: item.quantitySpec !== null && item.quantitySpec !== undefined ? String(item.quantitySpec) : '',
+        quantityRd: item.quantityRd !== null && item.quantityRd !== undefined ? String(item.quantityRd) : '',
+        unit: item.units?.name ?? '',
           blockId: item.chessboard_mapping?.block_id ?? '',
           block: item.chessboard_mapping?.blocks?.name ?? '',
           costCategory: item.chessboard_mapping?.cost_categories?.name ?? '',
@@ -541,6 +573,7 @@ export default function Chessboard() {
       ...viewRows.map((v) => ({
         key: v.key,
         material: v.material,
+        rate: v.rate,
         quantityPd: v.quantityPd,
         quantitySpec: v.quantitySpec,
         quantityRd: v.quantityRd,
@@ -695,6 +728,7 @@ export default function Chessboard() {
           [id]: {
             key: id,
             material: dbRow.material ?? '',
+            rateId: dbRow.rate_id ?? '',
             quantityPd:
               dbRow.quantityPd !== null && dbRow.quantityPd !== undefined
                 ? String(dbRow.quantityPd)
@@ -745,6 +779,7 @@ export default function Chessboard() {
         .from('chessboard')
         .update({
           material: r.material,
+          rate_id: r.rateId || null,
           quantityPd: r.quantityPd ? Number(r.quantityPd) : null,
           quantitySpec: r.quantitySpec ? Number(r.quantitySpec) : null,
           quantityRd: r.quantityRd ? Number(r.quantityRd) : null,
@@ -931,6 +966,7 @@ export default function Chessboard() {
     const payload = rows.map((r) => ({
       project_id: appliedFilters.projectId,
       material: r.material,
+      rate_id: r.rateId || null,
       quantityPd: r.quantityPd ? Number(r.quantityPd) : null,
       quantitySpec: r.quantitySpec ? Number(r.quantitySpec) : null,
       quantityRd: r.quantityRd ? Number(r.quantityRd) : null,
@@ -998,6 +1034,7 @@ export default function Chessboard() {
   const addColumns: ColumnsType<TableRow> = useMemo(() => {
     const map: Record<string, keyof ViewRow> = {
       material: 'material',
+      rateId: 'rate',
       quantityPd: 'quantityPd',
       quantitySpec: 'quantitySpec',
       quantityRd: 'quantityRd',
@@ -1012,6 +1049,7 @@ export default function Chessboard() {
       { title: 'Раздел', dataIndex: 'tagName', width: 200 },
       { title: 'Шифр проекта', dataIndex: 'projectCode', width: 150 },
       { title: 'Материал', dataIndex: 'material', width: 300 },
+      { title: 'Наименование работ', dataIndex: 'rateId', width: 300 },
       { title: 'Кол-во по ПД', dataIndex: 'quantityPd', width: 120 },
       { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', width: 150 },
       { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd', width: 180 },
@@ -1171,6 +1209,20 @@ export default function Chessboard() {
                 style={{ width: 300 }}
                 value={record.material}
                 onChange={(e) => handleRowChange(record.key, 'material', e.target.value)}
+              />
+            )
+          case 'rateId':
+            return (
+              <Select
+                style={{ width: 300 }}
+                value={record.rateId}
+                onChange={(value) => handleRowChange(record.key, 'rateId', value)}
+                options={getRateOptions(record.costCategoryId, record.costTypeId).map(r => ({ value: r.id, label: r.work_name }))}
+                showSearch
+                filterOption={(input, option) => {
+                  const label = option?.label as string
+                  return label.toLowerCase().includes(input.toLowerCase())
+                }}
               />
             )
           case 'quantityPd':
@@ -1387,6 +1439,7 @@ export default function Chessboard() {
       { title: 'Раздел', dataIndex: 'tagName', width: 200 },
       { title: 'Шифр проекта', dataIndex: 'projectCode', width: 150 },
       { title: 'Материал', dataIndex: 'material', width: 300 },
+      { title: 'Наименование работ', dataIndex: 'rate', width: 300 },
       { title: 'Кол-во по ПД', dataIndex: 'quantityPd', width: 120 },
       { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', width: 150 },
       { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd', width: 180 },
@@ -1535,6 +1588,20 @@ export default function Chessboard() {
                 style={{ width: 300 }}
                 value={edit.material}
                 onChange={(e) => handleEditChange(record.key, 'material', e.target.value)}
+              />
+            )
+          case 'rateId':
+            return (
+              <Select
+                style={{ width: 300 }}
+                value={edit.rateId}
+                onChange={(value) => handleEditChange(record.key, 'rateId', value)}
+                options={getRateOptions(edit.costCategoryId, edit.costTypeId).map(r => ({ value: r.id, label: r.work_name }))}
+                showSearch
+                filterOption={(input, option) => {
+                  const label = option?.label as string
+                  return label.toLowerCase().includes(input.toLowerCase())
+                }}
               />
             )
           case 'quantityPd':
@@ -1765,6 +1832,7 @@ export default function Chessboard() {
     { key: 'costType', title: 'Вид затрат' },
     { key: 'location', title: 'Локализация' },
     { key: 'material', title: 'Материал' },
+    { key: 'rate', title: 'Наименование работ' },
     { key: 'quantityPd', title: 'Кол-во по ПД' },
     { key: 'quantitySpec', title: 'Кол-во по спеке РД' },
     { key: 'quantityRd', title: 'Кол-во по пересчету РД' },
