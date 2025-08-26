@@ -457,7 +457,7 @@ const App = ({ isDark, toggleTheme, scale, onScaleChange }: AppProps) => {
           }
         `}
       </style>
-      <Layout style={{ height: '100%' }}>
+      <Layout style={{ minHeight: '100vh' }}>
         <Sider
           theme={isDark ? 'dark' : 'light'}
           style={{
@@ -491,14 +491,16 @@ const App = ({ isDark, toggleTheme, scale, onScaleChange }: AppProps) => {
             onOpenChange={setOpenKeys}
           />
         </Sider>
-        <Layout style={{ height: '100%' }}>
+        <Layout style={{ minHeight: '100vh' }}>
           <PortalHeader isDark={isDark} />
           <Content
             style={{
               margin: 16,
               background: isDark ? '#555555' : '#FCFCFC',
               color: isDark ? '#ffffff' : '#000000',
-              flex: 1,
+              boxSizing: 'border-box',
+              height: 'calc(100vh - 64px - 32px)',
+              overflow: 'auto',
             }}
           >
             <Routes>
