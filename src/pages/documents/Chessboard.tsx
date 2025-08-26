@@ -1919,7 +1919,9 @@ export default function Chessboard() {
   useMemo(() => {
     // Попытка загрузить из localStorage
     const savedVisibility = localStorage.getItem('chessboard-column-visibility')
-    const savedOrder = localStorage.getItem('chessboard-column-order')
+    // Сброс устаревшего ключа порядка столбцов
+    localStorage.removeItem('chessboard-column-order')
+    const savedOrder = localStorage.getItem('chessboard-column-order-v2')
     
     if (savedVisibility && Object.keys(columnVisibility).length === 0) {
       try {
@@ -1928,7 +1930,7 @@ export default function Chessboard() {
         let hasNewColumns = false
         allColumns.forEach(col => {
           if (!(col.key in parsed)) {
-            parsed[col.key] = true
+            parsed[col.key] = col.key === 'workName' ? false : true
             hasNewColumns = true
           }
         })
@@ -1940,14 +1942,14 @@ export default function Chessboard() {
       } catch {
         const initialVisibility: Record<string, boolean> = {}
         allColumns.forEach(col => {
-          initialVisibility[col.key] = true
+          initialVisibility[col.key] = col.key === 'workName' ? false : true
         })
         setColumnVisibility(initialVisibility)
       }
     } else if (Object.keys(columnVisibility).length === 0) {
       const initialVisibility: Record<string, boolean> = {}
       allColumns.forEach(col => {
-        initialVisibility[col.key] = true
+        initialVisibility[col.key] = col.key === 'workName' ? false : true
       })
       setColumnVisibility(initialVisibility)
     }
@@ -1981,7 +1983,7 @@ export default function Chessboard() {
           
           setColumnOrder(newOrder)
           // Обновляем localStorage
-          localStorage.setItem('chessboard-column-order', JSON.stringify(newOrder))
+          localStorage.setItem('chessboard-column-order-v2', JSON.stringify(newOrder))
         } else {
           setColumnOrder(parsed)
         }
@@ -2002,7 +2004,7 @@ export default function Chessboard() {
   
   useMemo(() => {
     if (columnOrder.length > 0) {
-      localStorage.setItem('chessboard-column-order', JSON.stringify(columnOrder))
+      localStorage.setItem('chessboard-column-order-v2', JSON.stringify(columnOrder))
     }
   }, [columnOrder])
 
@@ -2040,7 +2042,7 @@ export default function Chessboard() {
     // Сброс видимости - все столбцы видимы
     const defaultVisibility: Record<string, boolean> = {}
     allColumns.forEach(col => {
-      defaultVisibility[col.key] = true
+      defaultVisibility[col.key] = col.key === 'workName' ? false : true
     })
     setColumnVisibility(defaultVisibility)
     
@@ -2050,6 +2052,7 @@ export default function Chessboard() {
     // Очистка localStorage
     localStorage.removeItem('chessboard-column-visibility')
     localStorage.removeItem('chessboard-column-order')
+    localStorage.removeItem('chessboard-column-order-v2')
   }, [allColumns])
 
   // Применение порядка и видимости к столбцам таблицы
