@@ -6,6 +6,7 @@ import { ConfigProvider, App as AntdApp, unstableSetRender, theme } from 'antd'
 import 'antd/dist/reset.css'
 import './index.css'
 import App from './App.tsx'
+import { parseScale, ScaleValue } from './shared/scale'
 
 unstableSetRender((node, container) => {
   const root = createRoot(container)
@@ -17,18 +18,34 @@ unstableSetRender((node, container) => {
 
 const queryClient = new QueryClient()
 
+const currentYear = new Date().getFullYear()
+const themeStorageKey = `blueprintflow-theme-${currentYear}`
+const scaleStorageKey = `blueprintflow-scale-${currentYear}`
+
 export function Root() {
   const [isDark, setIsDark] = useState(() => {
-    const savedTheme = localStorage.getItem('blueprintflow-theme')
+    const savedTheme = localStorage.getItem(themeStorageKey)
     return savedTheme === 'dark'
   })
+  const [scale, setScale] = useState<ScaleValue>(() => parseScale(localStorage.getItem(scaleStorageKey)))
 
   useEffect(() => {
     document.body.style.backgroundColor = isDark ? '#555555' : '#FCFCFC'
     document.body.style.color = isDark ? '#ffffff' : '#000000'
     document.body.dataset.theme = isDark ? 'dark' : 'light'
-    localStorage.setItem('blueprintflow-theme', isDark ? 'dark' : 'light')
+    localStorage.setItem(themeStorageKey, isDark ? 'dark' : 'light')
   }, [isDark])
+
+  useEffect(() => {
+    const root = document.getElementById('root')
+    if (root) {
+      root.style.transform = `scale(${scale})`
+      root.style.transformOrigin = 'top left'
+      root.style.width = `${100 / scale}vw`
+      root.style.height = `${100 / scale}vh`
+    }
+    localStorage.setItem(scaleStorageKey, String(scale))
+  }, [scale])
 
   return (
     <ConfigProvider
@@ -57,7 +74,12 @@ export function Root() {
       <AntdApp>
         <QueryClientProvider client={queryClient}>
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <App isDark={isDark} toggleTheme={() => setIsDark((prev) => !prev)} />
+            <App
+              isDark={isDark}
+              toggleTheme={() => setIsDark((prev) => !prev)}
+              scale={scale}
+              onScaleChange={setScale}
+            />
           </BrowserRouter>
         </QueryClientProvider>
       </AntdApp>
