@@ -37,15 +37,11 @@ export function Root() {
   useEffect(() => {
     const root = document.getElementById('root')
     if (root) {
-      root.style.removeProperty('transform')
-      root.style.removeProperty('transform-origin')
-      root.style.removeProperty('width')
-      root.style.removeProperty('height')
+      root.style.transform = `scale(${scale})`
+      root.style.transformOrigin = 'top left'
+      root.style.width = `${100 / scale}%`
+      root.style.height = `${100 / scale}%`
     }
-
-    document.body.style.setProperty('zoom', scale.toString())
-    document.body.style.width = `${100 / scale}%`
-    document.body.style.height = `${100 / scale}%`
     localStorage.setItem('blueprintflow-scale', String(scale))
   }, [scale])
 
