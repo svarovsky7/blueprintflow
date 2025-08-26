@@ -1349,6 +1349,8 @@ export default function Chessboard() {
                   handleRowChange(record.key, 'locationId', '')
                   handleRowChange(record.key, 'rateId', '')
                 }}
+                showSearch
+                optionFilterProp="label"
                 options={
                   costCategories
                     ?.filter(
@@ -1372,6 +1374,8 @@ export default function Chessboard() {
                   handleRowChange(record.key, 'locationId', loc ? String(loc) : '')
                   handleRowChange(record.key, 'rateId', '')
                 }}
+                showSearch
+                optionFilterProp="label"
                 options={
                   costTypes
                     ?.filter((t) => {
@@ -1429,7 +1433,7 @@ export default function Chessboard() {
         }
       }
 
-      return { ...col, filters, sorter, onFilter, render }
+      return { ...col, filters, filterSearch: true, sorter, onFilter, render }
     })
 
     return [
@@ -1731,6 +1735,8 @@ export default function Chessboard() {
                   handleEditChange(record.key, 'rateId', '')
                 }}
                 popupMatchSelectWidth={false}
+                showSearch
+                optionFilterProp="label"
                 options={
                   costCategories
                     ?.sort((a, b) => {
@@ -1760,6 +1766,8 @@ export default function Chessboard() {
                   handleEditChange(record.key, 'locationId', loc ? String(loc) : '')
                   handleEditChange(record.key, 'rateId', '')
                 }}
+                showSearch
+                optionFilterProp="label"
                 options={
                   costTypes
                     ?.filter((t) => t.cost_category_id === Number(edit.costCategoryId))
@@ -1814,6 +1822,7 @@ export default function Chessboard() {
 
       return {
         ...col,
+        filterSearch: true,
         sorter: (a: ViewRow, b: ViewRow) => {
           const aVal = (a as any)[col.dataIndex]
           const bVal = (b as any)[col.dataIndex]
