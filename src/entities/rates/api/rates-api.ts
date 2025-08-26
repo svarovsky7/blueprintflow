@@ -16,8 +16,7 @@ export const ratesApi = {
         unit:units(id, name),
         detail_mapping:rates_detail_cost_categories_mapping(
           detail_cost_category:detail_cost_categories(id, name, cost_category:cost_categories(id, name, number))
-        ),
-        category_mapping:rates_cost_categories_mapping(cost_category_id)
+        )
       `)
       .order('created_at', { ascending: false })
     
@@ -28,14 +27,12 @@ export const ratesApi = {
       throw error
     }
     
-    const result = data.map(({ detail_mapping, category_mapping, ...rate }) => {
+    const result = data.map(({ detail_mapping, ...rate }) => {
       const detailCategory = detail_mapping?.[0]?.detail_cost_category
-      const costCategoryIds = category_mapping?.map((c: { cost_category_id: number }) => c.cost_category_id) ?? []
       return {
         ...rate,
         detail_cost_category: detailCategory || null,
-        detail_cost_category_id: detailCategory?.id,
-        cost_category_ids: costCategoryIds,
+        detail_cost_category_id: detailCategory?.id
       }
     }) as RateWithRelations[]
     
