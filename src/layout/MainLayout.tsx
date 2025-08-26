@@ -41,7 +41,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const [collapsed, setCollapsed] = useState(false);
   const siderWidth = collapsed ? 80 : 200;
   return (
-    <Layout style={{ height: '100%' }}>
+    <Layout style={{ minHeight: '100vh' }}>
       <Sider 
         theme="dark" 
         style={{ 
@@ -66,25 +66,30 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           style={{ background: '#333333' }}
         />
       </Sider>
-      <Layout style={{ marginLeft: siderWidth, transition: 'margin-left 0.2s' }}>
-        <div style={{ 
-          position: 'fixed', 
-          top: 0, 
-          right: 0, 
-          left: siderWidth, 
+      <Layout style={{ marginLeft: siderWidth, transition: 'margin-left 0.2s', minHeight: '100vh' }}>
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          left: siderWidth,
           zIndex: 99,
           background: '#333333',
           transition: 'left 0.2s'
         }}>
           <PortalHeader isDark={isDark} />
         </div>
-        <Content style={{
-          marginTop: 64,
-          padding: '16px',
-          background: '#333333',
-          color: '#ffffff',
-          height: 'calc(100% - 64px)'
-        }}>
+        <Content
+          style={{
+            marginTop: 64,
+            padding: 16,
+            background: '#333333',
+            color: '#ffffff',
+            boxSizing: 'border-box',
+            height: 'calc(100vh - 64px)',
+            overflow: 'auto',
+            width: '100%'
+          }}
+        >
           {children}
         </Content>
       </Layout>
