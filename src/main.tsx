@@ -17,13 +17,17 @@ unstableSetRender((node, container) => {
 
 const queryClient = new QueryClient()
 
+const currentYear = new Date().getFullYear()
+const themeStorageKey = `blueprintflow-theme-${currentYear}`
+const scaleStorageKey = `blueprintflow-scale-${currentYear}`
+
 export function Root() {
   const [isDark, setIsDark] = useState(() => {
-    const savedTheme = localStorage.getItem('blueprintflow-theme')
+    const savedTheme = localStorage.getItem(themeStorageKey)
     return savedTheme === 'dark'
   })
   const [scale, setScale] = useState(() => {
-    const savedScale = localStorage.getItem('blueprintflow-scale')
+    const savedScale = localStorage.getItem(scaleStorageKey)
     return savedScale ? Number(savedScale) : 1
   })
 
@@ -31,7 +35,7 @@ export function Root() {
     document.body.style.backgroundColor = isDark ? '#555555' : '#FCFCFC'
     document.body.style.color = isDark ? '#ffffff' : '#000000'
     document.body.dataset.theme = isDark ? 'dark' : 'light'
-    localStorage.setItem('blueprintflow-theme', isDark ? 'dark' : 'light')
+    localStorage.setItem(themeStorageKey, isDark ? 'dark' : 'light')
   }, [isDark])
 
   useEffect(() => {
@@ -42,7 +46,7 @@ export function Root() {
       root.style.width = `${100 / scale}vw`
       root.style.height = `${100 / scale}vh`
     }
-    localStorage.setItem('blueprintflow-scale', String(scale))
+    localStorage.setItem(scaleStorageKey, String(scale))
   }, [scale])
 
   return (
