@@ -8,7 +8,6 @@ export interface ChessboardRow extends BaseEntity {
   unitId: string
   blockId: string
   block: string
-  rateId: string
   costCategoryId: string
   costTypeId: string
   locationId: string
