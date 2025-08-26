@@ -117,28 +117,3 @@ on conflict (number) do nothing;
 update chessboard
 set cost_category_code = '99'
 where cost_category_code is null;
-
--- Настройки Яндекс.Диска
-create table if not exists disk_settings (
-  id uuid primary key default gen_random_uuid(),
-  token text not null,
-  base_path text not null,
-  make_public boolean default true,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-
--- Таблица соответствий для имен в облачном хранилище
-create table if not exists storage_mappings (
-  id uuid primary key default gen_random_uuid(),
-  entity_type text not null,
-  entity_id text not null,
-  original_name text not null,
-  slug text not null,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-
--- Добавление пути к файлу в версии документации
-alter table if exists documentation_versions
-  add column if not exists file_path text;
