@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react'
-import { Layout, Menu, Popover, Switch } from 'antd'
+import { Layout, Menu, Popover, Switch, Select } from 'antd'
 import { Link, Route, Routes, useNavigate, useLocation } from 'react-router-dom'
 import { MoonOutlined } from '@ant-design/icons'
 import Dashboard from './pages/Dashboard'
@@ -25,9 +25,11 @@ const { Sider, Content } = Layout
 interface AppProps {
   isDark: boolean
   toggleTheme: () => void
+  scale: number
+  onScaleChange: (value: number) => void
 }
 
-const App = ({ isDark, toggleTheme }: AppProps) => {
+const App = ({ isDark, toggleTheme, scale, onScaleChange }: AppProps) => {
   const [collapsed, setCollapsed] = useState(false)
   const [openKeys, setOpenKeys] = useState<string[]>([])
   const navigate = useNavigate()
@@ -224,42 +226,65 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     </div>
   )
 
-  const adminSubmenu = (
-    <div style={{ backgroundColor: isDark ? '#1f1f1f' : '#fff', borderRadius: 4, padding: '4px 0' }}>
-      <div 
-        style={menuItemStyle}
-        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
-        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-      >
-        <Link to="/admin/documentation-tags" style={linkStyle}>
-          Тэги документации
-        </Link>
+    const scaleOptions: { value: number; label: string }[] = [
+      { value: 0.7, label: '70%' },
+      { value: 0.8, label: '80%' },
+      { value: 0.9, label: '90%' },
+      { value: 1, label: '100%' },
+      { value: 1.1, label: '110%' },
+      { value: 1.2, label: '120%' },
+    ]
+
+    const adminSubmenu = (
+      <div style={{ backgroundColor: isDark ? '#1f1f1f' : '#fff', borderRadius: 4, padding: '4px 0' }}>
+        <div
+          style={menuItemStyle}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+        >
+          <Link to="/admin/documentation-tags" style={linkStyle}>
+            Тэги документации
+          </Link>
+        </div>
+        <div
+          style={menuItemStyle}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+        >
+          <Link to="/admin/statuses" style={linkStyle}>
+            Статусы
+          </Link>
+        </div>
+        <div
+          style={{ ...menuItemStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+        >
+          <span style={linkStyle}>Масштаб</span>
+          <Select
+            value={scale}
+            onChange={onScaleChange}
+            options={scaleOptions}
+            style={{ width: 80 }}
+            size="small"
+          />
+        </div>
+        <div
+          style={{ ...menuItemStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+        >
+          <span style={linkStyle}>Тема</span>
+          <Switch
+            checked={isDark}
+            onChange={toggleTheme}
+            checkedChildren={<MoonOutlined />}
+            unCheckedChildren={<TeletubbySun />}
+            size="small"
+          />
+        </div>
       </div>
-      <div 
-        style={menuItemStyle}
-        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
-        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-      >
-        <Link to="/admin/statuses" style={linkStyle}>
-          Статусы
-        </Link>
-      </div>
-      <div 
-        style={{ ...menuItemStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
-        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-      >
-        <span style={linkStyle}>Тема</span>
-        <Switch
-          checked={isDark}
-          onChange={toggleTheme}
-          checkedChildren={<MoonOutlined />}
-          unCheckedChildren={<TeletubbySun />}
-          size="small"
-        />
-      </div>
-    </div>
-  )
+    )
 
   const items = [
     { 
@@ -305,14 +330,29 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           key: 'documentation-tags', 
           label: <Link to="/admin/documentation-tags">Тэги документации</Link>
         },
-        {
-          key: 'statuses',
-          label: <Link to="/admin/statuses">Статусы</Link>
-        },
-        {
-          key: 'theme-toggle',
-          label: (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          {
+            key: 'statuses',
+            label: <Link to="/admin/statuses">Статусы</Link>
+          },
+          {
+            key: 'scale',
+            label: (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>Масштаб</span>
+                <Select
+                  value={scale}
+                  onChange={onScaleChange}
+                  options={scaleOptions}
+                  style={{ width: 80 }}
+                  size="small"
+                />
+              </div>
+            )
+          },
+          {
+            key: 'theme-toggle',
+            label: (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>Тема</span>
               <Switch
                 checked={isDark}
@@ -451,13 +491,16 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             onOpenChange={setOpenKeys}
           />
         </Sider>
-        <Layout>
+        <Layout style={{ minHeight: '100%' }}>
           <PortalHeader isDark={isDark} />
           <Content
             style={{
               margin: 16,
               background: isDark ? '#555555' : '#FCFCFC',
               color: isDark ? '#ffffff' : '#000000',
+              flex: 1,
+              boxSizing: 'border-box',
+              height: 'calc(100% - 64px - 32px)',
             }}
           >
             <Routes>
