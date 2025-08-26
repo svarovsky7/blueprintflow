@@ -64,6 +64,7 @@ interface RowData {
   costCategoryId: string
   costTypeId: string
   locationId: string
+  rateId: string
   floors: string
   color: RowColor
   documentationId?: string
@@ -83,6 +84,7 @@ interface ViewRow {
   block: string
   costCategory: string
   costType: string
+  workName: string
   location: string
   floors: string
   color: RowColor
@@ -107,6 +109,12 @@ interface CostTypeOption {
 }
 interface LocationOption { id: number; name: string }
 
+interface RateOption {
+  id: string
+  work_name: string
+  rates_detail_cost_categories_mapping: { detail_cost_category_id: number }[] | null
+}
+
 interface DbRow {
   id: string
   material: string | null
@@ -126,6 +134,10 @@ interface DbRow {
     cost_categories?: { name: string | null } | null
     detail_cost_categories?: { name: string | null } | null
     location?: { name: string | null } | null
+  } | null
+  chessboard_rates_mapping?: {
+    rate_id: string | null
+    rates?: { work_name: string | null } | null
   } | null
   chessboard_documentation_mapping?: {
     documentation_id: string | null
@@ -211,6 +223,7 @@ const emptyRow = (defaults: Partial<RowData>): RowData => ({
   costCategoryId: defaults.costCategoryId ?? '',
   costTypeId: defaults.costTypeId ?? '',
   locationId: defaults.locationId ?? '',
+  rateId: '',
   floors: defaults.floors ?? '',
   color: '',
 })
@@ -377,6 +390,38 @@ export default function Chessboard() {
     },
   })
 
+  const { data: rates } = useQuery<RateOption[]>({
+    queryKey: ['rates'],
+    queryFn: async () => {
+      if (!supabase) return []
+      const { data, error } = await supabase
+        .from('rates')
+        .select('id, work_name, rates_detail_cost_categories_mapping(detail_cost_category_id)')
+      if (error) throw error
+      return data as RateOption[]
+    },
+  })
+
+  const getRateOptions = useCallback(
+    (costTypeId?: string, costCategoryId?: string) =>
+      rates
+        ?.filter((r) => {
+          const detailIds = r.rates_detail_cost_categories_mapping?.map((m) => m.detail_cost_category_id) ?? []
+          if (costTypeId) {
+            return detailIds.includes(Number(costTypeId))
+          }
+          if (costCategoryId) {
+            return detailIds.some((id) => {
+              const ct = costTypes?.find((c) => c.id === id)
+              return ct?.cost_category_id === Number(costCategoryId)
+            })
+          }
+          return true
+        })
+        .map((r) => ({ value: String(r.id), label: r.work_name })) ?? [],
+    [rates, costTypes],
+  )
+
   const { data: locations } = useQuery<LocationOption[]>({
     queryKey: ['locations'],
     queryFn: async () => {
@@ -448,8 +493,9 @@ export default function Chessboard() {
       const query = supabase
         .from('chessboard')
         .select(
-          `id, material, quantityPd, quantitySpec, quantityRd, unit_id, color, units(name), 
+          `id, material, quantityPd, quantitySpec, quantityRd, unit_id, color, units(name),
           ${relation}(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name)),
+          chessboard_rates_mapping(rate_id, rates(work_name)),
           chessboard_documentation_mapping(documentation_id, documentations(id, code, tag_id, stage, tag:documentation_tags(id, name, tag_number)))`,
         )
         .eq('project_id', appliedFilters.projectId)
@@ -524,6 +570,7 @@ export default function Chessboard() {
           block: item.chessboard_mapping?.blocks?.name ?? '',
           costCategory: item.chessboard_mapping?.cost_categories?.name ?? '',
           costType: item.chessboard_mapping?.detail_cost_categories?.name ?? '',
+          workName: item.chessboard_rates_mapping?.rates?.work_name ?? '',
           location: item.chessboard_mapping?.location?.name ?? '',
           floors: item.floors ?? '',
           color: (item.color as RowColor | null) ?? '',
@@ -550,6 +597,7 @@ export default function Chessboard() {
         costCategoryId: v.costCategory,
         costTypeId: v.costType,
         locationId: v.location,
+        rateId: v.workName,
         floors: v.floors,
         color: v.color,
         isExisting: true,
@@ -621,10 +669,11 @@ export default function Chessboard() {
     if (!supabase || selectedRows.size === 0) return
     
     const idsToDelete = Array.from(selectedRows)
-    
+
     try {
       // Параллельное удаление связей и записей
       const deletePromises = idsToDelete.map(async (id) => {
+        await supabase!.from('chessboard_rates_mapping').delete().eq('chessboard_id', id)
         await supabase!.from('chessboard_mapping').delete().eq('chessboard_id', id)
         await supabase!.from('chessboard').delete().eq('id', id)
       })
@@ -719,6 +768,9 @@ export default function Chessboard() {
             locationId: dbRow.chessboard_mapping?.location_id
               ? String(dbRow.chessboard_mapping.location_id)
               : '',
+            rateId: dbRow.chessboard_rates_mapping?.rate_id
+              ? String(dbRow.chessboard_rates_mapping.rate_id)
+              : '',
             floors: dbRow.floors ?? '',
             color: (dbRow.color as RowColor | null) ?? '',
             documentationId: dbRow.chessboard_documentation_mapping?.documentation_id ?? '',
@@ -800,8 +852,31 @@ export default function Chessboard() {
             .eq('chessboard_id', r.key)
         }
       }
-      
-      return Promise.all([updateChessboard, updateMapping, updateFloors(), updateDocumentationMapping()])
+
+      // Обновляем связь с расценками
+      const updateRateMapping = async () => {
+        if (r.rateId) {
+          await supabase!.from('chessboard_rates_mapping').upsert(
+            {
+              chessboard_id: r.key,
+              rate_id: r.rateId,
+            },
+            { onConflict: 'chessboard_id' }
+          )
+        } else {
+          await supabase!.from('chessboard_rates_mapping')
+            .delete()
+            .eq('chessboard_id', r.key)
+        }
+      }
+
+      return Promise.all([
+        updateChessboard,
+        updateMapping,
+        updateFloors(),
+        updateDocumentationMapping(),
+        updateRateMapping(),
+      ])
     })
     
     try {
@@ -821,7 +896,18 @@ export default function Chessboard() {
   const handleDelete = useCallback(
     async (id: string) => {
       if (!supabase) return
-      const { error: mapError } = await supabase.from('chessboard_mapping').delete().eq('chessboard_id', id)
+      const { error: rateMapError } = await supabase
+        .from('chessboard_rates_mapping')
+        .delete()
+        .eq('chessboard_id', id)
+      if (rateMapError) {
+        message.error(`Не удалось удалить связи: ${rateMapError.message}`)
+        return
+      }
+      const { error: mapError } = await supabase
+        .from('chessboard_mapping')
+        .delete()
+        .eq('chessboard_id', id)
       if (mapError) {
         message.error(`Не удалось удалить связи: ${mapError.message}`)
         return
@@ -954,6 +1040,24 @@ export default function Chessboard() {
       message.error(`Не удалось сохранить связи: ${mapError.message}`)
       return
     }
+
+    const rateMappings = data
+      .map((d, idx) =>
+        rows[idx].rateId
+          ? {
+              chessboard_id: d.id,
+              rate_id: rows[idx].rateId,
+            }
+          : null,
+      )
+      .filter((m): m is { chessboard_id: string; rate_id: string } => !!m)
+    if (rateMappings.length > 0) {
+      const { error: rateError } = await supabase.from('chessboard_rates_mapping').insert(rateMappings)
+      if (rateError) {
+        message.error(`Не удалось сохранить связи с расценками: ${rateError.message}`)
+        return
+      }
+    }
     
     // Сохраняем этажи
     for (let idx = 0; idx < data.length; idx++) {
@@ -1006,6 +1110,7 @@ export default function Chessboard() {
       costCategoryId: 'costCategory',
       costTypeId: 'costType',
       locationId: 'location',
+      rateId: 'workName',
     }
 
     const base: Array<{ title: string; dataIndex: keyof TableRow; width?: number }> = [
@@ -1020,6 +1125,7 @@ export default function Chessboard() {
       { title: 'Этажи', dataIndex: 'floors', width: 150 },
       { title: 'Категория затрат', dataIndex: 'costCategoryId', width: 200 },
       { title: 'Вид затрат', dataIndex: 'costTypeId', width: 200 },
+      { title: 'Наименование работ', dataIndex: 'rateId', width: 300 },
       { title: 'Локализация', dataIndex: 'locationId', width: 200 },
     ]
 
@@ -1237,6 +1343,7 @@ export default function Chessboard() {
                   handleRowChange(record.key, 'costCategoryId', value)
                   handleRowChange(record.key, 'costTypeId', '')
                   handleRowChange(record.key, 'locationId', '')
+                  handleRowChange(record.key, 'rateId', '')
                 }}
                 options={
                   costCategories
@@ -1259,6 +1366,7 @@ export default function Chessboard() {
                   handleRowChange(record.key, 'costTypeId', value)
                   const loc = costTypes?.find((t) => t.id === Number(value))?.location_id
                   handleRowChange(record.key, 'locationId', loc ? String(loc) : '')
+                  handleRowChange(record.key, 'rateId', '')
                 }}
                 options={
                   costTypes
@@ -1270,6 +1378,19 @@ export default function Chessboard() {
                     })
                     .map((t) => ({ value: String(t.id), label: t.name })) ?? []
                 }
+              />
+            )
+          case 'rateId':
+            return (
+              <Select
+                style={{ width: 300 }}
+                value={record.rateId || undefined}
+                onChange={(value) => handleRowChange(record.key, 'rateId', value)}
+                options={getRateOptions(record.costTypeId, record.costCategoryId)}
+                placeholder="Наименование работ"
+                showSearch
+                optionFilterProp="label"
+                allowClear
               />
             )
           case 'locationId':
@@ -1366,6 +1487,7 @@ export default function Chessboard() {
     hiddenCols,
     columnVisibility,
     columnOrder,
+    getRateOptions,
   ])
 
   const viewColumns: ColumnsType<ViewRow> = useMemo(() => {
@@ -1395,6 +1517,7 @@ export default function Chessboard() {
       { title: 'Этажи', dataIndex: 'floors', width: 150 },
       { title: 'Категория затрат', dataIndex: 'costCategory', width: 200 },
       { title: 'Вид затрат', dataIndex: 'costType', width: 200 },
+      { title: 'Наименование работ', dataIndex: 'workName', width: 300 },
       { title: 'Локализация', dataIndex: 'location', width: 200 },
     ]
 
@@ -1601,6 +1724,7 @@ export default function Chessboard() {
                   handleEditChange(record.key, 'costCategoryId', value)
                   handleEditChange(record.key, 'costTypeId', '')
                   handleEditChange(record.key, 'locationId', '')
+                  handleEditChange(record.key, 'rateId', '')
                 }}
                 popupMatchSelectWidth={false}
                 options={
@@ -1630,12 +1754,26 @@ export default function Chessboard() {
                   handleEditChange(record.key, 'costTypeId', value)
                   const loc = costTypes?.find((t) => t.id === Number(value))?.location_id
                   handleEditChange(record.key, 'locationId', loc ? String(loc) : '')
+                  handleEditChange(record.key, 'rateId', '')
                 }}
                 options={
                   costTypes
                     ?.filter((t) => t.cost_category_id === Number(edit.costCategoryId))
                     .map((t) => ({ value: String(t.id), label: t.name })) ?? []
                 }
+              />
+            )
+          case 'workName':
+            return (
+              <Select
+                style={{ width: 300 }}
+                value={edit.rateId || undefined}
+                onChange={(value) => handleEditChange(record.key, 'rateId', value)}
+                options={getRateOptions(edit.costTypeId, edit.costCategoryId)}
+                placeholder="Наименование работ"
+                showSearch
+                optionFilterProp="label"
+                allowClear
               />
             )
           case 'location':
@@ -1751,6 +1889,7 @@ export default function Chessboard() {
     toggleRowSelection,
     columnVisibility,
     columnOrder,
+    getRateOptions,
   ])
 
   const { Text } = Typography
@@ -1763,6 +1902,7 @@ export default function Chessboard() {
     { key: 'floors', title: 'Этажи' },
     { key: 'costCategory', title: 'Категория затрат' },
     { key: 'costType', title: 'Вид затрат' },
+    { key: 'workName', title: 'Наименование работ' },
     { key: 'location', title: 'Локализация' },
     { key: 'material', title: 'Материал' },
     { key: 'quantityPd', title: 'Кол-во по ПД' },
