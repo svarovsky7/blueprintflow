@@ -1919,7 +1919,9 @@ export default function Chessboard() {
   useMemo(() => {
     // Попытка загрузить из localStorage
     const savedVisibility = localStorage.getItem('chessboard-column-visibility')
-    const savedOrder = localStorage.getItem('chessboard-column-order')
+    // Сброс устаревшего ключа порядка столбцов
+    localStorage.removeItem('chessboard-column-order')
+    const savedOrder = localStorage.getItem('chessboard-column-order-v2')
     
     if (savedVisibility && Object.keys(columnVisibility).length === 0) {
       try {
@@ -1981,7 +1983,7 @@ export default function Chessboard() {
           
           setColumnOrder(newOrder)
           // Обновляем localStorage
-          localStorage.setItem('chessboard-column-order', JSON.stringify(newOrder))
+          localStorage.setItem('chessboard-column-order-v2', JSON.stringify(newOrder))
         } else {
           setColumnOrder(parsed)
         }
@@ -2002,7 +2004,7 @@ export default function Chessboard() {
   
   useMemo(() => {
     if (columnOrder.length > 0) {
-      localStorage.setItem('chessboard-column-order', JSON.stringify(columnOrder))
+      localStorage.setItem('chessboard-column-order-v2', JSON.stringify(columnOrder))
     }
   }, [columnOrder])
 
@@ -2050,6 +2052,7 @@ export default function Chessboard() {
     // Очистка localStorage
     localStorage.removeItem('chessboard-column-visibility')
     localStorage.removeItem('chessboard-column-order')
+    localStorage.removeItem('chessboard-column-order-v2')
   }, [allColumns])
 
   // Применение порядка и видимости к столбцам таблицы
