@@ -66,7 +66,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           style={{ background: '#333333' }}
         />
       </Sider>
-      <Layout style={{ marginLeft: siderWidth, transition: 'margin-left 0.2s' }}>
+      <Layout style={{ marginLeft: siderWidth, transition: 'margin-left 0.2s', minHeight: '100%' }}>
         <div style={{ 
           position: 'fixed', 
           top: 0, 
@@ -78,12 +78,13 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         }}>
           <PortalHeader isDark={isDark} />
         </div>
-        <Content style={{ 
-          marginTop: 64, 
-          padding: '16px', 
-          background: '#333333', 
+        <Content style={{
+          marginTop: 64,
+          padding: '16px',
+          background: '#333333',
           color: '#ffffff',
-          minHeight: 'calc(100vh - 64px)'
+          height: 'calc(100% - 64px)',
+          boxSizing: 'border-box'
         }}>
           {children}
         </Content>

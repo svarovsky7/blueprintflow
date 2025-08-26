@@ -226,7 +226,7 @@ const App = ({ isDark, toggleTheme, scale, onScaleChange }: AppProps) => {
     </div>
   )
 
-    const scaleOptions = [
+    const scaleOptions: { value: number; label: string }[] = [
       { value: 0.7, label: '70%' },
       { value: 0.8, label: '80%' },
       { value: 0.9, label: '90%' },
@@ -491,13 +491,16 @@ const App = ({ isDark, toggleTheme, scale, onScaleChange }: AppProps) => {
             onOpenChange={setOpenKeys}
           />
         </Sider>
-        <Layout>
+        <Layout style={{ minHeight: '100%' }}>
           <PortalHeader isDark={isDark} />
           <Content
             style={{
               margin: 16,
               background: isDark ? '#555555' : '#FCFCFC',
               color: isDark ? '#ffffff' : '#000000',
+              flex: 1,
+              boxSizing: 'border-box',
+              height: 'calc(100% - 64px - 32px)',
             }}
           >
             <Routes>
