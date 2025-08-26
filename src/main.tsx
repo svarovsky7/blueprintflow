@@ -40,6 +40,7 @@ export function Root() {
       root.style.transform = `scale(${scale})`
       root.style.transformOrigin = 'top left'
       root.style.width = `${100 / scale}%`
+      root.style.height = `${100 / scale}%`
     }
     localStorage.setItem('blueprintflow-scale', String(scale))
   }, [scale])
