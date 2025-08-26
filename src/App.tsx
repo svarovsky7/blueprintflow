@@ -226,7 +226,7 @@ const App = ({ isDark, toggleTheme, scale, onScaleChange }: AppProps) => {
     </div>
   )
 
-    const scaleOptions: { value: number; label: string }[] = [
+    const scaleOptions = [
       { value: 0.7, label: '70%' },
       { value: 0.8, label: '80%' },
       { value: 0.9, label: '90%' },
