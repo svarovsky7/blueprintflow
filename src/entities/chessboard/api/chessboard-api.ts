@@ -24,7 +24,9 @@ export const chessboardApi = {
   async create(row: Partial<ChessboardRow>) {
     if (!supabase) throw new Error('Supabase is not configured')
     
-    const { data, error } = await supabase.from('chessboard').insert(row).select()
+    const { rateId, ...rest } = row
+    const payload = { ...rest, rate_id: rateId }
+    const { data, error } = await supabase.from('chessboard').insert(payload).select()
     
     if (error) {
       console.error('Failed to create chessboard row:', error)
@@ -37,9 +39,11 @@ export const chessboardApi = {
   async update(id: string, updates: Partial<ChessboardRow>) {
     if (!supabase) throw new Error('Supabase is not configured')
     
+    const { rateId, ...rest } = updates
+    const payload = { ...rest, rate_id: rateId }
     const { data, error } = await supabase
       .from('chessboard')
-      .update(updates)
+      .update(payload)
       .eq('id', id)
       .select()
     

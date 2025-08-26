@@ -23,6 +23,7 @@ export interface RateWithRelations extends Rate {
     }
   }
   detail_cost_category_id?: number
+  cost_category_ids?: number[]
 }
 
 export interface RateExcelRow {
