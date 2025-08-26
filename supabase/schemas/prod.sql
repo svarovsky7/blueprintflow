@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict RhOoDsh0Fugi8JWjXfhCwn6E2PDF3bFMqLcrBTmzANLSaJffPasFUGuvlmH2LJS
+\restrict ZujrnCgS4J6XZphVKSh17Tg8UT40UhFb0G8UrKkO7S67YuJeOCOcu1LxiAKYv6x
 
 -- Dumped from database version 17.4
 -- Dumped by pg_dump version 17.6
@@ -3346,16 +3346,16 @@ CREATE TABLE public.rates (
 ALTER TABLE public.rates OWNER TO postgres;
 
 --
--- Name: rates_cost_categories_mapping; Type: TABLE; Schema: public; Owner: postgres
+-- Name: rates_detail_cost_categories_mapping; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.rates_cost_categories_mapping (
+CREATE TABLE public.rates_detail_cost_categories_mapping (
     rate_id uuid NOT NULL,
-    cost_category_id integer NOT NULL
+    detail_cost_category_id integer NOT NULL
 );
 
 
-ALTER TABLE public.rates_cost_categories_mapping OWNER TO postgres;
+ALTER TABLE public.rates_detail_cost_categories_mapping OWNER TO postgres;
 
 --
 -- Name: reference_data; Type: TABLE; Schema: public; Owner: postgres
@@ -4280,6 +4280,7 @@ b934ae15-0687-40b2-abd6-c5be161c9f96	f9227acf-9446-42c8-a533-bfeb30fa07a4	м4	11
 4be2f995-fd42-4994-86a2-16ad5313ad48	f9227acf-9446-42c8-a533-bfeb30fa07a4	материал3	1	1	1	05d8126b-a759-4a2b-86c5-fab955492e50	2025-08-15 15:10:43.761323+00	\N	2025-08-15 15:10:43.761323+00	\N
 7fb95665-4a07-424b-8d8e-260245f587de	f9227acf-9446-42c8-a533-bfeb30fa07a4	Бетон М400	250	300	320	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-14 06:42:08.077475+00	\N	2025-08-14 06:42:08.077475+00	\N
 35e46480-72a3-4a28-80cb-be0aa159894d	f9227acf-9446-42c8-a533-bfeb30fa07a4	Арматура 16 А500	30	30	31	b7eb7037-cb2b-4180-8a15-6e334e122e79	2025-08-14 06:51:17.716232+00	\N	2025-08-14 06:51:17.716232+00	\N
+175defaa-4b67-46fd-9589-c66f7345109e	f9227acf-9446-42c8-a533-bfeb30fa07a4	лол	1	2	3	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-21 12:22:37.374625+00	\N	2025-08-21 12:22:37.374625+00	\N
 08c60efd-ab5a-4212-b56f-68dc9d04aaad	2785fec1-eea9-4047-8287-2a897dfddc20	м5	12	12	12	ac24e31e-e04c-4ed2-b64a-4abb21152f80	2025-08-13 14:55:16.99456+00	\N	2025-08-13 14:55:16.99456+00	\N
 43cd8c94-7986-44f3-b3a4-792a7a57e091	f9227acf-9446-42c8-a533-bfeb30fa07a4	профнастил	1500	1500	1550	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-14 10:51:17.645111+00	\N	2025-08-14 10:51:17.645111+00	\N
 3bad03e2-d11a-4d19-bf12-cf600070d7d5	f9227acf-9446-42c8-a533-bfeb30fa07a4	материал3	1	1	1	05d8126b-a759-4a2b-86c5-fab955492e50	2025-08-15 15:10:43.761323+00	\N	2025-08-15 15:10:43.761323+00	\N
@@ -4292,9 +4293,7 @@ baca8c81-3b84-4625-80e0-ef6e764c108a	f9227acf-9446-42c8-a533-bfeb30fa07a4	Бет
 e41fbde8-bf3b-4b80-aa43-251057eaa384	f9227acf-9446-42c8-a533-bfeb30fa07a4	лента	250	250	250	05d8126b-a759-4a2b-86c5-fab955492e50	2025-08-15 12:29:10.084844+00	\N	2025-08-15 12:29:10.084844+00	\N
 103bad71-ae87-4fc5-8c24-155b71749126	f9227acf-9446-42c8-a533-bfeb30fa07a4	краска	3	3	3	ac24e31e-e04c-4ed2-b64a-4abb21152f80	2025-08-14 12:04:43.170313+00	\N	2025-08-14 12:04:43.170313+00	blue
 dbe4f647-f47f-417d-87fa-412ffa230ed2	f9227acf-9446-42c8-a533-bfeb30fa07a4	колпак	250	250	260	ac24e31e-e04c-4ed2-b64a-4abb21152f80	2025-08-14 10:52:34.487822+00	\N	2025-08-14 10:52:34.487822+00	green
-6daba469-3956-45c5-ae33-0a314ea26dd8	f9227acf-9446-42c8-a533-bfeb30fa07a4	Доска 50х150	15	15	15	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-16 06:31:57.568763+00	\N	2025-08-16 06:31:57.568763+00	\N
 eac7f515-af02-4f52-8615-bf901de475e1	f9227acf-9446-42c8-a533-bfeb30fa07a4	м117	1	1	7	92d5fd4d-eb25-4562-9292-a3defdcbb01e	2025-08-15 12:31:28.403279+00	\N	2025-08-15 12:31:28.403279+00	\N
-c44f5021-ecef-4bf3-af8f-613405bf65fe	f9227acf-9446-42c8-a533-bfeb30fa07a4	Бетон М500	50	50	55	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-15 21:58:49.551943+00	\N	2025-08-15 21:58:49.551943+00	\N
 e360a60b-8594-47c8-b170-cf8150e87b6d	f9227acf-9446-42c8-a533-bfeb30fa07a4	м119	1	1	9	92d5fd4d-eb25-4562-9292-a3defdcbb01e	2025-08-15 12:31:28.403279+00	\N	2025-08-15 12:31:28.403279+00	\N
 69d9ee54-9fce-49e9-aae0-ec078b24da91	f9227acf-9446-42c8-a533-bfeb30fa07a4	м116	1	6	\N	92d5fd4d-eb25-4562-9292-a3defdcbb01e	2025-08-15 12:31:28.403279+00	\N	2025-08-15 12:31:28.403279+00	\N
 f5708d22-e60f-4b35-8a0d-f070b6568872	f9227acf-9446-42c8-a533-bfeb30fa07a4	м115	5	1	\N	92d5fd4d-eb25-4562-9292-a3defdcbb01e	2025-08-15 12:31:28.403279+00	\N	2025-08-15 12:31:28.403279+00	\N
@@ -4304,7 +4303,8 @@ a23d8e8a-e8fc-4bda-8201-eacdd46b24cc	f9227acf-9446-42c8-a533-bfeb30fa07a4	м114	
 7e0de9b9-521c-4e37-ad7c-7bd32742b76d	f9227acf-9446-42c8-a533-bfeb30fa07a4	м112	2	2	2	92d5fd4d-eb25-4562-9292-a3defdcbb01e	2025-08-15 12:31:28.403279+00	\N	2025-08-15 12:31:28.403279+00	\N
 7460d9d7-dc64-47fa-9da2-b1bfa1ba07a4	f9227acf-9446-42c8-a533-bfeb30fa07a4	м113	3	3	3	92d5fd4d-eb25-4562-9292-a3defdcbb01e	2025-08-15 12:31:28.403279+00	\N	2025-08-15 12:31:28.403279+00	\N
 150ca51a-60b7-41b8-9010-101b141d5876	f9227acf-9446-42c8-a533-bfeb30fa07a4	Арматура 12 А500	10	8	9	b7eb7037-cb2b-4180-8a15-6e334e122e79	2025-08-14 06:51:17.716232+00	\N	2025-08-14 06:51:17.716232+00	red
-175defaa-4b67-46fd-9589-c66f7345109e	f9227acf-9446-42c8-a533-bfeb30fa07a4	лол	1	2	3	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-21 12:22:37.374625+00	\N	2025-08-21 12:22:37.374625+00	\N
+c44f5021-ecef-4bf3-af8f-613405bf65fe	f9227acf-9446-42c8-a533-bfeb30fa07a4	Бетон М500	50	50	55	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-15 21:58:49.551943+00	\N	2025-08-15 21:58:49.551943+00	\N
+6daba469-3956-45c5-ae33-0a314ea26dd8	f9227acf-9446-42c8-a533-bfeb30fa07a4	Доска 50х150	15	15	15	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-16 06:31:57.568763+00	\N	2025-08-16 06:31:57.568763+00	\N
 \.
 
 
@@ -4313,7 +4313,9 @@ a23d8e8a-e8fc-4bda-8201-eacdd46b24cc	f9227acf-9446-42c8-a533-bfeb30fa07a4	м114	
 --
 
 COPY public.chessboard_documentation_mapping (id, chessboard_id, documentation_id) FROM stdin;
-70ec0324-1a67-4441-b2db-fc2695a48f5b	175defaa-4b67-46fd-9589-c66f7345109e	fa34f1a8-58c3-4c9e-8205-da6b56132658
+70ec0324-1a67-4441-b2db-fc2695a48f5b	175defaa-4b67-46fd-9589-c66f7345109e	3f19c800-5d2c-4ba0-8036-fe37bc21f6d5
+2895a399-d2d3-4b83-9640-11ad8108af1f	6daba469-3956-45c5-ae33-0a314ea26dd8	3f19c800-5d2c-4ba0-8036-fe37bc21f6d5
+f8ebfed6-01f8-4396-ac62-fa41c943d4f3	c44f5021-ecef-4bf3-af8f-613405bf65fe	3f19c800-5d2c-4ba0-8036-fe37bc21f6d5
 \.
 
 
@@ -4322,21 +4324,6 @@ COPY public.chessboard_documentation_mapping (id, chessboard_id, documentation_i
 --
 
 COPY public.chessboard_floor_mapping (id, chessboard_id, floor_number, created_at, updated_at) FROM stdin;
-a9f7c047-13dd-4379-9224-bc7595cfa8fe	6daba469-3956-45c5-ae33-0a314ea26dd8	1	2025-08-16 06:31:57.967902+00	2025-08-16 06:31:57.967902+00
-a4949827-c83b-434d-92ba-f74b3d1e7f8e	6daba469-3956-45c5-ae33-0a314ea26dd8	2	2025-08-16 06:31:57.967902+00	2025-08-16 06:31:57.967902+00
-0075b77e-491a-410c-af14-ea8420153aae	6daba469-3956-45c5-ae33-0a314ea26dd8	3	2025-08-16 06:31:57.967902+00	2025-08-16 06:31:57.967902+00
-e4ee6aa9-7139-4090-8367-a0fb259b4348	6daba469-3956-45c5-ae33-0a314ea26dd8	4	2025-08-16 06:31:57.967902+00	2025-08-16 06:31:57.967902+00
-dd9c2334-f65c-44a2-a459-1c58acc0bee7	6daba469-3956-45c5-ae33-0a314ea26dd8	5	2025-08-16 06:31:57.967902+00	2025-08-16 06:31:57.967902+00
-9b4dd75e-50a1-473a-95ef-805297ad7b5f	6daba469-3956-45c5-ae33-0a314ea26dd8	6	2025-08-16 06:31:57.967902+00	2025-08-16 06:31:57.967902+00
-dc3305ef-7baf-4e68-8e0d-f3b2432eb3e9	6daba469-3956-45c5-ae33-0a314ea26dd8	7	2025-08-16 06:31:57.967902+00	2025-08-16 06:31:57.967902+00
-8598d356-c457-4a50-b28f-69cce0fadbd9	6daba469-3956-45c5-ae33-0a314ea26dd8	8	2025-08-16 06:31:57.967902+00	2025-08-16 06:31:57.967902+00
-578d80c4-fa5d-48ef-8d24-a8e4faf26d95	6daba469-3956-45c5-ae33-0a314ea26dd8	9	2025-08-16 06:31:57.967902+00	2025-08-16 06:31:57.967902+00
-faf7766a-24c3-436c-9086-d1b38c9b52b9	6daba469-3956-45c5-ae33-0a314ea26dd8	10	2025-08-16 06:31:57.967902+00	2025-08-16 06:31:57.967902+00
-76478125-726d-4bf7-b99f-aa1e80f7d0c9	c44f5021-ecef-4bf3-af8f-613405bf65fe	1	2025-08-16 06:32:16.639808+00	2025-08-16 06:32:16.639808+00
-d0a9c2f8-5305-4782-a2e3-1bbc83b99ce4	c44f5021-ecef-4bf3-af8f-613405bf65fe	2	2025-08-16 06:32:16.639808+00	2025-08-16 06:32:16.639808+00
-ffdbcfcc-085f-4add-aa61-2573a19154d0	c44f5021-ecef-4bf3-af8f-613405bf65fe	3	2025-08-16 06:32:16.639808+00	2025-08-16 06:32:16.639808+00
-905c4e06-3051-466a-b454-155a35fc4c8c	c44f5021-ecef-4bf3-af8f-613405bf65fe	4	2025-08-16 06:32:16.639808+00	2025-08-16 06:32:16.639808+00
-a20e9989-02ae-4698-af43-ab8589a8d2db	c44f5021-ecef-4bf3-af8f-613405bf65fe	5	2025-08-16 06:32:16.639808+00	2025-08-16 06:32:16.639808+00
 bb8640ce-0cad-4216-8a5f-561688c633b9	8b51be6b-a2c4-43c8-aa64-21412899256c	1	2025-08-16 06:33:05.026431+00	2025-08-16 06:33:05.026431+00
 e3cb5214-67f5-4107-96ae-f64f4e9473a5	8b51be6b-a2c4-43c8-aa64-21412899256c	2	2025-08-16 06:33:05.026431+00	2025-08-16 06:33:05.026431+00
 0edceb09-1b7f-4f06-ae6e-18d048910c1b	8b51be6b-a2c4-43c8-aa64-21412899256c	3	2025-08-16 06:33:05.026431+00	2025-08-16 06:33:05.026431+00
@@ -4347,6 +4334,21 @@ e3cb5214-67f5-4107-96ae-f64f4e9473a5	8b51be6b-a2c4-43c8-aa64-21412899256c	2	2025
 fa6f255f-0ff5-471d-83f5-810999dda53a	7dcbbd60-429d-4664-be97-4749b39bb307	3	2025-08-16 06:33:05.046811+00	2025-08-16 06:33:05.046811+00
 e7dfda48-4712-4682-81b0-ee3c1b670431	7dcbbd60-429d-4664-be97-4749b39bb307	4	2025-08-16 06:33:05.046811+00	2025-08-16 06:33:05.046811+00
 9e415c9c-90ae-4aff-9fb6-280699707908	7dcbbd60-429d-4664-be97-4749b39bb307	5	2025-08-16 06:33:05.046811+00	2025-08-16 06:33:05.046811+00
+eb31bbc3-0c7e-4ed9-beda-9cafa6f756aa	6daba469-3956-45c5-ae33-0a314ea26dd8	1	2025-08-22 12:24:24.00821+00	2025-08-22 12:24:24.00821+00
+9986ff35-cff2-480e-98f6-c6b3c807f2ac	c44f5021-ecef-4bf3-af8f-613405bf65fe	1	2025-08-22 12:24:24.007765+00	2025-08-22 12:24:24.007765+00
+080b150d-8e85-4a31-91a3-8f22d41de68f	c44f5021-ecef-4bf3-af8f-613405bf65fe	2	2025-08-22 12:24:24.007765+00	2025-08-22 12:24:24.007765+00
+1eb9d01e-12f7-477a-9627-c648d84b73fa	6daba469-3956-45c5-ae33-0a314ea26dd8	2	2025-08-22 12:24:24.00821+00	2025-08-22 12:24:24.00821+00
+26ff4b20-f345-41f6-97f7-62587c9658f8	c44f5021-ecef-4bf3-af8f-613405bf65fe	3	2025-08-22 12:24:24.007765+00	2025-08-22 12:24:24.007765+00
+e0d7f5bc-7d78-4950-a8ae-a844f403fbe1	c44f5021-ecef-4bf3-af8f-613405bf65fe	4	2025-08-22 12:24:24.007765+00	2025-08-22 12:24:24.007765+00
+a4cb9c21-152a-4027-90b8-7abad3ef7b0f	6daba469-3956-45c5-ae33-0a314ea26dd8	3	2025-08-22 12:24:24.00821+00	2025-08-22 12:24:24.00821+00
+5808e764-31b4-4d18-8064-7c9d22d8e79a	c44f5021-ecef-4bf3-af8f-613405bf65fe	5	2025-08-22 12:24:24.007765+00	2025-08-22 12:24:24.007765+00
+22879505-12b4-4ab7-ba9c-5b9217573e4e	6daba469-3956-45c5-ae33-0a314ea26dd8	4	2025-08-22 12:24:24.00821+00	2025-08-22 12:24:24.00821+00
+2b78fc17-6246-489f-a2d2-7d6a1e576e3b	6daba469-3956-45c5-ae33-0a314ea26dd8	5	2025-08-22 12:24:24.00821+00	2025-08-22 12:24:24.00821+00
+40780efe-b96a-4f51-a7e0-5054098cdaa6	6daba469-3956-45c5-ae33-0a314ea26dd8	6	2025-08-22 12:24:24.00821+00	2025-08-22 12:24:24.00821+00
+3702158d-92fc-4a2a-ad78-008272c823b2	6daba469-3956-45c5-ae33-0a314ea26dd8	7	2025-08-22 12:24:24.00821+00	2025-08-22 12:24:24.00821+00
+0f65e729-eeaf-4b27-902a-af5b9b89521c	6daba469-3956-45c5-ae33-0a314ea26dd8	8	2025-08-22 12:24:24.00821+00	2025-08-22 12:24:24.00821+00
+45fa7d6f-95cd-45a2-a247-b635ae877833	6daba469-3956-45c5-ae33-0a314ea26dd8	9	2025-08-22 12:24:24.00821+00	2025-08-22 12:24:24.00821+00
+fa421aed-fc1f-44e8-9afa-7bb623c920c8	6daba469-3956-45c5-ae33-0a314ea26dd8	10	2025-08-22 12:24:24.00821+00	2025-08-22 12:24:24.00821+00
 \.
 
 
@@ -4356,11 +4358,13 @@ e7dfda48-4712-4682-81b0-ee3c1b670431	7dcbbd60-429d-4664-be97-4749b39bb307	4	2025
 
 COPY public.chessboard_mapping (id, chessboard_id, cost_category_id, cost_type_id, location_id, created_at, updated_at, block_id) FROM stdin;
 481e9ea1-23c2-4139-a305-18272003287b	dbe4f647-f47f-417d-87fa-412ffa230ed2	234	604	1	2025-08-14 10:52:34.672667+00	2025-08-14 10:52:34.672667+00	\N
-959fdb0d-2243-42e1-aced-bfba5202847b	175defaa-4b67-46fd-9589-c66f7345109e	235	617	2	2025-08-21 12:22:37.666996+00	2025-08-21 12:22:37.666996+00	\N
 5e5670f4-f2cb-49b8-ac94-5b870d7eedfa	1d616d5a-253f-48b5-8e2b-d7adb4085f6c	234	607	1	2025-08-14 07:07:42.310432+00	2025-08-14 07:07:42.310432+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
+0e78f5d7-9fd9-4ccc-9e83-3987716ed981	6daba469-3956-45c5-ae33-0a314ea26dd8	240	631	2	2025-08-16 06:31:57.776943+00	2025-08-16 06:31:57.776943+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
 4b6574c1-c107-4772-a837-dcdb861fa8a9	4008d3be-7fa4-4d15-81d7-58557337a06f	234	604	1	2025-08-14 10:51:17.779116+00	2025-08-14 10:51:17.779116+00	\N
+e87e0dd5-1247-42ed-b0fe-589cd5f6b3a5	c44f5021-ecef-4bf3-af8f-613405bf65fe	240	631	2	2025-08-15 21:58:49.734159+00	2025-08-15 21:58:49.734159+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
 0fc0c254-dc3a-416f-9575-268d4e3a0c5e	43cd8c94-7986-44f3-b3a4-792a7a57e091	234	604	1	2025-08-14 10:51:17.779116+00	2025-08-14 10:51:17.779116+00	\N
 ef101bba-3655-466c-a0eb-beb2db828545	2b1077b7-804f-4db9-873f-ed0e204568c2	237	620	2	2025-08-14 06:40:32.723803+00	2025-08-14 06:40:32.723803+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
+959fdb0d-2243-42e1-aced-bfba5202847b	175defaa-4b67-46fd-9589-c66f7345109e	235	617	2	2025-08-21 12:22:37.666996+00	2025-08-21 12:22:37.666996+00	\N
 9048540a-6ea8-48ed-8978-215eef623feb	54d5f309-d3ba-4c6e-9829-a2d4dd43a18f	234	606	1	2025-08-13 15:08:57.122258+00	2025-08-13 15:08:57.122258+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
 e31535a0-2895-4c35-af85-a407942f0358	0b4327c7-d26e-4deb-b605-495ff5686b2b	234	604	1	2025-08-13 14:30:33.43796+00	2025-08-13 14:30:33.43796+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
 eb78a241-78be-4b74-ad0a-6799681e5da2	63e5ca16-8cb6-4358-941d-6812b00b1c44	234	604	1	2025-08-13 14:30:33.43796+00	2025-08-13 14:30:33.43796+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
@@ -4390,8 +4394,6 @@ d5468460-75f9-4de8-a5fc-94418ccf8e29	103bad71-ae87-4fc5-8c24-155b71749126	234	60
 bc52d528-6bff-45a2-9aa2-29281fd2efe8	7460d9d7-dc64-47fa-9da2-b1bfa1ba07a4	234	604	1	2025-08-15 12:31:28.58745+00	2025-08-15 12:31:28.58745+00	\N
 31a9dc30-c885-43ef-a92b-596a6ac9e0b2	4be2f995-fd42-4994-86a2-16ad5313ad48	234	604	1	2025-08-15 15:10:44.029936+00	2025-08-15 15:10:44.029936+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
 9e6693f9-ec7b-4d24-a478-2b84b9e9dafc	3bad03e2-d11a-4d19-bf12-cf600070d7d5	236	619	2	2025-08-15 15:10:44.029936+00	2025-08-15 15:10:44.029936+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
-0e78f5d7-9fd9-4ccc-9e83-3987716ed981	6daba469-3956-45c5-ae33-0a314ea26dd8	240	631	2	2025-08-16 06:31:57.776943+00	2025-08-16 06:31:57.776943+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
-e87e0dd5-1247-42ed-b0fe-589cd5f6b3a5	c44f5021-ecef-4bf3-af8f-613405bf65fe	240	631	2	2025-08-15 21:58:49.734159+00	2025-08-15 21:58:49.734159+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
 d2e849c9-8815-4d64-99d3-3252cc4500de	8b51be6b-a2c4-43c8-aa64-21412899256c	240	631	2	2025-08-14 14:26:47.059006+00	2025-08-14 14:26:47.059006+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
 05719eb9-ae69-4c29-aa84-98789f2539f7	7dcbbd60-429d-4664-be97-4749b39bb307	240	631	2	2025-08-14 14:26:47.059006+00	2025-08-14 14:26:47.059006+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
 4201a8d8-3d3d-47a5-a232-7723b736e964	150ca51a-60b7-41b8-9010-101b141d5876	240	630	2	2025-08-14 06:51:17.846443+00	2025-08-14 06:51:17.846443+00	b5837d17-e31c-4cf0-b45e-6c47343aaa13
@@ -4905,7 +4907,7 @@ COPY public.documentation_versions (version_number, issue_date, file_url, status
 1	2025-04-24	https://su10.bitrix24.ru/company/personal/user/111/tasks/task/view/18463/	not_filled	2025-08-22 07:29:18.75602+00	2025-08-22 08:19:28.933107+00	3f681dfc-6d8e-4e84-aaea-30f35ed686a7	07b06a85-492b-4937-a214-30a07ec0d633	[]
 3	2025-02-28	https://su10.bitrix24.ru/company/personal/user/821/tasks/task/view/16283/	not_filled	2025-08-22 07:28:33.714974+00	2025-08-22 09:50:20.482097+00	a4d1f99c-83a7-4e7b-a95f-bcd7eed2c90a	19d5ddec-ed1f-490c-8e6e-717caaafc49b	[{"name": "СТ2601-14-АР0-АС-1-РД.pdf", "path": "public./Documentation/c95e1507-9c01-47c5-9858-40452f907466/a4d1f99c-83a7-4e7b-a95f-bcd7eed2c90a/СТ2601-14-АР0-АС-1-РД.pdf", "size": 11937146, "type": "application/pdf", "extension": "pdf", "uploadedAt": "2025-08-22T09:35:05.932Z"}, {"name": "alliya.xlsx", "path": "public./Documentation/c95e1507-9c01-47c5-9858-40452f907466/a4d1f99c-83a7-4e7b-a95f-bcd7eed2c90a/alliya.xlsx", "size": 24881, "type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "extension": "xlsx", "uploadedAt": "2025-08-22T09:50:21.276Z"}]
 3	2025-02-28	https://su10.bitrix24.ru/company/personal/user/821/tasks/task/view/16285/	not_filled	2025-08-22 07:28:32.627636+00	2025-08-22 09:18:46.6357+00	69e9397f-34fe-4b91-84e6-7339f13c5c2d	f1c3e3e8-2954-4dc9-ad82-91c2ec16b5c4	[]
-1	2025-08-12	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22639/	not_filled	2025-08-21 09:32:19.474995+00	2025-08-22 10:54:48.132607+00	fa34f1a8-58c3-4c9e-8205-da6b56132658	7b62a552-7115-4c4b-a604-b318c5fe0c47	[{"name": "СТ2601-14-АР0-АС-1-РД.pdf", "path": "public./Documentation/f9227acf-9446-42c8-a533-bfeb30fa07a4/fa34f1a8-58c3-4c9e-8205-da6b56132658/СТ2601-14-АР0-АС-1-РД.pdf", "size": 11937146, "type": "application/pdf", "extension": "pdf", "uploadedAt": "2025-08-22T10:54:48.542Z"}]
+1	2025-08-12	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22639/	not_filled	2025-08-21 09:32:19.474995+00	2025-08-22 12:26:04.027008+00	fa34f1a8-58c3-4c9e-8205-da6b56132658	7b62a552-7115-4c4b-a604-b318c5fe0c47	[{"name": "СТ2601-14-АР0-АС-1-РД.pdf", "path": "public./Documentation/f9227acf-9446-42c8-a533-bfeb30fa07a4/fa34f1a8-58c3-4c9e-8205-da6b56132658/СТ2601-14-АР0-АС-1-РД.pdf", "size": 11937146, "type": "application/pdf", "extension": "pdf", "uploadedAt": "2025-08-22T10:54:48.542Z"}, {"name": "corp14.xlsx", "path": "public./Documentation/f9227acf-9446-42c8-a533-bfeb30fa07a4/fa34f1a8-58c3-4c9e-8205-da6b56132658/corp14.xlsx", "size": 17117, "type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "extension": "xlsx", "uploadedAt": "2025-08-22T12:26:04.620Z"}]
 \.
 
 
@@ -5395,48 +5397,14 @@ cf1eb082-1907-49c8-92e7-2616e4b2027d	9f32283a-c8b7-43f2-8d86-e9e3370229eb	2025-0
 --
 
 COPY public.rates (id, work_name, work_set, base_rate, unit_id, created_at, updated_at) FROM stdin;
-e63413c9-9357-4869-9273-42721cda4470	Кладка СТЕН: толщиной 150мм из газосиликатных  блоков (ГСБ)	СТЕНЫ	3000	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-22 11:45:24.195158+00	2025-08-22 11:45:24.195158+00
-49e7b407-cdad-41b6-91ba-a796c64939b1	Кладка СТЕН: толщиной 200мм из газосиликатных  блоков (ГСБ)	СТЕНЫ	3000	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-22 11:45:24.527381+00	2025-08-22 11:45:24.527381+00
-ba563ef1-de3f-4839-95d0-168f1eed69f4	Кладка СТЕН: толщиной 250мм из газосиликатных  блоков (ГСБ)	СТЕНЫ	3000	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-22 11:45:24.765432+00	2025-08-22 11:45:24.765432+00
-82abd2a2-cc7c-4781-bd8c-000e799288ee	Кладка СТЕН: толщиной 300мм из газосиликатных  блоков (ГСБ)	СТЕНЫ	3000	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-22 11:45:24.95796+00	2025-08-22 11:45:24.95796+00
-3d2201e4-73ae-40fe-9b61-359355deb782	Кладка СТЕН: толщиной 190 мм : из легкобетонных блоков ( СКЦ ) полнотелых	СТЕНЫ	3600	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-22 11:45:25.21101+00	2025-08-22 11:45:25.21101+00
-a5524120-e8a5-4b39-be07-e6772186b225	Кладка СТЕН: толщиной 250 мм из кирпича одинарного рядового	СТЕНЫ	3600	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-22 11:45:25.491822+00	2025-08-22 11:45:25.491822+00
-314b7f4e-5fe6-4d34-b7e8-5003fc45774e	Кладка ПЕРЕГОРОДОК: толщиной 75 мм из Газосиликатных блоков	ПЕРЕГОРОДКИ	500	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-22 11:45:25.765309+00	2025-08-22 11:45:25.765309+00
-fa4fbce0-3de5-4e23-b32d-e2780f37ccf9	Кладка ПЕРЕГОРОДОК: толщиной 100 мм из Газосиликатных блоков	ПЕРЕГОРОДКИ	500	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-22 11:45:25.979479+00	2025-08-22 11:45:25.979479+00
-55ecacd0-4568-46e0-9bcb-76953f68bef1	Кладка ПЕРЕГОРОДОК: толщиной 80 мм из Пазогребниевых блоков	ПЕРЕГОРОДКИ	450	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-22 11:45:26.170523+00	2025-08-22 11:45:26.170523+00
-0c8412d5-9fe0-4596-9569-e0539059d440	Кладка ПЕРЕГОРОДОК: толщиной 100 мм из Пазогребниевых блоков	ПЕРЕГОРОДКИ	450	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-22 11:45:26.345372+00	2025-08-22 11:45:26.345372+00
-572df0e9-86fe-41a0-a098-87cd5c291518	Кладка ПЕРЕГОРОДОК: толщиной 90 мм из Легкобетонных блоков	ПЕРЕГОРОДКИ	600	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-22 11:45:26.527911+00	2025-08-22 11:45:26.527911+00
-937e1945-12ff-41f1-8ddc-d6d675eedaa8	Кладка ПЕРЕГОРОДОК: толщиной 120 мм из Кирпича	ПЕРЕГОРОДКИ	600	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-22 11:45:26.716408+00	2025-08-22 11:45:26.716408+00
-3f9583a4-559b-4525-baa9-ed0da3c2fafe	Кладка наружных стен толщиной 120 мм из кирпича облицовочного	СТЕНЫ	585	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-22 11:45:28.046428+00	2025-08-22 11:45:28.046428+00
-deb35b5b-3d63-4d06-803c-712e5b181f0c	Трассировка перегорордок в квартирах из гипсовых пазогребневых плит ПГП	ТРАССИРОВКА	225	05d8126b-a759-4a2b-86c5-fab955492e50	2025-08-22 11:45:27.330317+00	2025-08-22 11:46:57.100216+00
-6e0a041e-572a-4b49-9822-bf38a6e82b5b	Трассировка перегорордок в квартирах из ГСБ h=0,25м)  (с	ТРАССИРОВКА	150	05d8126b-a759-4a2b-86c5-fab955492e50	2025-08-22 11:45:26.903006+00	2025-08-22 11:46:57.672153+00
-48b95ff0-7804-442a-98d9-0ae6af830786	Монтаж металлоконструкций кладки: фахверковые колонны	ФАХВЕРКОВЫЕ КОЛОННЫ	20000	b7eb7037-cb2b-4180-8a15-6e334e122e79	2025-08-22 11:45:27.8388+00	2025-08-22 11:46:58.125186+00
-5aa92313-a6c8-4985-9f18-4aa25e0e230e	Изготовление металлоконструкций кладки: фахверковые колонны (	ФАХВЕРКОВЫЕ КОЛОННЫ	10000	b7eb7037-cb2b-4180-8a15-6e334e122e79	2025-08-22 11:45:27.524931+00	2025-08-22 11:46:58.572101+00
 \.
 
 
 --
--- Data for Name: rates_cost_categories_mapping; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: rates_detail_cost_categories_mapping; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.rates_cost_categories_mapping (rate_id, cost_category_id) FROM stdin;
-e63413c9-9357-4869-9273-42721cda4470	242
-49e7b407-cdad-41b6-91ba-a796c64939b1	242
-ba563ef1-de3f-4839-95d0-168f1eed69f4	242
-82abd2a2-cc7c-4781-bd8c-000e799288ee	242
-3d2201e4-73ae-40fe-9b61-359355deb782	242
-a5524120-e8a5-4b39-be07-e6772186b225	242
-314b7f4e-5fe6-4d34-b7e8-5003fc45774e	242
-fa4fbce0-3de5-4e23-b32d-e2780f37ccf9	242
-55ecacd0-4568-46e0-9bcb-76953f68bef1	242
-0c8412d5-9fe0-4596-9569-e0539059d440	242
-572df0e9-86fe-41a0-a098-87cd5c291518	242
-937e1945-12ff-41f1-8ddc-d6d675eedaa8	242
-3f9583a4-559b-4525-baa9-ed0da3c2fafe	242
-deb35b5b-3d63-4d06-803c-712e5b181f0c	242
-6e0a041e-572a-4b49-9822-bf38a6e82b5b	242
-48b95ff0-7804-442a-98d9-0ae6af830786	242
-5aa92313-a6c8-4985-9f18-4aa25e0e230e	242
+COPY public.rates_detail_cost_categories_mapping (rate_id, detail_cost_category_id) FROM stdin;
 \.
 
 
@@ -6109,11 +6077,11 @@ ALTER TABLE ONLY public.projects
 
 
 --
--- Name: rates_cost_categories_mapping rates_cost_categories_mapping_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: rates_detail_cost_categories_mapping rates_detail_cost_categories_mapping_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
-ALTER TABLE ONLY public.rates_cost_categories_mapping
-    ADD CONSTRAINT rates_cost_categories_mapping_pkey PRIMARY KEY (rate_id, cost_category_id);
+ALTER TABLE ONLY public.rates_detail_cost_categories_mapping
+    ADD CONSTRAINT rates_detail_cost_categories_mapping_pkey PRIMARY KEY (rate_id, detail_cost_category_id);
 
 
 --
@@ -6710,17 +6678,17 @@ CREATE INDEX idx_entity_comments_mapping_type_id ON public.entity_comments_mappi
 
 
 --
--- Name: idx_rates_cost_categories_mapping_cost_category_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_rates_detail_cost_categories_mapping_detail_cost_category_i; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE INDEX idx_rates_cost_categories_mapping_cost_category_id ON public.rates_cost_categories_mapping USING btree (cost_category_id);
+CREATE INDEX idx_rates_detail_cost_categories_mapping_detail_cost_category_i ON public.rates_detail_cost_categories_mapping USING btree (detail_cost_category_id);
 
 
 --
--- Name: idx_rates_cost_categories_mapping_rate_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_rates_detail_cost_categories_mapping_rate_id; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE INDEX idx_rates_cost_categories_mapping_rate_id ON public.rates_cost_categories_mapping USING btree (rate_id);
+CREATE INDEX idx_rates_detail_cost_categories_mapping_rate_id ON public.rates_detail_cost_categories_mapping USING btree (rate_id);
 
 
 --
@@ -7238,19 +7206,19 @@ ALTER TABLE ONLY public.projects_blocks
 
 
 --
--- Name: rates_cost_categories_mapping rates_cost_categories_mapping_cost_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: rates_detail_cost_categories_mapping rates_cost_categories_mapping_rate_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
-ALTER TABLE ONLY public.rates_cost_categories_mapping
-    ADD CONSTRAINT rates_cost_categories_mapping_cost_category_id_fkey FOREIGN KEY (cost_category_id) REFERENCES public.cost_categories(id) ON DELETE CASCADE;
-
-
---
--- Name: rates_cost_categories_mapping rates_cost_categories_mapping_rate_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.rates_cost_categories_mapping
+ALTER TABLE ONLY public.rates_detail_cost_categories_mapping
     ADD CONSTRAINT rates_cost_categories_mapping_rate_id_fkey FOREIGN KEY (rate_id) REFERENCES public.rates(id) ON DELETE CASCADE;
+
+
+--
+-- Name: rates_detail_cost_categories_mapping rates_detail_cost_categories_mapping_detail_cost_category_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.rates_detail_cost_categories_mapping
+    ADD CONSTRAINT rates_detail_cost_categories_mapping_detail_cost_category_id_fk FOREIGN KEY (detail_cost_category_id) REFERENCES public.detail_cost_categories(id) ON DELETE CASCADE;
 
 
 --
@@ -8645,12 +8613,12 @@ GRANT ALL ON TABLE public.rates TO service_role;
 
 
 --
--- Name: TABLE rates_cost_categories_mapping; Type: ACL; Schema: public; Owner: postgres
+-- Name: TABLE rates_detail_cost_categories_mapping; Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT ALL ON TABLE public.rates_cost_categories_mapping TO anon;
-GRANT ALL ON TABLE public.rates_cost_categories_mapping TO authenticated;
-GRANT ALL ON TABLE public.rates_cost_categories_mapping TO service_role;
+GRANT ALL ON TABLE public.rates_detail_cost_categories_mapping TO anon;
+GRANT ALL ON TABLE public.rates_detail_cost_categories_mapping TO authenticated;
+GRANT ALL ON TABLE public.rates_detail_cost_categories_mapping TO service_role;
 
 
 --
@@ -9104,5 +9072,5 @@ ALTER EVENT TRIGGER pgrst_drop_watch OWNER TO supabase_admin;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict RhOoDsh0Fugi8JWjXfhCwn6E2PDF3bFMqLcrBTmzANLSaJffPasFUGuvlmH2LJS
+\unrestrict ZujrnCgS4J6XZphVKSh17Tg8UT40UhFb0G8UrKkO7S67YuJeOCOcu1LxiAKYv6x
 
