@@ -498,7 +498,9 @@ const App = ({ isDark, toggleTheme, scale, onScaleChange }: AppProps) => {
               margin: 16,
               background: isDark ? '#555555' : '#FCFCFC',
               color: isDark ? '#ffffff' : '#000000',
-              flex: 1,
+              boxSizing: 'border-box',
+              height: 'calc(100% - 64px - 32px)',
+              overflow: 'auto',
             }}
           >
             <Routes>

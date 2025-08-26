@@ -35,12 +35,12 @@ export function Root() {
   }, [isDark])
 
   useEffect(() => {
-    const root = document.getElementById('root')
-    if (root) {
-      root.style.transform = `scale(${scale})`
-      root.style.transformOrigin = 'top left'
-      root.style.width = `${100 / scale}%`
-      root.style.height = `${100 / scale}%`
+    const rootElement = document.getElementById('root')
+    if (rootElement) {
+      rootElement.style.transform = `scale(${scale})`
+      rootElement.style.transformOrigin = '0 0'
+      rootElement.style.width = `${100 / scale}vw`
+      rootElement.style.height = `${100 / scale}vh`
     }
     localStorage.setItem('blueprintflow-scale', String(scale))
   }, [scale])
