@@ -8643,6 +8643,31 @@ GRANT ALL ON TABLE public.documentation_versions TO anon;
 GRANT ALL ON TABLE public.documentation_versions TO authenticated;
 GRANT ALL ON TABLE public.documentation_versions TO service_role;
 
+-- Настройки Яндекс.Диска
+CREATE TABLE IF NOT EXISTS public.disk_settings (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    token text NOT NULL,
+    base_path text NOT NULL,
+    make_public boolean DEFAULT true,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+-- Таблица соответствий для имен в облачном хранилище
+CREATE TABLE IF NOT EXISTS public.storage_mappings (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    entity_type text NOT NULL,
+    entity_id text NOT NULL,
+    original_name text NOT NULL,
+    slug text NOT NULL,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+-- Добавление пути к файлу в версии документации
+ALTER TABLE IF EXISTS public.documentation_versions
+    ADD COLUMN IF NOT EXISTS file_path text;
+
 
 --
 -- Name: TABLE documentations; Type: ACL; Schema: public; Owner: postgres
