@@ -19,14 +19,15 @@ import DocumentationTags from './pages/admin/DocumentationTags'
 import Statuses from './pages/admin/Statuses'
 import PortalHeader from './components/PortalHeader'
 import TestTableStructure from './pages/TestTableStructure'
+import { scaleOptions, ScaleValue } from './shared/scale'
 
 const { Sider, Content } = Layout
 
 interface AppProps {
   isDark: boolean
   toggleTheme: () => void
-  scale: number
-  onScaleChange: (value: number) => void
+  scale: ScaleValue
+  onScaleChange: (value: ScaleValue) => void
 }
 
 const App = ({ isDark, toggleTheme, scale, onScaleChange }: AppProps) => {
@@ -225,15 +226,6 @@ const App = ({ isDark, toggleTheme, scale, onScaleChange }: AppProps) => {
       </div>
     </div>
   )
-
-    const scaleOptions = [
-      { value: 0.7, label: '70%' },
-      { value: 0.8, label: '80%' },
-      { value: 0.9, label: '90%' },
-      { value: 1, label: '100%' },
-      { value: 1.1, label: '110%' },
-      { value: 1.2, label: '120%' },
-    ]
 
     const adminSubmenu = (
       <div style={{ backgroundColor: isDark ? '#1f1f1f' : '#fff', borderRadius: 4, padding: '4px 0' }}>

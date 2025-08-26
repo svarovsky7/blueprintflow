@@ -6,6 +6,7 @@ import { ConfigProvider, App as AntdApp, unstableSetRender, theme } from 'antd'
 import 'antd/dist/reset.css'
 import './index.css'
 import App from './App.tsx'
+import { parseScale, ScaleValue } from './shared/scale'
 
 unstableSetRender((node, container) => {
   const root = createRoot(container)
@@ -26,10 +27,7 @@ export function Root() {
     const savedTheme = localStorage.getItem(themeStorageKey)
     return savedTheme === 'dark'
   })
-  const [scale, setScale] = useState(() => {
-    const savedScale = localStorage.getItem(scaleStorageKey)
-    return savedScale ? Number(savedScale) : 1
-  })
+  const [scale, setScale] = useState<ScaleValue>(() => parseScale(localStorage.getItem(scaleStorageKey)))
 
   useEffect(() => {
     document.body.style.backgroundColor = isDark ? '#555555' : '#FCFCFC'
