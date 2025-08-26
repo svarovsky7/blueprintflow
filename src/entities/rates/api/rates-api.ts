@@ -29,10 +29,12 @@ export const ratesApi = {
     
     const result = data.map(({ detail_mapping, ...rate }) => {
       const detailCategory = detail_mapping?.[0]?.detail_cost_category
+      const costCategoryId = detailCategory?.cost_category?.id
       return {
         ...rate,
         detail_cost_category: detailCategory || null,
-        detail_cost_category_id: detailCategory?.id
+        detail_cost_category_id: detailCategory?.id,
+        cost_category_ids: costCategoryId ? [costCategoryId] : [],
       }
     }) as RateWithRelations[]
     
