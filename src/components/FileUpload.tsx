@@ -13,7 +13,9 @@ interface FileUploadProps {
   files: LocalFile[]
   onChange: (files: LocalFile[]) => void
   disabled?: boolean
+
   projectName: string
+
   sectionName: string
   documentationCode: string
   onlineFileUrl?: string
@@ -39,12 +41,15 @@ const getFileIcon = (extension: string) => {
 
 const uploadToYandexDisk = async (
   file: File,
+
   projectName: string,
+
   sectionName: string,
   documentationCode: string
 ): Promise<{ url: string; path: string }> => {
   const settings = await diskApi.getSettings()
   if (!settings) throw new Error('Disk settings not configured')
+
 
   let basePath = settings.base_path
   const pathMatch = basePath.match(/path=([^&]+)/)
@@ -56,6 +61,7 @@ const uploadToYandexDisk = async (
   }
 
   const folderPath = `${basePath}/${transliterate(projectName)}/${transliterate(sectionName)}/${transliterate(documentationCode)}`
+
   const filePath = `${folderPath}/${file.name}`
 
   const res = await fetch(`https://cloud-api.yandex.net/v1/disk/resources/upload?path=${encodeURIComponent(filePath)}&overwrite=true`, {
@@ -80,7 +86,9 @@ const uploadToYandexDisk = async (
   return { url: publicUrl, path: filePath }
 }
 
+
 export default function FileUpload({ files, onChange, disabled, projectName, sectionName, documentationCode, onlineFileUrl }: FileUploadProps) {
+
   const [uploading, setUploading] = useState(false)
   const [previewModalOpen, setPreviewModalOpen] = useState(false)
   const [previewFile, setPreviewFile] = useState<LocalFile | null>(null)
@@ -95,7 +103,9 @@ export default function FileUpload({ files, onChange, disabled, projectName, sec
     setUploading(true)
     try {
       const extension = file.name.split('.').pop() || ''
+
       const { url, path } = await uploadToYandexDisk(file, projectName, sectionName, documentationCode)
+
       const newFile: LocalFile = {
         name: file.name,
         path,
