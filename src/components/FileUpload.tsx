@@ -13,7 +13,9 @@ interface FileUploadProps {
   files: LocalFile[]
   onChange: (files: LocalFile[]) => void
   disabled?: boolean
-  projectCode: string
+
+  projectName: string
+
   sectionName: string
   documentationCode: string
   onlineFileUrl?: string
@@ -37,41 +39,108 @@ const getFileIcon = (extension: string) => {
   }
 }
 
+
+const ensureFolderPath = async (folderPath: string, token: string): Promise<void> => {
+  const segments = folderPath.split('/').filter(Boolean)
+  if (segments.length === 0) return
+  let current = segments[0]
+  for (let i = 1; i < segments.length; i++) {
+    current = `${current}/${segments[i]}`
+    const res = await fetch(
+      `https://cloud-api.yandex.net/v1/disk/resources?path=${encodeURIComponent(current)}`,
+      {
+        method: 'PUT',
+        headers: { Authorization: `OAuth ${token}` }
+      }
+    )
+    if (!res.ok && res.status !== 409) {
+      const errorText = await res.text()
+      throw new Error(`Failed to create folder ${current}: ${res.status} ${errorText}`)
+    }
+  }
+}
+
 const uploadToYandexDisk = async (
   file: File,
-  projectCode: string,
+  projectName: string,
+
   sectionName: string,
   documentationCode: string
 ): Promise<{ url: string; path: string }> => {
   const settings = await diskApi.getSettings()
   if (!settings) throw new Error('Disk settings not configured')
 
-  const folderPath = `${settings.base_path}/${transliterate(projectCode)}/${transliterate(sectionName)}/${transliterate(documentationCode)}`
+
+  let basePath = settings.base_path
+  const pathMatch = basePath.match(/path=([^&]+)/)
+  if (pathMatch) {
+    basePath = decodeURIComponent(pathMatch[1])
+  }
+  if (basePath.endsWith('/')) {
+    basePath = basePath.slice(0, -1)
+  }
+
+  const folderPath = `${basePath}/${transliterate(projectName)}/${transliterate(sectionName)}/${transliterate(documentationCode)}`
   const filePath = `${folderPath}/${file.name}`
 
-  const res = await fetch(`https://cloud-api.yandex.net/v1/disk/resources/upload?path=${encodeURIComponent(filePath)}&overwrite=true`, {
-    headers: { Authorization: `OAuth ${settings.token}` },
-  })
+  await ensureFolderPath(folderPath, settings.token)
+
+  const res = await fetch(
+    `https://cloud-api.yandex.net/v1/disk/resources/upload?path=${encodeURIComponent(filePath)}&overwrite=true`,
+    {
+      headers: { Authorization: `OAuth ${settings.token}` },
+    }
+  )
+  if (!res.ok) {
+    const errorText = await res.text()
+    throw new Error(`Failed to get upload URL: ${res.status} ${errorText}`)
+  }
   const { href } = await res.json()
-  await fetch(href, { method: 'PUT', body: file })
+
+  const uploadRes = await fetch(href, {
+    method: 'PUT',
+    body: file,
+    headers: { 'Content-Type': 'application/octet-stream' },
+  })
+  if (!uploadRes.ok) {
+    const errorText = await uploadRes.text()
+    throw new Error(`Failed to upload file: ${uploadRes.status} ${errorText}`)
+  }
 
   let publicUrl = ''
   if (settings.make_public) {
-    await fetch(`https://cloud-api.yandex.net/v1/disk/resources/publish?path=${encodeURIComponent(filePath)}`, {
-      method: 'PUT',
-      headers: { Authorization: `OAuth ${settings.token}` },
-    })
-    const infoRes = await fetch(`https://cloud-api.yandex.net/v1/disk/resources?path=${encodeURIComponent(filePath)}&fields=public_url`, {
-      headers: { Authorization: `OAuth ${settings.token}` },
-    })
+    const publishRes = await fetch(
+      `https://cloud-api.yandex.net/v1/disk/resources/publish?path=${encodeURIComponent(filePath)}`,
+      {
+        method: 'PUT',
+        headers: { Authorization: `OAuth ${settings.token}` },
+      }
+    )
+    if (!publishRes.ok) {
+      const errorText = await publishRes.text()
+      throw new Error(`Failed to publish file: ${publishRes.status} ${errorText}`)
+    }
+    const infoRes = await fetch(
+      `https://cloud-api.yandex.net/v1/disk/resources?path=${encodeURIComponent(filePath)}&fields=public_url`,
+      {
+        headers: { Authorization: `OAuth ${settings.token}` },
+      }
+    )
+    if (!infoRes.ok) {
+      const errorText = await infoRes.text()
+      throw new Error(`Failed to fetch file info: ${infoRes.status} ${errorText}`)
+    }
     const info = await infoRes.json()
     publicUrl = info.public_url
   }
 
+
   return { url: publicUrl, path: filePath }
 }
 
-export default function FileUpload({ files, onChange, disabled, projectCode, sectionName, documentationCode, onlineFileUrl }: FileUploadProps) {
+
+export default function FileUpload({ files, onChange, disabled, projectName, sectionName, documentationCode, onlineFileUrl }: FileUploadProps) {
+
   const [uploading, setUploading] = useState(false)
   const [previewModalOpen, setPreviewModalOpen] = useState(false)
   const [previewFile, setPreviewFile] = useState<LocalFile | null>(null)
@@ -86,7 +155,9 @@ export default function FileUpload({ files, onChange, disabled, projectCode, sec
     setUploading(true)
     try {
       const extension = file.name.split('.').pop() || ''
-      const { url, path } = await uploadToYandexDisk(file, projectCode, sectionName, documentationCode)
+
+      const { url, path } = await uploadToYandexDisk(file, projectName, sectionName, documentationCode)
+
       const newFile: LocalFile = {
         name: file.name,
         path,
@@ -101,6 +172,9 @@ export default function FileUpload({ files, onChange, disabled, projectCode, sec
       onSuccess?.(null, file as unknown as XMLHttpRequestResponseType)
     } catch (e) {
       console.error('❌ Error uploading file:', e)
+
+      message.error('Не удалось загрузить файл')
+
       onError?.(e as Error)
     } finally {
       setUploading(false)

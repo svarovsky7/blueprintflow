@@ -8765,6 +8765,9 @@ begin
 end;
 $$;
 
+
+DROP TRIGGER IF EXISTS storage_projects_after_insert ON public.projects;
+
 CREATE TRIGGER storage_projects_after_insert
 AFTER INSERT ON public.projects
 FOR EACH ROW EXECUTE FUNCTION public.trg_storage_projects();
@@ -8781,6 +8784,9 @@ begin
   return new;
 end;
 $$;
+
+
+DROP TRIGGER IF EXISTS storage_doc_tags_after_insert ON public.documentation_tags;
 
 CREATE TRIGGER storage_doc_tags_after_insert
 AFTER INSERT ON public.documentation_tags
@@ -8806,13 +8812,29 @@ begin
 end;
 $$;
 
+
+DROP TRIGGER IF EXISTS storage_doc_versions_after_insert ON public.documentation_versions;
+
 CREATE TRIGGER storage_doc_versions_after_insert
 AFTER INSERT ON public.documentation_versions
 FOR EACH ROW EXECUTE FUNCTION public.trg_storage_doc_versions();
 
--- Добавление пути к файлу в версии документации
+
+-- Таблица путей к файлам версий документации
+CREATE TABLE IF NOT EXISTS public.documentation_file_paths (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    version_id uuid REFERENCES public.documentation_versions(id) ON DELETE CASCADE,
+    file_path text NOT NULL,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+GRANT ALL ON TABLE public.documentation_file_paths TO anon;
+GRANT ALL ON TABLE public.documentation_file_paths TO authenticated;
+GRANT ALL ON TABLE public.documentation_file_paths TO service_role;
+
 ALTER TABLE IF EXISTS public.documentation_versions
-    ADD COLUMN IF NOT EXISTS file_path text;
+    DROP COLUMN IF EXISTS file_path;
+
 
 
 --
