@@ -776,9 +776,11 @@ export default function Documentation() {
                 }
               }}
               disabled={false}
+
               projectName={record.project_name}
               sectionName={record.tag_name}
               documentationCode={record.project_code}
+
               onlineFileUrl={selectedVersion?.file_url || undefined}
             />
           )
