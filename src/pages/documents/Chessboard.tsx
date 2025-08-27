@@ -433,25 +433,6 @@ export default function Chessboard() {
     },
   })
 
-  const getLocationOptions = useCallback(
-    (costTypeId?: string) => {
-      const filtered = locations?.filter((l) => {
-        if (costTypeId) {
-          const selectedType = costTypes?.find((t) => String(t.id) === costTypeId)
-          if (selectedType) {
-            const sameNameTypes = costTypes?.filter((t) => t.name === selectedType.name)
-            const ids = new Set(sameNameTypes?.map((t) => String(t.location_id)))
-            return ids.has(String(l.id))
-          }
-        }
-        return true
-      }) ?? []
-
-      return filtered.map((l) => ({ value: String(l.id), label: l.name }))
-    },
-    [locations, costTypes],
-  )
-
   // Загрузка тэгов документации
   const { data: documentationTags } = useQuery({
     queryKey: ['documentation-tags'],
@@ -1426,7 +1407,25 @@ export default function Chessboard() {
                 style={{ width: 200 }}
                 value={record.locationId}
                 onChange={(value) => handleRowChange(record.key, 'locationId', value)}
-                options={getLocationOptions(record.costTypeId)}
+                options={
+                  locations
+                    ?.filter((l) => {
+                      // Если выбран вид затрат, показываем только локализации, доступные для этого вида
+                      if (record.costTypeId) {
+                        const selectedType = costTypes?.find((t) => String(t.id) === record.costTypeId)
+                        if (selectedType) {
+                          // Находим все виды затрат с таким же названием
+                          const sameNameTypes = costTypes?.filter((t) => t.name === selectedType.name)
+                          // Получаем все location_id для этих видов затрат
+                          const availableLocationIds = sameNameTypes?.map((t) => String(t.location_id))
+                          return availableLocationIds?.includes(String(l.id))
+                        }
+                      }
+                      // Если вид затрат не выбран, показываем все локализации
+                      return true
+                    })
+                    .map((l) => ({ value: String(l.id), label: l.name })) ?? []
+                }
               />
             )
           default:
@@ -1483,7 +1482,7 @@ export default function Chessboard() {
     units,
     costCategories,
     costTypes,
-    getLocationOptions,
+    locations,
     blocks,
     documentationTags,
     documentations,
@@ -1795,7 +1794,25 @@ export default function Chessboard() {
                 style={{ width: 200 }}
                 value={edit.locationId}
                 onChange={(value) => handleEditChange(record.key, 'locationId', value)}
-                options={getLocationOptions(edit.costTypeId)}
+                options={
+                  locations
+                    ?.filter((l) => {
+                      // Если выбран вид затрат, показываем только локализации, доступные для этого вида
+                      if (edit.costTypeId) {
+                        const selectedType = costTypes?.find((t) => String(t.id) === edit.costTypeId)
+                        if (selectedType) {
+                          // Находим все виды затрат с таким же названием
+                          const sameNameTypes = costTypes?.filter((t) => t.name === selectedType.name)
+                          // Получаем все location_id для этих видов затрат
+                          const availableLocationIds = sameNameTypes?.map((t) => String(t.location_id))
+                          return availableLocationIds?.includes(String(l.id))
+                        }
+                      }
+                      // Если вид затрат не выбран, показываем все локализации
+                      return true
+                    })
+                    .map((l) => ({ value: String(l.id), label: l.name })) ?? []
+                }
               />
             )
           default:
@@ -1876,7 +1893,7 @@ export default function Chessboard() {
     blocks,
     costCategories,
     costTypes,
-    getLocationOptions,
+    locations,
     documentationTags,
     documentations,
     hiddenCols,
