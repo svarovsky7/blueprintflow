@@ -75,7 +75,9 @@ export default function Disk() {
             name="base_path"
             rules={[{ required: true, message: 'Введите путь' }]}
           >
-            <Input placeholder="Например, BlueprintFlow" />
+
+            <Input placeholder="Например, disk:/blueprintflow" />
+
           </Form.Item>
           <Form.Item label="Публиковать автоматически" name="make_public" valuePropName="checked">
             <Switch />
