@@ -20,6 +20,7 @@ import Statuses from './pages/admin/Statuses'
 import Disk from './pages/admin/Disk'
 import PortalHeader from './components/PortalHeader'
 import TestTableStructure from './pages/TestTableStructure'
+import logoLight from './logo_light.svg'
 
 const { Sider, Content } = Layout
 
@@ -441,7 +442,16 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           collapsed={collapsed}
           onCollapse={setCollapsed}
         >
-          <div style={{ height: 64 }} />
+          <div
+            style={{
+              width: '100%',
+              marginBottom: 16,
+              display: 'flex',
+              justifyContent: 'center',
+            }}
+          >
+            <img src={logoLight} alt="BlueprintFlow logo" style={{ width: '60%', height: 'auto' }} />
+          </div>
           <Menu
             theme={isDark ? 'dark' : 'light'}
             mode="inline"
