@@ -57,31 +57,24 @@ const ensureFolderPath = async (folderPath: string, token: string): Promise<void
   let current = segments[0]
   for (let i = 1; i < segments.length; i++) {
     current = `${current}/${segments[i]}`
-    const res = await fetch(
+    const check = await fetch(
       `https://cloud-api.yandex.net/v1/disk/resources?path=${encodeURIComponent(current)}`,
-      { method: 'PUT', headers: { Authorization: `OAuth ${token}` } }
+      { headers: { Authorization: `OAuth ${token}` } }
     )
-    if (!res.ok && res.status !== 409) {
-      const errorText = await res.text()
-      throw new Error(`Failed to create folder ${current}: ${res.status} ${errorText}`)
+    if (check.status === 404) {
+      const createRes = await fetch(
+        `https://cloud-api.yandex.net/v1/disk/resources?path=${encodeURIComponent(current)}`,
+        { method: 'PUT', headers: { Authorization: `OAuth ${token}` } }
+      )
+      if (!createRes.ok && createRes.status !== 409) {
+        const errorText = await createRes.text()
+        throw new Error(`Failed to create folder ${current}: ${createRes.status} ${errorText}`)
+      }
+    } else if (!check.ok) {
+      const errorText = await check.text()
+      throw new Error(`Failed to check folder ${current}: ${check.status} ${errorText}`)
     }
   }
-}
-
-const fileExists = async (filePath: string, token: string): Promise<boolean> => {
-  const folder = filePath.substring(0, filePath.lastIndexOf('/'))
-  const fileName = filePath.substring(filePath.lastIndexOf('/') + 1)
-  const res = await fetch(
-    `https://cloud-api.yandex.net/v1/disk/resources?path=${encodeURIComponent(folder)}&limit=1000&fields=_embedded.items.name`,
-    { headers: { Authorization: `OAuth ${token}` } }
-  )
-  if (!res.ok) {
-    const errorText = await res.text()
-    throw new Error(`Failed to list folder ${folder}: ${res.status} ${errorText}`)
-  }
-  const data = await res.json()
-  const items = data?._embedded?.items ?? []
-  return items.some((item: { name: string }) => item.name === fileName)
 }
 
 const buildFilePaths = (
@@ -192,7 +185,10 @@ export default function FileUpload({ files, onChange, disabled, projectName, sec
 
       await ensureFolderPath(folderPath, settings.token)
 
-      const exists = await fileExists(filePath, settings.token)
+      const checkRes = await fetch(
+        `https://cloud-api.yandex.net/v1/disk/resources?path=${encodeURIComponent(filePath)}`,
+        { headers: { Authorization: `OAuth ${settings.token}` } }
+      )
 
       const doUpload = async () => {
         setUploading(true)
@@ -226,7 +222,7 @@ export default function FileUpload({ files, onChange, disabled, projectName, sec
         }
       }
 
-      if (exists) {
+      if (checkRes.ok) {
         setUploading(false)
         modal.confirm({
           title: 'Файл уже существует',
@@ -238,8 +234,11 @@ export default function FileUpload({ files, onChange, disabled, projectName, sec
             onError?.(new Error('Upload cancelled'))
           },
         })
-      } else {
+      } else if (checkRes.status === 404) {
         await doUpload()
+      } else {
+        const errorText = await checkRes.text()
+        throw new Error(`Failed to check file existence: ${checkRes.status} ${errorText}`)
       }
     } catch (e) {
       console.error('❌ Error uploading file:', e)
