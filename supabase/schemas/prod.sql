@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict rfnrlvj3C4lXtQHmeX5qpHIgGIbYgYJxA3FyE5pl4bKB4HKxige3gkNv56TEBwD
+\restrict HQiOWqNHjnJwLnt3llPuvZQLKVTMweqVsgRq6cc4yEgjfqYrllMKg4kYO6QWwOz
 
 -- Dumped from database version 17.4
 -- Dumped by pg_dump version 17.6
@@ -748,6 +748,41 @@ $_$;
 ALTER FUNCTION pgbouncer.get_auth(p_usename text) OWNER TO supabase_admin;
 
 --
+-- Name: fill_storage_mappings(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.fill_storage_mappings() RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+begin
+  insert into storage_mappings(table_name, entity_id, slug)
+  select 'projects', id::text, transliterate(name)
+  from projects
+  on conflict (table_name, entity_id) do update
+    set slug = excluded.slug,
+        updated_at = now();
+
+  insert into storage_mappings(table_name, entity_id, slug)
+  select 'documentation_tags', id::text, transliterate(name)
+  from documentation_tags
+  on conflict (table_name, entity_id) do update
+    set slug = excluded.slug,
+        updated_at = now();
+
+  insert into storage_mappings(table_name, entity_id, slug)
+  select 'documentation_versions', v.id::text, transliterate(d.code) || '_ver' || v.version_number
+  from documentation_versions v
+  join documentations d on d.id = v.documentation_id
+  on conflict (table_name, entity_id) do update
+    set slug = excluded.slug,
+        updated_at = now();
+end;
+$$;
+
+
+ALTER FUNCTION public.fill_storage_mappings() OWNER TO postgres;
+
+--
 -- Name: set_block_floor_range(uuid, integer, integer); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -769,6 +804,135 @@ $$;
 
 
 ALTER FUNCTION public.set_block_floor_range(p_block_id uuid, p_from_floor integer, p_to_floor integer) OWNER TO postgres;
+
+--
+-- Name: transliterate(text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.transliterate(input text) RETURNS text
+    LANGUAGE plpgsql IMMUTABLE
+    AS $$
+declare
+  result text := '';
+  ch text;
+  mapped text;
+begin
+  for ch in select unnest(regexp_split_to_array(input, '')) loop
+    case lower(ch)
+      when 'а' then mapped := 'a';
+      when 'б' then mapped := 'b';
+      when 'в' then mapped := 'v';
+      when 'г' then mapped := 'g';
+      when 'д' then mapped := 'd';
+      when 'е' then mapped := 'e';
+      when 'ё' then mapped := 'e';
+      when 'ж' then mapped := 'zh';
+      when 'з' then mapped := 'z';
+      when 'и' then mapped := 'i';
+      when 'й' then mapped := 'j';
+      when 'к' then mapped := 'k';
+      when 'л' then mapped := 'l';
+      when 'м' then mapped := 'm';
+      when 'н' then mapped := 'n';
+      when 'о' then mapped := 'o';
+      when 'п' then mapped := 'p';
+      when 'р' then mapped := 'r';
+      when 'с' then mapped := 's';
+      when 'т' then mapped := 't';
+      when 'у' then mapped := 'u';
+      when 'ф' then mapped := 'f';
+      when 'х' then mapped := 'h';
+      when 'ц' then mapped := 'c';
+      when 'ч' then mapped := 'ch';
+      when 'ш' then mapped := 'sh';
+      when 'щ' then mapped := 'sch';
+      when 'ь' then mapped := '';
+      when 'ы' then mapped := 'y';
+      when 'ъ' then mapped := '';
+      when 'э' then mapped := 'e';
+      when 'ю' then mapped := 'yu';
+      when 'я' then mapped := 'ya';
+      else mapped := lower(ch);
+    end case;
+    if ch ~ '[A-Z]' then
+      result := result || upper(left(mapped,1)) || substring(mapped from 2);
+    else
+      result := result || mapped;
+    end if;
+  end loop;
+  return regexp_replace(result, '[^a-zA-Z0-9]', '_', 'g');
+end;
+$$;
+
+
+ALTER FUNCTION public.transliterate(input text) OWNER TO postgres;
+
+--
+-- Name: trg_storage_doc_tags(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.trg_storage_doc_tags() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  insert into storage_mappings(table_name, entity_id, slug)
+  values ('documentation_tags', new.id::text, transliterate(new.name))
+  on conflict (table_name, entity_id) do update
+    set slug = excluded.slug,
+        updated_at = now();
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION public.trg_storage_doc_tags() OWNER TO postgres;
+
+--
+-- Name: trg_storage_doc_versions(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.trg_storage_doc_versions() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+declare
+  doc_code text;
+begin
+  select code into doc_code from documentations where id = new.documentation_id;
+  insert into storage_mappings(table_name, entity_id, slug)
+  values (
+    'documentation_versions',
+    new.id::text,
+    transliterate(doc_code) || '_ver' || new.version_number
+  )
+  on conflict (table_name, entity_id) do update
+    set slug = excluded.slug,
+        updated_at = now();
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION public.trg_storage_doc_versions() OWNER TO postgres;
+
+--
+-- Name: trg_storage_projects(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.trg_storage_projects() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  insert into storage_mappings(table_name, entity_id, slug)
+  values ('projects', new.id::text, transliterate(new.name))
+  on conflict (table_name, entity_id) do update
+    set slug = excluded.slug,
+        updated_at = now();
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION public.trg_storage_projects() OWNER TO postgres;
 
 --
 -- Name: update_rates_updated_at(); Type: FUNCTION; Schema: public; Owner: postgres
@@ -2951,6 +3115,37 @@ ALTER SEQUENCE public.detail_cost_categories_id_seq OWNED BY public.detail_cost_
 
 
 --
+-- Name: disk_settings; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.disk_settings (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    token text NOT NULL,
+    base_path text NOT NULL,
+    make_public boolean DEFAULT true,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.disk_settings OWNER TO postgres;
+
+--
+-- Name: documentation_file_paths; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.documentation_file_paths (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    version_id uuid,
+    file_path text NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.documentation_file_paths OWNER TO postgres;
+
+--
 -- Name: documentation_tags; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -3442,6 +3637,21 @@ COMMENT ON COLUMN public.statuses.is_active IS 'Активен ли статус
 
 COMMENT ON COLUMN public.statuses.applicable_pages IS 'Array of page keys where this status is applicable';
 
+
+--
+-- Name: storage_mappings; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.storage_mappings (
+    table_name text NOT NULL,
+    entity_id text NOT NULL,
+    slug text NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.storage_mappings OWNER TO postgres;
 
 --
 -- Name: units; Type: TABLE; Schema: public; Owner: postgres
@@ -4320,6 +4530,7 @@ c44f5021-ecef-4bf3-af8f-613405bf65fe	f9227acf-9446-42c8-a533-bfeb30fa07a4	Бет
 f2d1f446-0d6a-42b7-85f1-c423b080014a	f9227acf-9446-42c8-a533-bfeb30fa07a4	блоки 200	20	20	21	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-26 08:38:39.13729+00	\N	2025-08-26 08:38:39.13729+00	\N
 b4160375-4a5d-4b8b-b3e0-94d459dcc861	f9227acf-9446-42c8-a533-bfeb30fa07a4	колонна	\N	\N	\N	b7eb7037-cb2b-4180-8a15-6e334e122e79	2025-08-26 09:07:19.227378+00	\N	2025-08-26 09:07:19.227378+00	\N
 dda87bf3-8cd9-4a88-9e54-bd6b351a0213	f9227acf-9446-42c8-a533-bfeb30fa07a4	блок 150	30	30	30	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-26 09:08:01.101611+00	\N	2025-08-26 09:08:01.101611+00	\N
+9a4f1523-34a6-4e76-bc03-7f4e2e2c4d9d	f9227acf-9446-42c8-a533-bfeb30fa07a4	блок 150	1	1	1	3ffb8bf8-c7cd-49b6-b8c4-735d41355949	2025-08-27 12:32:15.664093+00	\N	2025-08-27 12:32:15.664093+00	\N
 \.
 
 
@@ -4332,8 +4543,7 @@ COPY public.chessboard_documentation_mapping (id, chessboard_id, documentation_i
 2895a399-d2d3-4b83-9640-11ad8108af1f	6daba469-3956-45c5-ae33-0a314ea26dd8	3f19c800-5d2c-4ba0-8036-fe37bc21f6d5
 f8ebfed6-01f8-4396-ac62-fa41c943d4f3	c44f5021-ecef-4bf3-af8f-613405bf65fe	3f19c800-5d2c-4ba0-8036-fe37bc21f6d5
 7ab99e92-2d6d-4ffc-a1b7-ef9e400f9983	f2d1f446-0d6a-42b7-85f1-c423b080014a	fa34f1a8-58c3-4c9e-8205-da6b56132658
-475a6cf6-538c-44fb-a77f-6c6476937d6b	b4160375-4a5d-4b8b-b3e0-94d459dcc861	802689a5-100a-4ac5-a567-d958d595ff68
-05080a0f-c0c7-4d98-ab70-68c14d005647	dda87bf3-8cd9-4a88-9e54-bd6b351a0213	802689a5-100a-4ac5-a567-d958d595ff68
+a0e0115e-41a3-401f-acbe-8baf822c0962	9a4f1523-34a6-4e76-bc03-7f4e2e2c4d9d	fa34f1a8-58c3-4c9e-8205-da6b56132658
 \.
 
 
@@ -4377,6 +4587,17 @@ a80f905f-e9fb-41bd-ad06-fb8b58ab14c0	f2d1f446-0d6a-42b7-85f1-c423b080014a	8	2025
 b7689ee2-67b6-4497-844d-df72e93eb84f	f2d1f446-0d6a-42b7-85f1-c423b080014a	9	2025-08-26 08:46:01.726143+00	2025-08-26 08:46:01.726143+00
 973f8226-5898-4df2-95b4-6757a81149f9	f2d1f446-0d6a-42b7-85f1-c423b080014a	10	2025-08-26 08:46:01.726143+00	2025-08-26 08:46:01.726143+00
 0f3baaee-f3d2-40e8-88fe-0132c8ca6020	b4160375-4a5d-4b8b-b3e0-94d459dcc861	15	2025-08-26 09:07:19.530067+00	2025-08-26 09:07:19.530067+00
+6c7acebd-a6d8-4a50-97cc-be54403c06d9	9a4f1523-34a6-4e76-bc03-7f4e2e2c4d9d	5	2025-08-27 12:32:16.213181+00	2025-08-27 12:32:16.213181+00
+b647c125-4ea1-47ba-b42b-15b36f93f155	9a4f1523-34a6-4e76-bc03-7f4e2e2c4d9d	6	2025-08-27 12:32:16.213181+00	2025-08-27 12:32:16.213181+00
+ed17dec5-8a84-401e-97f0-53ddf317d308	9a4f1523-34a6-4e76-bc03-7f4e2e2c4d9d	7	2025-08-27 12:32:16.213181+00	2025-08-27 12:32:16.213181+00
+4acfe06f-a9cd-4e21-b2fb-3efd12a0067e	9a4f1523-34a6-4e76-bc03-7f4e2e2c4d9d	8	2025-08-27 12:32:16.213181+00	2025-08-27 12:32:16.213181+00
+55b94163-fd2f-450a-84e7-87df4f195e9b	9a4f1523-34a6-4e76-bc03-7f4e2e2c4d9d	9	2025-08-27 12:32:16.213181+00	2025-08-27 12:32:16.213181+00
+347dad26-c0cf-4592-bfb8-3ea4305a6d79	9a4f1523-34a6-4e76-bc03-7f4e2e2c4d9d	10	2025-08-27 12:32:16.213181+00	2025-08-27 12:32:16.213181+00
+1c6e7c40-e87d-4e83-bff1-6457c926226c	9a4f1523-34a6-4e76-bc03-7f4e2e2c4d9d	11	2025-08-27 12:32:16.213181+00	2025-08-27 12:32:16.213181+00
+128b710d-d2ca-4748-834d-26d6e88616d5	9a4f1523-34a6-4e76-bc03-7f4e2e2c4d9d	12	2025-08-27 12:32:16.213181+00	2025-08-27 12:32:16.213181+00
+471ccd4f-c40a-4379-b38d-4f63ec38ff95	9a4f1523-34a6-4e76-bc03-7f4e2e2c4d9d	13	2025-08-27 12:32:16.213181+00	2025-08-27 12:32:16.213181+00
+d662c306-4178-4828-8934-4c193ce9b452	9a4f1523-34a6-4e76-bc03-7f4e2e2c4d9d	14	2025-08-27 12:32:16.213181+00	2025-08-27 12:32:16.213181+00
+48531acf-5d40-4d39-be01-92d64bb96362	9a4f1523-34a6-4e76-bc03-7f4e2e2c4d9d	15	2025-08-27 12:32:16.213181+00	2025-08-27 12:32:16.213181+00
 \.
 
 
@@ -4421,6 +4642,7 @@ bd66fa60-7b41-493e-ba59-645bbee60786	dda87bf3-8cd9-4a88-9e54-bd6b351a0213	242	64
 30049b4c-d63c-4c1b-8d09-c2f957b96083	f5708d22-e60f-4b35-8a0d-f070b6568872	234	604	1	2025-08-15 12:31:28.58745+00	2025-08-15 12:31:28.58745+00	\N
 8cdedf0a-c298-45df-846f-dbd882b3ef55	eac7f515-af02-4f52-8615-bf901de475e1	234	604	1	2025-08-15 12:31:28.58745+00	2025-08-15 12:31:28.58745+00	\N
 25748590-a70a-4d3b-8250-c7bc89373c83	a23d8e8a-e8fc-4bda-8201-eacdd46b24cc	234	604	1	2025-08-15 12:31:28.58745+00	2025-08-15 12:31:28.58745+00	\N
+82b459b9-7c37-4445-8aad-e77e7ea327fd	9a4f1523-34a6-4e76-bc03-7f4e2e2c4d9d	242	643	2	2025-08-27 12:32:15.853225+00	2025-08-27 12:32:15.853225+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
 57367b7b-0846-4ea1-b6fa-7a96fead2fce	7e0de9b9-521c-4e37-ad7c-7bd32742b76d	234	604	1	2025-08-15 12:31:28.58745+00	2025-08-15 12:31:28.58745+00	\N
 bc52d528-6bff-45a2-9aa2-29281fd2efe8	7460d9d7-dc64-47fa-9da2-b1bfa1ba07a4	234	604	1	2025-08-15 12:31:28.58745+00	2025-08-15 12:31:28.58745+00	\N
 31a9dc30-c885-43ef-a92b-596a6ac9e0b2	4be2f995-fd42-4994-86a2-16ad5313ad48	234	604	1	2025-08-15 15:10:44.029936+00	2025-08-15 15:10:44.029936+00	c16b4784-73f0-4f1b-9401-a964d0a81aa0
@@ -4439,6 +4661,7 @@ COPY public.chessboard_rates_mapping (chessboard_id, rate_id) FROM stdin;
 f2d1f446-0d6a-42b7-85f1-c423b080014a	23b7300e-a128-4484-b96b-6ba783158745
 b4160375-4a5d-4b8b-b3e0-94d459dcc861	e80c5bf1-2a98-4372-a896-cdea049d09e6
 dda87bf3-8cd9-4a88-9e54-bd6b351a0213	fe746c26-ffa3-4def-946b-89458fc60a45
+9a4f1523-34a6-4e76-bc03-7f4e2e2c4d9d	fe746c26-ffa3-4def-946b-89458fc60a45
 \.
 
 
@@ -4715,6 +4938,25 @@ COPY public.detail_cost_categories (id, name, unit_id, description, cost_categor
 
 
 --
+-- Data for Name: disk_settings; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.disk_settings (id, token, base_path, make_public, created_at, updated_at) FROM stdin;
+76779a31-8ce4-49e4-9468-ac20e702a753	y0__xCt_ZauCBjo6jkguOabmxQwgpatrQjXoqSFrtcwOH0p1nsMxVQQ_Dmg0Q	disk:/blueprintflow	t	2025-08-26 16:07:23.136568+00	2025-08-26 16:07:23.136568+00
+\.
+
+
+--
+-- Data for Name: documentation_file_paths; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.documentation_file_paths (id, version_id, file_path, created_at, updated_at) FROM stdin;
+2c7d2715-1b73-45b2-b313-2a2bc3ec0400	7b62a552-7115-4c4b-a604-b318c5fe0c47	disk:/blueprintflow/Primavera_14/AR/ST26_01_14_AR0_AS_1_RD/ETOBASA.xlsx	2025-08-27 13:09:14.485573+00	2025-08-27 13:09:14.485573+00
+a81d9191-f88d-4d74-8937-ce168280a9ee	7b62a552-7115-4c4b-a604-b318c5fe0c47	disk:/blueprintflow/Primavera_14/AR/ST26_01_14_AR0_AS_1_RD/165-1-2024-РД2-АИ1 (2).pdf	2025-08-27 13:09:14.485573+00	2025-08-27 13:09:14.485573+00
+\.
+
+
+--
 -- Data for Name: documentation_tags; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
@@ -4740,8 +4982,6 @@ COPY public.documentation_versions (version_number, issue_date, file_url, status
 1	2025-05-06	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/18969/	not_filled	2025-08-21 09:32:17.517671+00	2025-08-21 09:32:17.517671+00	958177af-f289-4c50-8317-b7e064cf2ac1	0b03df71-7845-4e1e-baaf-92c696490525	[]
 2	2025-06-17	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20321/	not_filled	2025-08-21 09:32:17.907104+00	2025-08-21 09:32:17.907104+00	958177af-f289-4c50-8317-b7e064cf2ac1	034dd85c-a866-4843-bb5d-f989b52565ca	[]
 1	2025-06-17	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20323/	not_filled	2025-08-21 09:32:18.294854+00	2025-08-21 09:32:18.294854+00	e8693dc2-101d-4d9e-ac9c-5bf7d9d075a0	f21dde26-f81e-4cd7-862a-240f3b189d37	[]
-1	2025-05-08	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19075/	not_filled	2025-08-21 09:32:18.740209+00	2025-08-21 09:32:18.740209+00	3f19c800-5d2c-4ba0-8036-fe37bc21f6d5	92a5efb3-d0f9-42a3-9cfe-b8ff5a7409b8	[]
-1	2025-08-16	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22795/	not_filled	2025-08-21 09:32:19.10526+00	2025-08-21 09:32:19.10526+00	802689a5-100a-4ac5-a567-d958d595ff68	9c73b782-a6b7-49e8-9c6f-2cbfe1743f03	[]
 1	2025-01-17	https://su10.bitrix24.ru/workgroups/group/125/tasks/task/view/14225/	not_filled	2025-08-25 15:26:33.150065+00	2025-08-25 15:26:33.150065+00	8dc51dec-082e-43cd-ad54-9b1de3599d00	2902374f-5110-4b74-be1a-ed9613d15b0c	[]
 1	2025-07-01	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/20749/	not_filled	2025-08-21 09:32:19.848459+00	2025-08-21 09:32:19.848459+00	1c7d2354-8f96-4a15-a401-deae1d27bb85	31cd9dd7-162e-464f-9066-2d600300b4f8	[]
 1	2025-05-08	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19079/	not_filled	2025-08-21 09:32:20.201399+00	2025-08-21 09:32:20.201399+00	62eb11c4-915f-43e4-89f7-6c3068f9ef77	4ecbf816-da2f-4675-86f0-42bbeb4c000d	[]
@@ -4794,6 +5034,7 @@ COPY public.documentation_versions (version_number, issue_date, file_url, status
 2	2025-08-19	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22813/	not_filled	2025-08-21 09:32:39.176252+00	2025-08-21 09:32:39.176252+00	9ad69277-9144-4844-b5a9-8af0592db8cc	6fdcb640-7d42-48b6-8715-5c42919fce49	[]
 1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21327/	not_filled	2025-08-21 09:32:35.432943+00	2025-08-21 09:32:35.432943+00	fd4ac328-da06-4d5e-bd9d-a867da1d3002	ac54eaa1-487b-4cdc-8968-027905d0c911	[]
 4	2025-08-16	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22747/	not_filled	2025-08-21 09:32:37.594921+00	2025-08-21 09:32:37.594921+00	28625b76-6624-40d9-b62f-af18ac2b2de7	a112c784-c3df-42b8-9980-e12a8e29eacb	[]
+1	2025-05-08	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19075/	not_filled	2025-08-21 09:32:18.740209+00	2025-08-27 11:26:06.362682+00	3f19c800-5d2c-4ba0-8036-fe37bc21f6d5	92a5efb3-d0f9-42a3-9cfe-b8ff5a7409b8	[]
 1	2025-07-18	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/21335/	not_filled	2025-08-21 09:32:35.866755+00	2025-08-21 09:32:35.866755+00	9374198d-6171-425d-b097-796d824c5b25	928dc22a-7ad1-4692-ab9d-dc22300b9590	[]
 1	2025-05-30	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/19941/	not_filled	2025-08-21 09:32:37.990795+00	2025-08-21 09:32:37.990795+00	0d2b3ef0-f533-46b7-9421-0a8d9c4429b1	faefb477-007b-47fa-bd70-9cf7475aea2c	[]
 1	2025-07-31	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22271/	not_filled	2025-08-21 09:32:39.537102+00	2025-08-21 09:32:39.537102+00	3df6f514-8768-4282-b31c-79c4b5b65394	02d70795-5dd3-4004-9faf-2b1287e946a5	[]
@@ -4953,7 +5194,7 @@ COPY public.documentation_versions (version_number, issue_date, file_url, status
 1	2025-04-24	https://su10.bitrix24.ru/company/personal/user/111/tasks/task/view/18463/	not_filled	2025-08-22 07:29:18.75602+00	2025-08-22 08:19:28.933107+00	3f681dfc-6d8e-4e84-aaea-30f35ed686a7	07b06a85-492b-4937-a214-30a07ec0d633	[]
 3	2025-02-28	https://su10.bitrix24.ru/company/personal/user/821/tasks/task/view/16283/	not_filled	2025-08-22 07:28:33.714974+00	2025-08-22 09:50:20.482097+00	a4d1f99c-83a7-4e7b-a95f-bcd7eed2c90a	19d5ddec-ed1f-490c-8e6e-717caaafc49b	[{"name": "СТ2601-14-АР0-АС-1-РД.pdf", "path": "public./Documentation/c95e1507-9c01-47c5-9858-40452f907466/a4d1f99c-83a7-4e7b-a95f-bcd7eed2c90a/СТ2601-14-АР0-АС-1-РД.pdf", "size": 11937146, "type": "application/pdf", "extension": "pdf", "uploadedAt": "2025-08-22T09:35:05.932Z"}, {"name": "alliya.xlsx", "path": "public./Documentation/c95e1507-9c01-47c5-9858-40452f907466/a4d1f99c-83a7-4e7b-a95f-bcd7eed2c90a/alliya.xlsx", "size": 24881, "type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "extension": "xlsx", "uploadedAt": "2025-08-22T09:50:21.276Z"}]
 3	2025-02-28	https://su10.bitrix24.ru/company/personal/user/821/tasks/task/view/16285/	not_filled	2025-08-22 07:28:32.627636+00	2025-08-22 09:18:46.6357+00	69e9397f-34fe-4b91-84e6-7339f13c5c2d	f1c3e3e8-2954-4dc9-ad82-91c2ec16b5c4	[]
-1	2025-08-12	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22639/	not_filled	2025-08-21 09:32:19.474995+00	2025-08-22 12:26:04.027008+00	fa34f1a8-58c3-4c9e-8205-da6b56132658	7b62a552-7115-4c4b-a604-b318c5fe0c47	[{"name": "СТ2601-14-АР0-АС-1-РД.pdf", "path": "public./Documentation/f9227acf-9446-42c8-a533-bfeb30fa07a4/fa34f1a8-58c3-4c9e-8205-da6b56132658/СТ2601-14-АР0-АС-1-РД.pdf", "size": 11937146, "type": "application/pdf", "extension": "pdf", "uploadedAt": "2025-08-22T10:54:48.542Z"}, {"name": "corp14.xlsx", "path": "public./Documentation/f9227acf-9446-42c8-a533-bfeb30fa07a4/fa34f1a8-58c3-4c9e-8205-da6b56132658/corp14.xlsx", "size": 17117, "type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "extension": "xlsx", "uploadedAt": "2025-08-22T12:26:04.620Z"}]
+1	2025-08-12	https://su10.bitrix24.ru/workgroups/group/131/tasks/task/view/22639/	not_filled	2025-08-21 09:32:19.474995+00	2025-08-27 13:09:14.206181+00	fa34f1a8-58c3-4c9e-8205-da6b56132658	7b62a552-7115-4c4b-a604-b318c5fe0c47	[{"url": "https://yadi.sk/d/lEWF2z3uqZEWRg", "name": "ETOBASA.xlsx", "path": "disk:/blueprintflow/Primavera_14/AR/ST26_01_14_AR0_AS_1_RD/ETOBASA.xlsx", "size": 10297, "type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "extension": "xlsx", "uploadedAt": "2025-08-27T13:03:52.551Z"}, {"url": "https://yadi.sk/d/_J6Re7rKBCAzIQ", "name": "165-1-2024-РД2-АИ1 (2).pdf", "path": "disk:/blueprintflow/Primavera_14/AR/ST26_01_14_AR0_AS_1_RD/165-1-2024-РД2-АИ1 (2).pdf", "size": 13593562, "type": "application/pdf", "extension": "pdf", "uploadedAt": "2025-08-27T13:09:12.657Z"}]
 \.
 
 
@@ -5003,7 +5244,6 @@ COPY public.documentations (code, tag_id, created_at, updated_at, id, stage) FRO
 СТ26/01-14-ДК-РД (2280.Р.ДР/ГИ)	1	2025-08-21 09:32:17.305068+00	2025-08-21 09:32:17.714392+00	958177af-f289-4c50-8317-b7e064cf2ac1	Р
 СТ26/01-14-ДК1-РД(2280.Р.ДР2)	1	2025-08-21 09:32:18.103856+00	2025-08-21 09:32:18.103856+00	e8693dc2-101d-4d9e-ac9c-5bf7d9d075a0	Р
 СТ26/01-14-ГП-1-РД	1	2025-08-21 09:32:18.49243+00	2025-08-21 09:32:18.49243+00	3f19c800-5d2c-4ba0-8036-fe37bc21f6d5	Р
-СТ26/01-14-АР0-АС-2-РД	3	2025-08-21 09:32:18.930329+00	2025-08-21 09:32:18.930329+00	802689a5-100a-4ac5-a567-d958d595ff68	Р
 СТ26/01-14-АР0-АС-1-РД	3	2025-08-21 09:32:19.29011+00	2025-08-21 09:32:19.29011+00	fa34f1a8-58c3-4c9e-8205-da6b56132658	Р
 СТ26/01-14-КЖ2-02.2-РД	2	2025-08-21 09:32:19.661031+00	2025-08-21 09:32:19.661031+00	1c7d2354-8f96-4a15-a401-deae1d27bb85	Р
 СТ26/01-14-КЖ3-02.2-РД	2	2025-08-21 09:32:20.023616+00	2025-08-21 09:32:20.023616+00	62eb11c4-915f-43e4-89f7-6c3068f9ef77	Р
@@ -5103,7 +5343,6 @@ ff07f546-c05a-4c0c-972a-7aee401714a1	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 958177af-f289-4c50-8317-b7e064cf2ac1	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 e8693dc2-101d-4d9e-ac9c-5bf7d9d075a0	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 3f19c800-5d2c-4ba0-8036-fe37bc21f6d5	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
-802689a5-100a-4ac5-a567-d958d595ff68	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 fa34f1a8-58c3-4c9e-8205-da6b56132658	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 1c7d2354-8f96-4a15-a401-deae1d27bb85	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
 62eb11c4-915f-43e4-89f7-6c3068f9ef77	f9227acf-9446-42c8-a533-bfeb30fa07a4	\N
@@ -5459,11 +5698,11 @@ a3ce9710-5a5a-4e0d-93ef-01a2ca962f5d	Кладка ПЕРЕГОРОДОК: тол
 f7f8ff3b-868f-43e7-9117-c60db7d1a62e	Кладка ПЕРЕГОРОДОК: толщиной 100 мм из Пазогребниевых блоков	ПЕРЕГОРОДКИ	450	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-25 15:20:29.269624+00	2025-08-25 15:20:29.269624+00
 d9568d48-207d-4b79-bbcf-7d8155b01db7	Кладка ПЕРЕГОРОДОК: толщиной 90 мм из Легкобетонных блоков	ПЕРЕГОРОДКИ	600	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-25 15:20:29.90511+00	2025-08-25 15:20:29.90511+00
 905f411d-a999-4221-898e-cb8f7f7c312e	Кладка ПЕРЕГОРОДОК: толщиной 120 мм из Кирпича	ПЕРЕГОРОДКИ	600	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-25 15:20:30.112428+00	2025-08-25 15:20:30.112428+00
-3d73f00e-7607-43be-a042-1973feb08ed6	Трассировка перегорордок в квартирах из ГСБ h=0,25м)  (с	ТРАССИРОВКА	150	\N	2025-08-25 15:20:30.287965+00	2025-08-25 15:20:30.287965+00
-d0899634-4e43-444b-afbb-65ff907b9958	Трассировка перегорордок в квартирах из гипсовых пазогребневых плит ПГП	ТРАССИРОВКА	225	\N	2025-08-25 15:20:30.471753+00	2025-08-25 15:20:30.471753+00
-e80c5bf1-2a98-4372-a896-cdea049d09e6	Изготовление металлоконструкций кладки: фахверковые колонны (	ФАХВЕРКОВЫЕ КОЛОННЫ	10000	\N	2025-08-25 15:20:30.658896+00	2025-08-25 15:20:30.658896+00
-74428773-0a8e-4ae6-8f66-dd66d6390279	Монтаж металлоконструкций кладки: фахверковые колонны	ФАХВЕРКОВЫЕ КОЛОННЫ	20000	\N	2025-08-25 15:20:30.827092+00	2025-08-25 15:20:30.827092+00
 5eefe2b1-55ba-42a7-9328-ec657c1e2f4e	Кладка наружных стен толщиной 120 мм из кирпича облицовочного	СТЕНЫ	585	80ad8cd8-7fd1-402c-b536-7b1e16d71772	2025-08-25 15:20:31.010397+00	2025-08-25 15:20:31.010397+00
+74428773-0a8e-4ae6-8f66-dd66d6390279	Монтаж металлоконструкций кладки: фахверковые колонны	ФАХВЕРКОВЫЕ КОЛОННЫ	20000	b7eb7037-cb2b-4180-8a15-6e334e122e79	2025-08-25 15:20:30.827092+00	2025-08-27 12:52:18.620992+00
+e80c5bf1-2a98-4372-a896-cdea049d09e6	Изготовление металлоконструкций кладки: фахверковые колонны (	ФАХВЕРКОВЫЕ КОЛОННЫ	10000	b7eb7037-cb2b-4180-8a15-6e334e122e79	2025-08-25 15:20:30.658896+00	2025-08-27 12:52:19.265168+00
+d0899634-4e43-444b-afbb-65ff907b9958	Трассировка перегорордок в квартирах из гипсовых пазогребневых плит ПГП	ТРАССИРОВКА	225	05d8126b-a759-4a2b-86c5-fab955492e50	2025-08-25 15:20:30.471753+00	2025-08-27 12:52:19.774509+00
+3d73f00e-7607-43be-a042-1973feb08ed6	Трассировка перегорордок в квартирах из ГСБ h=0,25м)  (с	ТРАССИРОВКА	150	05d8126b-a759-4a2b-86c5-fab955492e50	2025-08-25 15:20:30.287965+00	2025-08-27 12:52:20.269123+00
 \.
 
 
@@ -5484,11 +5723,11 @@ a3ce9710-5a5a-4e0d-93ef-01a2ca962f5d	643
 f7f8ff3b-868f-43e7-9117-c60db7d1a62e	643
 d9568d48-207d-4b79-bbcf-7d8155b01db7	643
 905f411d-a999-4221-898e-cb8f7f7c312e	643
-3d73f00e-7607-43be-a042-1973feb08ed6	643
-d0899634-4e43-444b-afbb-65ff907b9958	643
-e80c5bf1-2a98-4372-a896-cdea049d09e6	644
-74428773-0a8e-4ae6-8f66-dd66d6390279	644
 5eefe2b1-55ba-42a7-9328-ec657c1e2f4e	643
+74428773-0a8e-4ae6-8f66-dd66d6390279	644
+e80c5bf1-2a98-4372-a896-cdea049d09e6	644
+d0899634-4e43-444b-afbb-65ff907b9958	643
+3d73f00e-7607-43be-a042-1973feb08ed6	643
 \.
 
 
@@ -5509,6 +5748,14 @@ COPY public.statuses (id, name, color, is_active, created_at, updated_at, applic
 c724b4ff-81fa-4c30-9962-b9e7e9cda8c7	Данные заполнены по спеке РД	yellow	t	2025-08-20 12:42:58.534299+00	2025-08-20 12:42:58.534299+00	[]
 0b9a8738-7c97-4cd0-9dd0-019a9b3be970	Данные не заполнены	red	t	2025-08-20 12:42:58.534299+00	2025-08-20 12:42:58.534299+00	[]
 0661a184-5e66-4e11-b47f-db38f2a7e91e	Созданы ВОР	blue	t	2025-08-20 12:42:58.534299+00	2025-08-20 12:42:58.534299+00	[]
+\.
+
+
+--
+-- Data for Name: storage_mappings; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.storage_mappings (table_name, entity_id, slug, created_at, updated_at) FROM stdin;
 \.
 
 
@@ -5743,7 +5990,7 @@ SELECT pg_catalog.setval('public.detail_cost_categories_id_seq', 821, true);
 -- Name: documentation_tags_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.documentation_tags_id_seq', 6, true);
+SELECT pg_catalog.setval('public.documentation_tags_id_seq', 7, true);
 
 
 --
@@ -6057,11 +6304,27 @@ ALTER TABLE ONLY public.detail_cost_categories
 
 
 --
+-- Name: disk_settings disk_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.disk_settings
+    ADD CONSTRAINT disk_settings_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: documentations documentation_codes_code_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.documentations
     ADD CONSTRAINT documentation_codes_code_key UNIQUE (code);
+
+
+--
+-- Name: documentation_file_paths documentation_file_paths_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.documentation_file_paths
+    ADD CONSTRAINT documentation_file_paths_pkey PRIMARY KEY (id);
 
 
 --
@@ -6214,6 +6477,14 @@ ALTER TABLE ONLY public.statuses
 
 ALTER TABLE ONLY public.statuses
     ADD CONSTRAINT statuses_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: storage_mappings storage_mappings_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.storage_mappings
+    ADD CONSTRAINT storage_mappings_pkey PRIMARY KEY (table_name, entity_id);
 
 
 --
@@ -6896,6 +7167,27 @@ CREATE UNIQUE INDEX objects_bucket_id_level_idx ON storage.objects USING btree (
 
 
 --
+-- Name: documentation_tags storage_doc_tags_after_insert; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER storage_doc_tags_after_insert AFTER INSERT ON public.documentation_tags FOR EACH ROW EXECUTE FUNCTION public.trg_storage_doc_tags();
+
+
+--
+-- Name: documentation_versions storage_doc_versions_after_insert; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER storage_doc_versions_after_insert AFTER INSERT ON public.documentation_versions FOR EACH ROW EXECUTE FUNCTION public.trg_storage_doc_versions();
+
+
+--
+-- Name: projects storage_projects_after_insert; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER storage_projects_after_insert AFTER INSERT ON public.projects FOR EACH ROW EXECUTE FUNCTION public.trg_storage_projects();
+
+
+--
 -- Name: rates trigger_update_rates_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
@@ -7237,6 +7529,14 @@ ALTER TABLE ONLY public.detail_cost_categories
 
 ALTER TABLE ONLY public.documentations
     ADD CONSTRAINT documentation_codes_tag_id_fkey FOREIGN KEY (tag_id) REFERENCES public.documentation_tags(id) ON DELETE SET NULL;
+
+
+--
+-- Name: documentation_file_paths documentation_file_paths_version_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.documentation_file_paths
+    ADD CONSTRAINT documentation_file_paths_version_id_fkey FOREIGN KEY (version_id) REFERENCES public.documentation_versions(id) ON DELETE CASCADE;
 
 
 --
@@ -8159,12 +8459,57 @@ GRANT ALL ON FUNCTION pgbouncer.get_auth(p_usename text) TO postgres;
 
 
 --
+-- Name: FUNCTION fill_storage_mappings(); Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON FUNCTION public.fill_storage_mappings() TO anon;
+GRANT ALL ON FUNCTION public.fill_storage_mappings() TO authenticated;
+GRANT ALL ON FUNCTION public.fill_storage_mappings() TO service_role;
+
+
+--
 -- Name: FUNCTION set_block_floor_range(p_block_id uuid, p_from_floor integer, p_to_floor integer); Type: ACL; Schema: public; Owner: postgres
 --
 
 GRANT ALL ON FUNCTION public.set_block_floor_range(p_block_id uuid, p_from_floor integer, p_to_floor integer) TO anon;
 GRANT ALL ON FUNCTION public.set_block_floor_range(p_block_id uuid, p_from_floor integer, p_to_floor integer) TO authenticated;
 GRANT ALL ON FUNCTION public.set_block_floor_range(p_block_id uuid, p_from_floor integer, p_to_floor integer) TO service_role;
+
+
+--
+-- Name: FUNCTION transliterate(input text); Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON FUNCTION public.transliterate(input text) TO anon;
+GRANT ALL ON FUNCTION public.transliterate(input text) TO authenticated;
+GRANT ALL ON FUNCTION public.transliterate(input text) TO service_role;
+
+
+--
+-- Name: FUNCTION trg_storage_doc_tags(); Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON FUNCTION public.trg_storage_doc_tags() TO anon;
+GRANT ALL ON FUNCTION public.trg_storage_doc_tags() TO authenticated;
+GRANT ALL ON FUNCTION public.trg_storage_doc_tags() TO service_role;
+
+
+--
+-- Name: FUNCTION trg_storage_doc_versions(); Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON FUNCTION public.trg_storage_doc_versions() TO anon;
+GRANT ALL ON FUNCTION public.trg_storage_doc_versions() TO authenticated;
+GRANT ALL ON FUNCTION public.trg_storage_doc_versions() TO service_role;
+
+
+--
+-- Name: FUNCTION trg_storage_projects(); Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON FUNCTION public.trg_storage_projects() TO anon;
+GRANT ALL ON FUNCTION public.trg_storage_projects() TO authenticated;
+GRANT ALL ON FUNCTION public.trg_storage_projects() TO service_role;
 
 
 --
@@ -8618,6 +8963,24 @@ GRANT ALL ON SEQUENCE public.detail_cost_categories_id_seq TO service_role;
 
 
 --
+-- Name: TABLE disk_settings; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.disk_settings TO anon;
+GRANT ALL ON TABLE public.disk_settings TO authenticated;
+GRANT ALL ON TABLE public.disk_settings TO service_role;
+
+
+--
+-- Name: TABLE documentation_file_paths; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.documentation_file_paths TO anon;
+GRANT ALL ON TABLE public.documentation_file_paths TO authenticated;
+GRANT ALL ON TABLE public.documentation_file_paths TO service_role;
+
+
+--
 -- Name: TABLE documentation_tags; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -8642,199 +9005,6 @@ GRANT ALL ON SEQUENCE public.documentation_tags_id_seq TO service_role;
 GRANT ALL ON TABLE public.documentation_versions TO anon;
 GRANT ALL ON TABLE public.documentation_versions TO authenticated;
 GRANT ALL ON TABLE public.documentation_versions TO service_role;
-
--- Настройки Яндекс.Диска
-CREATE TABLE IF NOT EXISTS public.disk_settings (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    token text NOT NULL,
-    base_path text NOT NULL,
-    make_public boolean DEFAULT true,
-    created_at timestamptz DEFAULT now(),
-    updated_at timestamptz DEFAULT now()
-);
-
--- Таблица соответствий для имен в облачном хранилище
-DROP TABLE IF EXISTS public.storage_mappings;
-CREATE TABLE public.storage_mappings (
-    table_name text NOT NULL,
-    entity_id text NOT NULL,
-    slug text NOT NULL,
-    created_at timestamptz DEFAULT now(),
-    updated_at timestamptz DEFAULT now(),
-    CONSTRAINT storage_mappings_pkey PRIMARY KEY (table_name, entity_id)
-);
-
-CREATE OR REPLACE FUNCTION public.transliterate(input text)
- RETURNS text
- LANGUAGE plpgsql
- IMMUTABLE
-AS $$
-declare
-  result text := '';
-  ch text;
-  mapped text;
-begin
-  for ch in select unnest(regexp_split_to_array(input, '')) loop
-    case lower(ch)
-      when 'а' then mapped := 'a';
-      when 'б' then mapped := 'b';
-      when 'в' then mapped := 'v';
-      when 'г' then mapped := 'g';
-      when 'д' then mapped := 'd';
-      when 'е' then mapped := 'e';
-      when 'ё' then mapped := 'e';
-      when 'ж' then mapped := 'zh';
-      when 'з' then mapped := 'z';
-      when 'и' then mapped := 'i';
-      when 'й' then mapped := 'j';
-      when 'к' then mapped := 'k';
-      when 'л' then mapped := 'l';
-      when 'м' then mapped := 'm';
-      when 'н' then mapped := 'n';
-      when 'о' then mapped := 'o';
-      when 'п' then mapped := 'p';
-      when 'р' then mapped := 'r';
-      when 'с' then mapped := 's';
-      when 'т' then mapped := 't';
-      when 'у' then mapped := 'u';
-      when 'ф' then mapped := 'f';
-      when 'х' then mapped := 'h';
-      when 'ц' then mapped := 'c';
-      when 'ч' then mapped := 'ch';
-      when 'ш' then mapped := 'sh';
-      when 'щ' then mapped := 'sch';
-      when 'ь' then mapped := '';
-      when 'ы' then mapped := 'y';
-      when 'ъ' then mapped := '';
-      when 'э' then mapped := 'e';
-      when 'ю' then mapped := 'yu';
-      when 'я' then mapped := 'ya';
-      else mapped := lower(ch);
-    end case;
-    if ch ~ '[A-Z]' then
-      result := result || upper(left(mapped,1)) || substring(mapped from 2);
-    else
-      result := result || mapped;
-    end if;
-  end loop;
-  return regexp_replace(result, '[^a-zA-Z0-9]', '_', 'g');
-end;
-$$;
-
-CREATE OR REPLACE FUNCTION public.fill_storage_mappings()
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $$
-begin
-  insert into storage_mappings(table_name, entity_id, slug)
-  select 'projects', id::text, public.transliterate(name)
-  from public.projects
-  on conflict (table_name, entity_id) do update set slug = excluded.slug,
-    updated_at = now();
-
-  insert into storage_mappings(table_name, entity_id, slug)
-  select 'documentation_tags', id::text, public.transliterate(name)
-  from public.documentation_tags
-  on conflict (table_name, entity_id) do update set slug = excluded.slug,
-    updated_at = now();
-
-  insert into storage_mappings(table_name, entity_id, slug)
-  select 'documentation_versions', v.id::text, public.transliterate(d.code) || '_ver' || v.version_number
-  from public.documentation_versions v
-  join public.documentations d on d.id = v.documentation_id
-  on conflict (table_name, entity_id) do update set slug = excluded.slug,
-    updated_at = now();
-end;
-$$;
-
-GRANT EXECUTE ON FUNCTION public.fill_storage_mappings() TO anon;
-GRANT EXECUTE ON FUNCTION public.fill_storage_mappings() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.fill_storage_mappings() TO service_role;
-
-CREATE OR REPLACE FUNCTION public.trg_storage_projects()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $$
-begin
-  insert into storage_mappings(table_name, entity_id, slug)
-  values ('projects', new.id::text, public.transliterate(new.name))
-  on conflict (table_name, entity_id) do update set slug = excluded.slug,
-    updated_at = now();
-  return new;
-end;
-$$;
-
-
-DROP TRIGGER IF EXISTS storage_projects_after_insert ON public.projects;
-
-CREATE TRIGGER storage_projects_after_insert
-AFTER INSERT ON public.projects
-FOR EACH ROW EXECUTE FUNCTION public.trg_storage_projects();
-
-CREATE OR REPLACE FUNCTION public.trg_storage_doc_tags()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $$
-begin
-  insert into storage_mappings(table_name, entity_id, slug)
-  values ('documentation_tags', new.id::text, public.transliterate(new.name))
-  on conflict (table_name, entity_id) do update set slug = excluded.slug,
-    updated_at = now();
-  return new;
-end;
-$$;
-
-
-DROP TRIGGER IF EXISTS storage_doc_tags_after_insert ON public.documentation_tags;
-
-CREATE TRIGGER storage_doc_tags_after_insert
-AFTER INSERT ON public.documentation_tags
-FOR EACH ROW EXECUTE FUNCTION public.trg_storage_doc_tags();
-
-CREATE OR REPLACE FUNCTION public.trg_storage_doc_versions()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $$
-declare
-  doc_code text;
-begin
-  select code into doc_code from public.documentations where id = new.documentation_id;
-  insert into storage_mappings(table_name, entity_id, slug)
-  values (
-    'documentation_versions',
-    new.id::text,
-    public.transliterate(doc_code) || '_ver' || new.version_number
-  )
-  on conflict (table_name, entity_id) do update set slug = excluded.slug,
-    updated_at = now();
-  return new;
-end;
-$$;
-
-
-DROP TRIGGER IF EXISTS storage_doc_versions_after_insert ON public.documentation_versions;
-
-CREATE TRIGGER storage_doc_versions_after_insert
-AFTER INSERT ON public.documentation_versions
-FOR EACH ROW EXECUTE FUNCTION public.trg_storage_doc_versions();
-
-
--- Таблица путей к файлам версий документации
-CREATE TABLE IF NOT EXISTS public.documentation_file_paths (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    version_id uuid REFERENCES public.documentation_versions(id) ON DELETE CASCADE,
-    file_path text NOT NULL,
-    created_at timestamptz DEFAULT now(),
-    updated_at timestamptz DEFAULT now()
-);
-GRANT ALL ON TABLE public.documentation_file_paths TO anon;
-GRANT ALL ON TABLE public.documentation_file_paths TO authenticated;
-GRANT ALL ON TABLE public.documentation_file_paths TO service_role;
-
-ALTER TABLE IF EXISTS public.documentation_versions
-    DROP COLUMN IF EXISTS file_path;
-
 
 
 --
@@ -8961,6 +9131,15 @@ GRANT ALL ON TABLE public.reference_data TO service_role;
 GRANT ALL ON TABLE public.statuses TO anon;
 GRANT ALL ON TABLE public.statuses TO authenticated;
 GRANT ALL ON TABLE public.statuses TO service_role;
+
+
+--
+-- Name: TABLE storage_mappings; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.storage_mappings TO anon;
+GRANT ALL ON TABLE public.storage_mappings TO authenticated;
+GRANT ALL ON TABLE public.storage_mappings TO service_role;
 
 
 --
@@ -9396,5 +9575,5 @@ ALTER EVENT TRIGGER pgrst_drop_watch OWNER TO supabase_admin;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict rfnrlvj3C4lXtQHmeX5qpHIgGIbYgYJxA3FyE5pl4bKB4HKxige3gkNv56TEBwD
+\unrestrict HQiOWqNHjnJwLnt3llPuvZQLKVTMweqVsgRq6cc4yEgjfqYrllMKg4kYO6QWwOz
 
