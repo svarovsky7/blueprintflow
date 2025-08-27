@@ -324,13 +324,12 @@ export default function Documentation() {
 
   // Копирование строки
   const handleCopyRow = useCallback((record: DocumentationTableRow) => {
-      const newRow = {
+    const newRow = {
       ...record,
       id: `new-${Date.now()}`,
       documentation_id: '', // Пустой UUID для новых записей
       stage: record.stage || 'П',
       project_code: `${record.project_code}_copy`,
-      project_name: record.project_name,
       isNew: true,
       // Поля для новой версии - берем из последней версии или значения по умолчанию
       new_version_number: record.versions.length > 0 ? record.versions[record.versions.length - 1].version_number + 1 : 1,
@@ -354,7 +353,6 @@ export default function Documentation() {
         tag_name: record.tag_name,
         tag_number: record.tag_number,
         project_code: '',
-        project_name: '',
         version_count: 0,
         versions: [],
         comments: '',
@@ -762,7 +760,7 @@ export default function Documentation() {
           }
 
           return (
-              <FileUpload
+            <FileUpload
               files={selectedVersion?.local_files || []}
               onChange={async (files) => {
                 if (selectedVersion) {
@@ -776,11 +774,9 @@ export default function Documentation() {
                 }
               }}
               disabled={false}
-
-              projectName={record.project_name}
+              projectCode={record.project_code}
               sectionName={record.tag_name}
-              documentationCode={record.project_code}
-
+              documentationCode={record.documentation_id}
               onlineFileUrl={selectedVersion?.file_url || undefined}
             />
           )
@@ -1352,7 +1348,6 @@ export default function Documentation() {
       tag_name: '',
       tag_number: 0,
       project_code: '',
-      project_name: '',
       version_count: 0,
       versions: [],
       comments: '',
