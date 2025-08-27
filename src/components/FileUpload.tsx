@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Upload, Button, Space, Typography, Tooltip, Dropdown, Modal, App } from 'antd'
+
 import {
   UploadOutlined,
   FileExcelOutlined,
@@ -10,6 +11,7 @@ import {
   DownloadOutlined,
   EyeOutlined,
 } from '@ant-design/icons'
+
 import type { UploadProps } from 'antd/es/upload'
 import type { MenuProps } from 'antd'
 import type { LocalFile } from '@/entities/documentation'
@@ -22,7 +24,9 @@ interface FileUploadProps {
   files: LocalFile[]
   onChange: (files: LocalFile[]) => void
   disabled?: boolean
+
   projectName: string
+
   sectionName: string
   documentationCode: string
   onlineFileUrl?: string
@@ -45,6 +49,7 @@ const getFileIcon = (extension: string) => {
       return <FileOutlined style={{ color: '#666', fontSize: 16 }} />
   }
 }
+
 
 const ensureFolderPath = async (folderPath: string, token: string): Promise<void> => {
   const segments = folderPath.split('/').filter(Boolean)
@@ -133,6 +138,7 @@ const uploadFile = async (
       const errorText = await infoRes.text()
       throw new Error(`Failed to fetch file info: ${infoRes.status} ${errorText}`)
     }
+
     const info = await infoRes.json()
     publicUrl = info.public_url
   }
@@ -140,7 +146,9 @@ const uploadFile = async (
   return { url: publicUrl, path: filePath }
 }
 
+
 export default function FileUpload({ files, onChange, disabled, projectName, sectionName, documentationCode, onlineFileUrl }: FileUploadProps) {
+
   const [uploading, setUploading] = useState(false)
   const [previewModalOpen, setPreviewModalOpen] = useState(false)
   const [previewFile, setPreviewFile] = useState<LocalFile | null>(null)
@@ -154,6 +162,7 @@ export default function FileUpload({ files, onChange, disabled, projectName, sec
     }
     setUploading(true)
     try {
+
       const settings = await diskApi.getSettings()
       if (!settings) throw new Error('Disk settings not configured')
 
@@ -235,6 +244,7 @@ export default function FileUpload({ files, onChange, disabled, projectName, sec
       console.error('❌ Error uploading file:', e)
       message.error('Не удалось загрузить файл')
       onError?.(e as Error)
+
       setUploading(false)
     }
   }
@@ -282,6 +292,7 @@ export default function FileUpload({ files, onChange, disabled, projectName, sec
     }
   }
 
+
   const saveFile = async (file: LocalFile) => {
     if (!file.url) {
       message.error('Ссылка на файл недоступна')
@@ -305,6 +316,7 @@ export default function FileUpload({ files, onChange, disabled, projectName, sec
     } catch (err) {
       console.error('❌ Error saving file:', err)
       message.error('Не удалось скачать файл')
+
     }
   }
 

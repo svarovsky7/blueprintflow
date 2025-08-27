@@ -233,7 +233,9 @@ begin
 end;
 $$ language plpgsql;
 
+
 drop trigger if exists storage_projects_after_insert on projects;
+
 create trigger storage_projects_after_insert
 after insert on projects
 for each row execute function trg_storage_projects();
@@ -250,6 +252,7 @@ end;
 $$ language plpgsql;
 
 drop trigger if exists storage_doc_tags_after_insert on documentation_tags;
+
 create trigger storage_doc_tags_after_insert
 after insert on documentation_tags
 for each row execute function trg_storage_doc_tags();
@@ -272,10 +275,13 @@ begin
 end;
 $$ language plpgsql;
 
+
 drop trigger if exists storage_doc_versions_after_insert on documentation_versions;
+
 create trigger storage_doc_versions_after_insert
 after insert on documentation_versions
 for each row execute function trg_storage_doc_versions();
+
 
 -- Таблица путей к файлам версий документации
 create table if not exists documentation_file_paths (
@@ -287,3 +293,4 @@ create table if not exists documentation_file_paths (
 );
 
 alter table if exists documentation_versions drop column if exists file_path;
+
