@@ -445,12 +445,17 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           <div
             style={{
               width: '100%',
+              marginTop: 20,
               marginBottom: 16,
               display: 'flex',
               justifyContent: 'center',
             }}
           >
-            <img src={logoLight} alt="BlueprintFlow logo" style={{ width: '60%', height: 'auto' }} />
+            <img
+              src={logoLight}
+              alt="BlueprintFlow logo"
+              style={{ width: '72%', height: 'auto' }}
+            />
           </div>
           <Menu
             theme={isDark ? 'dark' : 'light'}
