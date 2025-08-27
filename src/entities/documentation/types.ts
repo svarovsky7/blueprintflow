@@ -20,6 +20,7 @@ export interface Documentation {
 export interface LocalFile {
   name: string
   path: string
+  url?: string
   size: number
   type: string
   extension: string
@@ -92,6 +93,7 @@ export interface DocumentationTableRow {
   tag_name: string
   tag_number: number
   project_code: string
+  project_name: string
   version_count: number
   versions: DocumentationVersion[]
   selected_version?: number // Выбранная версия для отображения
