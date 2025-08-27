@@ -18,6 +18,7 @@ const pageTitles: Record<string, string> = {
   '/library/rd-codes': 'Шифры РД',
   '/library/pd-codes': 'Шифры ПД',
   '/references': 'Единицы измерения',
+  '/references/rates': 'Расценки',
   '/documents/documentation': 'Документация',
   '/references/cost-categories': 'Категории затрат',
   '/references/projects': 'Проекты',
