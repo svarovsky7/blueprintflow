@@ -8765,7 +8765,9 @@ begin
 end;
 $$;
 
+
 DROP TRIGGER IF EXISTS storage_projects_after_insert ON public.projects;
+
 CREATE TRIGGER storage_projects_after_insert
 AFTER INSERT ON public.projects
 FOR EACH ROW EXECUTE FUNCTION public.trg_storage_projects();
@@ -8783,7 +8785,9 @@ begin
 end;
 $$;
 
+
 DROP TRIGGER IF EXISTS storage_doc_tags_after_insert ON public.documentation_tags;
+
 CREATE TRIGGER storage_doc_tags_after_insert
 AFTER INSERT ON public.documentation_tags
 FOR EACH ROW EXECUTE FUNCTION public.trg_storage_doc_tags();
@@ -8808,10 +8812,13 @@ begin
 end;
 $$;
 
+
 DROP TRIGGER IF EXISTS storage_doc_versions_after_insert ON public.documentation_versions;
+
 CREATE TRIGGER storage_doc_versions_after_insert
 AFTER INSERT ON public.documentation_versions
 FOR EACH ROW EXECUTE FUNCTION public.trg_storage_doc_versions();
+
 
 -- Таблица путей к файлам версий документации
 CREATE TABLE IF NOT EXISTS public.documentation_file_paths (
@@ -8827,6 +8834,7 @@ GRANT ALL ON TABLE public.documentation_file_paths TO service_role;
 
 ALTER TABLE IF EXISTS public.documentation_versions
     DROP COLUMN IF EXISTS file_path;
+
 
 
 --
