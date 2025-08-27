@@ -759,6 +759,9 @@ export default function Documentation() {
             selectedVersion = record.versions.find(v => v.version_number === versionNumber)
           }
 
+          // Получаем проект для создания путей к файлам
+          const project = record.project_id ? { id: record.project_id } : null
+
           return (
             <FileUpload
               files={selectedVersion?.local_files || []}
@@ -766,6 +769,7 @@ export default function Documentation() {
                 if (selectedVersion) {
                   try {
                     await documentationApi.updateVersionLocalFiles(selectedVersion.id, files)
+                    // Перезагружаем данные
                     queryClient.invalidateQueries({ queryKey: ['documentation'] })
                   } catch (error) {
                     console.error('Failed to update files:', error)
@@ -774,8 +778,7 @@ export default function Documentation() {
                 }
               }}
               disabled={false}
-              projectCode={record.project_code}
-              sectionName={record.tag_name}
+              projectId={project?.id || ''}
               documentationCode={record.documentation_id}
               onlineFileUrl={selectedVersion?.file_url || undefined}
             />
