@@ -7,7 +7,6 @@ import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
 import { documentationApi } from '@/entities/documentation'
 import { documentationTagsApi } from '@/entities/documentation-tags'
-import './Chessboard.css'
 
 type RowColor = '' | 'green' | 'yellow' | 'blue' | 'red'
 
@@ -2170,9 +2169,9 @@ export default function Chessboard() {
   }, [viewRows, allColumns])
 
   return (
-    <div className="chessboard-page" style={{
-      height: 'calc(100vh - 96px)',
-      display: 'flex',
+    <div style={{ 
+      height: 'calc(100vh - 96px)', 
+      display: 'flex', 
       flexDirection: 'column',
       overflow: 'hidden',
       position: 'relative'
@@ -2225,12 +2224,11 @@ export default function Chessboard() {
                 return false
               }}
             />
-            <Button
-              type="primary"
+            <Button 
+              type="primary" 
               size="large"
-              onClick={handleApply}
+              onClick={handleApply} 
               disabled={!filters.projectId}
-              className="apply-btn"
             >
               Применить
             </Button>
@@ -2269,7 +2267,6 @@ export default function Chessboard() {
                 type="primary"
                 icon={<PlusOutlined />}
                 onClick={startAdd}
-                className="add-btn"
               >
                 Добавить
               </Button>
