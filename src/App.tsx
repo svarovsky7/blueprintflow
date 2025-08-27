@@ -17,6 +17,7 @@ import Rates from './pages/references/Rates'
 import Admin from './pages/Admin'
 import DocumentationTags from './pages/admin/DocumentationTags'
 import Statuses from './pages/admin/Statuses'
+import Disk from './pages/admin/Disk'
 import PortalHeader from './components/PortalHeader'
 import TestTableStructure from './pages/TestTableStructure'
 
@@ -235,7 +236,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           Тэги документации
         </Link>
       </div>
-      <div 
+      <div
         style={menuItemStyle}
         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
@@ -244,7 +245,16 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           Статусы
         </Link>
       </div>
-      <div 
+      <div
+        style={menuItemStyle}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+      >
+        <Link to="/admin/disk" style={linkStyle}>
+          Диск
+        </Link>
+      </div>
+      <div
         style={{ ...menuItemStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
@@ -301,13 +311,17 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
       label: collapsed ? '' : 'Администрирование',
       title: collapsed ? '' : undefined,
       children: collapsed ? undefined : [
-        { 
-          key: 'documentation-tags', 
+        {
+          key: 'documentation-tags',
           label: <Link to="/admin/documentation-tags">Тэги документации</Link>
         },
         {
           key: 'statuses',
           label: <Link to="/admin/statuses">Статусы</Link>
+        },
+        {
+          key: 'disk',
+          label: <Link to="/admin/disk">Диск</Link>
         },
         {
           key: 'theme-toggle',
@@ -445,6 +459,8 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               location.pathname.startsWith('/references/rates') ? 'rates' :
               location.pathname.startsWith('/references') ? 'units' :
               location.pathname.startsWith('/admin/documentation-tags') ? 'documentation-tags' :
+              location.pathname.startsWith('/admin/statuses') ? 'statuses' :
+              location.pathname.startsWith('/admin/disk') ? 'disk' :
               location.pathname
             ]}
             openKeys={openKeys}
@@ -477,6 +493,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               <Route path="/admin" element={<Admin />}>
                 <Route path="documentation-tags" element={<DocumentationTags />} />
                 <Route path="statuses" element={<Statuses />} />
+                <Route path="disk" element={<Disk />} />
               </Route>
               <Route path="/test-table" element={<TestTableStructure />} />
             </Routes>

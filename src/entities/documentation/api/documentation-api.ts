@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import type {
   Documentation,
   DocumentationVersion,
+  LocalFile,
   Comment,
   DocumentationImportRow,
   DocumentationTableRow,
@@ -234,6 +235,7 @@ export const documentationApi = {
         tag_name: doc.tag?.name || '',
         tag_number: doc.tag?.tag_number || 0,
         project_code: doc.code,
+        project_name: project?.name || '',
         version_count: versions.length,
         versions,
         selected_version: defaultSelectedVersionNumber,
@@ -417,15 +419,25 @@ export const documentationApi = {
   },
 
   // Обновление локальных файлов версии
-  async updateVersionLocalFiles(versionId: string, localFiles: any[]) {
+  async updateVersionLocalFiles(versionId: string, localFiles: LocalFile[]) {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     const { data, error } = await supabase
       .from('documentation_versions')
-      .update({ local_files: localFiles })
+      .update({
+        local_files: localFiles,
+      })
       .eq('id', versionId)
       .select()
       .single()
+
+    if (!error) {
+      await supabase.from('documentation_file_paths').delete().eq('version_id', versionId)
+      const rows = localFiles.map(f => ({ version_id: versionId, file_path: f.path }))
+      if (rows.length) {
+        await supabase.from('documentation_file_paths').insert(rows)
+      }
+    }
 
     if (error) {
       console.error('Failed to update version local files:', error)
