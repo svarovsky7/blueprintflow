@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState, useEffect, type Key } from 'react'
 import { App, Badge, Button, Card, Checkbox, Drawer, Dropdown, Input, List, Modal, Popconfirm, Select, Space, Table, Typography, Upload } from 'antd'
 import type { ColumnType, ColumnsType } from 'antd/es/table'
-import { ArrowDownOutlined, ArrowUpOutlined, BgColorsOutlined, CopyOutlined, DeleteOutlined, EditOutlined, InboxOutlined, PlusOutlined, SaveOutlined, SettingOutlined, FilterOutlined, CaretUpFilled, CaretDownFilled, UploadOutlined } from '@ant-design/icons'
+import { ArrowDownOutlined, ArrowUpOutlined, BgColorsOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, InboxOutlined, PlusOutlined, SaveOutlined, SettingOutlined, FilterOutlined, CaretUpFilled, CaretDownFilled, UploadOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
@@ -2152,6 +2152,22 @@ export default function Chessboard() {
     return result
   }, [addColumns, columnOrder, columnVisibility])
 
+  const handleExport = useCallback(() => {
+    const data = viewRows.map(row => {
+      const record: Record<string, string> = {}
+      const rowRecord = row as unknown as Record<string, string>
+      allColumns.forEach(col => {
+        record[col.title] = rowRecord[col.key] ?? ''
+      })
+      return record
+    })
+
+    const worksheet = XLSX.utils.json_to_sheet(data)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Шахматка')
+    XLSX.writeFile(workbook, 'chessboard.xlsx')
+  }, [viewRows, allColumns])
+
   return (
     <div style={{ 
       height: 'calc(100vh - 96px)', 
@@ -2318,13 +2334,22 @@ export default function Chessboard() {
               </Button>
             )}
             {appliedFilters && mode === 'view' && (
-              <Button
-                icon={<UploadOutlined />}
-                onClick={openImport}
-                disabled={deleteMode || Object.keys(editingRows).length > 0}
-              >
-                Импорт
-              </Button>
+              <>
+                <Button
+                  icon={<DownloadOutlined />}
+                  onClick={handleExport}
+                  disabled={deleteMode || Object.keys(editingRows).length > 0}
+                >
+                  Экспорт
+                </Button>
+                <Button
+                  icon={<UploadOutlined />}
+                  onClick={openImport}
+                  disabled={deleteMode || Object.keys(editingRows).length > 0}
+                >
+                  Импорт
+                </Button>
+              </>
             )}
           </Space>
         </div>
