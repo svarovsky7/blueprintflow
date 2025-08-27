@@ -329,14 +329,27 @@ export default function FileUpload({ files, onChange, disabled, projectName, sec
   return (
     <div>
       <Space size={4} align="center">
+        {onlineFileUrl && (
+          <a
+            href={onlineFileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ marginRight: 4 }}
+          >
+            Открыть
+          </a>
+        )}
+
         {files.map(file => (
-          <Dropdown key={file.path} menu={{ items: getFileMenuItems(file) }} trigger={['click']}
+          <Dropdown
+            key={file.path}
+            menu={{ items: getFileMenuItems(file) }}
+            trigger={['click']}
             overlayStyle={{ minWidth: 100 }}
           >
             <Tooltip title={file.name}>
               <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
                 {getFileIcon(file.extension)}
-                <Text style={{ marginLeft: 4 }}>{file.name}</Text>
               </div>
             </Tooltip>
           </Dropdown>
