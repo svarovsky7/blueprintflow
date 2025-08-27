@@ -301,7 +301,6 @@ export const documentationApi = {
     versionNumber: number,
     issueDate?: string,
     fileUrl?: string,
-    filePath?: string,
     status: DocumentationVersion['status'] = 'not_filled'
   ) {
     if (!supabase) throw new Error('Supabase client not initialized')
@@ -311,7 +310,6 @@ export const documentationApi = {
       version_number: versionNumber,
       issue_date: issueDate || null,
       file_url: fileUrl || null,
-      file_path: filePath || null,
       status,
     }
     
@@ -339,7 +337,6 @@ export const documentationApi = {
     versionNumber: number,
     issueDate?: string,
     fileUrl?: string,
-    filePath?: string,
     status: DocumentationVersion['status'] = 'not_filled'
   ) {
     if (!supabase) throw new Error('Supabase client not initialized')
@@ -357,7 +354,6 @@ export const documentationApi = {
       version_number: versionNumber,
       issue_date: issueDate || null,
       file_url: fileUrl || null,
-      file_path: filePath || null,
       status,
     }
     
@@ -369,7 +365,6 @@ export const documentationApi = {
         .update({
           issue_date: issueDate || null,
           file_url: fileUrl || null,
-          file_path: filePath || null,
           status,
         })
         .eq('id', existingVersion.id)
@@ -427,10 +422,7 @@ export const documentationApi = {
 
     const { data, error } = await supabase
       .from('documentation_versions')
-      .update({
-        local_files: localFiles,
-        file_path: localFiles[0]?.path || null,
-      })
+      .update({ local_files: localFiles })
       .eq('id', versionId)
       .select()
       .single()
@@ -700,7 +692,6 @@ export const documentationApi = {
     versionNumber?: number
     issueDate?: string
     fileUrl?: string
-    filePath?: string
     status?: DocumentationVersion['status']
     comment?: string
     forceOverwrite?: boolean // Флаг для принудительной перезаписи при конфликте
@@ -730,7 +721,6 @@ export const documentationApi = {
           versionNumber: data.versionNumber,
           issueDate: data.issueDate,
           fileUrl: data.fileUrl,
-          filePath: data.filePath,
           status: data.status || 'not_filled',
           forceOverwrite: data.forceOverwrite
         })
@@ -742,7 +732,6 @@ export const documentationApi = {
             data.versionNumber,
             data.issueDate,
             data.fileUrl,
-            data.filePath,
             data.status || 'not_filled'
           )
           console.log('Version upserted (overwritten):', version)
@@ -753,7 +742,6 @@ export const documentationApi = {
             data.versionNumber,
             data.issueDate,
             data.fileUrl,
-            data.filePath,
             data.status || 'not_filled'
           )
           console.log('Version created:', version)
