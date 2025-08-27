@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
 import { documentationApi } from '@/entities/documentation'
 import { documentationTagsApi } from '@/entities/documentation-tags'
+import './Chessboard.css'
 
 type RowColor = '' | 'green' | 'yellow' | 'blue' | 'red'
 
@@ -1414,17 +1415,11 @@ export default function Chessboard() {
                       if (record.costTypeId) {
                         const selectedType = costTypes?.find((t) => String(t.id) === record.costTypeId)
                         if (selectedType) {
-                          // Находим все виды затрат с таким же названием и категорией
-                          const sameNameTypes = costTypes?.filter(
-                            (t) =>
-                              t.name === selectedType.name &&
-                              t.cost_category_id === selectedType.cost_category_id,
-                          )
-                          // Получаем уникальные location_id для этих видов затрат
-                          const availableLocationIds = new Set(
-                            sameNameTypes?.map((t) => String(t.location_id)) || [],
-                          )
-                          return availableLocationIds.has(String(l.id))
+                          // Находим все виды затрат с таким же названием
+                          const sameNameTypes = costTypes?.filter((t) => t.name === selectedType.name)
+                          // Получаем все location_id для этих видов затрат
+                          const availableLocationIds = sameNameTypes?.map((t) => String(t.location_id))
+                          return availableLocationIds?.includes(String(l.id))
                         }
                       }
                       // Если вид затрат не выбран, показываем все локализации
@@ -1807,17 +1802,11 @@ export default function Chessboard() {
                       if (edit.costTypeId) {
                         const selectedType = costTypes?.find((t) => String(t.id) === edit.costTypeId)
                         if (selectedType) {
-                          // Находим все виды затрат с таким же названием и категорией
-                          const sameNameTypes = costTypes?.filter(
-                            (t) =>
-                              t.name === selectedType.name &&
-                              t.cost_category_id === selectedType.cost_category_id,
-                          )
-                          // Получаем уникальные location_id для этих видов затрат
-                          const availableLocationIds = new Set(
-                            sameNameTypes?.map((t) => String(t.location_id)) || [],
-                          )
-                          return availableLocationIds.has(String(l.id))
+                          // Находим все виды затрат с таким же названием
+                          const sameNameTypes = costTypes?.filter((t) => t.name === selectedType.name)
+                          // Получаем все location_id для этих видов затрат
+                          const availableLocationIds = sameNameTypes?.map((t) => String(t.location_id))
+                          return availableLocationIds?.includes(String(l.id))
                         }
                       }
                       // Если вид затрат не выбран, показываем все локализации
@@ -2181,9 +2170,9 @@ export default function Chessboard() {
   }, [viewRows, allColumns])
 
   return (
-    <div style={{ 
-      height: 'calc(100vh - 96px)', 
-      display: 'flex', 
+    <div className="chessboard-page" style={{
+      height: 'calc(100vh - 96px)',
+      display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
       position: 'relative'
@@ -2236,11 +2225,12 @@ export default function Chessboard() {
                 return false
               }}
             />
-            <Button 
-              type="primary" 
+            <Button
+              type="primary"
               size="large"
-              onClick={handleApply} 
+              onClick={handleApply}
               disabled={!filters.projectId}
+              className="apply-btn"
             >
               Применить
             </Button>
@@ -2279,6 +2269,7 @@ export default function Chessboard() {
                 type="primary"
                 icon={<PlusOutlined />}
                 onClick={startAdd}
+                className="add-btn"
               >
                 Добавить
               </Button>
