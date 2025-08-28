@@ -39,6 +39,12 @@ export default function Materials() {
   const [form] = Form.useForm()
   const [autoOptions, setAutoOptions] = useState<{ value: string }[]>([])
   const [searchText, setSearchText] = useState('')
+  const [priceDetails, setPriceDetails] = useState<{ price: number; purchase_date: string }[]>([])
+
+  const [importModalOpen, setImportModalOpen] = useState(false)
+  const [importStatus, setImportStatus] = useState<'idle' | 'processing' | 'finished'>('idle')
+  const [importProgress, setImportProgress] = useState<{ processed: number; total: number }>({ processed: 0, total: 0 })
+  const [importResult, setImportResult] = useState(0)
 
   const { data: materials = [], isLoading, refetch } = useQuery({
     queryKey: ['materials'],
@@ -69,28 +75,22 @@ export default function Materials() {
     [materials, searchText]
   )
 
-  const nameFilters = useMemo(
-    () => Array.from(new Set(materials.map(m => m.name))).map(n => ({ text: n, value: n })),
-    [materials]
-  )
-
-  const priceFilters = useMemo(
-    () =>
-      Array.from(new Set(materials.map(m => m.average_price).filter((p): p is number => p !== null))).map(p => ({
-        text: p.toString(),
-        value: p.toString()
-      })),
-    [materials]
-  )
-
   const openAddModal = () => {
     form.resetFields()
     setModalMode('add')
     setCurrentMaterial(null)
   }
 
-  const openViewModal = (record: Material) => {
+  const openViewModal = async (record: Material) => {
     setCurrentMaterial(record)
+    if (supabase) {
+      const { data } = await supabase
+        .from('material_prices')
+        .select('price, purchase_date')
+        .eq('material_id', record.id)
+        .order('purchase_date', { ascending: false })
+      setPriceDetails(data ?? [])
+    }
     setModalMode('view')
   }
 
@@ -182,37 +182,69 @@ export default function Materials() {
 
   const handleImport: UploadProps['beforeUpload'] = async (file) => {
     if (!supabase) return false
+    setImportStatus('processing')
     const data = await file.arrayBuffer()
     const workbook = XLSX.read(data, { type: 'array' })
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
     const rows: MaterialExcelRow[] = XLSX.utils.sheet_to_json<MaterialExcelRow>(sheet, { defval: null })
-    for (const row of rows) {
-      const name = row['Номенклатура']
+    setImportProgress({ processed: 0, total: rows.length })
+    const processedNames = new Set<string>()
+    let successCount = 0
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+      const rawName = row['Номенклатура']
+      const name = rawName ? rawName.trim() : ''
       const price = row['Цена']
       const date = row['Дата']
-      if (!name) continue
+      if (!name || processedNames.has(name)) {
+        setImportProgress({ processed: i + 1, total: rows.length })
+        continue
+      }
+      processedNames.add(name)
       let materialId: string
-      const { data: existing } = await supabase.from('materials').select('id').eq('name', name).maybeSingle()
+      let insertedSomething = false
+      const { data: existing } = await supabase
+        .from('materials')
+        .select('id')
+        .eq('name', name)
+        .maybeSingle()
       if (existing) {
         materialId = existing.id
       } else {
-        const { data: inserted } = await supabase
+        const { data: inserted, error } = await supabase
           .from('materials')
           .insert({ name })
           .select()
           .single()
+        if (error) {
+          setImportProgress({ processed: i + 1, total: rows.length })
+          continue
+        }
         materialId = inserted!.id
+        insertedSomething = true
       }
       if (price !== null && price !== undefined) {
         const purchaseDate = date ? dayjs(date).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD')
-        await supabase.from('material_prices').insert({
-          material_id: materialId,
-          price: Number(price),
-          purchase_date: purchaseDate
-        })
+        const { data: existingPrice } = await supabase
+          .from('material_prices')
+          .select('id')
+          .eq('material_id', materialId)
+          .eq('purchase_date', purchaseDate)
+          .maybeSingle()
+        if (!existingPrice) {
+          await supabase.from('material_prices').insert({
+            material_id: materialId,
+            price: Number(price),
+            purchase_date: purchaseDate
+          })
+          insertedSomething = true
+        }
       }
+      if (insertedSomething) successCount++
+      setImportProgress({ processed: i + 1, total: rows.length })
     }
-    message.success('Импорт завершён')
+    setImportResult(successCount)
+    setImportStatus('finished')
     refetch()
     return false
   }
@@ -220,17 +252,11 @@ export default function Materials() {
   const columns = [
     {
       title: 'Номенклатура',
-      dataIndex: 'name',
-      sorter: (a: Material, b: Material) => a.name.localeCompare(b.name),
-      filters: nameFilters,
-      onFilter: (value: unknown, record: Material) => record.name === value
+      dataIndex: 'name'
     },
     {
       title: 'Цена',
-      dataIndex: 'average_price',
-      sorter: (a: Material, b: Material) => (a.average_price ?? 0) - (b.average_price ?? 0),
-      filters: priceFilters,
-      onFilter: (value: unknown, record: Material) => record.average_price?.toString() === value
+      dataIndex: 'average_price'
     },
     {
       title: 'Действия',
@@ -266,9 +292,9 @@ export default function Materials() {
           onChange={(e) => setSearchText(e.target.value)}
           style={{ width: 200 }}
         />
-        <Upload beforeUpload={handleImport} showUploadList={false} accept=".xlsx,.xls">
-          <Button icon={<UploadOutlined />}>Импорт из Excel</Button>
-        </Upload>
+        <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>
+          Импорт из Excel
+        </Button>
         <Button type="primary" onClick={openAddModal}>
           Добавить
         </Button>
@@ -291,8 +317,16 @@ export default function Materials() {
         onCancel={() => {
           setModalMode(null)
           setCurrentMaterial(null)
+          setPriceDetails([])
         }}
-        onOk={modalMode === 'view' ? () => setModalMode(null) : handleSave}
+        onOk={
+          modalMode === 'view'
+            ? () => {
+                setModalMode(null)
+                setPriceDetails([])
+              }
+            : handleSave
+        }
         okText={modalMode === 'view' ? 'Закрыть' : 'Сохранить'}
         cancelText="Отмена"
       >
@@ -300,6 +334,11 @@ export default function Materials() {
           <div>
             <p>Номенклатура: {currentMaterial?.name}</p>
             <p>Средняя цена: {currentMaterial?.average_price ?? '-'}</p>
+            {priceDetails.map((p) => (
+              <p key={p.purchase_date + p.price}>
+                {p.price} от {dayjs(p.purchase_date).format('DD.MM.YYYY')}
+              </p>
+            ))}
           </div>
         ) : (
           <Form form={form} layout="vertical">
@@ -327,6 +366,59 @@ export default function Materials() {
             </Form.Item>
           </Form>
         )}
+      </Modal>
+      <Modal
+        open={importModalOpen}
+        title="Импорт из Excel"
+        onCancel={() => {
+          if (importStatus === 'processing') return
+          setImportModalOpen(false)
+          setImportStatus('idle')
+          setImportProgress({ processed: 0, total: 0 })
+          setImportResult(0)
+        }}
+        footer={
+          importStatus === 'finished'
+            ? [
+                <Button
+                  key="ok"
+                  type="primary"
+                  onClick={() => {
+                    setImportModalOpen(false)
+                    setImportStatus('idle')
+                    setImportProgress({ processed: 0, total: 0 })
+                    setImportResult(0)
+                  }}
+                >
+                  OK
+                </Button>
+              ]
+            : null
+        }
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <div>
+            <p>Поля файла: Номенклатура, Цена, Дата</p>
+            <Upload
+              beforeUpload={handleImport}
+              showUploadList={false}
+              accept=".xlsx,.xls"
+              disabled={importStatus === 'processing'}
+            >
+              <Button icon={<UploadOutlined />} disabled={importStatus === 'processing'}>
+                Выбрать файл
+              </Button>
+            </Upload>
+          </div>
+          {importStatus !== 'idle' && (
+            <p>
+              Импортировано {importProgress.processed} / {importProgress.total}
+            </p>
+          )}
+          {importStatus === 'finished' && (
+            <p>Загружено {importResult} строк</p>
+          )}
+        </Space>
       </Modal>
     </div>
   )
