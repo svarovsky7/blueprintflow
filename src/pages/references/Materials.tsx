@@ -60,7 +60,7 @@ export default function Materials() {
       const priceMap = new Map<string, { sum: number; count: number }>()
       prices?.forEach(p => {
         const entry = priceMap.get(p.material_id) || { sum: 0, count: 0 }
-        entry.sum += p.price ?? 0
+        entry.sum += Number(p.price) || 0
         entry.count += 1
         priceMap.set(p.material_id, entry)
       })
@@ -172,6 +172,12 @@ export default function Materials() {
         }
       }
 
+      const currentIds = prices.map(p => p.id)
+      const removedIds = priceDetails
+        .filter(p => p.id)
+        .map(p => p.id as string)
+        .filter(id => !currentIds.includes(id))
+
       for (const p of prices) {
         await supabase
           .from('material_prices')
@@ -182,12 +188,30 @@ export default function Materials() {
           .eq('id', p.id)
       }
 
+      for (const id of removedIds) {
+        await supabase.from('material_prices').delete().eq('id', id)
+      }
+
       if (price !== undefined && price !== null) {
-        await supabase.from('material_prices').insert({
-          material_id: materialId,
-          price,
-          purchase_date: dayjs().format('YYYY-MM-DD')
-        })
+        const today = dayjs().format('YYYY-MM-DD')
+        const { data: existingPrice } = await supabase
+          .from('material_prices')
+          .select('id')
+          .eq('material_id', materialId)
+          .eq('purchase_date', today)
+          .maybeSingle()
+        if (existingPrice) {
+          await supabase
+            .from('material_prices')
+            .update({ price, purchase_date: today })
+            .eq('id', existingPrice.id)
+        } else {
+          await supabase.from('material_prices').insert({
+            material_id: materialId,
+            price,
+            purchase_date: today
+          })
+        }
       }
 
       message.success('Сохранено')
@@ -262,10 +286,15 @@ export default function Materials() {
           .from('material_prices')
           .select('id')
           .eq('material_id', materialId)
-          .eq('price', Number(price))
           .eq('purchase_date', purchaseDate)
           .maybeSingle()
-        if (!existingPrice) {
+        if (existingPrice) {
+          await supabase
+            .from('material_prices')
+            .update({ price: Number(price), purchase_date: purchaseDate })
+            .eq('id', existingPrice.id)
+          insertedSomething = true
+        } else {
           await supabase.from('material_prices').insert({
             material_id: materialId,
             price: Number(price),
@@ -434,7 +463,7 @@ export default function Materials() {
             )}
             {modalMode === 'edit' && (
               <Form.List name="prices">
-                {(fields) => (
+                {(fields, { remove }) => (
                   <>
                     {fields.map(({ key, name, ...restField }) => (
                       <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
@@ -459,6 +488,11 @@ export default function Materials() {
                         <Form.Item {...restField} name={[name, 'purchase_date']} label="Дата">
                           <DatePicker format="DD.MM.YYYY" />
                         </Form.Item>
+                        <Button
+                          icon={<DeleteOutlined />}
+                          onClick={() => remove(name)}
+                          aria-label="Удалить цену"
+                        />
                       </Space>
                     ))}
                   </>
