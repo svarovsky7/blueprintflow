@@ -1419,13 +1419,23 @@ export default function Chessboard() {
       rateId: 'workName',
     }
 
-    const base: Array<{ title: string; dataIndex: keyof TableRow; width?: number }> = [
+    const base: Array<{
+      title: string
+      dataIndex: keyof TableRow
+      width?: number
+      align?: 'left' | 'right' | 'center'
+    }> = [
       { title: 'Раздел', dataIndex: 'tagName', width: 200 },
       { title: 'Шифр проекта', dataIndex: 'projectCode', width: 150 },
       { title: 'Материал', dataIndex: 'material', width: 300 },
-      { title: 'Кол-во по ПД', dataIndex: 'quantityPd', width: 120 },
-      { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', width: 150 },
-      { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd', width: 180 },
+      { title: 'Кол-во по ПД', dataIndex: 'quantityPd', width: 120, align: 'center' },
+      { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', width: 150, align: 'center' },
+      {
+        title: 'Кол-во по пересчету РД',
+        dataIndex: 'quantityRd',
+        width: 180,
+        align: 'center',
+      },
       { title: 'Ед.изм.', dataIndex: 'unitId', width: 160 },
       { title: 'Корпус', dataIndex: 'block', width: 120 },
       { title: 'Этажи', dataIndex: 'floors', width: 150 },
@@ -1819,7 +1829,7 @@ export default function Chessboard() {
       dataIndex: 'checkbox',
       width: 50,
       fixed: 'left',
-      render: (_: any, record: ViewRow) => (
+      render: (_: unknown, record: ViewRow) => (
         <Checkbox
           checked={selectedRows.has(record.key)}
           onChange={() => toggleRowSelection(record.key)}
@@ -1827,13 +1837,23 @@ export default function Chessboard() {
       ),
     } : null
     
-    const base: Array<{ title: string; dataIndex: string; width?: number }> = [
+    const base: Array<{
+      title: string
+      dataIndex: string
+      width?: number
+      align?: 'left' | 'right' | 'center'
+    }> = [
       { title: 'Раздел', dataIndex: 'tagName', width: 200 },
       { title: 'Шифр проекта', dataIndex: 'projectCode', width: 150 },
       { title: 'Материал', dataIndex: 'material', width: 300 },
-      { title: 'Кол-во по ПД', dataIndex: 'quantityPd', width: 120 },
-      { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', width: 150 },
-      { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd', width: 180 },
+      { title: 'Кол-во по ПД', dataIndex: 'quantityPd', width: 120, align: 'center' },
+      { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', width: 150, align: 'center' },
+      {
+        title: 'Кол-во по пересчету РД',
+        dataIndex: 'quantityRd',
+        width: 180,
+        align: 'center',
+      },
       { title: 'Ед.изм.', dataIndex: 'unit', width: 160 },
       { title: 'Корпус', dataIndex: 'block', width: 120 },
       { title: 'Этажи', dataIndex: 'floors', width: 150 },
@@ -1877,15 +1897,13 @@ export default function Chessboard() {
             record[col.dataIndex as keyof ViewRow]
           ) {
             return (
-              <div style={{ textAlign: 'center' }}>
-                <Button
-                  type="link"
-                  style={{ padding: 0 }}
-                  onClick={() => openFloorModal(record.key, false)}
-                >
-                  {record[col.dataIndex as keyof ViewRow]}
-                </Button>
-              </div>
+              <Button
+                type="link"
+                style={{ padding: 0 }}
+                onClick={() => openFloorModal(record.key, false)}
+              >
+                {record[col.dataIndex as keyof ViewRow]}
+              </Button>
             )
           }
           return record[col.dataIndex as keyof ViewRow]
@@ -2187,7 +2205,7 @@ export default function Chessboard() {
         title: '',
         dataIndex: 'color',
         width: Object.keys(editingRows).length > 0 ? 35 : 5,
-        render: (_: any, record: ViewRow) => {
+        render: (_: unknown, record: ViewRow) => {
           const edit = editingRows[record.key]
           return edit ? (
             <RowColorPicker value={edit.color} onChange={(c) => handleEditChange(record.key, 'color', c)} />
@@ -2207,7 +2225,7 @@ export default function Chessboard() {
         title: '',
         dataIndex: 'actions',
         width: 100,
-        render: (_: any, record: ViewRow) => {
+        render: (_: unknown, record: ViewRow) => {
           const isEditing = !!editingRows[record.key]
           return (
             <Space>
