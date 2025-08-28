@@ -1,4 +1,4 @@
-import { type Key, useMemo, useRef, useState } from 'react'
+import { type Key, useEffect, useMemo, useRef, useState } from 'react'
 import {
   App,
   AutoComplete,
@@ -58,7 +58,7 @@ export default function Materials() {
         .from('material_prices')
         .select('material_id, price')
       const priceMap = new Map<string, { sum: number; count: number }>()
-      prices?.forEach(p => {
+      prices?.forEach((p: { material_id: string; price: number }) => {
         const entry = priceMap.get(p.material_id) || { sum: 0, count: 0 }
         entry.sum += Number(p.price) || 0
         entry.count += 1
@@ -112,19 +112,22 @@ export default function Materials() {
         .eq('material_id', record.id)
         .order('purchase_date', { ascending: false })
       setPriceDetails(data ?? [])
+    }
+    setModalMode('edit')
+  }
+
+  useEffect(() => {
+    if (modalMode === 'edit' && currentMaterial) {
       form.setFieldsValue({
-        name: record.name,
-        prices: (data ?? []).map(p => ({
+        name: currentMaterial.name,
+        prices: priceDetails.map(p => ({
           id: p.id,
           price: p.price,
           purchase_date: dayjs(p.purchase_date)
         }))
       })
-    } else {
-      form.setFieldsValue({ name: record.name })
     }
-    setModalMode('edit')
-  }
+  }, [modalMode, currentMaterial, priceDetails, form])
 
   const handleNameSearch = async (value: string) => {
     if (!supabase) return
@@ -141,7 +144,7 @@ export default function Materials() {
       const values = await form.validateFields()
       const name: string = values.name.trim()
       const price: number | undefined = modalMode === 'add' ? values.price : undefined
-      const prices: { id: string; price: number; purchase_date: dayjs.Dayjs }[] = values.prices || []
+      const prices: { id?: string; price: number; purchase_date: dayjs.Dayjs }[] = values.prices || []
       if (!supabase) return
       let materialId: string
       const { data: existing } = await supabase
@@ -172,20 +175,28 @@ export default function Materials() {
         }
       }
 
-      const currentIds = prices.map(p => p.id)
+      const currentIds = prices.map(p => p.id).filter((v): v is string => Boolean(v))
       const removedIds = priceDetails
         .filter(p => p.id)
         .map(p => p.id as string)
         .filter(id => !currentIds.includes(id))
 
       for (const p of prices) {
-        await supabase
-          .from('material_prices')
-          .update({
+        if (p.id) {
+          await supabase
+            .from('material_prices')
+            .update({
+              price: p.price,
+              purchase_date: dayjs(p.purchase_date).format('YYYY-MM-DD')
+            })
+            .eq('id', p.id)
+        } else {
+          await supabase.from('material_prices').insert({
+            material_id: materialId,
             price: p.price,
             purchase_date: dayjs(p.purchase_date).format('YYYY-MM-DD')
           })
-          .eq('id', p.id)
+        }
       }
 
       for (const id of removedIds) {
