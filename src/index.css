@@ -6,7 +6,7 @@ body {
 }
 
 body[data-theme='light'] {
-  --menu-bg: #EEF0F1;
+  --menu-bg: #f0edf2;
   --menu-color: #000000;
 }
 
