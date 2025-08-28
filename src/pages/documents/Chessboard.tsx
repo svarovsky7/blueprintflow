@@ -836,55 +836,81 @@ export default function Chessboard() {
     setFloorModalData(prev => prev.filter((_, i) => i !== index))
   }, [])
 
-  const floorModalColumns: ColumnsType<FloorModalRow> = [
-    {
-      title: 'Этаж',
-      dataIndex: 'floor',
-      render: (_, record, index) => (
-        <InputNumber value={record.floor} onChange={value => handleFloorModalChange(index, 'floor', value ?? 0)} />
-      ),
-    },
-    {
-      title: 'Кол-во по ПД',
-      dataIndex: 'quantityPd',
-      render: (_, record, index) => (
-        <Input
-          style={{ width: '10ch' }}
-          value={record.quantityPd}
-          onChange={e => handleFloorModalChange(index, 'quantityPd', e.target.value)}
-        />
-      ),
-    },
-    {
-      title: 'Кол-во по спеке РД',
-      dataIndex: 'quantitySpec',
-      render: (_, record, index) => (
-        <Input
-          style={{ width: '10ch' }}
-          value={record.quantitySpec}
-          onChange={e => handleFloorModalChange(index, 'quantitySpec', e.target.value)}
-        />
-      ),
-    },
-    {
-      title: 'Кол-во по пересчету РД',
-      dataIndex: 'quantityRd',
-      render: (_, record, index) => (
-        <Input
-          style={{ width: '10ch' }}
-          value={record.quantityRd}
-          onChange={e => handleFloorModalChange(index, 'quantityRd', e.target.value)}
-        />
-      ),
-    },
-    {
-      title: '',
-      dataIndex: 'actions',
-      render: (_, __, index) => (
-        <Button type="text" icon={<DeleteOutlined />} onClick={() => removeFloorModalRow(index)} />
-      ),
-    },
-  ]
+  const floorModalColumns = useMemo<ColumnsType<FloorModalRow>>(
+    () => [
+      {
+        title: 'Этаж',
+        dataIndex: 'floor',
+        render: (_, record, index) =>
+          floorModalIsEdit ? (
+            <InputNumber
+              value={record.floor}
+              onChange={value => handleFloorModalChange(index, 'floor', value ?? 0)}
+            />
+          ) : (
+            record.floor
+          ),
+      },
+      {
+        title: 'Кол-во по ПД',
+        dataIndex: 'quantityPd',
+        render: (_, record, index) =>
+          floorModalIsEdit ? (
+            <Input
+              style={{ width: '10ch' }}
+              value={record.quantityPd}
+              onChange={e => handleFloorModalChange(index, 'quantityPd', e.target.value)}
+            />
+          ) : (
+            record.quantityPd
+          ),
+      },
+      {
+        title: 'Кол-во по спеке РД',
+        dataIndex: 'quantitySpec',
+        render: (_, record, index) =>
+          floorModalIsEdit ? (
+            <Input
+              style={{ width: '10ch' }}
+              value={record.quantitySpec}
+              onChange={e => handleFloorModalChange(index, 'quantitySpec', e.target.value)}
+            />
+          ) : (
+            record.quantitySpec
+          ),
+      },
+      {
+        title: 'Кол-во по пересчету РД',
+        dataIndex: 'quantityRd',
+        render: (_, record, index) =>
+          floorModalIsEdit ? (
+            <Input
+              style={{ width: '10ch' }}
+              value={record.quantityRd}
+              onChange={e => handleFloorModalChange(index, 'quantityRd', e.target.value)}
+            />
+          ) : (
+            record.quantityRd
+          ),
+      },
+      ...(floorModalIsEdit
+        ? [
+            {
+              title: '',
+              dataIndex: 'actions',
+              render: (_: unknown, __: unknown, index: number) => (
+                <Button
+                  type="text"
+                  icon={<DeleteOutlined />}
+                  onClick={() => removeFloorModalRow(index)}
+                />
+              ),
+            },
+          ]
+        : []),
+    ],
+    [floorModalIsEdit, handleFloorModalChange, removeFloorModalRow],
+  )
 
   const saveFloorModal = useCallback(() => {
     if (!floorModalRowKey) return
@@ -1826,7 +1852,20 @@ export default function Chessboard() {
 
       const render: ColumnType<ViewRow>['render'] = (_, record) => {
         const edit = editingRows[record.key]
-        if (!edit) return record[col.dataIndex as keyof ViewRow]
+        if (!edit) {
+          if (
+            ['quantityPd', 'quantitySpec', 'quantityRd'].includes(col.dataIndex) &&
+            parseFloorsString(record.floors).length > 1 &&
+            record[col.dataIndex as keyof ViewRow]
+          ) {
+            return (
+              <Button type="link" onClick={() => openFloorModal(record.key, false)}>
+                {record[col.dataIndex as keyof ViewRow]}
+              </Button>
+            )
+          }
+          return record[col.dataIndex as keyof ViewRow]
+        }
         switch (col.dataIndex) {
           case 'tagName':
             return (
@@ -2182,6 +2221,7 @@ export default function Chessboard() {
     columnVisibility,
     columnOrder,
     getRateOptions,
+    openFloorModal,
   ])
 
   const { Text } = Typography
@@ -2819,9 +2859,14 @@ export default function Chessboard() {
         title="Количество по этажам"
         open={floorModalOpen}
         onCancel={cancelFloorModal}
-        onOk={saveFloorModal}
+        onOk={floorModalIsEdit ? saveFloorModal : undefined}
         okText="Сохранить"
         cancelText="Отменить"
+        footer={
+          floorModalIsEdit
+            ? undefined
+            : [<Button key="close" onClick={cancelFloorModal}>Закрыть</Button>]
+        }
       >
         <div style={{ marginBottom: 16 }}>
           <div>Шифр проекта: {floorModalInfo.projectCode}</div>
@@ -2836,14 +2881,16 @@ export default function Chessboard() {
           pagination={false}
           rowKey="key"
         />
-        <Button
-          type="dashed"
-          icon={<PlusOutlined />}
-          onClick={addFloorModalRow}
-          style={{ marginTop: 8 }}
-        >
-          Добавить этаж
-        </Button>
+        {floorModalIsEdit && (
+          <Button
+            type="dashed"
+            icon={<PlusOutlined />}
+            onClick={addFloorModalRow}
+            style={{ marginTop: 8 }}
+          >
+            Добавить этаж
+          </Button>
+        )}
       </Modal>
       <Modal
         title="Импорт из Excel"
