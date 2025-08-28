@@ -796,10 +796,9 @@ export default function Chessboard() {
 
   const openFloorModal = useCallback(
     (key: string, isEdit: boolean) => {
-      const row =
-        isEdit
-          ? editingRows[key]
-          : rows.find(r => r.key === key) ?? tableData?.find(r => r.id === key)
+      const row = isEdit
+        ? editingRows[key] ?? rows.find(r => r.key === key) ?? tableData?.find(r => r.id === key)
+        : rows.find(r => r.key === key) ?? tableData?.find(r => r.id === key)
       if (!row) return
       const floors = parseFloorsString(row.floors)
       const quantities = row.floorQuantities || {}
@@ -1605,7 +1604,7 @@ export default function Chessboard() {
                   <Button
                     type="text"
                     icon={<PlusOutlined />}
-                    onClick={() => openFloorModal(record.key, false)}
+                    onClick={() => openFloorModal(record.key, true)}
                   />
                 )}
                 <Input
