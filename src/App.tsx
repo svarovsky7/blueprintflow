@@ -434,7 +434,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
       </style>
       <Layout style={{ minHeight: '100vh' }}>
         <Sider
-          theme={isDark ? 'dark' : 'light'}
+          theme="light"
           style={{
             background: 'var(--menu-bg)',
           }}
@@ -458,7 +458,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             />
           </div>
           <Menu
-            theme={isDark ? 'dark' : 'light'}
+            theme="light"
             mode="inline"
             inlineCollapsed={collapsed}
             items={items}
@@ -483,7 +483,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           />
         </Sider>
         <Layout>
-          <PortalHeader isDark={isDark} />
+          <PortalHeader />
           <Content
             style={{
               margin: 16,
