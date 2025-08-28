@@ -20,7 +20,7 @@ const colorOptions = [
   { label: 'Зеленый', value: 'green', color: '#52c41a' },
   { label: 'Желтый', value: 'yellow', color: '#faad14' },
   { label: 'Красный', value: 'red', color: '#ff4d4f' },
-  { label: 'Синий', value: 'blue', color: '#c3b8cc' },
+  { label: 'Синий', value: 'blue', color: '#1890ff' },
 ]
 
 export default function Statuses() {
