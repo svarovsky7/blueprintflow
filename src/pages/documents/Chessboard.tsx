@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useEffect, type Key } from 'react'
+import { useCallback, useMemo, useState, useEffect, type Key, isValidElement, type ReactNode } from 'react'
 import { App, Badge, Button, Card, Checkbox, Drawer, Dropdown, Input, InputNumber, List, Modal, Popconfirm, Select, Space, Table, Typography, Upload } from 'antd'
 import type { ColumnType, ColumnsType } from 'antd/es/table'
 import { ArrowDownOutlined, ArrowUpOutlined, BgColorsOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, InboxOutlined, PlusOutlined, SaveOutlined, SettingOutlined, FilterOutlined, CaretUpFilled, CaretDownFilled, UploadOutlined } from '@ant-design/icons'
@@ -142,6 +142,14 @@ interface RateOption {
   rates_detail_cost_categories_mapping: { detail_cost_category_id: number }[] | null
 }
 
+interface DocumentationOption {
+  id: string
+  project_code: string
+  tag_id: number | null
+  tag_name?: string
+  tag_number?: number | null
+}
+
 interface DbRow {
   id: string
   material: string | null
@@ -183,6 +191,14 @@ interface DbRow {
       } | null
     } | null
   } | null
+}
+
+interface FloorRecord {
+  chessboard_id: string
+  floor_number: number
+  quantityPd: number | null
+  quantitySpec: number | null
+  quantityRd: number | null
 }
 
 // Функция для форматирования массива этажей в строку с диапазонами
@@ -481,21 +497,21 @@ export default function Chessboard() {
     queryFn: documentationTagsApi.getAll,
   })
 
-  // Загрузка документации для выбранного проекта  
-  const { data: documentations } = useQuery<any[]>({
+  // Загрузка документации для выбранного проекта
+  const { data: documentations } = useQuery<DocumentationOption[]>({
     queryKey: ['documentations', appliedFilters?.projectId],
     queryFn: async () => {
-      console.log('📚 DOCUMENTATION QUERY - Executing:', { 
+      console.log('📚 DOCUMENTATION QUERY - Executing:', {
         projectId: appliedFilters?.projectId,
-        enabled: !!appliedFilters?.projectId 
+        enabled: !!appliedFilters?.projectId
       })
       if (!appliedFilters?.projectId) {
         console.log('⚠️ DOCUMENTATION QUERY - No project ID, returning empty array')
         return []
       }
-      const fetchFilters: any = { project_id: appliedFilters.projectId }
+      const fetchFilters: Record<string, unknown> = { project_id: appliedFilters.projectId }
       const result = await documentationApi.getDocumentation(fetchFilters)
-      
+
       console.log('✅ DOCUMENTATION QUERY - Loaded:', {
         projectId: appliedFilters.projectId,
         totalCount: result.length,
@@ -508,7 +524,7 @@ export default function Chessboard() {
           tag_number: doc.tag_number
         }))
       })
-      return result
+      return result as DocumentationOption[]
     },
     enabled: !!appliedFilters?.projectId,
   })
@@ -561,8 +577,8 @@ export default function Chessboard() {
       }
       
       // Загружаем этажи для всех записей
-      const chessboardIds = (data as any[])?.map(item => item.id) || []
-      let floorsMap: Record<string, { floors: string; quantities: FloorQuantities }> = {}
+      const chessboardIds = (data ?? []).map(item => item.id)
+      const floorsMap: Record<string, { floors: string; quantities: FloorQuantities }> = {}
 
       if (chessboardIds.length > 0) {
         const { data: floorsData } = await supabase
@@ -573,8 +589,9 @@ export default function Chessboard() {
 
         // Группируем этажи по chessboard_id и сохраняем количества
         if (floorsData) {
+          const typedFloors = floorsData as FloorRecord[]
           const grouped: Record<string, { floors: number[]; quantities: FloorQuantities }> = {}
-          floorsData.forEach((item: any) => {
+          typedFloors.forEach((item) => {
             if (!grouped[item.chessboard_id]) {
               grouped[item.chessboard_id] = { floors: [], quantities: {} }
             }
@@ -780,8 +797,9 @@ export default function Chessboard() {
       setSelectedRows(new Set())
       setDeleteMode(false)
       await refetch()
-    } catch (error: any) {
-      message.error(`Не удалось удалить строки: ${error.message}`)
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error)
+      message.error(`Не удалось удалить строки: ${errMsg}`)
     }
   }, [selectedRows, message, refetch])
   
@@ -820,7 +838,7 @@ export default function Chessboard() {
         ? editingRows[key] ?? rows.find(r => r.key === key) ?? tableData?.find(r => r.id === key)
         : rows.find(r => r.key === key) ?? tableData?.find(r => r.id === key)
       if (!row) return
-      const floors = parseFloorsString(row.floors)
+      const floors = parseFloorsString(row.floors || '')
       const quantities = row.floorQuantities || {}
       const data = floors.map(f => ({
         floor: f,
@@ -839,11 +857,11 @@ export default function Chessboard() {
       const projectCode =
         'projectCode' in row
           ? row.projectCode
-          : row.chessboard_documentation_mapping?.documentations?.code ?? ''
+          : (row as DbRow).chessboard_documentation_mapping?.documentations?.code ?? ''
       setFloorModalInfo({
         projectCode,
         workName,
-        material: row.material,
+        material: row.material ?? '',
         unit: unitName,
       })
       setFloorModalRowKey(key)
@@ -1207,8 +1225,9 @@ export default function Chessboard() {
       message.success('Изменения сохранены')
       setEditingRows({})
       await refetch()
-    } catch (error: any) {
-      message.error(`Не удалось сохранить изменения: ${error.message}`)
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error)
+      message.error(`Не удалось сохранить изменения: ${errMsg}`)
     }
   }, [editingRows, message, refetch, appliedFilters])
 
@@ -1419,12 +1438,12 @@ export default function Chessboard() {
     for (let idx = 0; idx < data.length; idx++) {
       let docId = rows[idx].documentationId
 
-      if (!docId && rows[idx].projectCode && rows[idx].tagId) {
-        const doc = await documentationApi.upsertDocumentation(
-          rows[idx].projectCode,
-          Number(rows[idx].tagId),
-          appliedFilters.projectId,
-        )
+        if (!docId && rows[idx].projectCode && rows[idx].tagId) {
+          const doc = await documentationApi.upsertDocumentation(
+            rows[idx].projectCode!,
+            Number(rows[idx].tagId),
+            appliedFilters.projectId,
+          )
         docId = doc.id
       }
 
@@ -1558,15 +1577,6 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                showSearch
-                filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                filterOption={(input, option) => {
                   const label = option?.label
                   if (typeof label === 'string') {
                     return label.toLowerCase().includes(input.toLowerCase())
@@ -1582,7 +1592,9 @@ export default function Chessboard() {
                 value={record.documentationId}
                 onDropdownVisibleChange={(open) => {
                   if (open) {
-                    const filteredDocs = documentations?.filter((doc: any) => !record.tagId || String(doc.tag_id) === record.tagId) ?? []
+                    const filteredDocs = documentations?.filter(
+                      (doc) => !record.tagId || String(doc.tag_id) === record.tagId
+                    ) ?? []
                     console.log('🔽 ADD MODE - Project Code dropdown opened:', {
                       recordKey: record.key,
                       tagId: record.tagId,
@@ -1595,12 +1607,12 @@ export default function Chessboard() {
                 onChange={(value) => {
                   console.log('✏️ ADD MODE - Project Code selected:', { value, recordKey: record.key })
                   handleRowChange(record.key, 'documentationId', value)
-                  const doc = documentations?.find((d: any) => d.id === value)
+                  const doc = documentations?.find((d) => d.id === value)
                   handleRowChange(record.key, 'projectCode', doc?.project_code ?? '')
                 }}
                 options={
                   documentations
-                    ?.filter((doc: any) => {
+                    ?.filter((doc) => {
                       const matches = !record.tagId || String(doc.tag_id) === record.tagId
                       console.log('🔍 ADD MODE - Filtering documentation:', {
                         docId: doc.id,
@@ -1612,7 +1624,7 @@ export default function Chessboard() {
                       })
                       return matches
                     })
-                    .map((doc: any) => ({
+                    .map((doc) => ({
                       value: doc.id,
                       label: doc.project_code
                     })) ?? []
@@ -1621,20 +1633,8 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
+                  const text = String(option?.label ?? '')
                   return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                showSearch
-                filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                filterOption={(input, option) => {
-                  const label = option?.label
-                  if (typeof label === 'string') {
-                    return label.toLowerCase().includes(input.toLowerCase())
-                  }
-                  return false
                 }}
               />
             )
@@ -1876,11 +1876,13 @@ export default function Chessboard() {
     handleDelete,
     addRow,
     copyRow,
+    deleteRow,
     rows,
     hiddenCols,
     columnVisibility,
     columnOrder,
     getRateOptions,
+    openFloorModal,
     materials,
   ])
 
@@ -1994,15 +1996,6 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                showSearch
-                filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                filterOption={(input, option) => {
                   const label = option?.label
                   if (typeof label === 'string') {
                     return label.toLowerCase().includes(input.toLowerCase())
@@ -2018,7 +2011,9 @@ export default function Chessboard() {
                 value={edit.documentationId}
                 onDropdownVisibleChange={(open) => {
                   if (open) {
-                    const filteredDocs = documentations?.filter((doc: any) => !edit.tagId || String(doc.tag_id) === edit.tagId) ?? []
+                    const filteredDocs = documentations?.filter(
+                      (doc) => !edit.tagId || String(doc.tag_id) === edit.tagId
+                    ) ?? []
                     console.log('🔽 EDIT MODE - Project Code dropdown opened:', {
                       recordKey: record.key,
                       tagId: edit.tagId,
@@ -2031,12 +2026,12 @@ export default function Chessboard() {
                 onChange={(value) => {
                   console.log('✏️ EDIT MODE - Project Code selected:', { value, recordKey: record.key })
                   handleEditChange(record.key, 'documentationId', value)
-                  const doc = documentations?.find((d: any) => d.id === value)
+                  const doc = documentations?.find((d) => d.id === value)
                   handleEditChange(record.key, 'projectCode', doc?.project_code ?? '')
                 }}
                 options={
                   documentations
-                    ?.filter((doc: any) => {
+                    ?.filter((doc) => {
                       const matches = !edit.tagId || String(doc.tag_id) === edit.tagId
                       console.log('🔍 EDIT MODE - Filtering documentation:', {
                         docId: doc.id,
@@ -2048,7 +2043,7 @@ export default function Chessboard() {
                       })
                       return matches
                     })
-                    .map((doc: any) => ({
+                    .map((doc) => ({
                       value: doc.id,
                       label: doc.project_code
                     })) ?? []
@@ -2057,20 +2052,8 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
+                  const text = String(option?.label ?? '')
                   return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                showSearch
-                filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                filterOption={(input, option) => {
-                  const label = option?.label
-                  if (typeof label === 'string') {
-                    return label.toLowerCase().includes(input.toLowerCase())
-                  }
-                  return false
                 }}
               />
             )
@@ -2252,7 +2235,7 @@ export default function Chessboard() {
               />
             )
           default:
-            return (record as any)[col.dataIndex]
+            return (record as unknown as Record<string, ReactNode>)[col.dataIndex]
         }
       }
 
@@ -2260,8 +2243,8 @@ export default function Chessboard() {
         ...col,
         filterSearch: true,
         sorter: (a: ViewRow, b: ViewRow) => {
-          const aVal = (a as any)[col.dataIndex]
-          const bVal = (b as any)[col.dataIndex]
+          const aVal = (a as unknown as Record<string, unknown>)[col.dataIndex]
+          const bVal = (b as unknown as Record<string, unknown>)[col.dataIndex]
           const aNum = Number(aVal)
           const bNum = Number(bVal)
           if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum
@@ -2505,7 +2488,7 @@ export default function Chessboard() {
 
   // Применение порядка и видимости к столбцам таблицы
   const orderedViewColumns = useMemo(() => {
-    const columnsMap: Record<string, any> = {}
+    const columnsMap: Record<string, ColumnsType<ViewRow>[number]> = {}
     
     viewColumns.forEach(col => {
       if (col && 'dataIndex' in col) {
@@ -2553,7 +2536,7 @@ export default function Chessboard() {
 
   // Применение порядка и видимости к addColumns
   const orderedAddColumns = useMemo(() => {
-    const columnsMap: Record<string, any> = {}
+    const columnsMap: Record<string, ColumnsType<RowData>[number]> = {}
     
     addColumns.forEach(col => {
       if (col && 'dataIndex' in col) {
@@ -2624,44 +2607,25 @@ export default function Chessboard() {
               style={{ width: 280 }}
               size="large"
               allowClear
-                showSearch
-                filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
               showSearch
                 filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
+                  const label = option?.label
+                  if (isValidElement(label)) {
+                    const text = (label.props as { children?: string }).children
+                    if (typeof text === 'string') {
+                      return text.toLowerCase().includes(input.toLowerCase())
+                    }
+                    return false
+                  }
+                  const text = String(label ?? '')
                   return text.toLowerCase().includes(input.toLowerCase())
                 }}
               value={filters.projectId}
               onChange={(value) => setFilters({ projectId: value })}
-              options={projects?.map((p) => ({ 
-                value: p.id, 
-                label: <span style={{ fontWeight: 'bold' }}>{p.name}</span> 
+              options={projects?.map((p) => ({
+                value: p.id,
+                label: <span style={{ fontWeight: 'bold' }}>{p.name}</span>
               })) ?? []}
-              showSearch
-                filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-              filterOption={(input, option) => {
-                const label = option?.label
-                if (!label) return false
-                // Handle React elements (like bold text)
-                if (typeof label === 'object' && 'props' in label) {
-                  const text = (label as any).props?.children || ''
-                  if (typeof text === 'string') {
-                    return text.toLowerCase().includes(input.toLowerCase())
-                  }
-                  return false
-                }
-                // Handle string labels
-                if (typeof label === 'string') {
-                  return (label as string).toLowerCase().includes(input.toLowerCase())
-                }
-                return false
-              }}
             />
             <Button 
               type="primary" 
@@ -2807,12 +2771,7 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                showSearch
-                filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
+                  const text = String(option?.label ?? '')
                   return text.toLowerCase().includes(input.toLowerCase())
                 }}
               />
@@ -2843,7 +2802,7 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
+                  const text = String(option?.label ?? '')
                   return text.toLowerCase().includes(input.toLowerCase())
                 }}
               />
@@ -2861,7 +2820,7 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
+                  const text = String(option?.label ?? '')
                   return text.toLowerCase().includes(input.toLowerCase())
                 }}
               />
@@ -2879,15 +2838,6 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                showSearch
-                filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                filterOption={(input, option) => {
                   const label = option?.label
                   if (typeof label === 'string') {
                     return label.toLowerCase().includes(input.toLowerCase())
@@ -2902,8 +2852,8 @@ export default function Chessboard() {
                 onChange={(value) => setFilters((f) => ({ ...f, documentationId: value }))}
                 options={
                   documentations
-                    ?.filter((doc: any) => !filters.tagId || String(doc.tag_id) === filters.tagId)
-                    .map((doc: any) => ({
+                    ?.filter((doc) => !filters.tagId || String(doc.tag_id) === filters.tagId)
+                    .map((doc) => ({
                       value: doc.id,
                       label: doc.project_code
                     })) ?? []
@@ -2912,20 +2862,8 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
+                  const text = String(option?.label ?? '')
                   return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                showSearch
-                filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                filterOption={(input, option) => {
-                  const label = option?.label
-                  if (typeof label === 'string') {
-                    return label.toLowerCase().includes(input.toLowerCase())
-                  }
-                  return false
                 }}
               />
               </Space>
