@@ -949,7 +949,7 @@ export default function Chessboard() {
     const totalPd = floorModalData.reduce((s, d) => s + (parseFloat(d.quantityPd) || 0), 0)
     const totalSpec = floorModalData.reduce((s, d) => s + (parseFloat(d.quantitySpec) || 0), 0)
     const totalRd = floorModalData.reduce((s, d) => s + (parseFloat(d.quantityRd) || 0), 0)
-    if (floorModalIsEdit) {
+    if (floorModalIsEdit && editingRows[floorModalRowKey]) {
       setEditingRows(prev => ({
         ...prev,
         [floorModalRowKey]: {
@@ -978,7 +978,7 @@ export default function Chessboard() {
       )
     }
     setFloorModalOpen(false)
-  }, [floorModalRowKey, floorModalData, floorModalIsEdit, setEditingRows, setRows])
+  }, [floorModalRowKey, floorModalData, floorModalIsEdit, editingRows, setEditingRows, setRows])
 
   const cancelFloorModal = useCallback(() => setFloorModalOpen(false), [])
 
