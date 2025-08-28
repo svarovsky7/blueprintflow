@@ -82,6 +82,20 @@ interface RowData {
   floorQuantities?: FloorQuantities
 }
 
+interface FloorModalRow {
+  floor: number
+  quantityPd: string
+  quantitySpec: string
+  quantityRd: string
+}
+
+interface FloorModalInfo {
+  projectCode?: string
+  workName?: string
+  material: string
+  unit: string
+}
+
 interface ViewRow {
   key: string
   material: string
@@ -777,9 +791,8 @@ export default function Chessboard() {
   const [floorModalOpen, setFloorModalOpen] = useState(false)
   const [floorModalRowKey, setFloorModalRowKey] = useState<string | null>(null)
   const [floorModalIsEdit, setFloorModalIsEdit] = useState(false)
-  const [floorModalData, setFloorModalData] = useState<
-    { floor: number; quantityPd: string; quantitySpec: string; quantityRd: string }[]
-  >([])
+  const [floorModalData, setFloorModalData] = useState<FloorModalRow[]>([])
+  const [floorModalInfo, setFloorModalInfo] = useState<FloorModalInfo>({ material: '', unit: '' })
 
   const openFloorModal = useCallback(
     (key: string, isEdit: boolean) => {
@@ -793,12 +806,15 @@ export default function Chessboard() {
         quantitySpec: quantities[f]?.quantitySpec || '',
         quantityRd: quantities[f]?.quantityRd || '',
       }))
+      const unitName = units?.find(u => String(u.id) === row.unitId)?.name ?? ''
+      const workName = costTypes?.find(t => String(t.id) === row.costTypeId)?.name ?? ''
+      setFloorModalInfo({ projectCode: row.projectCode, workName, material: row.material, unit: unitName })
       setFloorModalRowKey(key)
       setFloorModalIsEdit(isEdit)
       setFloorModalData(data)
       setFloorModalOpen(true)
     },
-    [editingRows, rows],
+    [editingRows, rows, units, costTypes],
   )
 
   const handleFloorModalChange = useCallback(
@@ -819,6 +835,56 @@ export default function Chessboard() {
   const removeFloorModalRow = useCallback((index: number) => {
     setFloorModalData(prev => prev.filter((_, i) => i !== index))
   }, [])
+
+  const floorModalColumns: ColumnsType<FloorModalRow> = [
+    {
+      title: 'Этаж',
+      dataIndex: 'floor',
+      render: (_, record, index) => (
+        <InputNumber value={record.floor} onChange={value => handleFloorModalChange(index, 'floor', value ?? 0)} />
+      ),
+    },
+    {
+      title: 'Кол-во по ПД',
+      dataIndex: 'quantityPd',
+      render: (_, record, index) => (
+        <Input
+          style={{ width: '10ch' }}
+          value={record.quantityPd}
+          onChange={e => handleFloorModalChange(index, 'quantityPd', e.target.value)}
+        />
+      ),
+    },
+    {
+      title: 'Кол-во по спеке РД',
+      dataIndex: 'quantitySpec',
+      render: (_, record, index) => (
+        <Input
+          style={{ width: '10ch' }}
+          value={record.quantitySpec}
+          onChange={e => handleFloorModalChange(index, 'quantitySpec', e.target.value)}
+        />
+      ),
+    },
+    {
+      title: 'Кол-во по пересчету РД',
+      dataIndex: 'quantityRd',
+      render: (_, record, index) => (
+        <Input
+          style={{ width: '10ch' }}
+          value={record.quantityRd}
+          onChange={e => handleFloorModalChange(index, 'quantityRd', e.target.value)}
+        />
+      ),
+    },
+    {
+      title: '',
+      dataIndex: 'actions',
+      render: (_, __, index) => (
+        <Button type="text" icon={<DeleteOutlined />} onClick={() => removeFloorModalRow(index)} />
+      ),
+    },
+  ]
 
   const saveFloorModal = useCallback(() => {
     if (!floorModalRowKey) return
@@ -2757,38 +2823,25 @@ export default function Chessboard() {
         okText="Сохранить"
         cancelText="Отменить"
       >
-        {floorModalData.map((item, index) => (
-          <Space key={index} style={{ marginBottom: 8 }}>
-            <InputNumber
-              value={item.floor}
-              onChange={(value) => handleFloorModalChange(index, 'floor', value ?? 0)}
-            />
-            <Input
-              style={{ width: '10ch' }}
-              value={item.quantityPd}
-              onChange={(e) => handleFloorModalChange(index, 'quantityPd', e.target.value)}
-              placeholder="Кол-во по ПД"
-            />
-            <Input
-              style={{ width: '10ch' }}
-              value={item.quantitySpec}
-              onChange={(e) => handleFloorModalChange(index, 'quantitySpec', e.target.value)}
-              placeholder="Кол-во по спеке РД"
-            />
-            <Input
-              style={{ width: '10ch' }}
-              value={item.quantityRd}
-              onChange={(e) => handleFloorModalChange(index, 'quantityRd', e.target.value)}
-              placeholder="Кол-во по пересчету РД"
-            />
-            <Button
-              type="text"
-              icon={<DeleteOutlined />}
-              onClick={() => removeFloorModalRow(index)}
-            />
-          </Space>
-        ))}
-        <Button type="dashed" icon={<PlusOutlined />} onClick={addFloorModalRow}>
+        <div style={{ marginBottom: 16 }}>
+          <div>Шифр проекта: {floorModalInfo.projectCode}</div>
+          <div>Наименование работ: {floorModalInfo.workName}</div>
+          <div>
+            Материал: {floorModalInfo.material} ({floorModalInfo.unit})
+          </div>
+        </div>
+        <Table
+          dataSource={floorModalData.map((d, i) => ({ ...d, key: i }))}
+          columns={floorModalColumns}
+          pagination={false}
+          rowKey="key"
+        />
+        <Button
+          type="dashed"
+          icon={<PlusOutlined />}
+          onClick={addFloorModalRow}
+          style={{ marginTop: 8 }}
+        >
           Добавить этаж
         </Button>
       </Modal>
