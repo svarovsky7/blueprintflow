@@ -140,7 +140,7 @@ export default function Materials() {
     try {
       const values = await form.validateFields()
       const name: string = values.name.trim()
-      const price: number | undefined = values.price
+      const price: number | undefined = modalMode === 'add' ? values.price : undefined
       const prices: { id: string; price: number; purchase_date: dayjs.Dayjs }[] = values.prices || []
       if (!supabase) return
       let materialId: string
@@ -370,16 +370,25 @@ export default function Materials() {
           setCurrentMaterial(null)
           setPriceDetails([])
         }}
-        onOk={
+        onOk={modalMode === 'view' ? undefined : handleSave}
+        okText={modalMode === 'view' ? undefined : 'Сохранить'}
+        cancelText={modalMode === 'view' ? undefined : 'Отмена'}
+        footer={
           modalMode === 'view'
-            ? () => {
-                setModalMode(null)
-                setPriceDetails([])
-              }
-            : handleSave
+            ? [
+                <Button
+                  key="close"
+                  type="primary"
+                  onClick={() => {
+                    setModalMode(null)
+                    setPriceDetails([])
+                  }}
+                >
+                  Закрыть
+                </Button>
+              ]
+            : undefined
         }
-        okText={modalMode === 'view' ? 'Закрыть' : 'Сохранить'}
-        cancelText="Отмена"
       >
         {modalMode === 'view' ? (
           <div>
@@ -412,34 +421,42 @@ export default function Materials() {
                 <Input />
               )}
             </Form.Item>
-            <Form.Item label="Цена" name="price">
-              <InputNumber<number>
-                min={0}
-                precision={0}
-                formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
-                parser={(v) => (v ? parseInt(v.replace(/\s/g, ''), 10) : 0)}
-                style={{ width: '100%' }}
-              />
-            </Form.Item>
+            {modalMode === 'add' && (
+              <Form.Item label="Цена" name="price">
+                <InputNumber<number>
+                  min={0}
+                  step={0.01}
+                  formatter={(v) => (v !== undefined && v !== null ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') : '')}
+                  parser={(v) => (v ? parseFloat(v.replace(/\s/g, '').replace(',', '.')) : 0)}
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            )}
             {modalMode === 'edit' && (
               <Form.List name="prices">
                 {(fields) => (
                   <>
-                    {fields.map((field) => (
-                      <Space key={field.key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
-                        <Form.Item {...field} name={[field.name, 'id']} hidden>
+                    {fields.map(({ key, name, ...restField }) => (
+                      <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
+                        <Form.Item {...restField} name={[name, 'id']} hidden>
                           <Input type="hidden" />
                         </Form.Item>
-                        <Form.Item {...field} name={[field.name, 'price']} label="Цена">
+                        <Form.Item {...restField} name={[name, 'price']} label="Цена">
                           <InputNumber<number>
                             min={0}
-                            precision={0}
-                            formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
-                            parser={(v) => (v ? parseInt(v.replace(/\s/g, ''), 10) : 0)}
+                            step={0.01}
+                            formatter={(v) =>
+                              v !== undefined && v !== null
+                                ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+                                : ''
+                            }
+                            parser={(v) =>
+                              v ? parseFloat(v.replace(/\s/g, '').replace(',', '.')) : 0
+                            }
                             style={{ width: 150 }}
                           />
                         </Form.Item>
-                        <Form.Item {...field} name={[field.name, 'purchase_date']} label="Дата">
+                        <Form.Item {...restField} name={[name, 'purchase_date']} label="Дата">
                           <DatePicker format="DD.MM.YYYY" />
                         </Form.Item>
                       </Space>
