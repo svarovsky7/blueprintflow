@@ -37,7 +37,11 @@ const getPageTitle = (path: string): string => {
   return matched ? pageTitles[matched] : '';
 };
 
-export default function PortalHeader() {
+interface PortalHeaderProps {
+  isDark: boolean;
+}
+
+export default function PortalHeader({ isDark }: PortalHeaderProps) {
   const { pathname } = useLocation();
   const [userEmail, setUserEmail] = useState<string>('');
 
@@ -51,12 +55,12 @@ export default function PortalHeader() {
   return (
     <Header
       style={{
-        background: '#D8BFD8',
+        background: isDark ? '#555555' : '#EEF0F1',
         padding: '0 16px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        color: '#000000',
+        color: isDark ? '#ffffff' : '#000000',
       }}
     >
         <div style={{ fontSize: '16px', fontWeight: 500 }}>
