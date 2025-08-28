@@ -14,7 +14,6 @@ import Projects from './pages/references/Projects'
 import Locations from './pages/references/Locations'
 import Documentation from './pages/references/Documentation'
 import Rates from './pages/references/Rates'
-import Materials from './pages/references/Materials'
 import Admin from './pages/Admin'
 import DocumentationTags from './pages/admin/DocumentationTags'
 import Statuses from './pages/admin/Statuses'
@@ -224,15 +223,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           Расценки
         </Link>
       </div>
-      <div
-        style={menuItemStyle}
-        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
-        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-      >
-        <Link to="/references/materials" style={linkStyle}>
-          Материалы
-        </Link>
-      </div>
     </div>
   )
 
@@ -314,7 +304,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         { key: 'projects', label: <Link to="/references/projects">Проекты</Link> },
         { key: 'locations', label: <Link to="/references/locations">Локализации</Link> },
         { key: 'rates', label: <Link to="/references/rates">Расценки</Link> },
-        { key: 'materials', label: <Link to="/references/materials">Материалы</Link> },
       ],
     },
     {
@@ -483,7 +472,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               location.pathname.startsWith('/references/projects') ? 'projects' :
               location.pathname.startsWith('/references/locations') ? 'locations' :
               location.pathname.startsWith('/references/rates') ? 'rates' :
-              location.pathname.startsWith('/references/materials') ? 'materials' :
               location.pathname.startsWith('/references') ? 'units' :
               location.pathname.startsWith('/admin/documentation-tags') ? 'documentation-tags' :
               location.pathname.startsWith('/admin/statuses') ? 'statuses' :
@@ -516,7 +504,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                 <Route path="projects" element={<Projects />} />
                 <Route path="locations" element={<Locations />} />
                 <Route path="rates" element={<Rates />} />
-                <Route path="materials" element={<Materials />} />
               </Route>
               <Route path="/admin" element={<Admin />}>
                 <Route path="documentation-tags" element={<DocumentationTags />} />
