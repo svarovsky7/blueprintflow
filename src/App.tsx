@@ -19,6 +19,7 @@ import Admin from './pages/Admin'
 import DocumentationTags from './pages/admin/DocumentationTags'
 import Statuses from './pages/admin/Statuses'
 import Disk from './pages/admin/Disk'
+import TransferQuantity from './pages/admin/TransferQuantity'
 import PortalHeader from './components/PortalHeader'
 import TestTableStructure from './pages/TestTableStructure'
 import logoLight from './logo_light.svg'
@@ -266,6 +267,15 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         </Link>
       </div>
       <div
+        style={menuItemStyle}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+      >
+        <Link to="/admin/transfer-quantity" style={linkStyle}>
+          Перенос количества
+        </Link>
+      </div>
+      <div
         style={{ ...menuItemStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
@@ -334,6 +344,10 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         {
           key: 'disk',
           label: <Link to="/admin/disk">Диск</Link>
+        },
+        {
+          key: 'transfer-quantity',
+          label: <Link to="/admin/transfer-quantity">Перенос количества</Link>
         },
         {
           key: 'theme-toggle',
@@ -488,6 +502,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               location.pathname.startsWith('/admin/documentation-tags') ? 'documentation-tags' :
               location.pathname.startsWith('/admin/statuses') ? 'statuses' :
               location.pathname.startsWith('/admin/disk') ? 'disk' :
+              location.pathname.startsWith('/admin/transfer-quantity') ? 'transfer-quantity' :
               location.pathname
             ]}
             openKeys={openKeys}
@@ -522,6 +537,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                 <Route path="documentation-tags" element={<DocumentationTags />} />
                 <Route path="statuses" element={<Statuses />} />
                 <Route path="disk" element={<Disk />} />
+                <Route path="transfer-quantity" element={<TransferQuantity />} />
               </Route>
               <Route path="/test-table" element={<TestTableStructure />} />
             </Routes>
