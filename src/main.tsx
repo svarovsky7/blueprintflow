@@ -46,7 +46,7 @@ export function Root() {
           : {
               algorithm: theme.defaultAlgorithm,
               token: {
-                colorPrimary: '#0000ff',
+                colorPrimary: '#a798b3',
                 colorBgLayout: '#FCFCFC',
                 colorBgContainer: '#FCFCFC',
                 colorText: '#000000',
