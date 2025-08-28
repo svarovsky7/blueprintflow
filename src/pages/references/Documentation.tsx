@@ -1507,9 +1507,9 @@ export default function Documentation() {
                 onClick={() => setFiltersExpanded(!filtersExpanded)}
                 icon={
                   <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <FilterOutlined style={{ fontSize: '16px', color: filtersExpanded ? '#1890ff' : undefined }} />
-                    {filtersExpanded ? 
-                      <CaretUpFilled style={{ fontSize: '10px', color: '#1890ff' }} /> : 
+                    <FilterOutlined style={{ fontSize: '16px', color: filtersExpanded ? '#a798b3' : undefined }} />
+                    {filtersExpanded ?
+                      <CaretUpFilled style={{ fontSize: '10px', color: '#a798b3' }} /> :
                       <CaretDownFilled style={{ fontSize: '10px' }} />
                     }
                   </span>
