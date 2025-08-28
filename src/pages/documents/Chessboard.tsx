@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState, useEffect, type Key } from 'react'
-import { App, Badge, Button, Card, Checkbox, Drawer, Dropdown, Input, InputNumber, List, Modal, Popconfirm, Select, Space, Table, Typography, Upload } from 'antd'
+import { App, Badge, Button, Card, Checkbox, Drawer, Dropdown, Input, List, Modal, Popconfirm, Select, Space, Table, Typography, Upload } from 'antd'
 import type { ColumnType, ColumnsType } from 'antd/es/table'
 import { ArrowDownOutlined, ArrowUpOutlined, BgColorsOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, InboxOutlined, PlusOutlined, SaveOutlined, SettingOutlined, FilterOutlined, CaretUpFilled, CaretDownFilled, UploadOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
@@ -52,14 +52,6 @@ const RowColorPicker = ({
   </Dropdown>
 )
 
-interface FloorQuantity {
-  quantityPd: string
-  quantitySpec: string
-  quantityRd: string
-}
-
-type FloorQuantities = Record<number, FloorQuantity>
-
 interface RowData {
   key: string
   material: string
@@ -79,21 +71,6 @@ interface RowData {
   tagId?: string
   tagName?: string
   projectCode?: string
-  floorQuantities?: FloorQuantities
-}
-
-interface FloorModalRow {
-  floor: number
-  quantityPd: string
-  quantitySpec: string
-  quantityRd: string
-}
-
-interface FloorModalInfo {
-  projectCode?: string
-  workName?: string
-  material: string
-  unit: string
 }
 
 interface ViewRow {
@@ -147,7 +124,6 @@ interface DbRow {
   unit_id: string | null
   color: string | null
   floors?: string
-  floorQuantities?: FloorQuantities
   units?: { name: string | null } | null
   chessboard_mapping?: {
     block_id: string | null
@@ -250,7 +226,6 @@ const emptyRow = (defaults: Partial<RowData>): RowData => ({
   rateId: '',
   floors: defaults.floors ?? '',
   color: '',
-  floorQuantities: undefined,
 })
 
 type HiddenColKey = 'block' | 'costCategory' | 'costType' | 'location'
@@ -545,55 +520,37 @@ export default function Chessboard() {
       
       // Загружаем этажи для всех записей
       const chessboardIds = (data as any[])?.map(item => item.id) || []
-      let floorsMap: Record<string, { floors: string; quantities: FloorQuantities }> = {}
-
+      let floorsMap: Record<string, string> = {}
+      
       if (chessboardIds.length > 0) {
         const { data: floorsData } = await supabase
           .from('chessboard_floor_mapping')
-          .select('chessboard_id, floor_number, "quantityPd", "quantitySpec", "quantityRd"')
+          .select('chessboard_id, floor_number')
           .in('chessboard_id', chessboardIds)
           .order('floor_number', { ascending: true })
-
-        // Группируем этажи по chessboard_id и сохраняем количества
+        
+        // Группируем этажи по chessboard_id и преобразуем в строки с диапазонами
         if (floorsData) {
-          const grouped: Record<string, { floors: number[]; quantities: FloorQuantities }> = {}
+          const grouped: Record<string, number[]> = {}
           floorsData.forEach((item: any) => {
             if (!grouped[item.chessboard_id]) {
-              grouped[item.chessboard_id] = { floors: [], quantities: {} }
+              grouped[item.chessboard_id] = []
             }
-            grouped[item.chessboard_id].floors.push(item.floor_number)
-            grouped[item.chessboard_id].quantities[item.floor_number] = {
-              quantityPd:
-                item.quantityPd !== null && item.quantityPd !== undefined
-                  ? String(item.quantityPd)
-                  : '',
-              quantitySpec:
-                item.quantitySpec !== null && item.quantitySpec !== undefined
-                  ? String(item.quantitySpec)
-                  : '',
-              quantityRd:
-                item.quantityRd !== null && item.quantityRd !== undefined
-                  ? String(item.quantityRd)
-                  : '',
-            }
+            grouped[item.chessboard_id].push(item.floor_number)
           })
-
+          
           // Преобразуем массивы этажей в строки с диапазонами
-          for (const [id, { floors, quantities }] of Object.entries(grouped)) {
-            floorsMap[id] = {
-              floors: formatFloorsString(floors),
-              quantities,
-            }
+          for (const [id, floors] of Object.entries(grouped)) {
+            floorsMap[id] = formatFloorsString(floors)
           }
         }
       }
-
-      // Добавляем этажи и количества к результатам
+      
+      // Добавляем этажи к результатам
       const result = (data as unknown as DbRow[]) ?? []
       return result.map(item => ({
         ...item,
-        floors: floorsMap[item.id]?.floors || '',
-        floorQuantities: floorsMap[item.id]?.quantities,
+        floors: floorsMap[item.id] || ''
       }))
     },
   })
@@ -603,45 +560,12 @@ export default function Chessboard() {
       (tableData ?? []).map((item) => {
         const documentation = item.chessboard_documentation_mapping?.documentations
         const tag = documentation?.tag
-        const sumPd = item.floorQuantities
-          ? Object.values(item.floorQuantities).reduce(
-              (s, q) => s + (parseFloat(q.quantityPd) || 0),
-              0,
-            )
-          : null
-        const sumSpec = item.floorQuantities
-          ? Object.values(item.floorQuantities).reduce(
-              (s, q) => s + (parseFloat(q.quantitySpec) || 0),
-              0,
-            )
-          : null
-        const sumRd = item.floorQuantities
-          ? Object.values(item.floorQuantities).reduce(
-              (s, q) => s + (parseFloat(q.quantityRd) || 0),
-              0,
-            )
-          : null
         return {
           key: item.id,
           material: item.material ?? '',
-          quantityPd:
-            sumPd !== null
-              ? String(sumPd)
-              : item.quantityPd !== null && item.quantityPd !== undefined
-              ? String(item.quantityPd)
-              : '',
-          quantitySpec:
-            sumSpec !== null
-              ? String(sumSpec)
-              : item.quantitySpec !== null && item.quantitySpec !== undefined
-              ? String(item.quantitySpec)
-              : '',
-          quantityRd:
-            sumRd !== null
-              ? String(sumRd)
-              : item.quantityRd !== null && item.quantityRd !== undefined
-              ? String(item.quantityRd)
-              : '',
+          quantityPd: item.quantityPd !== null && item.quantityPd !== undefined ? String(item.quantityPd) : '',
+          quantitySpec: item.quantitySpec !== null && item.quantitySpec !== undefined ? String(item.quantitySpec) : '',
+          quantityRd: item.quantityRd !== null && item.quantityRd !== undefined ? String(item.quantityRd) : '',
           unit: item.units?.name ?? '',
           blockId: item.chessboard_mapping?.block_id ?? '',
           block: item.chessboard_mapping?.blocks?.name ?? '',
@@ -788,201 +712,6 @@ export default function Chessboard() {
     [],
   )
 
-  const [floorModalOpen, setFloorModalOpen] = useState(false)
-  const [floorModalRowKey, setFloorModalRowKey] = useState<string | null>(null)
-  const [floorModalIsEdit, setFloorModalIsEdit] = useState(false)
-  const [floorModalData, setFloorModalData] = useState<FloorModalRow[]>([])
-  const [floorModalInfo, setFloorModalInfo] = useState<FloorModalInfo>({ material: '', unit: '' })
-
-  const openFloorModal = useCallback(
-    (key: string, isEdit: boolean) => {
-      const row =
-        isEdit
-          ? editingRows[key]
-          : rows.find(r => r.key === key) ?? tableData?.find(r => r.id === key)
-      if (!row) return
-      const floors = parseFloorsString(row.floors)
-      const quantities = row.floorQuantities || {}
-      const data = floors.map(f => ({
-        floor: f,
-        quantityPd: quantities[f]?.quantityPd || '',
-        quantitySpec: quantities[f]?.quantitySpec || '',
-        quantityRd: quantities[f]?.quantityRd || '',
-      }))
-      const unitName =
-        'unitId' in row
-          ? units?.find(u => String(u.id) === row.unitId)?.name ?? ''
-          : row.units?.name ?? ''
-      const workName =
-        'costTypeId' in row
-          ? costTypes?.find(t => String(t.id) === row.costTypeId)?.name ?? ''
-          : row.chessboard_mapping?.detail_cost_categories?.name ?? ''
-      const projectCode =
-        'projectCode' in row
-          ? row.projectCode
-          : row.chessboard_documentation_mapping?.documentations?.code ?? ''
-      setFloorModalInfo({
-        projectCode,
-        workName,
-        material: row.material,
-        unit: unitName,
-      })
-      setFloorModalRowKey(key)
-      setFloorModalIsEdit(isEdit)
-      setFloorModalData(data)
-      setFloorModalOpen(true)
-    },
-    [editingRows, rows, tableData, units, costTypes],
-  )
-
-  const handleFloorModalChange = useCallback(
-    (index: number, field: keyof FloorQuantity | 'floor', value: string | number) => {
-      setFloorModalData(prev =>
-        prev.map((item, i) =>
-          i === index ? { ...item, [field]: field === 'floor' ? Number(value) : String(value) } : item,
-        ),
-      )
-    },
-    [],
-  )
-
-  const addFloorModalRow = useCallback(() => {
-    setFloorModalData(prev => [...prev, { floor: 0, quantityPd: '', quantitySpec: '', quantityRd: '' }])
-  }, [])
-
-  const removeFloorModalRow = useCallback((index: number) => {
-    setFloorModalData(prev => prev.filter((_, i) => i !== index))
-  }, [])
-
-  const floorModalColumns = useMemo<ColumnsType<FloorModalRow>>(
-    () => [
-      {
-        title: 'Этаж',
-        dataIndex: 'floor',
-        render: (_, record, index) =>
-          floorModalIsEdit ? (
-            <InputNumber
-              value={record.floor}
-              onChange={value => handleFloorModalChange(index, 'floor', value ?? 0)}
-            />
-          ) : (
-            record.floor
-          ),
-      },
-      {
-        title: 'Кол-во по ПД',
-        dataIndex: 'quantityPd',
-        render: (_, record, index) =>
-          floorModalIsEdit ? (
-            <Input
-              style={{ width: '10ch' }}
-              value={record.quantityPd}
-              onChange={e => handleFloorModalChange(index, 'quantityPd', e.target.value)}
-            />
-          ) : (
-            record.quantityPd
-          ),
-      },
-      {
-        title: 'Кол-во по спеке РД',
-        dataIndex: 'quantitySpec',
-        render: (_, record, index) =>
-          floorModalIsEdit ? (
-            <Input
-              style={{ width: '10ch' }}
-              value={record.quantitySpec}
-              onChange={e => handleFloorModalChange(index, 'quantitySpec', e.target.value)}
-            />
-          ) : (
-            record.quantitySpec
-          ),
-      },
-      {
-        title: 'Кол-во по пересчету РД',
-        dataIndex: 'quantityRd',
-        render: (_, record, index) =>
-          floorModalIsEdit ? (
-            <Input
-              style={{ width: '10ch' }}
-              value={record.quantityRd}
-              onChange={e => handleFloorModalChange(index, 'quantityRd', e.target.value)}
-            />
-          ) : (
-            record.quantityRd
-          ),
-      },
-      ...(floorModalIsEdit
-        ? [
-            {
-              title: '',
-              dataIndex: 'actions',
-              render: (_: unknown, __: unknown, index: number) => (
-                <Button
-                  type="text"
-                  icon={<DeleteOutlined />}
-                  onClick={() => removeFloorModalRow(index)}
-                />
-              ),
-            },
-          ]
-        : []),
-    ],
-    [floorModalIsEdit, handleFloorModalChange, removeFloorModalRow],
-  )
-
-  const saveFloorModal = useCallback(() => {
-    if (!floorModalRowKey) return
-    const map: FloorQuantities = {}
-    const floorNums: number[] = []
-    floorModalData.forEach(d => {
-      const num = Number(d.floor)
-      if (!isNaN(num)) {
-        floorNums.push(num)
-        map[num] = {
-          quantityPd: d.quantityPd,
-          quantitySpec: d.quantitySpec,
-          quantityRd: d.quantityRd,
-        }
-      }
-    })
-    floorNums.sort((a, b) => a - b)
-    const floorsStr = formatFloorsString(floorNums)
-    const totalPd = floorModalData.reduce((s, d) => s + (parseFloat(d.quantityPd) || 0), 0)
-    const totalSpec = floorModalData.reduce((s, d) => s + (parseFloat(d.quantitySpec) || 0), 0)
-    const totalRd = floorModalData.reduce((s, d) => s + (parseFloat(d.quantityRd) || 0), 0)
-    if (floorModalIsEdit) {
-      setEditingRows(prev => ({
-        ...prev,
-        [floorModalRowKey]: {
-          ...prev[floorModalRowKey],
-          floors: floorsStr,
-          quantityPd: totalPd ? String(totalPd) : '',
-          quantitySpec: totalSpec ? String(totalSpec) : '',
-          quantityRd: totalRd ? String(totalRd) : '',
-          floorQuantities: map,
-        },
-      }))
-    } else {
-      setRows(prev =>
-        prev.map(r =>
-          r.key === floorModalRowKey
-            ? {
-                ...r,
-                floors: floorsStr,
-                quantityPd: totalPd ? String(totalPd) : '',
-                quantitySpec: totalSpec ? String(totalSpec) : '',
-                quantityRd: totalRd ? String(totalRd) : '',
-                floorQuantities: map,
-              }
-            : r,
-        ),
-      )
-    }
-    setFloorModalOpen(false)
-  }, [floorModalRowKey, floorModalData, floorModalIsEdit, setEditingRows, setRows])
-
-  const cancelFloorModal = useCallback(() => setFloorModalOpen(false), [])
-
   const startAdd = useCallback(() => {
     if (!appliedFilters) return
     const defaultLocationId = appliedFilters.typeId
@@ -1053,7 +782,6 @@ export default function Chessboard() {
               ? `${dbRow.chessboard_documentation_mapping.documentations.tag.tag_number || ''} ${dbRow.chessboard_documentation_mapping.documentations.tag.name}`.trim()
               : '',
             projectCode: dbRow.chessboard_documentation_mapping?.documentations?.code ?? '',
-            floorQuantities: dbRow.floorQuantities,
           },
         }
       })
@@ -1095,32 +823,16 @@ export default function Chessboard() {
         await supabase!.from('chessboard_floor_mapping')
           .delete()
           .eq('chessboard_id', r.key)
-
+        
         // Парсим строку этажей и добавляем новые
         const floors = parseFloorsString(r.floors)
         if (floors.length > 0) {
-          const totalFloors = floors.length
-          const floorQuantities = r.floorQuantities
           const floorMappings = floors.map(floor => ({
             chessboard_id: r.key,
-            floor_number: floor,
-            quantityPd: floorQuantities?.[floor]?.quantityPd
-              ? Number(floorQuantities[floor].quantityPd)
-              : r.quantityPd
-              ? Number(r.quantityPd) / totalFloors
-              : null,
-            quantitySpec: floorQuantities?.[floor]?.quantitySpec
-              ? Number(floorQuantities[floor].quantitySpec)
-              : r.quantitySpec
-              ? Number(r.quantitySpec) / totalFloors
-              : null,
-            quantityRd: floorQuantities?.[floor]?.quantityRd
-              ? Number(floorQuantities[floor].quantityRd)
-              : r.quantityRd
-              ? Number(r.quantityRd) / totalFloors
-              : null,
+            floor_number: floor
           }))
-          await supabase!.from('chessboard_floor_mapping').insert(floorMappings)
+          await supabase!.from('chessboard_floor_mapping')
+            .insert(floorMappings)
         }
       }
       
@@ -1352,26 +1064,9 @@ export default function Chessboard() {
     for (let idx = 0; idx < data.length; idx++) {
       const floors = parseFloorsString(rows[idx].floors)
       if (floors.length > 0) {
-        const totalFloors = floors.length
-        const floorQuantities = rows[idx].floorQuantities
         const floorMappings = floors.map(floor => ({
           chessboard_id: data[idx].id,
-          floor_number: floor,
-          quantityPd: floorQuantities?.[floor]?.quantityPd
-            ? Number(floorQuantities[floor].quantityPd)
-            : rows[idx].quantityPd
-            ? Number(rows[idx].quantityPd) / totalFloors
-            : null,
-          quantitySpec: floorQuantities?.[floor]?.quantitySpec
-            ? Number(floorQuantities[floor].quantitySpec)
-            : rows[idx].quantitySpec
-            ? Number(rows[idx].quantitySpec) / totalFloors
-            : null,
-          quantityRd: floorQuantities?.[floor]?.quantityRd
-            ? Number(floorQuantities[floor].quantityRd)
-            : rows[idx].quantityRd
-            ? Number(rows[idx].quantityRd) / totalFloors
-            : null,
+          floor_number: floor
         }))
         const { error: floorError } = await supabase.from('chessboard_floor_mapping').insert(floorMappings)
         if (floorError) {
@@ -1419,23 +1114,13 @@ export default function Chessboard() {
       rateId: 'workName',
     }
 
-    const base: Array<{
-      title: string
-      dataIndex: keyof TableRow
-      width?: number
-      align?: 'left' | 'right' | 'center'
-    }> = [
+    const base: Array<{ title: string; dataIndex: keyof TableRow; width?: number }> = [
       { title: 'Раздел', dataIndex: 'tagName', width: 200 },
       { title: 'Шифр проекта', dataIndex: 'projectCode', width: 150 },
       { title: 'Материал', dataIndex: 'material', width: 300 },
-      { title: 'Кол-во по ПД', dataIndex: 'quantityPd', width: 120, align: 'center' },
-      { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', width: 150, align: 'center' },
-      {
-        title: 'Кол-во по пересчету РД',
-        dataIndex: 'quantityRd',
-        width: 180,
-        align: 'center',
-      },
+      { title: 'Кол-во по ПД', dataIndex: 'quantityPd', width: 120 },
+      { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', width: 150 },
+      { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd', width: 180 },
       { title: 'Ед.изм.', dataIndex: 'unitId', width: 160 },
       { title: 'Корпус', dataIndex: 'block', width: 120 },
       { title: 'Этажи', dataIndex: 'floors', width: 150 },
@@ -1600,20 +1285,11 @@ export default function Chessboard() {
             )
           case 'quantityPd':
             return (
-              <Space>
-                {parseFloorsString(record.floors).length > 1 && (
-                  <Button
-                    type="text"
-                    icon={<PlusOutlined />}
-                    onClick={() => openFloorModal(record.key, false)}
-                  />
-                )}
-                <Input
-                  style={{ width: '10ch' }}
-                  value={record.quantityPd}
-                  onChange={(e) => handleRowChange(record.key, 'quantityPd', e.target.value)}
-                />
-              </Space>
+              <Input
+                style={{ width: '10ch' }}
+                value={record.quantityPd}
+                onChange={(e) => handleRowChange(record.key, 'quantityPd', e.target.value)}
+              />
             )
           case 'quantitySpec':
             return (
@@ -1829,7 +1505,7 @@ export default function Chessboard() {
       dataIndex: 'checkbox',
       width: 50,
       fixed: 'left',
-      render: (_: unknown, record: ViewRow) => (
+      render: (_: any, record: ViewRow) => (
         <Checkbox
           checked={selectedRows.has(record.key)}
           onChange={() => toggleRowSelection(record.key)}
@@ -1837,23 +1513,13 @@ export default function Chessboard() {
       ),
     } : null
     
-    const base: Array<{
-      title: string
-      dataIndex: string
-      width?: number
-      align?: 'left' | 'right' | 'center'
-    }> = [
+    const base: Array<{ title: string; dataIndex: string; width?: number }> = [
       { title: 'Раздел', dataIndex: 'tagName', width: 200 },
       { title: 'Шифр проекта', dataIndex: 'projectCode', width: 150 },
       { title: 'Материал', dataIndex: 'material', width: 300 },
-      { title: 'Кол-во по ПД', dataIndex: 'quantityPd', width: 120, align: 'center' },
-      { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', width: 150, align: 'center' },
-      {
-        title: 'Кол-во по пересчету РД',
-        dataIndex: 'quantityRd',
-        width: 180,
-        align: 'center',
-      },
+      { title: 'Кол-во по ПД', dataIndex: 'quantityPd', width: 120 },
+      { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', width: 150 },
+      { title: 'Кол-во по пересчету РД', dataIndex: 'quantityRd', width: 180 },
       { title: 'Ед.изм.', dataIndex: 'unit', width: 160 },
       { title: 'Корпус', dataIndex: 'block', width: 120 },
       { title: 'Этажи', dataIndex: 'floors', width: 150 },
@@ -1890,24 +1556,7 @@ export default function Chessboard() {
 
       const render: ColumnType<ViewRow>['render'] = (_, record) => {
         const edit = editingRows[record.key]
-        if (!edit) {
-          if (
-            ['quantityPd', 'quantitySpec', 'quantityRd'].includes(col.dataIndex) &&
-            parseFloorsString(record.floors).length > 1 &&
-            record[col.dataIndex as keyof ViewRow]
-          ) {
-            return (
-              <Button
-                type="link"
-                style={{ padding: 0 }}
-                onClick={() => openFloorModal(record.key, false)}
-              >
-                {record[col.dataIndex as keyof ViewRow]}
-              </Button>
-            )
-          }
-          return record[col.dataIndex as keyof ViewRow]
-        }
+        if (!edit) return record[col.dataIndex as keyof ViewRow]
         switch (col.dataIndex) {
           case 'tagName':
             return (
@@ -2021,20 +1670,11 @@ export default function Chessboard() {
             )
           case 'quantityPd':
             return (
-              <Space>
-                {parseFloorsString(edit.floors).length > 1 && (
-                  <Button
-                    type="text"
-                    icon={<PlusOutlined />}
-                    onClick={() => openFloorModal(record.key, true)}
-                  />
-                )}
-                <Input
-                  style={{ width: '10ch' }}
-                  value={edit.quantityPd}
-                  onChange={(e) => handleEditChange(record.key, 'quantityPd', e.target.value)}
-                />
-              </Space>
+              <Input
+                style={{ width: '10ch' }}
+                value={edit.quantityPd}
+                onChange={(e) => handleEditChange(record.key, 'quantityPd', e.target.value)}
+              />
             )
           case 'quantitySpec':
             return (
@@ -2205,7 +1845,7 @@ export default function Chessboard() {
         title: '',
         dataIndex: 'color',
         width: Object.keys(editingRows).length > 0 ? 35 : 5,
-        render: (_: unknown, record: ViewRow) => {
+        render: (_: any, record: ViewRow) => {
           const edit = editingRows[record.key]
           return edit ? (
             <RowColorPicker value={edit.color} onChange={(c) => handleEditChange(record.key, 'color', c)} />
@@ -2225,7 +1865,7 @@ export default function Chessboard() {
         title: '',
         dataIndex: 'actions',
         width: 100,
-        render: (_: unknown, record: ViewRow) => {
+        render: (_: any, record: ViewRow) => {
           const isEditing = !!editingRows[record.key]
           return (
             <Space>
@@ -2263,7 +1903,6 @@ export default function Chessboard() {
     columnVisibility,
     columnOrder,
     getRateOptions,
-    openFloorModal,
   ])
 
   const { Text } = Typography
@@ -2897,43 +2536,6 @@ export default function Chessboard() {
         )}
         </div>
       )}
-      <Modal
-        title="Количество по этажам"
-        open={floorModalOpen}
-        onCancel={cancelFloorModal}
-        onOk={floorModalIsEdit ? saveFloorModal : undefined}
-        okText="Сохранить"
-        cancelText="Отменить"
-        footer={
-          floorModalIsEdit
-            ? undefined
-            : [<Button key="close" onClick={cancelFloorModal}>Закрыть</Button>]
-        }
-      >
-        <div style={{ marginBottom: 16 }}>
-          <div>Шифр проекта: {floorModalInfo.projectCode}</div>
-          <div>Наименование работ: {floorModalInfo.workName}</div>
-          <div>
-            Материал: {floorModalInfo.material} ({floorModalInfo.unit})
-          </div>
-        </div>
-        <Table
-          dataSource={floorModalData.map((d, i) => ({ ...d, key: i }))}
-          columns={floorModalColumns}
-          pagination={false}
-          rowKey="key"
-        />
-        {floorModalIsEdit && (
-          <Button
-            type="dashed"
-            icon={<PlusOutlined />}
-            onClick={addFloorModalRow}
-            style={{ marginTop: 8 }}
-          >
-            Добавить этаж
-          </Button>
-        )}
-      </Modal>
       <Modal
         title="Импорт из Excel"
         open={importOpen}

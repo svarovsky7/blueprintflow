@@ -2906,9 +2906,6 @@ CREATE TABLE public.chessboard_floor_mapping (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     chessboard_id uuid NOT NULL,
     floor_number integer NOT NULL,
-    "quantityPd" numeric,
-    "quantitySpec" numeric,
-    "quantityRd" numeric,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
 );
