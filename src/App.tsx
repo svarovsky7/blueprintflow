@@ -69,15 +69,15 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             width: 32,
             height: 32,
             borderRadius: 4,
-            border: `1px solid ${isActive 
-              ? '#1890ff'
+            border: `1px solid ${isActive
+              ? '#c3b8cc'
               : 'transparent'}`,
             boxShadow: 'none',
             backgroundColor: isActive
-              ? isDark ? 'rgba(24, 144, 255, 0.1)' : 'rgba(24, 144, 255, 0.05)'
+              ? isDark ? 'rgba(195, 184, 204, 0.1)' : 'rgba(195, 184, 204, 0.05)'
               : 'transparent',
-            color: isActive 
-              ? '#1890ff'
+            color: isActive
+              ? '#c3b8cc'
               : isDark ? '#ffffff' : '#000000',
             display: 'flex',
             alignItems: 'center',
@@ -353,29 +353,29 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             border: none !important;
             border-radius: 0 !important;
             box-shadow: none !important;
-            color: #1890ff !important;
+            color: #c3b8cc !important;
             margin: 0 !important;
           }
-          
+
           .ant-menu-item-selected a {
-            color: #1890ff !important;
+            color: #c3b8cc !important;
           }
-          
+
           .ant-menu-submenu .ant-menu-item-selected {
-            background-color: ${isDark ? 'rgba(24, 144, 255, 0.1)' : 'rgba(24, 144, 255, 0.05)'} !important;
-            border: 1px solid #1890ff !important;
+            background-color: ${isDark ? 'rgba(195, 184, 204, 0.1)' : 'rgba(195, 184, 204, 0.05)'} !important;
+            border: 1px solid #c3b8cc !important;
             border-radius: 4px !important;
             box-shadow: none !important;
-            color: #1890ff !important;
+            color: #c3b8cc !important;
             margin: 2px 8px !important;
           }
-          
+
           .ant-menu-submenu .ant-menu-item-selected a {
-            color: #1890ff !important;
+            color: #c3b8cc !important;
           }
-          
+
           .ant-menu-submenu-selected > .ant-menu-submenu-title {
-            color: #1890ff !important;
+            color: #c3b8cc !important;
           }
           
           .ant-menu-item:hover:not(.ant-menu-item-selected) {

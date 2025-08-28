@@ -2242,9 +2242,9 @@ export default function Chessboard() {
                 onClick={() => setFiltersExpanded(!filtersExpanded)}
                 icon={
                   <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <FilterOutlined style={{ fontSize: '16px', color: filtersExpanded ? '#1890ff' : undefined }} />
-                    {filtersExpanded ? 
-                      <CaretUpFilled style={{ fontSize: '10px', color: '#1890ff' }} /> : 
+                    <FilterOutlined style={{ fontSize: '16px', color: filtersExpanded ? '#c3b8cc' : undefined }} />
+                    {filtersExpanded ?
+                      <CaretUpFilled style={{ fontSize: '10px', color: '#c3b8cc' }} /> :
                       <CaretDownFilled style={{ fontSize: '10px' }} />
                     }
                   </span>
@@ -2254,7 +2254,7 @@ export default function Chessboard() {
                   padding: '4px 12px',
                   display: 'flex',
                   alignItems: 'center',
-                  borderColor: filtersExpanded ? '#1890ff' : undefined
+                  borderColor: filtersExpanded ? '#c3b8cc' : undefined
                 }}
               >
                 Фильтры
