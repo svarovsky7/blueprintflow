@@ -209,6 +209,7 @@ export default function Materials() {
           .from('material_prices')
           .select('id')
           .eq('material_id', materialId)
+          .eq('price', price)
           .eq('purchase_date', today)
           .maybeSingle()
         if (existingPrice) {
@@ -297,6 +298,7 @@ export default function Materials() {
           .from('material_prices')
           .select('id')
           .eq('material_id', materialId)
+          .eq('price', Number(price))
           .eq('purchase_date', purchaseDate)
           .maybeSingle()
         if (existingPrice) {
