@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { type Key, useMemo, useRef, useState } from 'react'
 import {
   App,
   AutoComplete,
   Button,
+  DatePicker,
   Form,
   Input,
   InputNumber,
@@ -39,12 +40,13 @@ export default function Materials() {
   const [form] = Form.useForm()
   const [autoOptions, setAutoOptions] = useState<{ value: string }[]>([])
   const [searchText, setSearchText] = useState('')
-  const [priceDetails, setPriceDetails] = useState<{ price: number; purchase_date: string }[]>([])
+  const [priceDetails, setPriceDetails] = useState<{ id?: string; price: number; purchase_date: string }[]>([])
 
   const [importModalOpen, setImportModalOpen] = useState(false)
   const [importStatus, setImportStatus] = useState<'idle' | 'processing' | 'finished'>('idle')
   const [importProgress, setImportProgress] = useState<{ processed: number; total: number }>({ processed: 0, total: 0 })
   const [importResult, setImportResult] = useState(0)
+  const importAbortRef = useRef(false)
 
   const { data: materials = [], isLoading, refetch } = useQuery({
     queryKey: ['materials'],
@@ -64,7 +66,9 @@ export default function Materials() {
       })
       return ((mats as Material[]) ?? []).map(m => ({
         ...m,
-        average_price: priceMap.has(m.id) ? priceMap.get(m.id)!.sum / priceMap.get(m.id)!.count : null
+        average_price: priceMap.has(m.id)
+          ? Math.round(priceMap.get(m.id)!.sum / priceMap.get(m.id)!.count)
+          : null
       }))
     }
   })
@@ -74,6 +78,11 @@ export default function Materials() {
       materials.filter(m => m.name.toLowerCase().startsWith(searchText.toLowerCase())),
     [materials, searchText]
   )
+
+  const formatPrice = (value: number | null) =>
+    value !== null && value !== undefined
+      ? Math.round(value).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+      : '-'
 
   const openAddModal = () => {
     form.resetFields()
@@ -94,9 +103,26 @@ export default function Materials() {
     setModalMode('view')
   }
 
-  const openEditModal = (record: Material) => {
+  const openEditModal = async (record: Material) => {
     setCurrentMaterial(record)
-    form.setFieldsValue({ name: record.name })
+    if (supabase) {
+      const { data } = await supabase
+        .from('material_prices')
+        .select('id, price, purchase_date')
+        .eq('material_id', record.id)
+        .order('purchase_date', { ascending: false })
+      setPriceDetails(data ?? [])
+      form.setFieldsValue({
+        name: record.name,
+        prices: (data ?? []).map(p => ({
+          id: p.id,
+          price: p.price,
+          purchase_date: dayjs(p.purchase_date)
+        }))
+      })
+    } else {
+      form.setFieldsValue({ name: record.name })
+    }
     setModalMode('edit')
   }
 
@@ -115,6 +141,7 @@ export default function Materials() {
       const values = await form.validateFields()
       const name: string = values.name.trim()
       const price: number | undefined = values.price
+      const prices: { id: string; price: number; purchase_date: dayjs.Dayjs }[] = values.prices || []
       if (!supabase) return
       let materialId: string
       const { data: existing } = await supabase
@@ -145,13 +172,17 @@ export default function Materials() {
         }
       }
 
-      if (modalMode === 'add' && existing && price !== undefined && price !== null) {
-        await supabase.from('material_prices').insert({
-          material_id: existing.id,
-          price,
-          purchase_date: dayjs().format('YYYY-MM-DD')
-        })
-      } else if (price !== undefined && price !== null) {
+      for (const p of prices) {
+        await supabase
+          .from('material_prices')
+          .update({
+            price: p.price,
+            purchase_date: dayjs(p.purchase_date).format('YYYY-MM-DD')
+          })
+          .eq('id', p.id)
+      }
+
+      if (price !== undefined && price !== null) {
         await supabase.from('material_prices').insert({
           material_id: materialId,
           price,
@@ -182,6 +213,7 @@ export default function Materials() {
 
   const handleImport: UploadProps['beforeUpload'] = async (file) => {
     if (!supabase) return false
+    importAbortRef.current = false
     setImportStatus('processing')
     const data = await file.arrayBuffer()
     const workbook = XLSX.read(data, { type: 'array' })
@@ -191,6 +223,7 @@ export default function Materials() {
     const processedNames = new Set<string>()
     let successCount = 0
     for (let i = 0; i < rows.length; i++) {
+      if (importAbortRef.current) break
       const row = rows[i]
       const rawName = row['Номенклатура']
       const name = rawName ? rawName.trim() : ''
@@ -229,6 +262,7 @@ export default function Materials() {
           .from('material_prices')
           .select('id')
           .eq('material_id', materialId)
+          .eq('price', Number(price))
           .eq('purchase_date', purchaseDate)
           .maybeSingle()
         if (!existingPrice) {
@@ -243,20 +277,37 @@ export default function Materials() {
       if (insertedSomething) successCount++
       setImportProgress({ processed: i + 1, total: rows.length })
     }
+    if (importAbortRef.current) {
+      importAbortRef.current = false
+      return false
+    }
     setImportResult(successCount)
     setImportStatus('finished')
     refetch()
     return false
   }
 
+  const handleImportAbort = () => {
+    importAbortRef.current = true
+    setImportModalOpen(false)
+    setImportStatus('idle')
+    setImportProgress({ processed: 0, total: 0 })
+    setImportResult(0)
+  }
+
   const columns = [
     {
       title: 'Номенклатура',
-      dataIndex: 'name'
+      dataIndex: 'name',
+      filters: materials.map(m => ({ text: m.name, value: m.name })),
+      onFilter: (value: boolean | Key, record: Material) => record.name === value,
+      sorter: (a: Material, b: Material) => a.name.localeCompare(b.name)
     },
     {
       title: 'Цена',
-      dataIndex: 'average_price'
+      dataIndex: 'average_price',
+      sorter: (a: Material, b: Material) => (a.average_price ?? 0) - (b.average_price ?? 0),
+      render: (value: number | null) => (value !== null ? formatPrice(value) : '-')
     },
     {
       title: 'Действия',
@@ -333,10 +384,10 @@ export default function Materials() {
         {modalMode === 'view' ? (
           <div>
             <p>Номенклатура: {currentMaterial?.name}</p>
-            <p>Средняя цена: {currentMaterial?.average_price ?? '-'}</p>
+            <p>Средняя цена: {formatPrice(currentMaterial?.average_price ?? null)}</p>
             {priceDetails.map((p) => (
               <p key={p.purchase_date + p.price}>
-                {p.price} от {dayjs(p.purchase_date).format('DD.MM.YYYY')}
+                {formatPrice(p.price)} от {dayjs(p.purchase_date).format('DD.MM.YYYY')}
               </p>
             ))}
           </div>
@@ -362,8 +413,41 @@ export default function Materials() {
               )}
             </Form.Item>
             <Form.Item label="Цена" name="price">
-              <InputNumber min={0} style={{ width: '100%' }} />
+              <InputNumber<number>
+                min={0}
+                precision={0}
+                formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
+                parser={(v) => (v ? parseInt(v.replace(/\s/g, ''), 10) : 0)}
+                style={{ width: '100%' }}
+              />
             </Form.Item>
+            {modalMode === 'edit' && (
+              <Form.List name="prices">
+                {(fields) => (
+                  <>
+                    {fields.map((field) => (
+                      <Space key={field.key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
+                        <Form.Item {...field} name={[field.name, 'id']} hidden>
+                          <Input type="hidden" />
+                        </Form.Item>
+                        <Form.Item {...field} name={[field.name, 'price']} label="Цена">
+                          <InputNumber<number>
+                            min={0}
+                            precision={0}
+                            formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
+                            parser={(v) => (v ? parseInt(v.replace(/\s/g, ''), 10) : 0)}
+                            style={{ width: 150 }}
+                          />
+                        </Form.Item>
+                        <Form.Item {...field} name={[field.name, 'purchase_date']} label="Дата">
+                          <DatePicker format="DD.MM.YYYY" />
+                        </Form.Item>
+                      </Space>
+                    ))}
+                  </>
+                )}
+              </Form.List>
+            )}
           </Form>
         )}
       </Modal>
@@ -393,7 +477,13 @@ export default function Materials() {
                   OK
                 </Button>
               ]
-            : null
+            : importStatus === 'processing'
+              ? [
+                  <Button key="stop" onClick={handleImportAbort}>
+                    Прервать
+                  </Button>
+                ]
+              : null
         }
       >
         <Space direction="vertical" style={{ width: '100%' }}>
