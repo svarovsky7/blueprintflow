@@ -69,16 +69,16 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             width: 32,
             height: 32,
             borderRadius: 4,
-            border: `1px solid ${isActive
-              ? '#a798b3'
-              : 'transparent'}`,
+              border: `1px solid ${isActive
+                ? '#a69ead'
+                : 'transparent'}`,
             boxShadow: 'none',
             backgroundColor: isActive
-              ? isDark ? 'rgba(167, 152, 179, 0.1)' : 'rgba(167, 152, 179, 0.05)'
+              ? isDark ? 'rgba(166, 158, 173, 0.1)' : 'rgba(166, 158, 173, 0.05)'
               : 'transparent',
-            color: isActive
-              ? '#a798b3'
-              : isDark ? '#ffffff' : '#000000',
+              color: isActive
+                ? '#a69ead'
+                : isDark ? '#ffffff' : '#000000',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -348,35 +348,35 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     <>
       <style>
         {`
-          .ant-menu-item-selected {
-            background-color: transparent !important;
-            border: none !important;
-            border-radius: 0 !important;
-            box-shadow: none !important;
-            color: #a798b3 !important;
-            margin: 0 !important;
-          }
+            .ant-menu-item-selected {
+              background-color: transparent !important;
+              border: none !important;
+              border-radius: 0 !important;
+              box-shadow: none !important;
+              color: #a69ead !important;
+              margin: 0 !important;
+            }
 
-          .ant-menu-item-selected a {
-            color: #a798b3 !important;
-          }
+            .ant-menu-item-selected a {
+              color: #a69ead !important;
+            }
 
-          .ant-menu-submenu .ant-menu-item-selected {
-            background-color: ${isDark ? 'rgba(167, 152, 179, 0.1)' : 'rgba(167, 152, 179, 0.05)'} !important;
-            border: 1px solid #a798b3 !important;
-            border-radius: 4px !important;
-            box-shadow: none !important;
-            color: #a798b3 !important;
-            margin: 2px 8px !important;
-          }
+            .ant-menu-submenu .ant-menu-item-selected {
+              background-color: ${isDark ? 'rgba(166, 158, 173, 0.1)' : 'rgba(166, 158, 173, 0.05)'} !important;
+              border: 1px solid #a69ead !important;
+              border-radius: 4px !important;
+              box-shadow: none !important;
+              color: #a69ead !important;
+              margin: 2px 8px !important;
+            }
 
-          .ant-menu-submenu .ant-menu-item-selected a {
-            color: #a798b3 !important;
-          }
+            .ant-menu-submenu .ant-menu-item-selected a {
+              color: #a69ead !important;
+            }
 
-          .ant-menu-submenu-selected > .ant-menu-submenu-title {
-            color: #a798b3 !important;
-          }
+            .ant-menu-submenu-selected > .ant-menu-submenu-title {
+              color: #a69ead !important;
+            }
           
           .ant-menu-item:hover:not(.ant-menu-item-selected) {
             background-color: ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'} !important;
