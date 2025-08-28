@@ -19,7 +19,7 @@ export default function TransferQuantity() {
     try {
       const { data, error } = await supabase
         .from('chessboard')
-        .select('id, floors, "quantityPd", "quantitySpec", "quantityRd"')
+        .select('id, "floors", "quantityPd", "quantitySpec", "quantityRd"')
       if (error) throw error
 
       const rows = (data ?? []) as ChessboardRow[]

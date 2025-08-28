@@ -796,7 +796,10 @@ export default function Chessboard() {
 
   const openFloorModal = useCallback(
     (key: string, isEdit: boolean) => {
-      const row = isEdit ? editingRows[key] : rows.find(r => r.key === key)
+      const row =
+        isEdit
+          ? editingRows[key]
+          : rows.find(r => r.key === key) ?? tableData?.find(r => r.id === key)
       if (!row) return
       const floors = parseFloorsString(row.floors)
       const quantities = row.floorQuantities || {}
@@ -806,15 +809,30 @@ export default function Chessboard() {
         quantitySpec: quantities[f]?.quantitySpec || '',
         quantityRd: quantities[f]?.quantityRd || '',
       }))
-      const unitName = units?.find(u => String(u.id) === row.unitId)?.name ?? ''
-      const workName = costTypes?.find(t => String(t.id) === row.costTypeId)?.name ?? ''
-      setFloorModalInfo({ projectCode: row.projectCode, workName, material: row.material, unit: unitName })
+      const unitName =
+        'unitId' in row
+          ? units?.find(u => String(u.id) === row.unitId)?.name ?? ''
+          : row.units?.name ?? ''
+      const workName =
+        'costTypeId' in row
+          ? costTypes?.find(t => String(t.id) === row.costTypeId)?.name ?? ''
+          : row.chessboard_mapping?.detail_cost_categories?.name ?? ''
+      const projectCode =
+        'projectCode' in row
+          ? row.projectCode
+          : row.chessboard_documentation_mapping?.documentations?.code ?? ''
+      setFloorModalInfo({
+        projectCode,
+        workName,
+        material: row.material,
+        unit: unitName,
+      })
       setFloorModalRowKey(key)
       setFloorModalIsEdit(isEdit)
       setFloorModalData(data)
       setFloorModalOpen(true)
     },
-    [editingRows, rows, units, costTypes],
+    [editingRows, rows, tableData, units, costTypes],
   )
 
   const handleFloorModalChange = useCallback(
@@ -1859,9 +1877,15 @@ export default function Chessboard() {
             record[col.dataIndex as keyof ViewRow]
           ) {
             return (
-              <Button type="link" onClick={() => openFloorModal(record.key, false)}>
-                {record[col.dataIndex as keyof ViewRow]}
-              </Button>
+              <div style={{ textAlign: 'center' }}>
+                <Button
+                  type="link"
+                  style={{ padding: 0 }}
+                  onClick={() => openFloorModal(record.key, false)}
+                >
+                  {record[col.dataIndex as keyof ViewRow]}
+                </Button>
+              </div>
             )
           }
           return record[col.dataIndex as keyof ViewRow]
