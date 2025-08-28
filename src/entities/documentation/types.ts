@@ -136,7 +136,7 @@ export const STATUS_COLORS = {
   filled_recalc: '#52c41a', // green
   filled_spec: '#faad14', // yellow
   not_filled: '#ff4d4f', // red
-  vor_created: '#c3b8cc', // blue
+  vor_created: '#1890ff', // blue
 } as const
 
 export const STATUS_LABELS = {

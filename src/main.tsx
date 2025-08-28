@@ -37,7 +37,7 @@ export function Root() {
           ? {
               algorithm: theme.darkAlgorithm,
               token: {
-                colorPrimary: '#c3b8cc',
+                colorPrimary: '#ffffff',
                 colorBgLayout: '#555555',
                 colorBgContainer: '#555555',
                 colorText: '#ffffff',
@@ -46,7 +46,7 @@ export function Root() {
           : {
               algorithm: theme.defaultAlgorithm,
               token: {
-                colorPrimary: '#c3b8cc',
+                colorPrimary: '#0000ff',
                 colorBgLayout: '#FCFCFC',
                 colorBgContainer: '#FCFCFC',
                 colorText: '#000000',

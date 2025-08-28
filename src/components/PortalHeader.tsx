@@ -55,7 +55,7 @@ export default function PortalHeader({ isDark }: PortalHeaderProps) {
   return (
     <Header
       style={{
-        background: isDark ? '#555555' : '#eee9f2',
+        background: isDark ? '#555555' : '#EEF0F1',
         padding: '0 16px',
         display: 'flex',
         justifyContent: 'space-between',
