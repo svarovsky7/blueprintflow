@@ -6,13 +6,13 @@ body {
 }
 
 body[data-theme='light'] {
-  --menu-bg: #EEF0F1;
+  --menu-bg: #D8BFD8;
   --menu-color: #000000;
 }
 
 body[data-theme='dark'] {
-  --menu-bg: #555555;
-  --menu-color: #ffffff;
+  --menu-bg: #D8BFD8;
+  --menu-color: #000000;
 }
 
 .ant-menu-dark,

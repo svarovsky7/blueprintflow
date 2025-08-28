@@ -34,26 +34,28 @@ export function Root() {
     <ConfigProvider
       theme={
         isDark
-          ? {
-              algorithm: theme.darkAlgorithm,
-              token: {
-                colorPrimary: '#ffffff',
-                colorBgLayout: '#555555',
-                colorBgContainer: '#555555',
-                colorText: '#ffffff',
-              },
-            }
-          : {
-              algorithm: theme.defaultAlgorithm,
-              token: {
-                colorPrimary: '#0000ff',
-                colorBgLayout: '#FCFCFC',
-                colorBgContainer: '#FCFCFC',
-                colorText: '#000000',
-              },
-            }
-      }
-    >
+            ? {
+                algorithm: theme.darkAlgorithm,
+                token: {
+                  colorPrimary: '#DA70D6',
+                  colorPrimaryHover: '#DA70D6',
+                  colorBgLayout: '#555555',
+                  colorBgContainer: '#555555',
+                  colorText: '#ffffff',
+                },
+              }
+            : {
+                algorithm: theme.defaultAlgorithm,
+                token: {
+                  colorPrimary: '#DA70D6',
+                  colorPrimaryHover: '#DA70D6',
+                  colorBgLayout: '#FCFCFC',
+                  colorBgContainer: '#FCFCFC',
+                  colorText: '#000000',
+                },
+              }
+        }
+      >
       <AntdApp>
         <QueryClientProvider client={queryClient}>
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
