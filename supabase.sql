@@ -294,8 +294,8 @@ create table if not exists documentation_file_paths (
 
 alter table if exists documentation_versions drop column if exists file_path;
 
--- Materials reference tables
-create table if not exists materials (
+-- Nomenclature reference tables
+create table if not exists nomenclature (
   id uuid primary key default gen_random_uuid(),
   name text unique not null,
   created_at timestamptz default now(),
@@ -304,7 +304,7 @@ create table if not exists materials (
 
 create table if not exists material_prices (
   id uuid primary key default gen_random_uuid(),
-  material_id uuid references materials(id) on delete cascade,
+  material_id uuid references nomenclature(id) on delete cascade,
   price numeric,
   purchase_date date not null default current_date,
   created_at timestamptz default now(),
@@ -314,9 +314,9 @@ create table if not exists material_prices (
 
 create index if not exists idx_material_prices_material_id on material_prices(material_id);
 
-grant all on table materials to anon;
-grant all on table materials to authenticated;
-grant all on table materials to service_role;
+grant all on table nomenclature to anon;
+grant all on table nomenclature to authenticated;
+grant all on table nomenclature to service_role;
 
 grant all on table material_prices to anon;
 grant all on table material_prices to authenticated;
