@@ -69,3 +69,8 @@ body[data-theme='dark'] {
 .row-purple * {
   color: #000000 !important;
 }
+
+.chessboard-table .ant-table-cell {
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
+}
