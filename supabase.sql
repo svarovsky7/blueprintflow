@@ -44,7 +44,6 @@ create table if not exists chessboard (
   id uuid primary key default gen_random_uuid(),
   project_id uuid references projects on delete cascade,
   material text,
-  material_id uuid references materials(id) on delete set null,
   "quantityPd" numeric,
   "quantitySpec" numeric,
   "quantityRd" numeric,
