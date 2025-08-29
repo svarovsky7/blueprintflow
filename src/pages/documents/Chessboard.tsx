@@ -691,9 +691,24 @@ export default function Chessboard() {
         return {
           key: item.id,
           material: item.material ?? '',
-          quantityPd: sumPd !== null ? String(sumPd) : '',
-          quantitySpec: sumSpec !== null ? String(sumSpec) : '',
-          quantityRd: sumRd !== null ? String(sumRd) : '',
+          quantityPd:
+            sumPd !== null
+              ? String(sumPd)
+              : item.quantityPd !== null && item.quantityPd !== undefined
+              ? String(item.quantityPd)
+              : '',
+          quantitySpec:
+            sumSpec !== null
+              ? String(sumSpec)
+              : item.quantitySpec !== null && item.quantitySpec !== undefined
+              ? String(item.quantitySpec)
+              : '',
+          quantityRd:
+            sumRd !== null
+              ? String(sumRd)
+              : item.quantityRd !== null && item.quantityRd !== undefined
+              ? String(item.quantityRd)
+              : '',
           nomenclatureId: getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature_id ?? '',
           nomenclature: getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature?.name ?? '',
           unit: item.units?.name ?? '',
