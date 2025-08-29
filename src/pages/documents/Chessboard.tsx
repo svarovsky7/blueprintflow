@@ -2926,7 +2926,7 @@ export default function Chessboard() {
       
       {/* Таблица */}
       {appliedFilters && (
-        <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+        <div className="chessboard-table" style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
           {mode === 'add' ? (
             <Table<TableRow>
             dataSource={tableRows}
