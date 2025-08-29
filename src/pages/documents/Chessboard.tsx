@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useEffect, type Key, type ReactElement } from 'react'
+import { useCallback, useMemo, useState, useEffect, type Key } from 'react'
 import { App, Badge, Button, Card, Checkbox, Drawer, Dropdown, Input, InputNumber, List, Modal, Popconfirm, Select, Space, Table, Typography, Upload } from 'antd'
 import type { ColumnType, ColumnsType } from 'antd/es/table'
 import { ArrowDownOutlined, ArrowUpOutlined, BgColorsOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, InboxOutlined, PlusOutlined, SaveOutlined, SettingOutlined, FilterOutlined, CaretUpFilled, CaretDownFilled, UploadOutlined } from '@ant-design/icons'
@@ -103,6 +103,7 @@ interface ViewRow {
   quantityPd: string
   quantitySpec: string
   quantityRd: string
+  nomenclatureId: string
   nomenclature: string
   unit: string
   blockId: string
@@ -413,6 +414,32 @@ export default function Chessboard() {
       return data as NomenclatureOption[]
     },
   })
+  const [nomenclatureOptions, setNomenclatureOptions] = useState<NomenclatureOption[]>([])
+  useEffect(() => {
+    setNomenclatureOptions(nomenclatures ?? [])
+  }, [nomenclatures])
+  const nomenclatureDropdownWidth = useMemo(() => {
+    if (typeof document === 'undefined') return 200
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d')
+    if (!context) return 200
+    context.font = getComputedStyle(document.body).font || '14px'
+    let max = 0
+    for (const n of nomenclatureOptions) {
+      const width = context.measureText(n.name).width
+      if (width > max) max = width
+    }
+    return Math.min(500, Math.ceil(max) + 64)
+  }, [nomenclatureOptions])
+  const handleNomenclatureSearch = async (value: string) => {
+    if (!supabase) return
+    const { data, error } = await supabase
+      .from('nomenclature')
+      .select('id, name')
+      .ilike('name', `%${value}%`)
+      .limit(50)
+    if (!error && data) setNomenclatureOptions(data as NomenclatureOption[])
+  }
 
   const { data: costCategories } = useQuery<CostCategoryOption[]>({
     queryKey: ['costCategories'],
@@ -569,8 +596,8 @@ export default function Chessboard() {
       }
       
       // Загружаем этажи для всех записей
-      const chessboardIds = (data ?? []).map((item: DbRow) => item.id)
-      let floorsMap: Record<string, { floors: string; quantities: FloorQuantities }> = {}
+      const chessboardIds = ((data as unknown as DbRow[] | null | undefined) ?? []).map((item) => item.id)
+      const floorsMap: Record<string, { floors: string; quantities: FloorQuantities }> = {}
 
       if (chessboardIds.length > 0) {
         const { data: floorsData } = await supabase
@@ -675,7 +702,10 @@ export default function Chessboard() {
               : item.quantityRd !== null && item.quantityRd !== undefined
               ? String(item.quantityRd)
               : '',
-          nomenclature: item.chessboard_nomenclature_mapping?.nomenclature?.name ?? '',
+          nomenclatureId:
+            item.chessboard_nomenclature_mapping?.nomenclature_id ?? '',
+          nomenclature:
+            item.chessboard_nomenclature_mapping?.nomenclature?.name ?? '',
           unit: item.units?.name ?? '',
           blockId: item.chessboard_mapping?.block_id ?? '',
           block: item.chessboard_mapping?.blocks?.name ?? '',
@@ -702,7 +732,7 @@ export default function Chessboard() {
         quantityPd: v.quantityPd,
         quantitySpec: v.quantitySpec,
         quantityRd: v.quantityRd,
-        nomenclatureId: v.nomenclature,
+        nomenclatureId: v.nomenclatureId,
         unitId: v.unit,
         blockId: v.blockId,
         block: v.block,
@@ -835,7 +865,7 @@ export default function Chessboard() {
         ? editingRows[key] ?? rows.find(r => r.key === key) ?? tableData?.find(r => r.id === key)
         : rows.find(r => r.key === key) ?? tableData?.find(r => r.id === key)
       if (!row) return
-      const floors = parseFloorsString(row.floors)
+      const floors = parseFloorsString(row.floors || '')
       const quantities = row.floorQuantities || {}
       const data = floors.map(f => ({
         floor: f,
@@ -854,11 +884,11 @@ export default function Chessboard() {
       const projectCode =
         'projectCode' in row
           ? row.projectCode
-          : row.chessboard_documentation_mapping?.documentations?.code ?? ''
+          : (row as DbRow).chessboard_documentation_mapping?.documentations?.code ?? ''
       setFloorModalInfo({
         projectCode,
         workName,
-        material: row.material,
+        material: row.material || '',
         unit: unitName,
       })
       setFloorModalRowKey(key)
@@ -1161,19 +1191,15 @@ export default function Chessboard() {
 
       // Обновляем связь с номенклатурой
       const updateNomenclatureMapping = async () => {
+        await supabase!
+          .from('chessboard_nomenclature_mapping')
+          .delete()
+          .eq('chessboard_id', r.key)
         if (r.nomenclatureId) {
-          await supabase!.from('chessboard_nomenclature_mapping').upsert(
-            {
-              chessboard_id: r.key,
-              nomenclature_id: r.nomenclatureId,
-            },
-            { onConflict: 'chessboard_id' },
-          )
-        } else {
-          await supabase!
-            .from('chessboard_nomenclature_mapping')
-            .delete()
-            .eq('chessboard_id', r.key)
+          await supabase!.from('chessboard_nomenclature_mapping').insert({
+            chessboard_id: r.key,
+            nomenclature_id: r.nomenclatureId,
+          })
         }
       }
 
@@ -1470,9 +1496,9 @@ export default function Chessboard() {
 
       if (!docId && rows[idx].projectCode && rows[idx].tagId) {
         const doc = await documentationApi.upsertDocumentation(
-          rows[idx].projectCode,
+          rows[idx].projectCode || '',
           Number(rows[idx].tagId),
-          appliedFilters.projectId,
+          appliedFilters.projectId || '',
         )
         docId = doc.id
       }
@@ -1607,20 +1633,8 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
+                  const text = (option?.label ?? '').toString()
                   return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                showSearch
-                filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                filterOption={(input, option) => {
-                  const label = option?.label
-                  if (typeof label === 'string') {
-                    return label.toLowerCase().includes(input.toLowerCase())
-                  }
-                  return false
                 }}
               />
             )
@@ -1670,20 +1684,8 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
+                  const text = (option?.label ?? '').toString()
                   return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                showSearch
-                filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                filterOption={(input, option) => {
-                  const label = option?.label
-                  if (typeof label === 'string') {
-                    return label.toLowerCase().includes(input.toLowerCase())
-                  }
-                  return false
                 }}
               />
             )
@@ -1732,11 +1734,13 @@ export default function Chessboard() {
             return (
               <Select
                 style={{ width: 250 }}
+                dropdownMatchSelectWidth={nomenclatureDropdownWidth}
                 value={record.nomenclatureId}
                 onChange={(value) => handleRowChange(record.key, 'nomenclatureId', value)}
-                options={nomenclatures?.map((n) => ({ value: n.id, label: n.name })) ?? []}
+                options={nomenclatureOptions.map((n) => ({ value: n.id, label: n.name }))}
                 showSearch
-                optionFilterProp="label"
+                onSearch={handleNomenclatureSearch}
+                filterOption={false}
                 allowClear
               />
             )
@@ -1912,7 +1916,7 @@ export default function Chessboard() {
   }, [
     viewRows,
     handleRowChange,
-    nomenclatures,
+    nomenclatureOptions,
     units,
     costCategories,
     costTypes,
@@ -1925,11 +1929,14 @@ export default function Chessboard() {
     handleDelete,
     addRow,
     copyRow,
+    deleteRow,
     rows,
     hiddenCols,
     columnVisibility,
     columnOrder,
-    getRateOptions,
+    nomenclatureDropdownWidth,
+      getRateOptions,
+      openFloorModal,
   ])
 
   const viewColumns: ColumnsType<ViewRow> = useMemo(() => {
@@ -2042,20 +2049,8 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
+                  const text = (option?.label ?? '').toString()
                   return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                showSearch
-                filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                filterOption={(input, option) => {
-                  const label = option?.label
-                  if (typeof label === 'string') {
-                    return label.toLowerCase().includes(input.toLowerCase())
-                  }
-                  return false
                 }}
               />
             )
@@ -2105,12 +2100,12 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
+                  const text = (option?.label ?? '').toString()
                   return text.toLowerCase().includes(input.toLowerCase())
                 }}
               />
             )
-          case 'material':
+         case 'material':
             return (
               <Input
                 style={{ width: 300 }}
@@ -2153,16 +2148,18 @@ export default function Chessboard() {
             )
           case 'nomenclature':
             return (
-              <Select
-                style={{ width: 250 }}
-                value={edit.nomenclatureId}
-                onChange={(value) => handleEditChange(record.key, 'nomenclatureId', value)}
-                options={nomenclatures?.map((n) => ({ value: n.id, label: n.name })) ?? []}
-                showSearch
-                optionFilterProp="label"
-                allowClear
-              />
-            )
+                <Select
+                  style={{ width: 250 }}
+                  dropdownMatchSelectWidth={nomenclatureDropdownWidth}
+                  value={edit.nomenclatureId}
+                  onChange={(value) => handleEditChange(record.key, 'nomenclatureId', value)}
+                  options={nomenclatureOptions.map((n) => ({ value: n.id, label: n.name }))}
+                  showSearch
+                  onSearch={handleNomenclatureSearch}
+                  filterOption={false}
+                  allowClear
+                />
+              )
           case 'unit':
             return (
               <Select
@@ -2287,7 +2284,7 @@ export default function Chessboard() {
               />
             )
           default:
-            return record[col.dataIndex as keyof TableRow]
+            return record[col.dataIndex as keyof ViewRow]
         }
       }
 
@@ -2362,7 +2359,7 @@ export default function Chessboard() {
     startEdit,
     handleDelete,
     units,
-    nomenclatures,
+    nomenclatureOptions,
     blocks,
     costCategories,
     costTypes,
@@ -2377,6 +2374,7 @@ export default function Chessboard() {
     columnOrder,
     getRateOptions,
     openFloorModal,
+    nomenclatureDropdownWidth,
   ])
 
   const { Text } = Typography
@@ -2670,19 +2668,11 @@ export default function Chessboard() {
               showSearch
               filterOption={(input, option) => {
                 const label = option?.label
-                if (!label) return false
-                if (typeof label === 'object' && 'props' in label) {
-                  const text = (label as ReactElement).props?.children || ''
-                  return typeof text === 'string' && text.toLowerCase().includes(input.toLowerCase())
-                }
-                if (typeof label === 'string') {
-                  return label.toLowerCase().includes(input.toLowerCase())
-                }
-                return false
+                return String(label ?? '').toLowerCase().includes(input.toLowerCase())
               }}
             />
-            <Button 
-              type="primary" 
+            <Button
+              type="primary"
               size="large"
               onClick={handleApply} 
               disabled={!filters.projectId}
@@ -2825,12 +2815,7 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                showSearch
-                filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
+                  const text = (option?.label ?? '').toString()
                   return text.toLowerCase().includes(input.toLowerCase())
                 }}
               />
@@ -2861,7 +2846,7 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
+                  const text = (option?.label ?? '').toString()
                   return text.toLowerCase().includes(input.toLowerCase())
                 }}
               />
@@ -2879,7 +2864,7 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
+                  const text = (option?.label ?? '').toString()
                   return text.toLowerCase().includes(input.toLowerCase())
                 }}
               />
@@ -2897,20 +2882,8 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
+                  const text = (option?.label ?? '').toString()
                   return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                showSearch
-                filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                filterOption={(input, option) => {
-                  const label = option?.label
-                  if (typeof label === 'string') {
-                    return label.toLowerCase().includes(input.toLowerCase())
-                  }
-                  return false
                 }}
               />
               <Select
@@ -2930,20 +2903,8 @@ export default function Chessboard() {
                 allowClear
                 showSearch
                 filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
+                  const text = (option?.label ?? '').toString()
                   return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                showSearch
-                filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                filterOption={(input, option) => {
-                  const label = option?.label
-                  if (typeof label === 'string') {
-                    return label.toLowerCase().includes(input.toLowerCase())
-                  }
-                  return false
                 }}
               />
               </Space>
