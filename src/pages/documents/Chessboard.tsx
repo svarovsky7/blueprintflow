@@ -156,6 +156,9 @@ type NomenclatureMapping = {
 interface DbRow {
   id: string
   material: string | null
+  quantityPd: number | null
+  quantitySpec: number | null
+  quantityRd: number | null
   unit_id: string | null
   color: string | null
   floors?: string
@@ -574,7 +577,7 @@ export default function Chessboard() {
       const query = supabase
         .from('chessboard')
         .select(
-          `id, material, unit_id, color, units(name),
+          `id, material, quantityPd, quantitySpec, quantityRd, unit_id, color, units(name),
           chessboard_nomenclature_mapping!left(nomenclature_id, nomenclature(name)),
           ${relation}(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name)),
           chessboard_rates_mapping(rate_id, rates(work_name)),
@@ -688,9 +691,24 @@ export default function Chessboard() {
         return {
           key: item.id,
           material: item.material ?? '',
-          quantityPd: sumPd !== null ? String(sumPd) : '',
-          quantitySpec: sumSpec !== null ? String(sumSpec) : '',
-          quantityRd: sumRd !== null ? String(sumRd) : '',
+          quantityPd:
+            sumPd !== null
+              ? String(sumPd)
+              : item.quantityPd !== null && item.quantityPd !== undefined
+              ? String(item.quantityPd)
+              : '',
+          quantitySpec:
+            sumSpec !== null
+              ? String(sumSpec)
+              : item.quantitySpec !== null && item.quantitySpec !== undefined
+              ? String(item.quantitySpec)
+              : '',
+          quantityRd:
+            sumRd !== null
+              ? String(sumRd)
+              : item.quantityRd !== null && item.quantityRd !== undefined
+              ? String(item.quantityRd)
+              : '',
           nomenclatureId: getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature_id ?? '',
           nomenclature: getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature?.name ?? '',
           unit: item.units?.name ?? '',
@@ -830,30 +848,12 @@ export default function Chessboard() {
   }, [])
 
   const handleRowChange = useCallback((key: string, field: keyof RowData, value: string) => {
-    setRows(prev =>
-      prev.map(r =>
-        r.key === key
-          ? {
-              ...r,
-              [field]: value,
-              ...(field === 'quantityPd' || field === 'quantitySpec' || field === 'quantityRd'
-                ? { floorQuantities: undefined }
-                : {}),
-            }
-          : r,
-      ),
-    )
+    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, [field]: value } : r)))
   }, [])
 
   const handleEditChange = useCallback(
     (key: string, field: keyof RowData, value: string) => {
-      setEditingRows(prev => {
-        const updated = { ...prev[key], [field]: value }
-        if (field === 'quantityPd' || field === 'quantitySpec' || field === 'quantityRd') {
-          delete updated.floorQuantities
-        }
-        return { ...prev, [key]: updated }
-      })
+      setEditingRows((prev) => ({ ...prev, [key]: { ...prev[key], [field]: value } }))
     },
     [],
   )
@@ -1086,31 +1086,16 @@ export default function Chessboard() {
             key: id,
             material: dbRow.material ?? '',
             quantityPd:
-              dbRow.floorQuantities
-                ? String(
-                    Object.values(dbRow.floorQuantities).reduce(
-                      (s, q) => s + (parseFloat(q.quantityPd) || 0),
-                      0,
-                    ),
-                  )
+              dbRow.quantityPd !== null && dbRow.quantityPd !== undefined
+                ? String(dbRow.quantityPd)
                 : '',
             quantitySpec:
-              dbRow.floorQuantities
-                ? String(
-                    Object.values(dbRow.floorQuantities).reduce(
-                      (s, q) => s + (parseFloat(q.quantitySpec) || 0),
-                      0,
-                    ),
-                  )
+              dbRow.quantitySpec !== null && dbRow.quantitySpec !== undefined
+                ? String(dbRow.quantitySpec)
                 : '',
             quantityRd:
-              dbRow.floorQuantities
-                ? String(
-                    Object.values(dbRow.floorQuantities).reduce(
-                      (s, q) => s + (parseFloat(q.quantityRd) || 0),
-                      0,
-                    ),
-                  )
+              dbRow.quantityRd !== null && dbRow.quantityRd !== undefined
+                ? String(dbRow.quantityRd)
                 : '',
             nomenclatureId: getNomenclatureMapping(dbRow.chessboard_nomenclature_mapping)?.nomenclature_id ?? '',
             unitId: dbRow.unit_id ?? '',
@@ -1155,6 +1140,9 @@ export default function Chessboard() {
         .from('chessboard')
         .update({
           material: r.material,
+          quantityPd: r.quantityPd ? Number(r.quantityPd) : null,
+          quantitySpec: r.quantitySpec ? Number(r.quantitySpec) : null,
+          quantityRd: r.quantityRd ? Number(r.quantityRd) : null,
           unit_id: r.unitId || null,
           color: r.color || null,
         })
@@ -1349,9 +1337,9 @@ export default function Chessboard() {
       const payload: {
         project_id: string
         material: string
+        quantitySpec: number | null
         unit_id: string | null
       }[] = []
-      const quantities: (number | null)[] = []
       const header = rows[0]?.map((h) => String(h || '').toLowerCase()) ?? []
       const materialIdx = header.findIndex((h) => h.includes('материал'))
       const quantityIdx = header.findIndex((h) => h.includes('кол'))
@@ -1377,9 +1365,9 @@ export default function Chessboard() {
         payload.push({
           project_id: importState.projectId,
           material,
+          quantitySpec: quantity,
           unit_id: unitId,
         })
-        quantities.push(quantity)
       }
       if (payload.length === 0) {
         message.error('Нет данных для импорта')
@@ -1401,16 +1389,6 @@ export default function Chessboard() {
         .from('chessboard_mapping')
         .insert(mappings)
       if (mapError) throw mapError
-      const floorMappings = inserted.map((d, idx) => ({
-        chessboard_id: d.id,
-        floor_number: 1,
-        quantityPd: null,
-        quantitySpec: quantities[idx],
-        quantityRd: null,
-      }))
-      if (floorMappings.length > 0) {
-        await supabase!.from('chessboard_floor_mapping').insert(floorMappings)
-      }
       message.success('Импорт завершен')
       setImportOpen(false)
       setImportFile(null)
@@ -1426,6 +1404,9 @@ export default function Chessboard() {
     const payload = rows.map((r) => ({
       project_id: appliedFilters.projectId,
       material: r.material,
+      quantityPd: r.quantityPd ? Number(r.quantityPd) : null,
+      quantitySpec: r.quantitySpec ? Number(r.quantitySpec) : null,
+      quantityRd: r.quantityRd ? Number(r.quantityRd) : null,
       unit_id: r.unitId || null,
       color: r.color || null,
     }))
