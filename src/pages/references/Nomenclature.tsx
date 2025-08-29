@@ -48,23 +48,57 @@ export default function Nomenclature() {
   const [importResult, setImportResult] = useState(0)
   const importAbortRef = useRef(false)
 
+  async function fetchAllRows<T>(
+    fetchPage: (from: number, to: number) => PromiseLike<T[]>
+  ): Promise<T[]> {
+    const limit = 1000
+    const result: T[] = []
+    for (let from = 0; ; from += limit) {
+      const page = await fetchPage(from, from + limit - 1)
+      result.push(...page)
+      if (page.length < limit) break
+    }
+    return result
+  }
+
   const { data: materials = [], isLoading, refetch } = useQuery({
     queryKey: ['nomenclature'],
     queryFn: async () => {
       if (!supabase) return []
-      const { data: mats, error } = await supabase.from('nomenclature').select('*').order('name')
-      if (error) throw error
-      const { data: prices } = await supabase
-        .from('material_prices')
-        .select('material_id, price')
+      const client = supabase
+      const [mats, prices] = await Promise.all([
+        fetchAllRows<Material>((from, to) =>
+          client
+            .from('nomenclature')
+            .select('*')
+            .order('name')
+            .range(from, to)
+            .then(({ data, error }) => {
+              if (error) throw error
+              return (data as Material[]) ?? []
+            })
+        ),
+        fetchAllRows<{ material_id: string; price: number }>((from, to) =>
+          client
+            .from('material_prices')
+            .select('material_id, price')
+            .range(from, to)
+            .then(({ data, error }) => {
+              if (error) throw error
+              return (data as { material_id: string; price: number }[]) ?? []
+            })
+        )
+      ])
+
       const priceMap = new Map<string, { sum: number; count: number }>()
-      prices?.forEach((p: { material_id: string; price: number }) => {
+      prices.forEach(p => {
         const entry = priceMap.get(p.material_id) || { sum: 0, count: 0 }
         entry.sum += Number(p.price) || 0
         entry.count += 1
         priceMap.set(p.material_id, entry)
       })
-      return ((mats as Material[]) ?? []).map(m => ({
+
+      return mats.map(m => ({
         ...m,
         average_price: priceMap.has(m.id)
           ? Math.round(priceMap.get(m.id)!.sum / priceMap.get(m.id)!.count)
