@@ -691,9 +691,24 @@ export default function Chessboard() {
         return {
           key: item.id,
           material: item.material ?? '',
-          quantityPd: sumPd !== null ? String(sumPd) : '',
-          quantitySpec: sumSpec !== null ? String(sumSpec) : '',
-          quantityRd: sumRd !== null ? String(sumRd) : '',
+          quantityPd:
+            sumPd !== null
+              ? String(sumPd)
+              : item.quantityPd !== null && item.quantityPd !== undefined
+              ? String(item.quantityPd)
+              : '',
+          quantitySpec:
+            sumSpec !== null
+              ? String(sumSpec)
+              : item.quantitySpec !== null && item.quantitySpec !== undefined
+              ? String(item.quantitySpec)
+              : '',
+          quantityRd:
+            sumRd !== null
+              ? String(sumRd)
+              : item.quantityRd !== null && item.quantityRd !== undefined
+              ? String(item.quantityRd)
+              : '',
           nomenclatureId: getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature_id ?? '',
           nomenclature: getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature?.name ?? '',
           unit: item.units?.name ?? '',
@@ -1071,31 +1086,16 @@ export default function Chessboard() {
             key: id,
             material: dbRow.material ?? '',
             quantityPd:
-              dbRow.floorQuantities
-                ? String(
-                    Object.values(dbRow.floorQuantities).reduce(
-                      (s, q) => s + (parseFloat(q.quantityPd) || 0),
-                      0,
-                    ),
-                  )
+              dbRow.quantityPd !== null && dbRow.quantityPd !== undefined
+                ? String(dbRow.quantityPd)
                 : '',
             quantitySpec:
-              dbRow.floorQuantities
-                ? String(
-                    Object.values(dbRow.floorQuantities).reduce(
-                      (s, q) => s + (parseFloat(q.quantitySpec) || 0),
-                      0,
-                    ),
-                  )
+              dbRow.quantitySpec !== null && dbRow.quantitySpec !== undefined
+                ? String(dbRow.quantitySpec)
                 : '',
             quantityRd:
-              dbRow.floorQuantities
-                ? String(
-                    Object.values(dbRow.floorQuantities).reduce(
-                      (s, q) => s + (parseFloat(q.quantityRd) || 0),
-                      0,
-                    ),
-                  )
+              dbRow.quantityRd !== null && dbRow.quantityRd !== undefined
+                ? String(dbRow.quantityRd)
                 : '',
             nomenclatureId: getNomenclatureMapping(dbRow.chessboard_nomenclature_mapping)?.nomenclature_id ?? '',
             unitId: dbRow.unit_id ?? '',
