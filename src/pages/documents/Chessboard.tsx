@@ -294,33 +294,19 @@ export default function Chessboard() {
   // Диагностика скролла
   useEffect(() => {
     const checkScrollbars = () => {
-      const body = document.body
-      const html = document.documentElement
-      const mainContainer = document.querySelector('.ant-layout-content')
-      
-      console.log('🎯 Chessboard Scroll diagnostics:')
-      console.log('Body height:', body.scrollHeight, 'Client height:', body.clientHeight)
-      console.log('Body has scroll:', body.scrollHeight > body.clientHeight)
-      console.log('HTML height:', html.scrollHeight, 'Client height:', html.clientHeight)
-      console.log('HTML has scroll:', html.scrollHeight > html.clientHeight)
-      console.log('Window inner height:', window.innerHeight)
-      
-      if (mainContainer) {
-        console.log('Main content:', mainContainer.scrollHeight, mainContainer.clientHeight)
-        console.log('Main content overflow:', window.getComputedStyle(mainContainer).overflow)
-      }
-      
-      // Проверяем все элементы со скроллом
-      const scrollableElements = Array.from(document.querySelectorAll('*')).filter(el => {
+      // Диагностика наличия элементов со скроллом
+      const scrollableElements = Array.from(document.querySelectorAll('*')).filter((el) => {
         const style = window.getComputedStyle(el)
-        return (style.overflow === 'auto' || style.overflow === 'scroll' || 
-                style.overflowY === 'auto' || style.overflowY === 'scroll') &&
-                el.scrollHeight > el.clientHeight
+        return (
+          style.overflow === 'auto' ||
+          style.overflow === 'scroll' ||
+          style.overflowY === 'auto' ||
+          style.overflowY === 'scroll'
+        ) &&
+        el.scrollHeight > el.clientHeight
       })
-      console.log('Elements with scroll:', scrollableElements.length)
-      scrollableElements.forEach(el => {
-        console.log('Scrollable element:', el.className || el.tagName, el.scrollHeight, el.clientHeight)
-      })
+      if (scrollableElements.length === 0) return
+      console.warn('Обнаружены элементы со скроллом:', scrollableElements.length)
     }
     
     setTimeout(checkScrollbars, 500)
@@ -501,43 +487,12 @@ export default function Chessboard() {
   const { data: documentations } = useQuery<DocumentationOption[]>({
     queryKey: ['documentations', appliedFilters?.projectId],
     queryFn: async () => {
-      console.log('📚 DOCUMENTATION QUERY - Executing:', {
-        projectId: appliedFilters?.projectId,
-        enabled: !!appliedFilters?.projectId
-      })
-      if (!appliedFilters?.projectId) {
-        console.log('⚠️ DOCUMENTATION QUERY - No project ID, returning empty array')
-        return []
-      }
+      if (!appliedFilters?.projectId) return []
       const fetchFilters: Record<string, unknown> = { project_id: appliedFilters.projectId }
       const result = await documentationApi.getDocumentation(fetchFilters)
-
-      console.log('✅ DOCUMENTATION QUERY - Loaded:', {
-        projectId: appliedFilters.projectId,
-        totalCount: result.length,
-        uniqueTagIds: [...new Set(result.map(doc => doc.tag_id))],
-        sampleData: result.slice(0, 5).map(doc => ({
-          id: doc.id,
-          code: doc.project_code,
-          tag_id: doc.tag_id,
-          tag_name: doc.tag_name,
-          tag_number: doc.tag_number
-        }))
-      })
       return result as DocumentationOption[]
     },
     enabled: !!appliedFilters?.projectId,
-  })
-
-  // Логируем состояние каждый рендер
-  console.log('🎯 CHESSBOARD STATE:', {
-    appliedFiltersProjectId: appliedFilters?.projectId,
-    queryEnabled: !!appliedFilters?.projectId,
-    documentationsLoaded: !!documentations,
-    documentationsCount: documentations?.length ?? 'undefined',
-    mode,
-    editingRowsCount: Object.keys(editingRows).length,
-    addRowsCount: rows.length
   })
 
   const { data: tableData, refetch } = useQuery<DbRow[]>({
@@ -1590,40 +1545,15 @@ export default function Chessboard() {
               <Select
                 style={{ width: 150 }}
                 value={record.documentationId}
-                onDropdownVisibleChange={(open) => {
-                  if (open) {
-                    const filteredDocs = documentations?.filter(
-                      (doc) => !record.tagId || String(doc.tag_id) === record.tagId
-                    ) ?? []
-                    console.log('🔽 ADD MODE - Project Code dropdown opened:', {
-                      recordKey: record.key,
-                      tagId: record.tagId,
-                      totalDocs: documentations?.length ?? 0,
-                      filteredDocs: filteredDocs.length,
-                      availableOptions: filteredDocs.length
-                    })
-                  }
-                }}
+                onDropdownVisibleChange={() => {}}
                 onChange={(value) => {
-                  console.log('✏️ ADD MODE - Project Code selected:', { value, recordKey: record.key })
                   handleRowChange(record.key, 'documentationId', value)
                   const doc = documentations?.find((d) => d.id === value)
                   handleRowChange(record.key, 'projectCode', doc?.project_code ?? '')
                 }}
                 options={
                   documentations
-                    ?.filter((doc) => {
-                      const matches = !record.tagId || String(doc.tag_id) === record.tagId
-                      console.log('🔍 ADD MODE - Filtering documentation:', {
-                        docId: doc.id,
-                        docCode: doc.project_code,
-                        docTagId: doc.tag_id,
-                        recordTagId: record.tagId,
-                        matches,
-                        docTagName: doc.tag_name
-                      })
-                      return matches
-                    })
+                    ?.filter((doc) => !record.tagId || String(doc.tag_id) === record.tagId)
                     .map((doc) => ({
                       value: doc.id,
                       label: doc.project_code
@@ -2009,44 +1939,16 @@ export default function Chessboard() {
               <Select
                 style={{ width: 150 }}
                 value={edit.documentationId}
-                onDropdownVisibleChange={(open) => {
-                  if (open) {
-                    const filteredDocs = documentations?.filter(
-                      (doc) => !edit.tagId || String(doc.tag_id) === edit.tagId
-                    ) ?? []
-                    console.log('🔽 EDIT MODE - Project Code dropdown opened:', {
-                      recordKey: record.key,
-                      tagId: edit.tagId,
-                      totalDocs: documentations?.length ?? 0,
-                      filteredDocs: filteredDocs.length,
-                      availableOptions: filteredDocs.length
-                    })
-                  }
-                }}
+                onDropdownVisibleChange={() => {}}
                 onChange={(value) => {
-                  console.log('✏️ EDIT MODE - Project Code selected:', { value, recordKey: record.key })
                   handleEditChange(record.key, 'documentationId', value)
                   const doc = documentations?.find((d) => d.id === value)
                   handleEditChange(record.key, 'projectCode', doc?.project_code ?? '')
                 }}
                 options={
                   documentations
-                    ?.filter((doc) => {
-                      const matches = !edit.tagId || String(doc.tag_id) === edit.tagId
-                      console.log('🔍 EDIT MODE - Filtering documentation:', {
-                        docId: doc.id,
-                        docCode: doc.project_code,
-                        docTagId: doc.tag_id,
-                        editTagId: edit.tagId,
-                        matches,
-                        docTagName: doc.tag_name
-                      })
-                      return matches
-                    })
-                    .map((doc) => ({
-                      value: doc.id,
-                      label: doc.project_code
-                    })) ?? []
+                    ?.filter((doc) => !edit.tagId || String(doc.tag_id) === edit.tagId)
+                    .map((doc) => ({ value: doc.id, label: doc.project_code })) ?? []
                 }
                 disabled={!edit.tagId}
                 allowClear
