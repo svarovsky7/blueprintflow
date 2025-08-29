@@ -66,6 +66,7 @@ interface RowData {
   quantityPd: string
   quantitySpec: string
   quantityRd: string
+  nomenclatureId: string
   unitId: string
   blockId: string
   block: string
@@ -102,6 +103,7 @@ interface ViewRow {
   quantityPd: string
   quantitySpec: string
   quantityRd: string
+  nomenclature: string
   unit: string
   blockId: string
   block: string
@@ -123,6 +125,7 @@ interface TableRow extends RowData {
 interface ProjectOption { id: string; name: string }
 interface BlockOption { id: string; name: string }
 interface UnitOption { id: string; name: string }
+interface NomenclatureOption { id: string; name: string }
 interface CostCategoryOption { id: number; number: number | null; name: string }
 interface CostTypeOption {
   id: number
@@ -144,11 +147,13 @@ interface DbRow {
   quantityPd: number | null
   quantitySpec: number | null
   quantityRd: number | null
+  nomenclature_id: string | null
   unit_id: string | null
   color: string | null
   floors?: string
   floorQuantities?: FloorQuantities
   units?: { name: string | null } | null
+  nomenclature?: { name: string | null } | null
   chessboard_mapping?: {
     block_id: string | null
     blocks?: { name: string | null } | null
@@ -241,6 +246,7 @@ const emptyRow = (defaults: Partial<RowData>): RowData => ({
   quantityPd: '',
   quantitySpec: '',
   quantityRd: '',
+  nomenclatureId: '',
   unitId: '',
   blockId: defaults.blockId ?? '',
   block: defaults.block ?? '',
@@ -390,6 +396,16 @@ export default function Chessboard() {
     },
   })
 
+  const { data: nomenclatures } = useQuery<NomenclatureOption[]>({
+    queryKey: ['nomenclature'],
+    queryFn: async () => {
+      if (!supabase) return []
+      const { data, error } = await supabase.from('nomenclature').select('id, name').order('name')
+      if (error) throw error
+      return data as NomenclatureOption[]
+    },
+  })
+
   const { data: costCategories } = useQuery<CostCategoryOption[]>({
     queryKey: ['costCategories'],
     queryFn: async () => {
@@ -519,7 +535,7 @@ export default function Chessboard() {
       const query = supabase
         .from('chessboard')
         .select(
-          `id, material, quantityPd, quantitySpec, quantityRd, unit_id, color, units(name),
+          `id, material, quantityPd, quantitySpec, quantityRd, nomenclature_id, unit_id, color, units(name), nomenclature(name),
           ${relation}(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name)),
           chessboard_rates_mapping(rate_id, rates(work_name)),
           chessboard_documentation_mapping(documentation_id, documentations(id, code, tag_id, stage, tag:documentation_tags(id, name, tag_number)))`,
@@ -642,6 +658,7 @@ export default function Chessboard() {
               : item.quantityRd !== null && item.quantityRd !== undefined
               ? String(item.quantityRd)
               : '',
+          nomenclature: item.nomenclature?.name ?? '',
           unit: item.units?.name ?? '',
           blockId: item.chessboard_mapping?.block_id ?? '',
           block: item.chessboard_mapping?.blocks?.name ?? '',
@@ -668,6 +685,7 @@ export default function Chessboard() {
         quantityPd: v.quantityPd,
         quantitySpec: v.quantitySpec,
         quantityRd: v.quantityRd,
+        nomenclatureId: v.nomenclature,
         unitId: v.unit,
         blockId: v.blockId,
         block: v.block,
@@ -1027,6 +1045,7 @@ export default function Chessboard() {
               dbRow.quantityRd !== null && dbRow.quantityRd !== undefined
                 ? String(dbRow.quantityRd)
                 : '',
+            nomenclatureId: dbRow.nomenclature_id ?? '',
             unitId: dbRow.unit_id ?? '',
             blockId: dbRow.chessboard_mapping?.block_id ?? '',
             block: dbRow.chessboard_mapping?.blocks?.name ?? '',
@@ -1072,6 +1091,7 @@ export default function Chessboard() {
           quantityPd: r.quantityPd ? Number(r.quantityPd) : null,
           quantitySpec: r.quantitySpec ? Number(r.quantitySpec) : null,
           quantityRd: r.quantityRd ? Number(r.quantityRd) : null,
+          nomenclature_id: r.nomenclatureId || null,
           unit_id: r.unitId || null,
           color: r.color || null,
         })
@@ -1321,6 +1341,7 @@ export default function Chessboard() {
       quantityPd: r.quantityPd ? Number(r.quantityPd) : null,
       quantitySpec: r.quantitySpec ? Number(r.quantitySpec) : null,
       quantityRd: r.quantityRd ? Number(r.quantityRd) : null,
+      nomenclature_id: r.nomenclatureId || null,
       unit_id: r.unitId || null,
       color: r.color || null,
     }))
@@ -1434,6 +1455,7 @@ export default function Chessboard() {
       quantityPd: 'quantityPd',
       quantitySpec: 'quantitySpec',
       quantityRd: 'quantityRd',
+      nomenclatureId: 'nomenclature',
       unitId: 'unit',
       block: 'block',
       costCategoryId: 'costCategory',
@@ -1459,6 +1481,7 @@ export default function Chessboard() {
         width: 180,
         align: 'center',
       },
+      { title: 'Номенклатура', dataIndex: 'nomenclatureId', width: 250 },
       { title: 'Ед.изм.', dataIndex: 'unitId', width: 160 },
       { title: 'Корпус', dataIndex: 'block', width: 120 },
       { title: 'Этажи', dataIndex: 'floors', width: 150 },
@@ -1654,6 +1677,18 @@ export default function Chessboard() {
                 onChange={(e) => handleRowChange(record.key, 'quantityRd', e.target.value)}
               />
             )
+          case 'nomenclatureId':
+            return (
+              <Select
+                style={{ width: 250 }}
+                value={record.nomenclatureId}
+                onChange={(value) => handleRowChange(record.key, 'nomenclatureId', value)}
+                options={nomenclatures?.map((n) => ({ value: n.id, label: n.name })) ?? []}
+                showSearch
+                optionFilterProp="label"
+                allowClear
+              />
+            )
           case 'unitId':
             return (
               <Select
@@ -1826,6 +1861,7 @@ export default function Chessboard() {
   }, [
     viewRows,
     handleRowChange,
+    nomenclatures,
     units,
     costCategories,
     costTypes,
@@ -1877,6 +1913,7 @@ export default function Chessboard() {
         width: 180,
         align: 'center',
       },
+      { title: 'Номенклатура', dataIndex: 'nomenclature', width: 250 },
       { title: 'Ед.изм.', dataIndex: 'unit', width: 160 },
       { title: 'Корпус', dataIndex: 'block', width: 120 },
       { title: 'Этажи', dataIndex: 'floors', width: 150 },
@@ -2073,6 +2110,18 @@ export default function Chessboard() {
                 style={{ width: '10ch' }}
                 value={edit.quantityRd}
                 onChange={(e) => handleEditChange(record.key, 'quantityRd', e.target.value)}
+              />
+            )
+          case 'nomenclature':
+            return (
+              <Select
+                style={{ width: 250 }}
+                value={edit.nomenclatureId}
+                onChange={(value) => handleEditChange(record.key, 'nomenclatureId', value)}
+                options={nomenclatures?.map((n) => ({ value: n.id, label: n.name })) ?? []}
+                showSearch
+                optionFilterProp="label"
+                allowClear
               />
             )
           case 'unit':
@@ -2273,6 +2322,7 @@ export default function Chessboard() {
     startEdit,
     handleDelete,
     units,
+    nomenclatures,
     blocks,
     costCategories,
     costTypes,
@@ -2305,6 +2355,7 @@ export default function Chessboard() {
     { key: 'quantityPd', title: 'Кол-во по ПД' },
     { key: 'quantitySpec', title: 'Кол-во по спеке РД' },
     { key: 'quantityRd', title: 'Кол-во по пересчету РД' },
+    { key: 'nomenclature', title: 'Номенклатура' },
     { key: 'unit', title: 'Ед.изм.' },
   ], [])
 
@@ -2509,6 +2560,7 @@ export default function Chessboard() {
                           dataIndex === 'costTypeId' ? 'costType' :
                           dataIndex === 'locationId' ? 'location' :
                           dataIndex === 'rateId' ? 'workName' :
+                          dataIndex === 'nomenclatureId' ? 'nomenclature' :
                           dataIndex
         columnsMap[mappedKey] = col
       }
