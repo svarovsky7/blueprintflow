@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useEffect, type Key } from 'react'
+import { useCallback, useMemo, useState, useEffect, type Key, type ReactElement } from 'react'
 import { App, Badge, Button, Card, Checkbox, Drawer, Dropdown, Input, InputNumber, List, Modal, Popconfirm, Select, Space, Table, Typography, Upload } from 'antd'
 import type { ColumnType, ColumnsType } from 'antd/es/table'
 import { ArrowDownOutlined, ArrowUpOutlined, BgColorsOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, InboxOutlined, PlusOutlined, SaveOutlined, SettingOutlined, FilterOutlined, CaretUpFilled, CaretDownFilled, UploadOutlined } from '@ant-design/icons'
@@ -66,6 +66,7 @@ interface RowData {
   quantityPd: string
   quantitySpec: string
   quantityRd: string
+  nomenclatureId: string
   unitId: string
   blockId: string
   block: string
@@ -102,6 +103,7 @@ interface ViewRow {
   quantityPd: string
   quantitySpec: string
   quantityRd: string
+  nomenclature: string
   unit: string
   blockId: string
   block: string
@@ -123,6 +125,13 @@ interface TableRow extends RowData {
 interface ProjectOption { id: string; name: string }
 interface BlockOption { id: string; name: string }
 interface UnitOption { id: string; name: string }
+interface NomenclatureOption { id: string; name: string }
+interface DocumentationRecord {
+  id: string
+  project_code: string
+  tag_id: number | null
+  tag_name?: string | null
+}
 interface CostCategoryOption { id: number; number: number | null; name: string }
 interface CostTypeOption {
   id: number
@@ -149,6 +158,10 @@ interface DbRow {
   floors?: string
   floorQuantities?: FloorQuantities
   units?: { name: string | null } | null
+  chessboard_nomenclature_mapping?: {
+    nomenclature_id: string | null
+    nomenclature?: { name: string | null } | null
+  } | null
   chessboard_mapping?: {
     block_id: string | null
     blocks?: { name: string | null } | null
@@ -241,6 +254,7 @@ const emptyRow = (defaults: Partial<RowData>): RowData => ({
   quantityPd: '',
   quantitySpec: '',
   quantityRd: '',
+  nomenclatureId: '',
   unitId: '',
   blockId: defaults.blockId ?? '',
   block: defaults.block ?? '',
@@ -390,6 +404,16 @@ export default function Chessboard() {
     },
   })
 
+  const { data: nomenclatures } = useQuery<NomenclatureOption[]>({
+    queryKey: ['nomenclature'],
+    queryFn: async () => {
+      if (!supabase) return []
+      const { data, error } = await supabase.from('nomenclature').select('id, name').order('name')
+      if (error) throw error
+      return data as NomenclatureOption[]
+    },
+  })
+
   const { data: costCategories } = useQuery<CostCategoryOption[]>({
     queryKey: ['costCategories'],
     queryFn: async () => {
@@ -465,7 +489,7 @@ export default function Chessboard() {
   })
 
   // Загрузка документации для выбранного проекта  
-  const { data: documentations } = useQuery<any[]>({
+  const { data: documentations } = useQuery<DocumentationRecord[]>({
     queryKey: ['documentations', appliedFilters?.projectId],
     queryFn: async () => {
       console.log('📚 DOCUMENTATION QUERY - Executing:', { 
@@ -476,7 +500,7 @@ export default function Chessboard() {
         console.log('⚠️ DOCUMENTATION QUERY - No project ID, returning empty array')
         return []
       }
-      const fetchFilters: any = { project_id: appliedFilters.projectId }
+      const fetchFilters = { project_id: appliedFilters.projectId }
       const result = await documentationApi.getDocumentation(fetchFilters)
       
       console.log('✅ DOCUMENTATION QUERY - Loaded:', {
@@ -520,6 +544,7 @@ export default function Chessboard() {
         .from('chessboard')
         .select(
           `id, material, quantityPd, quantitySpec, quantityRd, unit_id, color, units(name),
+          chessboard_nomenclature_mapping(nomenclature_id, nomenclature(name)),
           ${relation}(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name)),
           chessboard_rates_mapping(rate_id, rates(work_name)),
           chessboard_documentation_mapping(documentation_id, documentations(id, code, tag_id, stage, tag:documentation_tags(id, name, tag_number)))`,
@@ -544,7 +569,7 @@ export default function Chessboard() {
       }
       
       // Загружаем этажи для всех записей
-      const chessboardIds = (data as any[])?.map(item => item.id) || []
+      const chessboardIds = (data ?? []).map((item: DbRow) => item.id)
       let floorsMap: Record<string, { floors: string; quantities: FloorQuantities }> = {}
 
       if (chessboardIds.length > 0) {
@@ -557,7 +582,14 @@ export default function Chessboard() {
         // Группируем этажи по chessboard_id и сохраняем количества
         if (floorsData) {
           const grouped: Record<string, { floors: number[]; quantities: FloorQuantities }> = {}
-          floorsData.forEach((item: any) => {
+          floorsData.forEach(
+            (item: {
+              chessboard_id: string
+              floor_number: number
+              quantityPd: number | null
+              quantitySpec: number | null
+              quantityRd: number | null
+            }) => {
             if (!grouped[item.chessboard_id]) {
               grouped[item.chessboard_id] = { floors: [], quantities: {} }
             }
@@ -576,7 +608,8 @@ export default function Chessboard() {
                   ? String(item.quantityRd)
                   : '',
             }
-          })
+          },
+          )
 
           // Преобразуем массивы этажей в строки с диапазонами
           for (const [id, { floors, quantities }] of Object.entries(grouped)) {
@@ -642,6 +675,7 @@ export default function Chessboard() {
               : item.quantityRd !== null && item.quantityRd !== undefined
               ? String(item.quantityRd)
               : '',
+          nomenclature: item.chessboard_nomenclature_mapping?.nomenclature?.name ?? '',
           unit: item.units?.name ?? '',
           blockId: item.chessboard_mapping?.block_id ?? '',
           block: item.chessboard_mapping?.blocks?.name ?? '',
@@ -668,6 +702,7 @@ export default function Chessboard() {
         quantityPd: v.quantityPd,
         quantitySpec: v.quantitySpec,
         quantityRd: v.quantityRd,
+        nomenclatureId: v.nomenclature,
         unitId: v.unit,
         blockId: v.blockId,
         block: v.block,
@@ -760,8 +795,8 @@ export default function Chessboard() {
       setSelectedRows(new Set())
       setDeleteMode(false)
       await refetch()
-    } catch (error: any) {
-      message.error(`Не удалось удалить строки: ${error.message}`)
+    } catch (error: unknown) {
+      message.error(`Не удалось удалить строки: ${(error as Error).message}`)
     }
   }, [selectedRows, message, refetch])
   
@@ -1027,6 +1062,7 @@ export default function Chessboard() {
               dbRow.quantityRd !== null && dbRow.quantityRd !== undefined
                 ? String(dbRow.quantityRd)
                 : '',
+            nomenclatureId: dbRow.chessboard_nomenclature_mapping?.nomenclature_id ?? '',
             unitId: dbRow.unit_id ?? '',
             blockId: dbRow.chessboard_mapping?.block_id ?? '',
             block: dbRow.chessboard_mapping?.blocks?.name ?? '',
@@ -1122,7 +1158,25 @@ export default function Chessboard() {
           await supabase!.from('chessboard_floor_mapping').insert(floorMappings)
         }
       }
-      
+
+      // Обновляем связь с номенклатурой
+      const updateNomenclatureMapping = async () => {
+        if (r.nomenclatureId) {
+          await supabase!.from('chessboard_nomenclature_mapping').upsert(
+            {
+              chessboard_id: r.key,
+              nomenclature_id: r.nomenclatureId,
+            },
+            { onConflict: 'chessboard_id' },
+          )
+        } else {
+          await supabase!
+            .from('chessboard_nomenclature_mapping')
+            .delete()
+            .eq('chessboard_id', r.key)
+        }
+      }
+
       // Обновляем связь с документацией
       const updateDocumentationMapping = async () => {
         let docId = r.documentationId
@@ -1174,6 +1228,7 @@ export default function Chessboard() {
       return Promise.all([
         updateChessboard,
         updateMapping,
+        updateNomenclatureMapping(),
         updateFloors(),
         updateDocumentationMapping(),
         updateRateMapping(),
@@ -1185,8 +1240,8 @@ export default function Chessboard() {
       message.success('Изменения сохранены')
       setEditingRows({})
       await refetch()
-    } catch (error: any) {
-      message.error(`Не удалось сохранить изменения: ${error.message}`)
+    } catch (error: unknown) {
+      message.error(`Не удалось сохранить изменения: ${(error as Error).message}`)
     }
   }, [editingRows, message, refetch, appliedFilters])
 
@@ -1342,6 +1397,23 @@ export default function Chessboard() {
       return
     }
 
+    const nomenclatureMappings = data
+      .map((d, idx) =>
+        rows[idx].nomenclatureId
+          ? { chessboard_id: d.id, nomenclature_id: rows[idx].nomenclatureId }
+          : null,
+      )
+      .filter((m): m is { chessboard_id: string; nomenclature_id: string } => m !== null)
+    if (nomenclatureMappings.length) {
+      const { error: nomError } = await supabase
+        .from('chessboard_nomenclature_mapping')
+        .insert(nomenclatureMappings)
+      if (nomError) {
+        message.error(`Не удалось сохранить номенклатуру: ${nomError.message}`)
+        return
+      }
+    }
+
     const rateMappings = data
       .map((d, idx) =>
         rows[idx].rateId
@@ -1434,6 +1506,7 @@ export default function Chessboard() {
       quantityPd: 'quantityPd',
       quantitySpec: 'quantitySpec',
       quantityRd: 'quantityRd',
+      nomenclatureId: 'nomenclature',
       unitId: 'unit',
       block: 'block',
       costCategoryId: 'costCategory',
@@ -1459,6 +1532,7 @@ export default function Chessboard() {
         width: 180,
         align: 'center',
       },
+      { title: 'Номенклатура', dataIndex: 'nomenclatureId', width: 250 },
       { title: 'Ед.изм.', dataIndex: 'unitId', width: 160 },
       { title: 'Корпус', dataIndex: 'block', width: 120 },
       { title: 'Этажи', dataIndex: 'floors', width: 150 },
@@ -1557,7 +1631,7 @@ export default function Chessboard() {
                 value={record.documentationId}
                 onDropdownVisibleChange={(open) => {
                   if (open) {
-                    const filteredDocs = documentations?.filter((doc: any) => !record.tagId || String(doc.tag_id) === record.tagId) ?? []
+                    const filteredDocs = documentations?.filter((doc: DocumentationRecord) => !record.tagId || String(doc.tag_id) === record.tagId) ?? []
                     console.log('🔽 ADD MODE - Project Code dropdown opened:', {
                       recordKey: record.key,
                       tagId: record.tagId,
@@ -1570,12 +1644,12 @@ export default function Chessboard() {
                 onChange={(value) => {
                   console.log('✏️ ADD MODE - Project Code selected:', { value, recordKey: record.key })
                   handleRowChange(record.key, 'documentationId', value)
-                  const doc = documentations?.find((d: any) => d.id === value)
+                  const doc = documentations?.find((d: DocumentationRecord) => d.id === value)
                   handleRowChange(record.key, 'projectCode', doc?.project_code ?? '')
                 }}
                 options={
                   documentations
-                    ?.filter((doc: any) => {
+                    ?.filter((doc: DocumentationRecord) => {
                       const matches = !record.tagId || String(doc.tag_id) === record.tagId
                       console.log('🔍 ADD MODE - Filtering documentation:', {
                         docId: doc.id,
@@ -1587,7 +1661,7 @@ export default function Chessboard() {
                       })
                       return matches
                     })
-                    .map((doc: any) => ({
+                    .map((doc: DocumentationRecord) => ({
                       value: doc.id,
                       label: doc.project_code
                     })) ?? []
@@ -1652,6 +1726,18 @@ export default function Chessboard() {
                 style={{ width: '10ch' }}
                 value={record.quantityRd}
                 onChange={(e) => handleRowChange(record.key, 'quantityRd', e.target.value)}
+              />
+            )
+          case 'nomenclatureId':
+            return (
+              <Select
+                style={{ width: 250 }}
+                value={record.nomenclatureId}
+                onChange={(value) => handleRowChange(record.key, 'nomenclatureId', value)}
+                options={nomenclatures?.map((n) => ({ value: n.id, label: n.name })) ?? []}
+                showSearch
+                optionFilterProp="label"
+                allowClear
               />
             )
           case 'unitId':
@@ -1826,6 +1912,7 @@ export default function Chessboard() {
   }, [
     viewRows,
     handleRowChange,
+    nomenclatures,
     units,
     costCategories,
     costTypes,
@@ -1877,6 +1964,7 @@ export default function Chessboard() {
         width: 180,
         align: 'center',
       },
+      { title: 'Номенклатура', dataIndex: 'nomenclature', width: 250 },
       { title: 'Ед.изм.', dataIndex: 'unit', width: 160 },
       { title: 'Корпус', dataIndex: 'block', width: 120 },
       { title: 'Этажи', dataIndex: 'floors', width: 150 },
@@ -1978,7 +2066,7 @@ export default function Chessboard() {
                 value={edit.documentationId}
                 onDropdownVisibleChange={(open) => {
                   if (open) {
-                    const filteredDocs = documentations?.filter((doc: any) => !edit.tagId || String(doc.tag_id) === edit.tagId) ?? []
+                    const filteredDocs = documentations?.filter((doc: DocumentationRecord) => !edit.tagId || String(doc.tag_id) === edit.tagId) ?? []
                     console.log('🔽 EDIT MODE - Project Code dropdown opened:', {
                       recordKey: record.key,
                       tagId: edit.tagId,
@@ -1991,12 +2079,12 @@ export default function Chessboard() {
                 onChange={(value) => {
                   console.log('✏️ EDIT MODE - Project Code selected:', { value, recordKey: record.key })
                   handleEditChange(record.key, 'documentationId', value)
-                  const doc = documentations?.find((d: any) => d.id === value)
+                  const doc = documentations?.find((d: DocumentationRecord) => d.id === value)
                   handleEditChange(record.key, 'projectCode', doc?.project_code ?? '')
                 }}
                 options={
                   documentations
-                    ?.filter((doc: any) => {
+                    ?.filter((doc: DocumentationRecord) => {
                       const matches = !edit.tagId || String(doc.tag_id) === edit.tagId
                       console.log('🔍 EDIT MODE - Filtering documentation:', {
                         docId: doc.id,
@@ -2008,7 +2096,7 @@ export default function Chessboard() {
                       })
                       return matches
                     })
-                    .map((doc: any) => ({
+                    .map((doc: DocumentationRecord) => ({
                       value: doc.id,
                       label: doc.project_code
                     })) ?? []
@@ -2019,18 +2107,6 @@ export default function Chessboard() {
                 filterOption={(input, option) => {
                   const text = (option?.children || option?.label)?.toString() || ""
                   return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                showSearch
-                filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-                filterOption={(input, option) => {
-                  const label = option?.label
-                  if (typeof label === 'string') {
-                    return label.toLowerCase().includes(input.toLowerCase())
-                  }
-                  return false
                 }}
               />
             )
@@ -2073,6 +2149,18 @@ export default function Chessboard() {
                 style={{ width: '10ch' }}
                 value={edit.quantityRd}
                 onChange={(e) => handleEditChange(record.key, 'quantityRd', e.target.value)}
+              />
+            )
+          case 'nomenclature':
+            return (
+              <Select
+                style={{ width: 250 }}
+                value={edit.nomenclatureId}
+                onChange={(value) => handleEditChange(record.key, 'nomenclatureId', value)}
+                options={nomenclatures?.map((n) => ({ value: n.id, label: n.name })) ?? []}
+                showSearch
+                optionFilterProp="label"
+                allowClear
               />
             )
           case 'unit':
@@ -2199,7 +2287,7 @@ export default function Chessboard() {
               />
             )
           default:
-            return (record as any)[col.dataIndex]
+            return record[col.dataIndex as keyof TableRow]
         }
       }
 
@@ -2207,8 +2295,9 @@ export default function Chessboard() {
         ...col,
         filterSearch: true,
         sorter: (a: ViewRow, b: ViewRow) => {
-          const aVal = (a as any)[col.dataIndex]
-          const bVal = (b as any)[col.dataIndex]
+          const dataIndex = col.dataIndex as keyof ViewRow
+          const aVal = a[dataIndex]
+          const bVal = b[dataIndex]
           const aNum = Number(aVal)
           const bNum = Number(bVal)
           if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum
@@ -2273,6 +2362,7 @@ export default function Chessboard() {
     startEdit,
     handleDelete,
     units,
+    nomenclatures,
     blocks,
     costCategories,
     costTypes,
@@ -2305,6 +2395,7 @@ export default function Chessboard() {
     { key: 'quantityPd', title: 'Кол-во по ПД' },
     { key: 'quantitySpec', title: 'Кол-во по спеке РД' },
     { key: 'quantityRd', title: 'Кол-во по пересчету РД' },
+    { key: 'nomenclature', title: 'Номенклатура' },
     { key: 'unit', title: 'Ед.изм.' },
   ], [])
 
@@ -2450,7 +2541,7 @@ export default function Chessboard() {
 
   // Применение порядка и видимости к столбцам таблицы
   const orderedViewColumns = useMemo(() => {
-    const columnsMap: Record<string, any> = {}
+    const columnsMap: Record<string, ColumnType<ViewRow>> = {}
     
     viewColumns.forEach(col => {
       if (col && 'dataIndex' in col) {
@@ -2498,7 +2589,7 @@ export default function Chessboard() {
 
   // Применение порядка и видимости к addColumns
   const orderedAddColumns = useMemo(() => {
-    const columnsMap: Record<string, any> = {}
+    const columnsMap: Record<string, ColumnType<TableRow>> = {}
     
     addColumns.forEach(col => {
       if (col && 'dataIndex' in col) {
@@ -2509,6 +2600,7 @@ export default function Chessboard() {
                           dataIndex === 'costTypeId' ? 'costType' :
                           dataIndex === 'locationId' ? 'location' :
                           dataIndex === 'rateId' ? 'workName' :
+                          dataIndex === 'nomenclatureId' ? 'nomenclature' :
                           dataIndex
         columnsMap[mappedKey] = col
       }
@@ -2569,41 +2661,22 @@ export default function Chessboard() {
               style={{ width: 280 }}
               size="large"
               allowClear
-                showSearch
-                filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-              showSearch
-                filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
               value={filters.projectId}
               onChange={(value) => setFilters({ projectId: value })}
-              options={projects?.map((p) => ({ 
-                value: p.id, 
-                label: <span style={{ fontWeight: 'bold' }}>{p.name}</span> 
+              options={projects?.map((p) => ({
+                value: p.id,
+                label: <span style={{ fontWeight: 'bold' }}>{p.name}</span>
               })) ?? []}
               showSearch
-                filterOption={(input, option) => {
-                  const text = (option?.children || option?.label)?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
               filterOption={(input, option) => {
                 const label = option?.label
                 if (!label) return false
-                // Handle React elements (like bold text)
                 if (typeof label === 'object' && 'props' in label) {
-                  const text = (label as any).props?.children || ''
-                  if (typeof text === 'string') {
-                    return text.toLowerCase().includes(input.toLowerCase())
-                  }
-                  return false
+                  const text = (label as ReactElement).props?.children || ''
+                  return typeof text === 'string' && text.toLowerCase().includes(input.toLowerCase())
                 }
-                // Handle string labels
                 if (typeof label === 'string') {
-                  return (label as string).toLowerCase().includes(input.toLowerCase())
+                  return label.toLowerCase().includes(input.toLowerCase())
                 }
                 return false
               }}
@@ -2847,8 +2920,8 @@ export default function Chessboard() {
                 onChange={(value) => setFilters((f) => ({ ...f, documentationId: value }))}
                 options={
                   documentations
-                    ?.filter((doc: any) => !filters.tagId || String(doc.tag_id) === filters.tagId)
-                    .map((doc: any) => ({
+                    ?.filter((doc: DocumentationRecord) => !filters.tagId || String(doc.tag_id) === filters.tagId)
+                    .map((doc: DocumentationRecord) => ({
                       value: doc.id,
                       label: doc.project_code
                     })) ?? []

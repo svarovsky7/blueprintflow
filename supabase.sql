@@ -54,6 +54,14 @@ create table if not exists chessboard (
   updated_at timestamptz default now()
 );
 
+create table if not exists chessboard_nomenclature_mapping (
+  chessboard_id uuid references chessboard on delete cascade,
+  nomenclature_id uuid references nomenclature on delete cascade,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  primary key (chessboard_id, nomenclature_id)
+);
+
 -- reference data (renamed from reserved keyword "references")
 create table if not exists reference_data (
   id uuid primary key default gen_random_uuid(),
