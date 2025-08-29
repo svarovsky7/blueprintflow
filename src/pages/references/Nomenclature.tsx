@@ -33,7 +33,7 @@ interface MaterialExcelRow {
   'Дата'?: string | number | Date
 }
 
-export default function Materials() {
+export default function Nomenclature() {
   const { message, modal } = App.useApp()
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view' | null>(null)
   const [currentMaterial, setCurrentMaterial] = useState<Material | null>(null)
@@ -49,10 +49,10 @@ export default function Materials() {
   const importAbortRef = useRef(false)
 
   const { data: materials = [], isLoading, refetch } = useQuery({
-    queryKey: ['materials'],
+    queryKey: ['nomenclature'],
     queryFn: async () => {
       if (!supabase) return []
-      const { data: mats, error } = await supabase.from('materials').select('*').order('name')
+      const { data: mats, error } = await supabase.from('nomenclature').select('*').order('name')
       if (error) throw error
       const { data: prices } = await supabase
         .from('material_prices')
@@ -132,7 +132,7 @@ export default function Materials() {
   const handleNameSearch = async (value: string) => {
     if (!supabase) return
     const { data } = await supabase
-      .from('materials')
+      .from('nomenclature')
       .select('name')
       .ilike('name', `${value}%`)
       .limit(20)
@@ -148,7 +148,7 @@ export default function Materials() {
       if (!supabase) return
       let materialId: string
       const { data: existing } = await supabase
-        .from('materials')
+        .from('nomenclature')
         .select('id')
         .eq('name', name)
         .maybeSingle()
@@ -160,7 +160,7 @@ export default function Materials() {
         }
       } else if (modalMode === 'add') {
         const { data: inserted, error } = await supabase
-          .from('materials')
+          .from('nomenclature')
           .insert({ name })
           .select()
           .single()
@@ -168,7 +168,7 @@ export default function Materials() {
         materialId = inserted.id
       } else {
         if (currentMaterial) {
-          await supabase.from('materials').update({ name }).eq('id', currentMaterial.id)
+          await supabase.from('nomenclature').update({ name }).eq('id', currentMaterial.id)
           materialId = currentMaterial.id
         } else {
           return
@@ -238,7 +238,7 @@ export default function Materials() {
 
   const handleDelete = async (record: Material) => {
     if (!supabase) return
-    const { error } = await supabase.from('materials').delete().eq('id', record.id)
+    const { error } = await supabase.from('nomenclature').delete().eq('id', record.id)
     if (error) {
       message.error('Не удалось удалить')
     } else {
@@ -273,7 +273,7 @@ export default function Materials() {
       let materialId: string
       let insertedSomething = false
       const { data: existing } = await supabase
-        .from('materials')
+        .from('nomenclature')
         .select('id')
         .eq('name', name)
         .maybeSingle()
@@ -281,7 +281,7 @@ export default function Materials() {
         materialId = existing.id
       } else {
         const { data: inserted, error } = await supabase
-          .from('materials')
+          .from('nomenclature')
           .insert({ name })
           .select()
           .single()
@@ -402,10 +402,10 @@ export default function Materials() {
         open={modalMode !== null}
         title={
           modalMode === 'add'
-            ? 'Добавить материал'
+            ? 'Добавить номенклатуру'
             : modalMode === 'edit'
-              ? 'Редактировать материал'
-              : 'Просмотр материала'
+              ? 'Редактировать номенклатуру'
+              : 'Просмотр номенклатуры'
         }
         onCancel={() => {
           setModalMode(null)
