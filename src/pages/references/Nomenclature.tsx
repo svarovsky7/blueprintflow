@@ -25,6 +25,7 @@ interface Material {
   created_at: string
   updated_at: string
   average_price: number | null
+  suppliers: string[]
 }
 
 interface MaterialExcelRow {
@@ -49,7 +50,7 @@ export default function Nomenclature() {
   const [importResult, setImportResult] = useState(0)
   const importAbortRef = useRef(false)
 
-  const { data: materials = [], isLoading, refetch } = useQuery({
+  const { data: materials = [], isLoading, refetch } = useQuery<Material[]>({
     queryKey: ['nomenclature', searchText],
     queryFn: async () => {
       if (!supabase) return []
@@ -69,12 +70,30 @@ export default function Nomenclature() {
         entry.count += 1
         priceMap.set(p.material_id, entry)
       })
-      return ((mats as Material[]) ?? []).map((m) => ({
+      const { data: mappings } = await supabase
+        .from('nomenclature_supplier_mapping')
+        .select('nomenclature_id, supplier_names(name)')
+      const supplierMap = new Map<string, string[]>()
+      const mappingsData = (mappings ?? []) as unknown as {
+        nomenclature_id: string
+        supplier_names: { name: string } | null
+      }[]
+      mappingsData.forEach((m) => {
+        const name = m.supplier_names?.name
+        if (name) {
+          const arr = supplierMap.get(m.nomenclature_id) || []
+          arr.push(name)
+          supplierMap.set(m.nomenclature_id, arr)
+        }
+      })
+      const matsData = (mats ?? []) as Omit<Material, 'average_price' | 'suppliers'>[]
+      return matsData.map((m) => ({
         ...m,
         average_price: priceMap.has(m.id)
           ? Math.round(priceMap.get(m.id)!.sum / priceMap.get(m.id)!.count)
           : null,
-      }))
+        suppliers: supplierMap.get(m.id) ?? [],
+      })) as Material[]
     },
   })
 
@@ -311,6 +330,10 @@ export default function Nomenclature() {
     setImportResult(0)
   }
 
+  const supplierFilters = Array.from(
+    new Set(materials.flatMap((m) => m.suppliers))
+  ).map((name) => ({ text: name, value: name }))
+
   const columns = [
     {
       title: 'Номенклатура',
@@ -318,6 +341,16 @@ export default function Nomenclature() {
       filters: materials.map(m => ({ text: m.name, value: m.name })),
       onFilter: (value: boolean | Key, record: Material) => record.name === value,
       sorter: (a: Material, b: Material) => a.name.localeCompare(b.name)
+    },
+    {
+      title: 'Наименование поставщика',
+      dataIndex: 'suppliers',
+      filters: supplierFilters,
+      onFilter: (value: boolean | Key, record: Material) =>
+        record.suppliers.includes(value as string),
+      sorter: (a: Material, b: Material) =>
+        (a.suppliers[0] || '').localeCompare(b.suppliers[0] || ''),
+      render: (_: unknown, record: Material) => record.suppliers[0] || '-'
     },
     {
       title: 'Цена',
@@ -372,6 +405,16 @@ export default function Nomenclature() {
         rowKey="id"
         loading={isLoading}
         pagination={{ pageSize: 100 }}
+        expandable={{
+          expandedRowRender: (record) => (
+            <div>
+              {record.suppliers.slice(1).map((name) => (
+                <p key={name} style={{ margin: 0 }}>{name}</p>
+              ))}
+            </div>
+          ),
+          rowExpandable: (record) => record.suppliers.length > 1,
+        }}
       />
       <Modal
         open={modalMode !== null}
