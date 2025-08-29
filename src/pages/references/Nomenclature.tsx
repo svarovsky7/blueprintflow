@@ -1,4 +1,4 @@
-import { type Key, useEffect, useRef, useState } from 'react'
+import { type Key, useEffect, useMemo, useRef, useState } from 'react'
 import {
   App,
   AutoComplete,
@@ -49,14 +49,10 @@ export default function Nomenclature() {
   const importAbortRef = useRef(false)
 
   const { data: materials = [], isLoading, refetch } = useQuery({
-    queryKey: ['nomenclature', searchText],
+    queryKey: ['nomenclature'],
     queryFn: async () => {
       if (!supabase) return []
-      let query = supabase.from('nomenclature').select('*').order('name')
-      if (searchText) {
-        query = query.ilike('name', `${searchText}%`)
-      }
-      const { data: mats, error } = await query
+      const { data: mats, error } = await supabase.from('nomenclature').select('*').order('name')
       if (error) throw error
       const { data: prices } = await supabase
         .from('material_prices')
@@ -68,14 +64,20 @@ export default function Nomenclature() {
         entry.count += 1
         priceMap.set(p.material_id, entry)
       })
-      return ((mats as Material[]) ?? []).map((m) => ({
+      return ((mats as Material[]) ?? []).map(m => ({
         ...m,
         average_price: priceMap.has(m.id)
           ? Math.round(priceMap.get(m.id)!.sum / priceMap.get(m.id)!.count)
-          : null,
+          : null
       }))
-    },
+    }
   })
+
+  const filteredData = useMemo(
+    () =>
+      materials.filter(m => m.name.toLowerCase().startsWith(searchText.toLowerCase())),
+    [materials, searchText]
+  )
 
   const formatPrice = (value: number | null) =>
     value !== null && value !== undefined
@@ -391,7 +393,7 @@ export default function Nomenclature() {
         </Button>
       </div>
       <Table<Material>
-        dataSource={materials}
+        dataSource={filteredData}
         columns={columns}
         rowKey="id"
         loading={isLoading}
