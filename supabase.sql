@@ -47,7 +47,6 @@ create table if not exists chessboard (
   "quantityPd" numeric,
   "quantitySpec" numeric,
   "quantityRd" numeric,
-  nomenclature_id uuid references nomenclature on delete set null,
   unit_id uuid references units on delete set null,
   cost_category_code text,
   color text,
