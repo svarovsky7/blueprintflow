@@ -413,19 +413,6 @@ export default function Chessboard() {
       return data as NomenclatureOption[]
     },
   })
-  const [nomenclatureOptions, setNomenclatureOptions] = useState<NomenclatureOption[]>([])
-  useEffect(() => {
-    setNomenclatureOptions(nomenclatures ?? [])
-  }, [nomenclatures])
-  const handleNomenclatureSearch = async (value: string) => {
-    if (!supabase) return
-    const { data, error } = await supabase
-      .from('nomenclature')
-      .select('id, name')
-      .ilike('name', `%${value}%`)
-      .limit(50)
-    if (!error && data) setNomenclatureOptions(data as NomenclatureOption[])
-  }
 
   const { data: costCategories } = useQuery<CostCategoryOption[]>({
     queryKey: ['costCategories'],
@@ -583,7 +570,7 @@ export default function Chessboard() {
       
       // Загружаем этажи для всех записей
       const chessboardIds = (data ?? []).map((item: DbRow) => item.id)
-      const floorsMap: Record<string, { floors: string; quantities: FloorQuantities }> = {}
+      let floorsMap: Record<string, { floors: string; quantities: FloorQuantities }> = {}
 
       if (chessboardIds.length > 0) {
         const { data: floorsData } = await supabase
@@ -1747,10 +1734,9 @@ export default function Chessboard() {
                 style={{ width: 250 }}
                 value={record.nomenclatureId}
                 onChange={(value) => handleRowChange(record.key, 'nomenclatureId', value)}
-                options={nomenclatureOptions.map((n) => ({ value: n.id, label: n.name }))}
+                options={nomenclatures?.map((n) => ({ value: n.id, label: n.name })) ?? []}
                 showSearch
-                onSearch={handleNomenclatureSearch}
-                filterOption={false}
+                optionFilterProp="label"
                 allowClear
               />
             )
@@ -1926,7 +1912,7 @@ export default function Chessboard() {
   }, [
     viewRows,
     handleRowChange,
-    nomenclatureOptions,
+    nomenclatures,
     units,
     costCategories,
     costTypes,
@@ -1939,14 +1925,12 @@ export default function Chessboard() {
     handleDelete,
     addRow,
     copyRow,
-    deleteRow,
     rows,
     hiddenCols,
     columnVisibility,
     columnOrder,
-      getRateOptions,
-      openFloorModal,
-    ])
+    getRateOptions,
+  ])
 
   const viewColumns: ColumnsType<ViewRow> = useMemo(() => {
     // Чекбокс колонка для режима удаления
@@ -2169,17 +2153,16 @@ export default function Chessboard() {
             )
           case 'nomenclature':
             return (
-                <Select
-                  style={{ width: 250 }}
-                  value={edit.nomenclatureId}
-                  onChange={(value) => handleEditChange(record.key, 'nomenclatureId', value)}
-                  options={nomenclatureOptions.map((n) => ({ value: n.id, label: n.name }))}
-                  showSearch
-                  onSearch={handleNomenclatureSearch}
-                  filterOption={false}
-                  allowClear
-                />
-              )
+              <Select
+                style={{ width: 250 }}
+                value={edit.nomenclatureId}
+                onChange={(value) => handleEditChange(record.key, 'nomenclatureId', value)}
+                options={nomenclatures?.map((n) => ({ value: n.id, label: n.name })) ?? []}
+                showSearch
+                optionFilterProp="label"
+                allowClear
+              />
+            )
           case 'unit':
             return (
               <Select
@@ -2379,7 +2362,7 @@ export default function Chessboard() {
     startEdit,
     handleDelete,
     units,
-    nomenclatureOptions,
+    nomenclatures,
     blocks,
     costCategories,
     costTypes,
