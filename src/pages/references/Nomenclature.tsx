@@ -29,6 +29,7 @@ interface Material {
 
 interface MaterialExcelRow {
   'Номенклатура': string
+  'Наименование поставщика'?: string
   'Цена'?: number
   'Дата'?: string | number | Date
 }
@@ -254,68 +255,43 @@ export default function Nomenclature() {
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
     const rows: MaterialExcelRow[] = XLSX.utils.sheet_to_json<MaterialExcelRow>(sheet, { defval: null })
     setImportProgress({ processed: 0, total: rows.length })
-    const processedNames = new Set<string>()
+    const chunkSize = 1000
     let successCount = 0
-    for (let i = 0; i < rows.length; i++) {
+    for (let i = 0; i < rows.length; i += chunkSize) {
       if (importAbortRef.current) break
-      const row = rows[i]
-      const rawName = row['Номенклатура']
-      const name = rawName ? rawName.trim() : ''
-      const price = row['Цена']
-      const date = row['Дата']
-      if (!name || processedNames.has(name)) {
-        setImportProgress({ processed: i + 1, total: rows.length })
+      const chunk = rows
+        .slice(i, i + chunkSize)
+        .map((row) => {
+          const priceVal = row['Цена']
+          const price =
+            priceVal !== undefined &&
+            priceVal !== null &&
+            !Number.isNaN(Number(priceVal))
+              ? Number(priceVal)
+              : null
+          const dateVal = row['Дата']
+          const parsedDate = dateVal ? dayjs(dateVal) : null
+          const date = parsedDate && parsedDate.isValid() ? parsedDate.format('YYYY-MM-DD') : null
+          return {
+            name: row['Номенклатура']?.trim(),
+            supplier: row['Наименование поставщика']?.trim(),
+            price,
+            date,
+          }
+        })
+        .filter((r) => r.name)
+      if (chunk.length === 0) {
+        setImportProgress({ processed: Math.min(i + chunkSize, rows.length), total: rows.length })
         continue
       }
-      processedNames.add(name)
-      let materialId: string
-      let insertedSomething = false
-      const { data: existing } = await supabase
-        .from('nomenclature')
-        .select('id')
-        .eq('name', name)
-        .maybeSingle()
-      if (existing) {
-        materialId = existing.id
+      const { data: inserted, error } = await supabase.rpc('import_nomenclature', { rows: chunk })
+      if (error) {
+        console.error(error)
+        message.error('Ошибка импорта данных')
       } else {
-        const { data: inserted, error } = await supabase
-          .from('nomenclature')
-          .insert({ name })
-          .select()
-          .single()
-        if (error) {
-          setImportProgress({ processed: i + 1, total: rows.length })
-          continue
-        }
-        materialId = inserted!.id
-        insertedSomething = true
+        successCount += inserted || 0
       }
-      if (price !== null && price !== undefined) {
-        const purchaseDate = date ? dayjs(date).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD')
-        const { data: existingPrice } = await supabase
-          .from('material_prices')
-          .select('id')
-          .eq('material_id', materialId)
-          .eq('price', Number(price))
-          .eq('purchase_date', purchaseDate)
-          .maybeSingle()
-        if (existingPrice) {
-          await supabase
-            .from('material_prices')
-            .update({ price: Number(price), purchase_date: purchaseDate })
-            .eq('id', existingPrice.id)
-          insertedSomething = true
-        } else {
-          await supabase.from('material_prices').insert({
-            material_id: materialId,
-            price: Number(price),
-            purchase_date: purchaseDate
-          })
-          insertedSomething = true
-        }
-      }
-      if (insertedSomething) successCount++
-      setImportProgress({ processed: i + 1, total: rows.length })
+      setImportProgress({ processed: Math.min(i + chunkSize, rows.length), total: rows.length })
     }
     if (importAbortRef.current) {
       importAbortRef.current = false
@@ -551,7 +527,7 @@ export default function Nomenclature() {
       >
         <Space direction="vertical" style={{ width: '100%' }}>
           <div>
-            <p>Поля файла: Номенклатура, Цена, Дата</p>
+            <p>Поля файла: Номенклатура, Наименование поставщика, Цена, Дата</p>
             <Upload
               beforeUpload={handleImport}
               showUploadList={false}
