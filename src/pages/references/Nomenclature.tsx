@@ -25,8 +25,6 @@ interface Material {
   created_at: string
   updated_at: string
   average_price: number | null
-  suppliers: string[]
-  children?: Material[]
 }
 
 interface MaterialExcelRow {
@@ -43,7 +41,6 @@ export default function Nomenclature() {
   const [form] = Form.useForm()
   const [autoOptions, setAutoOptions] = useState<{ value: string }[]>([])
   const [searchText, setSearchText] = useState('')
-  const [supplierSearchText, setSupplierSearchText] = useState('')
   const [priceDetails, setPriceDetails] = useState<{ id?: string; price: number; purchase_date: string }[]>([])
 
   const [importModalOpen, setImportModalOpen] = useState(false)
@@ -52,8 +49,8 @@ export default function Nomenclature() {
   const [importResult, setImportResult] = useState(0)
   const importAbortRef = useRef(false)
 
-  const { data: materials = [], isLoading, refetch } = useQuery<Material[]>({
-    queryKey: ['nomenclature', searchText, supplierSearchText],
+  const { data: materials = [], isLoading, refetch } = useQuery({
+    queryKey: ['nomenclature', searchText],
     queryFn: async () => {
       if (!supabase) return []
       let query = supabase.from('nomenclature').select('*').order('name')
@@ -62,75 +59,22 @@ export default function Nomenclature() {
       }
       const { data: mats, error } = await query
       if (error) throw error
-      const ids = (mats ?? []).map((m) => m.id)
       const { data: prices } = await supabase
         .from('material_prices')
         .select('material_id, price')
-        .in('material_id', ids)
-        .limit(10000)
       const priceMap = new Map<string, { sum: number; count: number }>()
       prices?.forEach((p: { material_id: string; price: number }) => {
-        const priceVal = Number(p.price)
-        if (!Number.isNaN(priceVal)) {
-          const entry = priceMap.get(p.material_id) || { sum: 0, count: 0 }
-          entry.sum += priceVal
-          entry.count += 1
-          priceMap.set(p.material_id, entry)
-        }
+        const entry = priceMap.get(p.material_id) || { sum: 0, count: 0 }
+        entry.sum += Number(p.price) || 0
+        entry.count += 1
+        priceMap.set(p.material_id, entry)
       })
-      const { data: mappings } = await supabase
-        .from('nomenclature_supplier_mapping')
-        .select('nomenclature_id, supplier_names(name)')
-      const supplierMap = new Map<string, string[]>()
-      const mappingsData = (mappings ?? []) as unknown as {
-        nomenclature_id: string
-        supplier_names: { name: string } | null
-      }[]
-      mappingsData.forEach((m) => {
-        const name = m.supplier_names?.name
-        if (name) {
-          const arr = supplierMap.get(m.nomenclature_id) || []
-          arr.push(name)
-          supplierMap.set(m.nomenclature_id, arr)
-        }
-      })
-      const matsData = (mats ?? []) as Omit<Material, 'average_price' | 'suppliers' | 'children'>[]
-      return matsData
-        .map((m) => {
-          const suppliers = supplierMap.get(m.id) ?? []
-          if (supplierSearchText) {
-            const s = supplierSearchText.toLowerCase()
-            suppliers.sort((a, b) => {
-              const am = a.toLowerCase().includes(s)
-              const bm = b.toLowerCase().includes(s)
-              if (am === bm) return 0
-              return am ? -1 : 1
-            })
-          }
-          const children = suppliers.slice(1).map((s, idx) => ({
-            id: `${m.id}-sup-${idx}`,
-            name: '',
-            created_at: m.created_at,
-            updated_at: m.updated_at,
-            average_price: null,
-            suppliers: [s]
-          }))
-          return {
-            ...m,
-            average_price: priceMap.has(m.id)
-              ? Math.round(priceMap.get(m.id)!.sum / priceMap.get(m.id)!.count)
-              : null,
-            suppliers,
-            ...(children.length ? { children } : {})
-          }
-        })
-        .filter((m) =>
-          supplierSearchText
-            ? m.suppliers.some((s) =>
-                s.toLowerCase().includes(supplierSearchText.toLowerCase())
-              )
-            : true
-        ) as Material[]
+      return ((mats as Material[]) ?? []).map((m) => ({
+        ...m,
+        average_price: priceMap.has(m.id)
+          ? Math.round(priceMap.get(m.id)!.sum / priceMap.get(m.id)!.count)
+          : null,
+      }))
     },
   })
 
@@ -367,10 +311,6 @@ export default function Nomenclature() {
     setImportResult(0)
   }
 
-  const supplierFilters = Array.from(
-    new Set(materials.flatMap((m) => m.suppliers))
-  ).map((name) => ({ text: name, value: name }))
-
   const columns = [
     {
       title: 'Номенклатура',
@@ -378,16 +318,6 @@ export default function Nomenclature() {
       filters: materials.map(m => ({ text: m.name, value: m.name })),
       onFilter: (value: boolean | Key, record: Material) => record.name === value,
       sorter: (a: Material, b: Material) => a.name.localeCompare(b.name)
-    },
-    {
-      title: 'Наименование поставщика',
-      dataIndex: 'suppliers',
-      filters: supplierFilters,
-      onFilter: (value: boolean | Key, record: Material) =>
-        record.suppliers.includes(value as string),
-      sorter: (a: Material, b: Material) =>
-        (a.suppliers[0] || '').localeCompare(b.suppliers[0] || ''),
-      render: (_: unknown, record: Material) => record.suppliers[0] || '-'
     },
     {
       title: 'Цена',
@@ -398,8 +328,7 @@ export default function Nomenclature() {
     {
       title: 'Действия',
       dataIndex: 'actions',
-    render: (_: unknown, record: Material) =>
-      record.name ? (
+      render: (_: unknown, record: Material) => (
         <Space>
           <Button icon={<EyeOutlined />} onClick={() => openViewModal(record)} aria-label="Просмотр" />
           <Button icon={<EditOutlined />} onClick={() => openEditModal(record)} aria-label="Редактировать" />
@@ -417,7 +346,7 @@ export default function Nomenclature() {
             }
           />
         </Space>
-      ) : null
+      )
     }
   ]
 
@@ -428,12 +357,6 @@ export default function Nomenclature() {
           placeholder="Поиск"
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
-          style={{ width: 200 }}
-        />
-        <Input
-          placeholder="Поиск по поставщику"
-          value={supplierSearchText}
-          onChange={(e) => setSupplierSearchText(e.target.value)}
           style={{ width: 200 }}
         />
         <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>
