@@ -21,8 +21,10 @@ import Statuses from './pages/admin/Statuses'
 import Disk from './pages/admin/Disk'
 import PortalHeader from './components/PortalHeader'
 import TestTableStructure from './pages/TestTableStructure'
+
 import PortalSettings from './pages/admin/PortalSettings'
 import { useLogo } from './shared/contexts/LogoContext'
+
 
 const { Sider, Content } = Layout
 
@@ -478,7 +480,9 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             }}
           >
             <img
+
               src={isDark ? darkLogo : lightLogo}
+
               alt="BlueprintFlow logo"
               style={{ width: '72%', height: 'auto' }}
             />
