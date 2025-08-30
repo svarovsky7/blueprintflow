@@ -21,7 +21,8 @@ import Statuses from './pages/admin/Statuses'
 import Disk from './pages/admin/Disk'
 import PortalHeader from './components/PortalHeader'
 import TestTableStructure from './pages/TestTableStructure'
-import logoLight from './logo_light.svg'
+import PortalSettings from './pages/admin/PortalSettings'
+import { useLogo } from './shared/contexts/LogoContext'
 
 const { Sider, Content } = Layout
 
@@ -35,6 +36,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
   const [openKeys, setOpenKeys] = useState<string[]>([])
   const navigate = useNavigate()
   const location = useLocation()
+  const { lightLogo, darkLogo } = useLogo()
 
   // Автоматически открываем нужные подменю при смене роута
   useEffect(() => {
@@ -266,6 +268,15 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         </Link>
       </div>
       <div
+        style={menuItemStyle}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+      >
+        <Link to="/admin/portal-settings" style={linkStyle}>
+          Настройка портала
+        </Link>
+      </div>
+      <div
         style={{ ...menuItemStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
@@ -334,6 +345,10 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         {
           key: 'disk',
           label: <Link to="/admin/disk">Диск</Link>
+        },
+        {
+          key: 'portal-settings',
+          label: <Link to="/admin/portal-settings">Настройка портала</Link>
         },
         {
           key: 'theme-toggle',
@@ -463,7 +478,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             }}
           >
             <img
-              src={logoLight}
+              src={isDark ? darkLogo : lightLogo}
               alt="BlueprintFlow logo"
               style={{ width: '72%', height: 'auto' }}
             />
@@ -488,6 +503,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               location.pathname.startsWith('/admin/documentation-tags') ? 'documentation-tags' :
               location.pathname.startsWith('/admin/statuses') ? 'statuses' :
               location.pathname.startsWith('/admin/disk') ? 'disk' :
+              location.pathname.startsWith('/admin/portal-settings') ? 'portal-settings' :
               location.pathname
             ]}
             openKeys={openKeys}
@@ -522,6 +538,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                 <Route path="documentation-tags" element={<DocumentationTags />} />
                 <Route path="statuses" element={<Statuses />} />
                 <Route path="disk" element={<Disk />} />
+                <Route path="portal-settings" element={<PortalSettings />} />
               </Route>
               <Route path="/test-table" element={<TestTableStructure />} />
             </Routes>
