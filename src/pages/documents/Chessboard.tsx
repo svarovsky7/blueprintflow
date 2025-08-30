@@ -3131,7 +3131,7 @@ export default function Chessboard() {
       
       {/* Таблица */}
       {appliedFilters && (
-        <div className="chessboard-table" style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+        <div className="chessboard-table" style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
           {mode === 'add' ? (
             <Table<TableRow>
             dataSource={tableRows}
@@ -3139,9 +3139,9 @@ export default function Chessboard() {
             pagination={false}
             rowKey="key"
             sticky
-            scroll={{ 
+            scroll={{
               x: 'max-content',
-              y: 'calc(100vh - 300px)'
+              y: '100%'
             }}
             rowClassName={(record) => (record.color ? `row-${record.color}` : '')}
           />
@@ -3152,9 +3152,9 @@ export default function Chessboard() {
             pagination={false}
             rowKey="key"
             sticky
-            scroll={{ 
+            scroll={{
               x: 'max-content',
-              y: 'calc(100vh - 300px)'
+              y: '100%'
             }}
             rowClassName={(record) => {
               const color = editingRows[record.key]?.color ?? record.color
