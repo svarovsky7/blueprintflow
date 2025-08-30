@@ -54,8 +54,7 @@ create table if not exists chessboard (
 create table if not exists chessboard_nomenclature_mapping (
   chessboard_id uuid references chessboard on delete cascade,
   nomenclature_id uuid references nomenclature on delete cascade,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now(),
+  supplier_name text,
   primary key (chessboard_id, nomenclature_id)
 );
 
