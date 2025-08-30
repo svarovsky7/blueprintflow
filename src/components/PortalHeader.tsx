@@ -29,6 +29,7 @@ const pageTitles: Record<string, string> = {
   '/admin/documentation-tags': 'Тэги документации',
   '/admin/statuses': 'Статусы',
   '/admin/disk': 'Диск',
+  '/admin/portal-settings': 'Настройка портала',
 };
 
 const getPageTitle = (path: string): string => {
