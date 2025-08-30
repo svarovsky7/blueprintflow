@@ -38,6 +38,7 @@ import type { UploadFile } from 'antd/es/upload'
 import * as XLSX from 'xlsx'
 import { ratesApi, type RateWithRelations, type RateExcelRow, type RateFormData } from '@/entities/rates'
 import { supabase } from '@/lib/supabase'
+import { useScale } from '@/shared/contexts/ScaleContext'
 // import ConflictResolutionDialog from '@/components/ConflictResolutionDialog'
 
 const { Text, Title } = Typography
@@ -70,6 +71,7 @@ const defaultColumnOrder = ['work_name', 'work_set', 'cost_category', 'detail_co
 
 export default function Rates() {
   const { message } = App.useApp()
+  const { scale } = useScale()
   const queryClient = useQueryClient()
   const headerRef = useRef<HTMLDivElement>(null)
   const filtersRef = useRef<HTMLDivElement>(null)
@@ -873,11 +875,12 @@ export default function Rates() {
   const hasUnsavedChanges = newRows.length > 0 || Object.keys(editingRows).length > 0
 
   return (
-    <div style={{ 
-      height: 'calc(100vh - 96px)', 
-      display: 'flex', 
+    <div style={{
+      flex: 1,
+      display: 'flex',
       flexDirection: 'column',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      minHeight: 0
     }}>
       <div style={{ flexShrink: 0, paddingBottom: 16 }}>
         <Title level={2} style={{ margin: '0 0 16px 0' }}>Расценки</Title>
@@ -896,7 +899,7 @@ export default function Rates() {
                 const text = (option?.children || option?.label)?.toString() || ""
                 return text.toLowerCase().includes(input.toLowerCase())
               }}
-              style={{ width: 200 }}
+              style={{ width: 200 * scale }}
             >
               {costCategories.map(cat => (
                 <Select.Option key={cat.id} value={cat.id}>
@@ -915,7 +918,7 @@ export default function Rates() {
                 const text = (option?.children || option?.label)?.toString() || ""
                 return text.toLowerCase().includes(input.toLowerCase())
               }}
-              style={{ width: 200 }}
+              style={{ width: 200 * scale }}
               disabled={!costCategoryFilter}
             >
               {filteredDetailCategories.map(detail => (
@@ -1025,9 +1028,9 @@ export default function Rates() {
         rowKey="id"
         loading={isLoading}
         sticky
-        scroll={{ 
+        scroll={{
           x: 'max-content',
-          y: 'calc(100vh - 350px)'
+          y: '100%'
         }}
           pagination={{
             current: 1,
