@@ -1,8 +1,7 @@
 create table if not exists public.chessboard_nomenclature_mapping (
   chessboard_id uuid not null references public.chessboard(id) on delete cascade,
   nomenclature_id uuid not null references public.nomenclature(id) on delete cascade,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now(),
+  supplier_name text,
   primary key (chessboard_id, nomenclature_id)
 );
 
