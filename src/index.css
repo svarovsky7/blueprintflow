@@ -1,3 +1,7 @@
+:root {
+  --app-scale: 1;
+}
+
 body {
   margin: 0;
   font-family: system-ui, sans-serif;
@@ -13,6 +17,13 @@ body[data-theme='light'] {
 body[data-theme='dark'] {
   --menu-bg: #555555;
   --menu-color: #ffffff;
+}
+
+#root {
+  transform-origin: top left;
+  transform: scale(var(--app-scale));
+  width: calc(100% / var(--app-scale));
+  height: calc(100% / var(--app-scale));
 }
 
 .ant-menu-dark,
