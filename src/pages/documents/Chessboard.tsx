@@ -67,7 +67,6 @@ interface RowData {
   quantitySpec: string
   quantityRd: string
   nomenclatureId: string
-  supplier?: string
   unitId: string
   blockId: string
   block: string
@@ -106,7 +105,6 @@ interface ViewRow {
   quantityRd: string
   nomenclatureId: string
   nomenclature: string
-  supplier: string
   unit: string
   blockId: string
   block: string
@@ -153,7 +151,6 @@ interface RateOption {
 type NomenclatureMapping = {
   nomenclature_id: string | null
   nomenclature?: { name: string | null } | null
-  supplier_name: string | null
 }
 
 interface DbRow {
@@ -263,7 +260,6 @@ const emptyRow = (defaults: Partial<RowData>): RowData => ({
   quantitySpec: '',
   quantityRd: '',
   nomenclatureId: '',
-  supplier: '',
   unitId: '',
   blockId: defaults.blockId ?? '',
   block: defaults.block ?? '',
@@ -579,7 +575,7 @@ export default function Chessboard() {
         .from('chessboard')
         .select(
           `id, material, unit_id, color, units(name),
-          chessboard_nomenclature_mapping!left(nomenclature_id, supplier_name, nomenclature(name)),
+          chessboard_nomenclature_mapping!left(nomenclature_id, nomenclature(name)),
           ${relation}(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name)),
           chessboard_rates_mapping(rate_id, rates(work_name)),
           chessboard_documentation_mapping(documentation_id, documentations(id, code, tag_id, stage, tag:documentation_tags(id, name, tag_number)))`,
@@ -670,19 +666,16 @@ export default function Chessboard() {
               quantities,
             }
           }
+        }
       }
-    }
 
       // Добавляем этажи и количества к результатам
       const result = (data as unknown as DbRow[]) ?? []
-
-      return result.map((item) => {
-        return {
-          ...item,
-          floors: floorsMap[item.id]?.floors || '',
-          floorQuantities: floorsMap[item.id]?.quantities,
-        }
-      })
+      return result.map(item => ({
+        ...item,
+        floors: floorsMap[item.id]?.floors || '',
+        floorQuantities: floorsMap[item.id]?.quantities,
+      }))
     },
   })
 
@@ -717,8 +710,6 @@ export default function Chessboard() {
           quantityRd: sumRd !== null ? String(sumRd) : '',
           nomenclatureId: getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature_id ?? '',
           nomenclature: getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature?.name ?? '',
-          supplier:
-            getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.supplier_name ?? '',
           unit: item.units?.name ?? '',
           blockId: item.chessboard_mapping?.block_id ?? '',
           block: item.chessboard_mapping?.blocks?.name ?? '',
@@ -746,7 +737,6 @@ export default function Chessboard() {
         quantitySpec: v.quantitySpec,
         quantityRd: v.quantityRd,
         nomenclatureId: v.nomenclatureId,
-        supplier: v.supplier,
         unitId: v.unit,
         blockId: v.blockId,
         block: v.block,
@@ -1264,7 +1254,6 @@ export default function Chessboard() {
           await supabase!.from('chessboard_nomenclature_mapping').insert({
             chessboard_id: r.key,
             nomenclature_id: r.nomenclatureId,
-            supplier_name: r.supplier || null,
           })
         }
       }
@@ -1630,7 +1619,6 @@ export default function Chessboard() {
       quantitySpec: 'quantitySpec',
       quantityRd: 'quantityRd',
       nomenclatureId: 'nomenclature',
-      supplier: 'supplier',
       unitId: 'unit',
       block: 'block',
       costCategoryId: 'costCategory',
@@ -1657,7 +1645,6 @@ export default function Chessboard() {
         align: 'center',
       },
       { title: 'Номенклатура', dataIndex: 'nomenclatureId', width: 250 },
-      { title: 'Наименование поставщика', dataIndex: 'supplier', width: 250 },
       { title: 'Ед.изм.', dataIndex: 'unitId', width: 160 },
       { title: 'Корпус', dataIndex: 'block', width: 120 },
       { title: 'Этажи', dataIndex: 'floors', width: 150 },
@@ -2071,7 +2058,6 @@ export default function Chessboard() {
         align: 'center',
       },
       { title: 'Номенклатура', dataIndex: 'nomenclature', width: 250 },
-      { title: 'Наименование поставщика', dataIndex: 'supplier', width: 250 },
       { title: 'Ед.изм.', dataIndex: 'unit', width: 160 },
       { title: 'Корпус', dataIndex: 'block', width: 120 },
       { title: 'Этажи', dataIndex: 'floors', width: 150 },
@@ -2494,7 +2480,6 @@ export default function Chessboard() {
     { key: 'quantitySpec', title: 'Кол-во по спеке РД' },
     { key: 'quantityRd', title: 'Кол-во по пересчету РД' },
     { key: 'nomenclature', title: 'Номенклатура' },
-    { key: 'supplier', title: 'Наименование поставщика' },
     { key: 'unit', title: 'Ед.изм.' },
   ], [])
 
