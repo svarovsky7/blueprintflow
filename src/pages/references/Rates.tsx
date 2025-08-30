@@ -1021,17 +1021,20 @@ export default function Rates() {
       </div>
 
       {/* Таблица */}
-      <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+      <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
         <Table
-        columns={visibleColumns}
-        dataSource={filteredData}
-        rowKey="id"
-        loading={isLoading}
-        sticky
-        scroll={{
-          x: 'max-content',
-          y: '100%'
-        }}
+
+          columns={visibleColumns}
+          dataSource={filteredData}
+          rowKey="id"
+          loading={isLoading}
+          sticky
+          style={{ height: '100%' }}
+          scroll={{
+            x: 'max-content',
+            y: '100%'
+          }}
+
           pagination={{
             current: 1,
             pageSize,

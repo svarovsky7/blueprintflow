@@ -1704,7 +1704,7 @@ export default function Documentation() {
       </div>
 
       {/* Таблица */}
-      <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+      <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
         {!appliedFilters.project_id ? (
           <Empty
             description="Выберите проект для просмотра документации"
@@ -1727,6 +1727,9 @@ export default function Documentation() {
               },
             }}
             sticky
+
+            style={{ height: '100%' }}
+
             scroll={{
               x: 'max-content',
               y: '100%'
