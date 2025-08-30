@@ -25,7 +25,9 @@ import TestTableStructure from './pages/TestTableStructure'
 import PortalSettings from './pages/admin/PortalSettings'
 import { useLogo } from './shared/contexts/LogoContext'
 import { useScale } from './shared/contexts/ScaleContext'
+
 import { debugTableScroll } from './shared/debugTableScroll'
+
 
 
 const { Sider, Content } = Layout
@@ -502,7 +504,9 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           }
         `}
       </style>
+
       <Layout className="app-root" style={{ height: '100vh' }}>
+
         <Sider
           theme={isDark ? 'dark' : 'light'}
           style={{
@@ -561,7 +565,9 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             onOpenChange={setOpenKeys}
           />
         </Sider>
+
         <Layout className="layout" style={{ height: '100%', minHeight: 0 }}>
+
           <PortalHeader isDark={isDark} />
           <Content
             className="content"

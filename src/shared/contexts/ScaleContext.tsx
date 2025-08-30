@@ -18,6 +18,7 @@ export function ScaleProvider({ children }: { children: ReactNode }) {
     document.documentElement.style.setProperty('--app-scale', String(scale))
     localStorage.setItem('blueprintflow-scale', String(scale))
     window.dispatchEvent(new Event('ui:scale-changed'))
+
   }, [scale])
 
   const setScale = (value: number) => {

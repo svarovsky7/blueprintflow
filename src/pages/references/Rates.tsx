@@ -879,6 +879,7 @@ export default function Rates() {
       flex: 1,
       display: 'flex',
       flexDirection: 'column',
+
       minHeight: 0
     }}>
       <div className="filters" style={{ flexShrink: 0, paddingBottom: 16 }}>
@@ -1022,6 +1023,7 @@ export default function Rates() {
       {/* Таблица */}
       <div className="table-host">
         <Table
+
           columns={visibleColumns}
           dataSource={filteredData}
           rowKey="id"
@@ -1030,6 +1032,7 @@ export default function Rates() {
           scroll={{
             x: 'max-content'
           }}
+
           pagination={{
             current: 1,
             pageSize,

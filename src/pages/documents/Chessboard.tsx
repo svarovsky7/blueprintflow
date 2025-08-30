@@ -292,6 +292,7 @@ const collapseMap: Record<string, HiddenColKey> = {
 export default function Chessboard() {
   const { message } = App.useApp()
   const { scale } = useScale()
+
   
   const [filters, setFilters] = useState<{ projectId?: string; blockId?: string; categoryId?: string; typeId?: string; tagId?: string; documentationId?: string }>({})
   const [appliedFilters, setAppliedFilters] = useState<
@@ -2823,6 +2824,7 @@ export default function Chessboard() {
       flex: 1,
       display: 'flex',
       flexDirection: 'column',
+
       position: 'relative',
       minHeight: 0
     }}>
@@ -3100,6 +3102,7 @@ export default function Chessboard() {
         <div className="table-host chessboard-table">
           {mode === 'add' ? (
             <Table<TableRow>
+
               dataSource={tableRows}
               columns={orderedAddColumns}
               pagination={false}
@@ -3107,6 +3110,7 @@ export default function Chessboard() {
               sticky
               scroll={{
                 x: 'max-content'
+
               }}
               rowClassName={(record) => (record.color ? `row-${record.color}` : '')}
             />
@@ -3119,6 +3123,7 @@ export default function Chessboard() {
               sticky
               scroll={{
                 x: 'max-content'
+
               }}
               rowClassName={(record) => {
                 const color = editingRows[record.key]?.color ?? record.color
@@ -3126,6 +3131,7 @@ export default function Chessboard() {
               }}
             />
           )}
+
         </div>
       )}
       <Modal

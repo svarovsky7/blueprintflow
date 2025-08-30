@@ -1365,6 +1365,7 @@ export default function Documentation() {
       flex: 1,
       display: 'flex',
       flexDirection: 'column',
+
       minHeight: 0
     }}>
       <div className="filters" style={{ flexShrink: 0, paddingBottom: 16 }}>
@@ -1646,6 +1647,7 @@ export default function Documentation() {
 
       {/* Таблица */}
       <div className="table-host">
+
         {!appliedFilters.project_id ? (
           <Empty
             description="Выберите проект для просмотра документации"
@@ -1670,6 +1672,7 @@ export default function Documentation() {
             sticky
             scroll={{
               x: 'max-content'
+
             }}
           // TODO: раскомментировать после добавления колонки color в БД
           /*onRow={(record: DocumentationTableRow) => ({
