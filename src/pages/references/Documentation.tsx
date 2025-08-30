@@ -52,6 +52,7 @@ import {
 } from '@/entities/documentation'
 import { documentationTagsApi } from '@/entities/documentation-tags'
 import { supabase } from '@/lib/supabase'
+import { useScale } from '@/shared/contexts/ScaleContext'
 import { DOCUMENT_STAGES } from '@/shared/types'
 import ConflictResolutionDialog from '@/components/ConflictResolutionDialog'
 
@@ -103,6 +104,7 @@ const getColumnSettings = (): DocumentationColumnSettings => {
 
 export default function Documentation() {
   const { message } = App.useApp()
+  const { scale } = useScale()
   const queryClient = useQueryClient()
   const [filters, setFilters] = useState<DocumentationFilters>({})
   const [appliedFilters, setAppliedFilters] = useState<DocumentationFilters>({})
@@ -1417,11 +1419,12 @@ export default function Documentation() {
   }, [newRows, documentation])
 
   return (
-    <div style={{ 
-      height: 'calc(100vh - 96px)',
+    <div style={{
+      flex: 1,
       display: 'flex',
       flexDirection: 'column',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      minHeight: 0
     }}>
       <div style={{ flexShrink: 0, paddingBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -1429,11 +1432,11 @@ export default function Documentation() {
             <Text style={{ fontSize: '16px' }}>Проект:</Text>
             <Select
               placeholder="Выберите проект"
-              style={{ width: 280 }}
+              style={{ width: 280 * scale }}
               size="large"
               value={filters.project_id}
               onChange={(value) => setFilters({ ...filters, project_id: value, block_id: undefined })}
-              options={projects?.map((p) => ({ 
+              options={projects?.map((p) => ({
                 value: p.id, 
                 label: <span style={{ fontWeight: 'bold' }}>{p.name}</span> 
               })) ?? []}
@@ -1701,7 +1704,7 @@ export default function Documentation() {
       </div>
 
       {/* Таблица */}
-      <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+      <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
         {!appliedFilters.project_id ? (
           <Empty
             description="Выберите проект для просмотра документации"
@@ -1724,9 +1727,10 @@ export default function Documentation() {
               },
             }}
             sticky
-            scroll={{ 
+            style={{ height: '100%' }}
+            scroll={{
               x: 'max-content',
-              y: 'calc(100vh - 300px)'
+              y: '100%'
             }}
           // TODO: раскомментировать после добавления колонки color в БД
           /*onRow={(record: DocumentationTableRow) => ({
