@@ -15,7 +15,13 @@ import {
 import type { UploadProps } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
-import { EyeOutlined, EditOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons'
+import {
+  EyeOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  UploadOutlined,
+  PlusOutlined
+} from '@ant-design/icons'
 import * as XLSX from 'xlsx'
 import dayjs from 'dayjs'
 
@@ -36,15 +42,22 @@ interface MaterialExcelRow {
   'Дата'?: string | number | Date
 }
 
+interface SupplierFormValue {
+  id?: string
+  name: string
+}
+
 export default function Nomenclature() {
   const { message, modal } = App.useApp()
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view' | null>(null)
   const [currentMaterial, setCurrentMaterial] = useState<Material | null>(null)
   const [form] = Form.useForm()
   const [autoOptions, setAutoOptions] = useState<{ value: string }[]>([])
+  const [supplierOptions, setSupplierOptions] = useState<{ value: string }[]>([])
   const [searchText, setSearchText] = useState('')
   const [supplierSearchText, setSupplierSearchText] = useState('')
   const [priceDetails, setPriceDetails] = useState<{ id?: string; price: number; purchase_date: string }[]>([])
+  const [supplierDetails, setSupplierDetails] = useState<{ id: string; name: string }[]>([])
 
   const [importModalOpen, setImportModalOpen] = useState(false)
   const [importStatus, setImportStatus] = useState<'idle' | 'processing' | 'finished'>('idle')
@@ -155,6 +168,8 @@ export default function Nomenclature() {
 
   const openAddModal = () => {
     form.resetFields()
+    form.setFieldsValue({ suppliers: [{ name: '' }] })
+    setSupplierDetails([])
     setModalMode('add')
     setCurrentMaterial(null)
   }
@@ -175,12 +190,27 @@ export default function Nomenclature() {
   const openEditModal = async (record: Material) => {
     setCurrentMaterial(record)
     if (supabase) {
-      const { data } = await supabase
-        .from('material_prices')
-        .select('id, price, purchase_date')
-        .eq('material_id', record.id)
-        .order('purchase_date', { ascending: false })
-      setPriceDetails(data ?? [])
+      const [priceRes, supplierRes] = await Promise.all([
+        supabase
+          .from('material_prices')
+          .select('id, price, purchase_date')
+          .eq('material_id', record.id)
+          .order('purchase_date', { ascending: false }),
+        supabase
+          .from('nomenclature_supplier_mapping')
+          .select('supplier_id, supplier_names(name)')
+          .eq('nomenclature_id', record.id)
+      ])
+      setPriceDetails(priceRes.data ?? [])
+      const suppliersData = (supplierRes.data ?? []) as unknown as {
+        supplier_id: string
+        supplier_names: { name: string } | null
+      }[]
+      const suppliers = suppliersData.map((s) => ({
+        id: s.supplier_id,
+        name: s.supplier_names?.name ?? ''
+      }))
+      setSupplierDetails(suppliers)
     }
     setModalMode('edit')
   }
@@ -189,6 +219,7 @@ export default function Nomenclature() {
     if (modalMode === 'edit' && currentMaterial) {
       form.setFieldsValue({
         name: currentMaterial.name,
+        suppliers: supplierDetails.map(s => ({ id: s.id, name: s.name })),
         prices: priceDetails.map(p => ({
           id: p.id,
           price: p.price,
@@ -196,7 +227,7 @@ export default function Nomenclature() {
         }))
       })
     }
-  }, [modalMode, currentMaterial, priceDetails, form])
+  }, [modalMode, currentMaterial, priceDetails, supplierDetails, form])
 
   const handleNameSearch = async (value: string) => {
     if (!supabase) return
@@ -208,12 +239,23 @@ export default function Nomenclature() {
     setAutoOptions((data ?? []).map((d: { name: string }) => ({ value: d.name })))
   }
 
+  const handleSupplierSearch = async (value: string) => {
+    if (!supabase) return
+    const { data } = await supabase
+      .from('supplier_names')
+      .select('name')
+      .ilike('name', `%${value}%`)
+      .limit(20)
+    setSupplierOptions((data ?? []).map((d: { name: string }) => ({ value: d.name })))
+  }
+
   const handleSave = async () => {
     try {
       const values = await form.validateFields()
       const name: string = values.name.trim()
       const price: number | undefined = modalMode === 'add' ? values.price : undefined
       const prices: { id?: string; price: number; purchase_date: dayjs.Dayjs }[] = values.prices || []
+      const suppliers: SupplierFormValue[] = values.suppliers || []
       if (!supabase) return
       let materialId: string
       const { data: existing } = await supabase
@@ -293,6 +335,59 @@ export default function Nomenclature() {
             purchase_date: today
           })
         }
+      }
+
+      const newSupplierIds: string[] = []
+      for (const s of suppliers) {
+        const supplierName = s.name.trim()
+        if (!supplierName) continue
+        let supplierId = s.id
+        if (supplierId) {
+          await supabase
+            .from('supplier_names')
+            .update({ name: supplierName })
+            .eq('id', supplierId)
+        } else {
+          const { data: existingSupplier } = await supabase
+            .from('supplier_names')
+            .select('id')
+            .eq('name', supplierName)
+            .maybeSingle()
+          if (existingSupplier) {
+            supplierId = existingSupplier.id
+          } else {
+            const { data: insertedSupplier, error: supplierError } = await supabase
+              .from('supplier_names')
+              .insert({ name: supplierName })
+              .select()
+              .single()
+            if (supplierError) throw supplierError
+            supplierId = insertedSupplier.id
+          }
+        }
+        if (supplierId) newSupplierIds.push(supplierId)
+      }
+
+      const existingSupplierIds = supplierDetails.map((s) => s.id)
+      const supplierIdsToRemove = existingSupplierIds.filter(
+        (id) => !newSupplierIds.includes(id)
+      )
+      const supplierIdsToAdd = newSupplierIds.filter(
+        (id) => !existingSupplierIds.includes(id)
+      )
+
+      for (const id of supplierIdsToRemove) {
+        await supabase
+          .from('nomenclature_supplier_mapping')
+          .delete()
+          .eq('nomenclature_id', materialId)
+          .eq('supplier_id', id)
+      }
+
+      for (const id of supplierIdsToAdd) {
+        await supabase
+          .from('nomenclature_supplier_mapping')
+          .insert({ nomenclature_id: materialId, supplier_id: id })
       }
 
       message.success('Сохранено')
@@ -477,6 +572,7 @@ export default function Nomenclature() {
           setModalMode(null)
           setCurrentMaterial(null)
           setPriceDetails([])
+          setSupplierDetails([])
         }}
         onOk={modalMode === 'view' ? undefined : handleSave}
         okText={modalMode === 'view' ? undefined : 'Сохранить'}
@@ -490,6 +586,7 @@ export default function Nomenclature() {
                   onClick={() => {
                     setModalMode(null)
                     setPriceDetails([])
+                    setSupplierDetails([])
                   }}
                 >
                   Закрыть
@@ -529,6 +626,50 @@ export default function Nomenclature() {
                 <Input />
               )}
             </Form.Item>
+            <Form.List name="suppliers">
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map(({ key, name, ...restField }) => (
+                    <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
+                      <Form.Item {...restField} name={[name, 'id']} hidden>
+                        <Input type="hidden" />
+                      </Form.Item>
+                      <Form.Item
+                        {...restField}
+                        name={[name, 'name']}
+                        label="Наименование поставщика"
+                        rules={[{ required: true, message: 'Введите поставщика' }]}
+                      >
+                        <AutoComplete
+                          options={supplierOptions}
+                          onSearch={handleSupplierSearch}
+                          filterOption={false}
+                          listHeight={192}
+                          style={{ width: 300 }}
+                        >
+                          <Input />
+                        </AutoComplete>
+                      </Form.Item>
+                      <Button
+                        icon={<DeleteOutlined />}
+                        onClick={() => remove(name)}
+                        aria-label="Удалить поставщика"
+                      />
+                    </Space>
+                  ))}
+                  <Form.Item>
+                    <Button
+                      type="dashed"
+                      onClick={() => add({ name: '' })}
+                      block
+                      icon={<PlusOutlined />}
+                    >
+                      Добавить наименование поставщика
+                    </Button>
+                  </Form.Item>
+                </>
+              )}
+            </Form.List>
             {modalMode === 'add' && (
               <Form.Item label="Цена" name="price">
                 <InputNumber<number>
