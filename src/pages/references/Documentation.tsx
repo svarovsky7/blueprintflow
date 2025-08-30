@@ -52,7 +52,6 @@ import {
 } from '@/entities/documentation'
 import { documentationTagsApi } from '@/entities/documentation-tags'
 import { supabase } from '@/lib/supabase'
-import { useScale } from '@/shared/contexts/ScaleContext'
 import { DOCUMENT_STAGES } from '@/shared/types'
 import ConflictResolutionDialog from '@/components/ConflictResolutionDialog'
 
@@ -104,7 +103,6 @@ const getColumnSettings = (): DocumentationColumnSettings => {
 
 export default function Documentation() {
   const { message } = App.useApp()
-  const { scale } = useScale()
   const queryClient = useQueryClient()
   const [filters, setFilters] = useState<DocumentationFilters>({})
   const [appliedFilters, setAppliedFilters] = useState<DocumentationFilters>({})
@@ -1419,12 +1417,11 @@ export default function Documentation() {
   }, [newRows, documentation])
 
   return (
-    <div style={{
-      flex: 1,
+    <div style={{ 
+      height: 'calc(100vh - 96px)',
       display: 'flex',
       flexDirection: 'column',
-      overflow: 'hidden',
-      minHeight: 0
+      overflow: 'hidden'
     }}>
       <div style={{ flexShrink: 0, paddingBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -1432,11 +1429,11 @@ export default function Documentation() {
             <Text style={{ fontSize: '16px' }}>Проект:</Text>
             <Select
               placeholder="Выберите проект"
-              style={{ width: 280 * scale }}
+              style={{ width: 280 }}
               size="large"
               value={filters.project_id}
               onChange={(value) => setFilters({ ...filters, project_id: value, block_id: undefined })}
-              options={projects?.map((p) => ({
+              options={projects?.map((p) => ({ 
                 value: p.id, 
                 label: <span style={{ fontWeight: 'bold' }}>{p.name}</span> 
               })) ?? []}
@@ -1727,9 +1724,9 @@ export default function Documentation() {
               },
             }}
             sticky
-            scroll={{
+            scroll={{ 
               x: 'max-content',
-              y: '100%'
+              y: 'calc(100vh - 300px)'
             }}
           // TODO: раскомментировать после добавления колонки color в БД
           /*onRow={(record: DocumentationTableRow) => ({

@@ -7,7 +7,6 @@ import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
 import { documentationApi } from '@/entities/documentation'
 import { documentationTagsApi } from '@/entities/documentation-tags'
-import { useScale } from '@/shared/contexts/ScaleContext'
 
 type RowColor = '' | 'green' | 'yellow' | 'blue' | 'red'
 
@@ -291,7 +290,6 @@ const collapseMap: Record<string, HiddenColKey> = {
 
 export default function Chessboard() {
   const { message } = App.useApp()
-  const { scale } = useScale()
   
   // Диагностика скролла
   useEffect(() => {
@@ -2855,13 +2853,12 @@ export default function Chessboard() {
   }, [viewRows, allColumns])
 
   return (
-    <div style={{
-      flex: 1,
-      display: 'flex',
+    <div style={{ 
+      height: 'calc(100vh - 96px)', 
+      display: 'flex', 
       flexDirection: 'column',
       overflow: 'hidden',
-      position: 'relative',
-      minHeight: 0
+      position: 'relative'
     }}>
       <div style={{ flexShrink: 0, paddingBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -2869,7 +2866,7 @@ export default function Chessboard() {
             <Text style={{ fontSize: '16px' }}>Объект:</Text>
             <Select
               placeholder="Выберите проект"
-              style={{ width: 280 * scale }}
+              style={{ width: 280 }}
               size="large"
               allowClear
               value={filters.projectId}
@@ -3134,7 +3131,7 @@ export default function Chessboard() {
       
       {/* Таблица */}
       {appliedFilters && (
-        <div className="chessboard-table" style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+        <div className="chessboard-table" style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
           {mode === 'add' ? (
             <Table<TableRow>
             dataSource={tableRows}
@@ -3142,9 +3139,9 @@ export default function Chessboard() {
             pagination={false}
             rowKey="key"
             sticky
-            scroll={{
+            scroll={{ 
               x: 'max-content',
-              y: '100%'
+              y: 'calc(100vh - 300px)'
             }}
             rowClassName={(record) => (record.color ? `row-${record.color}` : '')}
           />
@@ -3155,9 +3152,9 @@ export default function Chessboard() {
             pagination={false}
             rowKey="key"
             sticky
-            scroll={{
+            scroll={{ 
               x: 'max-content',
-              y: '100%'
+              y: 'calc(100vh - 300px)'
             }}
             rowClassName={(record) => {
               const color = editingRows[record.key]?.color ?? record.color
