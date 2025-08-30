@@ -292,6 +292,7 @@ const collapseMap: Record<string, HiddenColKey> = {
 export default function Chessboard() {
   const { message } = App.useApp()
   const { scale } = useScale()
+
   
   const [filters, setFilters] = useState<{ projectId?: string; blockId?: string; categoryId?: string; typeId?: string; tagId?: string; documentationId?: string }>({})
   const [appliedFilters, setAppliedFilters] = useState<
@@ -3098,9 +3099,10 @@ export default function Chessboard() {
       
       {/* Таблица */}
       {appliedFilters && (
-        <div className="chessboard-table" style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+        <div className="chessboard-table" style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
           {mode === 'add' ? (
             <Table<TableRow>
+
               dataSource={tableRows}
               columns={orderedAddColumns}
               pagination={false}
@@ -3131,6 +3133,7 @@ export default function Chessboard() {
               }}
             />
           )}
+
         </div>
       )}
       <Modal

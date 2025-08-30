@@ -1023,6 +1023,7 @@ export default function Rates() {
       {/* Таблица */}
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
         <Table
+
           columns={visibleColumns}
           dataSource={filteredData}
           rowKey="id"
@@ -1033,6 +1034,7 @@ export default function Rates() {
             x: 'max-content',
             y: '100%'
           }}
+
           pagination={{
             current: 1,
             pageSize,

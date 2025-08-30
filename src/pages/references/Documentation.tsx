@@ -1727,7 +1727,9 @@ export default function Documentation() {
               },
             }}
             sticky
+
             style={{ height: '100%' }}
+
             scroll={{
               x: 'max-content',
               y: '100%'
