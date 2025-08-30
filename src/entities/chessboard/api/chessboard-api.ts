@@ -26,6 +26,9 @@ export const chessboardApi = {
 
     const { quantityPd: _quantityPd, quantitySpec: _quantitySpec, quantityRd: _quantityRd, ...rest } =
       row as Record<string, unknown>
+    void _quantityPd
+    void _quantitySpec
+    void _quantityRd
     const { data, error } = await supabase.from('chessboard').insert(rest).select()
     
     if (error) {
@@ -41,6 +44,9 @@ export const chessboardApi = {
 
     const { quantityPd: _quantityPd, quantitySpec: _quantitySpec, quantityRd: _quantityRd, ...rest } =
       updates as Record<string, unknown>
+    void _quantityPd
+    void _quantitySpec
+    void _quantityRd
     const { data, error } = await supabase
       .from('chessboard')
       .update(rest)

@@ -408,7 +408,7 @@ export default function Documentation() {
       key: 'checkbox',
       width: 50,
       fixed: 'left' as const,
-      render: (_: any, record: DocumentationTableRow) => (
+      render: (_: unknown, record: DocumentationTableRow) => (
         <Checkbox
           checked={selectedRowsForDelete.has(record.id)}
           onChange={() => {
@@ -954,9 +954,9 @@ export default function Documentation() {
     const finalColumns = checkboxColumn ? [checkboxColumn, ...visibleColumns] : visibleColumns
     
     // Удаляем свойство visible перед возвратом
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    return finalColumns.map((col: any) => {
+    return (finalColumns as Array<ColumnsType<DocumentationTableRow>[number] & { visible?: boolean }>).map((col) => {
       const { visible, ...rest } = col
+      void visible
       return rest
     }) as ColumnsType<DocumentationTableRow>
   }, [columnSettings, newRows, editingKey, editingRows, tags, selectedVersions, handleAddRowAfter, handleCopyRow, handleDeleteNew, handleDelete, deleteMode, selectedRowsForDelete, message, queryClient, columnVisibility, columnOrder])

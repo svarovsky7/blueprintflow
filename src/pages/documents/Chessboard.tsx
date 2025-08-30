@@ -67,6 +67,7 @@ interface RowData {
   quantitySpec: string
   quantityRd: string
   nomenclatureId: string
+  supplier?: string
   unitId: string
   blockId: string
   block: string
@@ -105,6 +106,7 @@ interface ViewRow {
   quantityRd: string
   nomenclatureId: string
   nomenclature: string
+  supplier: string
   unit: string
   blockId: string
   block: string
@@ -151,6 +153,7 @@ interface RateOption {
 type NomenclatureMapping = {
   nomenclature_id: string | null
   nomenclature?: { name: string | null } | null
+  supplier_name: string | null
 }
 
 interface DbRow {
@@ -260,6 +263,7 @@ const emptyRow = (defaults: Partial<RowData>): RowData => ({
   quantitySpec: '',
   quantityRd: '',
   nomenclatureId: '',
+  supplier: '',
   unitId: '',
   blockId: defaults.blockId ?? '',
   block: defaults.block ?? '',
@@ -445,6 +449,68 @@ export default function Chessboard() {
     if (!error && data) setNomenclatureOptions(data as NomenclatureOption[])
   }
 
+  const getNomenclatureSelectOptions = useCallback(
+    (currentId?: string, currentName?: string) => {
+      const opts = [...nomenclatureOptions]
+      if (currentId && currentName && !opts.some((n) => n.id === currentId)) {
+        opts.push({ id: currentId, name: currentName })
+      }
+      return opts.map((n) => ({ value: n.id, label: n.name }))
+    },
+    [nomenclatureOptions],
+  )
+
+  const [supplierOptions, setSupplierOptions] = useState<
+    Record<string, { value: string; label: string }[]>
+  >({})
+  const [supplierDropdownWidths, setSupplierDropdownWidths] = useState<Record<string, number>>({})
+
+  const loadSupplierOptions = useCallback(
+    async (nomenclatureId: string | undefined, key: string, currentSupplier?: string) => {
+      if (!nomenclatureId) {
+        setSupplierOptions(prev => ({ ...prev, [key]: [] }))
+        setSupplierDropdownWidths(prev => ({ ...prev, [key]: 250 }))
+        return
+      }
+      if (!supabase) return
+      const { data, error } = await supabase
+        .from('nomenclature_supplier_mapping')
+        .select('supplier_names(name)')
+        .eq('nomenclature_id', nomenclatureId)
+      if (error) {
+        console.error('Не удалось загрузить поставщиков:', error.message)
+        setSupplierOptions(prev => ({ ...prev, [key]: [] }))
+        return
+      }
+      const options = (data as { supplier_names: { name: string | null } | { name: string | null }[] | null }[])
+        .map(d => (Array.isArray(d.supplier_names) ? d.supplier_names[0]?.name : d.supplier_names?.name))
+        .filter((n): n is string => !!n)
+        .map(name => ({ value: name, label: name }))
+      if (currentSupplier && !options.some(o => o.value === currentSupplier)) {
+        options.push({ value: currentSupplier, label: currentSupplier })
+      }
+      setSupplierOptions(prev => ({ ...prev, [key]: options }))
+
+      if (typeof document !== 'undefined') {
+        const canvas = document.createElement('canvas')
+        const context = canvas.getContext('2d')
+        if (context) {
+          context.font = getComputedStyle(document.body).font || '14px'
+          let max = 0
+          for (const o of options) {
+            const width = context.measureText(o.label).width
+            if (width > max) max = width
+          }
+          const width = Math.min(500, Math.ceil(max) + 64)
+          setSupplierDropdownWidths(prev => ({ ...prev, [key]: width }))
+        } else {
+          setSupplierDropdownWidths(prev => ({ ...prev, [key]: 200 }))
+        }
+      }
+    },
+    [],
+  )
+
   const { data: costCategories } = useQuery<CostCategoryOption[]>({
     queryKey: ['costCategories'],
     queryFn: async () => {
@@ -575,7 +641,7 @@ export default function Chessboard() {
         .from('chessboard')
         .select(
           `id, material, unit_id, color, units(name),
-          chessboard_nomenclature_mapping!left(nomenclature_id, nomenclature(name)),
+          chessboard_nomenclature_mapping!left(nomenclature_id, supplier_name, nomenclature(name)),
           ${relation}(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name)),
           chessboard_rates_mapping(rate_id, rates(work_name)),
           chessboard_documentation_mapping(documentation_id, documentations(id, code, tag_id, stage, tag:documentation_tags(id, name, tag_number)))`,
@@ -666,16 +732,19 @@ export default function Chessboard() {
               quantities,
             }
           }
-        }
       }
+    }
 
       // Добавляем этажи и количества к результатам
       const result = (data as unknown as DbRow[]) ?? []
-      return result.map(item => ({
-        ...item,
-        floors: floorsMap[item.id]?.floors || '',
-        floorQuantities: floorsMap[item.id]?.quantities,
-      }))
+
+      return result.map((item) => {
+        return {
+          ...item,
+          floors: floorsMap[item.id]?.floors || '',
+          floorQuantities: floorsMap[item.id]?.quantities,
+        }
+      })
     },
   })
 
@@ -710,6 +779,8 @@ export default function Chessboard() {
           quantityRd: sumRd !== null ? String(sumRd) : '',
           nomenclatureId: getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature_id ?? '',
           nomenclature: getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature?.name ?? '',
+          supplier:
+            getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.supplier_name ?? '',
           unit: item.units?.name ?? '',
           blockId: item.chessboard_mapping?.block_id ?? '',
           block: item.chessboard_mapping?.blocks?.name ?? '',
@@ -737,6 +808,7 @@ export default function Chessboard() {
         quantitySpec: v.quantitySpec,
         quantityRd: v.quantityRd,
         nomenclatureId: v.nomenclatureId,
+        supplier: v.supplier,
         unitId: v.unit,
         blockId: v.blockId,
         block: v.block,
@@ -1095,6 +1167,9 @@ export default function Chessboard() {
     (id: string) => {
       const dbRow = tableData?.find((r) => r.id === id)
       if (!dbRow) return
+      const mapping = getNomenclatureMapping(dbRow.chessboard_nomenclature_mapping)
+      const nomenclatureId = mapping?.nomenclature_id ?? ''
+      const supplierName = mapping?.supplier_name ?? ''
       setEditingRows((prev) => {
         if (prev[id]) return prev
         return {
@@ -1129,7 +1204,8 @@ export default function Chessboard() {
                     ),
                   )
                 : '',
-            nomenclatureId: getNomenclatureMapping(dbRow.chessboard_nomenclature_mapping)?.nomenclature_id ?? '',
+            nomenclatureId,
+            supplier: supplierName,
             unitId: dbRow.unit_id ?? '',
             blockId: dbRow.chessboard_mapping?.block_id ?? '',
             block: dbRow.chessboard_mapping?.blocks?.name ?? '',
@@ -1148,8 +1224,8 @@ export default function Chessboard() {
             floors: dbRow.floors ?? '',
             color: (dbRow.color as RowColor | null) ?? '',
             documentationId: dbRow.chessboard_documentation_mapping?.documentation_id ?? '',
-            tagId: dbRow.chessboard_documentation_mapping?.documentations?.tag_id 
-              ? String(dbRow.chessboard_documentation_mapping.documentations.tag_id) 
+            tagId: dbRow.chessboard_documentation_mapping?.documentations?.tag_id
+              ? String(dbRow.chessboard_documentation_mapping.documentations.tag_id)
               : '',
             tagName: dbRow.chessboard_documentation_mapping?.documentations?.tag
               ? `${dbRow.chessboard_documentation_mapping.documentations.tag.tag_number || ''} ${dbRow.chessboard_documentation_mapping.documentations.tag.name}`.trim()
@@ -1159,8 +1235,9 @@ export default function Chessboard() {
           },
         }
       })
+      void loadSupplierOptions(nomenclatureId, id, supplierName)
     },
-    [tableData],
+    [tableData, loadSupplierOptions],
   )
 
   const handleUpdate = useCallback(async () => {
@@ -1254,6 +1331,7 @@ export default function Chessboard() {
           await supabase!.from('chessboard_nomenclature_mapping').insert({
             chessboard_id: r.key,
             nomenclature_id: r.nomenclatureId,
+            supplier_name: r.supplier || null,
           })
         }
       }
@@ -1619,6 +1697,7 @@ export default function Chessboard() {
       quantitySpec: 'quantitySpec',
       quantityRd: 'quantityRd',
       nomenclatureId: 'nomenclature',
+      supplier: 'supplier',
       unitId: 'unit',
       block: 'block',
       costCategoryId: 'costCategory',
@@ -1645,6 +1724,7 @@ export default function Chessboard() {
         align: 'center',
       },
       { title: 'Номенклатура', dataIndex: 'nomenclatureId', width: 250 },
+      { title: 'Наименование поставщика', dataIndex: 'supplier', width: 250 },
       { title: 'Ед.изм.', dataIndex: 'unitId', width: 160 },
       { title: 'Корпус', dataIndex: 'block', width: 120 },
       { title: 'Этажи', dataIndex: 'floors', width: 150 },
@@ -1822,11 +1902,29 @@ export default function Chessboard() {
                 style={{ width: 250 }}
                 dropdownMatchSelectWidth={nomenclatureDropdownWidth}
                 value={record.nomenclatureId}
-                onChange={(value) => handleRowChange(record.key, 'nomenclatureId', value)}
-                options={nomenclatureOptions.map((n) => ({ value: n.id, label: n.name }))}
+                onChange={(value) => {
+                  handleRowChange(record.key, 'nomenclatureId', value)
+                  loadSupplierOptions(value, record.key)
+                  handleRowChange(record.key, 'supplier', '')
+                }}
+                options={getNomenclatureSelectOptions(record.nomenclatureId)}
                 showSearch
                 onSearch={handleNomenclatureSearch}
                 filterOption={false}
+                allowClear
+              />
+            )
+          case 'supplier':
+            return (
+              <Select
+                style={{ width: 250 }}
+                dropdownMatchSelectWidth={supplierDropdownWidths[record.key] ?? 250}
+                value={record.supplier || undefined}
+                onChange={(value) => handleRowChange(record.key, 'supplier', value)}
+                options={supplierOptions[record.key] ?? []}
+                disabled={!record.nomenclatureId}
+                showSearch
+                optionFilterProp="label"
                 allowClear
               />
             )
@@ -2002,7 +2100,6 @@ export default function Chessboard() {
   }, [
     viewRows,
     handleRowChange,
-    nomenclatureOptions,
     units,
     costCategories,
     costTypes,
@@ -2023,6 +2120,10 @@ export default function Chessboard() {
     nomenclatureDropdownWidth,
       getRateOptions,
       openFloorModal,
+    supplierOptions,
+    supplierDropdownWidths,
+    loadSupplierOptions,
+    getNomenclatureSelectOptions,
   ])
 
   const viewColumns: ColumnsType<ViewRow> = useMemo(() => {
@@ -2058,6 +2159,7 @@ export default function Chessboard() {
         align: 'center',
       },
       { title: 'Номенклатура', dataIndex: 'nomenclature', width: 250 },
+      { title: 'Наименование поставщика', dataIndex: 'supplier', width: 250 },
       { title: 'Ед.изм.', dataIndex: 'unit', width: 160 },
       { title: 'Корпус', dataIndex: 'block', width: 120 },
       { title: 'Этажи', dataIndex: 'floors', width: 150 },
@@ -2234,18 +2336,36 @@ export default function Chessboard() {
             )
           case 'nomenclature':
             return (
-                <Select
-                  style={{ width: 250 }}
-                  dropdownMatchSelectWidth={nomenclatureDropdownWidth}
-                  value={edit.nomenclatureId}
-                  onChange={(value) => handleEditChange(record.key, 'nomenclatureId', value)}
-                  options={nomenclatureOptions.map((n) => ({ value: n.id, label: n.name }))}
-                  showSearch
-                  onSearch={handleNomenclatureSearch}
-                  filterOption={false}
-                  allowClear
-                />
-              )
+              <Select
+                style={{ width: 250 }}
+                dropdownMatchSelectWidth={nomenclatureDropdownWidth}
+                value={edit.nomenclatureId}
+                onChange={(value) => {
+                  handleEditChange(record.key, 'nomenclatureId', value)
+                  loadSupplierOptions(value, record.key)
+                  handleEditChange(record.key, 'supplier', '')
+                }}
+                options={getNomenclatureSelectOptions(edit.nomenclatureId, record.nomenclature)}
+                showSearch
+                onSearch={handleNomenclatureSearch}
+                filterOption={false}
+                allowClear
+              />
+            )
+          case 'supplier':
+            return (
+              <Select
+                style={{ width: 250 }}
+                dropdownMatchSelectWidth={supplierDropdownWidths[record.key] ?? 250}
+                value={edit.supplier || undefined}
+                onChange={(value) => handleEditChange(record.key, 'supplier', value)}
+                options={supplierOptions[record.key] ?? []}
+                disabled={!edit.nomenclatureId}
+                showSearch
+                optionFilterProp="label"
+                allowClear
+              />
+            )
           case 'unit':
             return (
               <Select
@@ -2445,7 +2565,6 @@ export default function Chessboard() {
     startEdit,
     handleDelete,
     units,
-    nomenclatureOptions,
     blocks,
     costCategories,
     costTypes,
@@ -2461,6 +2580,10 @@ export default function Chessboard() {
     getRateOptions,
     openFloorModal,
     nomenclatureDropdownWidth,
+    supplierOptions,
+    supplierDropdownWidths,
+    loadSupplierOptions,
+    getNomenclatureSelectOptions,
   ])
 
   const { Text } = Typography
@@ -2480,6 +2603,7 @@ export default function Chessboard() {
     { key: 'quantitySpec', title: 'Кол-во по спеке РД' },
     { key: 'quantityRd', title: 'Кол-во по пересчету РД' },
     { key: 'nomenclature', title: 'Номенклатура' },
+    { key: 'supplier', title: 'Наименование поставщика' },
     { key: 'unit', title: 'Ед.изм.' },
   ], [])
 
