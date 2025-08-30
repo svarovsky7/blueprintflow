@@ -52,6 +52,7 @@ import {
 } from '@/entities/documentation'
 import { documentationTagsApi } from '@/entities/documentation-tags'
 import { supabase } from '@/lib/supabase'
+import { useScale } from '@/shared/contexts/ScaleContext'
 import { DOCUMENT_STAGES } from '@/shared/types'
 import ConflictResolutionDialog from '@/components/ConflictResolutionDialog'
 
@@ -103,6 +104,7 @@ const getColumnSettings = (): DocumentationColumnSettings => {
 
 export default function Documentation() {
   const { message } = App.useApp()
+  const { scale } = useScale()
   const queryClient = useQueryClient()
   const [filters, setFilters] = useState<DocumentationFilters>({})
   const [appliedFilters, setAppliedFilters] = useState<DocumentationFilters>({})
@@ -1418,7 +1420,7 @@ export default function Documentation() {
 
   return (
     <div style={{ 
-      height: 'calc(100vh - 96px)',
+      height: `calc(100vh - ${96 * scale}px)`,
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden'
@@ -1726,7 +1728,7 @@ export default function Documentation() {
             sticky
             scroll={{ 
               x: 'max-content',
-              y: 'calc(100vh - 300px)'
+            y: `calc(100vh - ${300 * scale}px)`
             }}
           // TODO: раскомментировать после добавления колонки color в БД
           /*onRow={(record: DocumentationTableRow) => ({
