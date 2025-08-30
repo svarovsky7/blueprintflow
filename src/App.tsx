@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { Layout, Menu, Popover, Switch } from 'antd'
 import { Link, Route, Routes, useNavigate, useLocation } from 'react-router-dom'
-import { MoonOutlined, CheckOutlined } from '@ant-design/icons'
+import { MoonOutlined } from '@ant-design/icons'
 import Dashboard from './pages/Dashboard'
 import Documents from './pages/Documents'
 import Chessboard from './pages/documents/Chessboard'
@@ -24,7 +24,6 @@ import TestTableStructure from './pages/TestTableStructure'
 
 import PortalSettings from './pages/admin/PortalSettings'
 import { useLogo } from './shared/contexts/LogoContext'
-import { useScale } from './shared/contexts/ScaleContext'
 
 
 const { Sider, Content } = Layout
@@ -40,7 +39,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
   const navigate = useNavigate()
   const location = useLocation()
   const { lightLogo, darkLogo } = useLogo()
-  const { scale, setScale } = useScale()
 
   // Автоматически открываем нужные подменю при смене роута
   useEffect(() => {
@@ -242,30 +240,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     </div>
   )
 
-  const scaleSubmenu = (
-    <div style={{ backgroundColor: isDark ? '#1f1f1f' : '#fff', borderRadius: 4, padding: '4px 0' }}>
-      {[
-        { value: 0.7, label: '70%' },
-        { value: 0.8, label: '80%' },
-        { value: 0.9, label: '90%' },
-        { value: 1, label: '100%' }
-      ].map(({ value, label }) => (
-        <div
-          key={label}
-          style={menuItemStyle}
-          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)')}
-          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-          onClick={() => setScale(value)}
-        >
-          <span style={linkStyle}>
-            {scale === value && <CheckOutlined style={{ marginRight: 8 }} />}
-            {label}
-          </span>
-        </div>
-      ))}
-    </div>
-  )
-
   const adminSubmenu = (
     <div style={{ backgroundColor: isDark ? '#1f1f1f' : '#fff', borderRadius: 4, padding: '4px 0' }}>
       <div 
@@ -303,15 +277,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         <Link to="/admin/portal-settings" style={linkStyle}>
           Настройка портала
         </Link>
-      </div>
-      <div
-        style={menuItemStyle}
-        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
-        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-      >
-        <Popover content={scaleSubmenu} placement="rightTop" trigger="hover" overlayStyle={{ paddingLeft: 10 }} arrow={false}>
-          <span style={linkStyle}>Масштаб</span>
-        </Popover>
       </div>
       <div
         style={{ ...menuItemStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
@@ -386,16 +351,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         {
           key: 'portal-settings',
           label: <Link to="/admin/portal-settings">Настройка портала</Link>
-        },
-        {
-          key: 'scale',
-          label: 'Масштаб',
-          children: [
-            { key: 'scale-70', label: '70%', onClick: () => setScale(0.7), icon: scale === 0.7 ? <CheckOutlined /> : undefined },
-            { key: 'scale-80', label: '80%', onClick: () => setScale(0.8), icon: scale === 0.8 ? <CheckOutlined /> : undefined },
-            { key: 'scale-90', label: '90%', onClick: () => setScale(0.9), icon: scale === 0.9 ? <CheckOutlined /> : undefined },
-            { key: 'scale-100', label: '100%', onClick: () => setScale(1), icon: scale === 1 ? <CheckOutlined /> : undefined },
-          ],
         },
         {
           key: 'theme-toggle',
