@@ -139,9 +139,9 @@ npx tsc --noEmit    # отдельная проверка типов
 ```
 
 ### Pre‑commit чек‑лист
-1) `npm run lint` — без предупреждений
-2) `npm run format` — единый стиль
-3) `npm run build` — успешная сборка
+1) `npm run lint` — без предупреждений  
+2) `npm run format` — единый стиль  
+3) `npm run build` — успешная сборка  
 4) Conventional Commits: `feat:`, `fix:`, `chore:`, …
 
 ## Деплой и наблюдаемость
