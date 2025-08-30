@@ -97,4 +97,53 @@ body[data-theme='dark'] {
 .chessboard-table .ant-table-cell {
   padding-top: calc(2px * var(--app-scale)) !important;
   padding-bottom: calc(2px * var(--app-scale)) !important;
+
+}
+
+/* Layout and table scrolling */
+.app-root {
+  height: 100vh;
+  display: flex;
+  overflow: hidden;
+}
+
+.layout {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.header,
+.filters {
+  flex: 0 0 auto;
+}
+
+.table-host {
+  position: relative;
+  flex: 1 1 0%;
+  min-height: 0;
+  height: auto;
+  overflow: auto;
+  box-sizing: border-box;
+  overscroll-behavior: contain;
+}
+
+.table-host thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.layout > *,
+.content > *,
+.table-host > * {
+  min-height: 0;
+
 }

@@ -58,6 +58,7 @@ export default function PortalHeader({ isDark }: PortalHeaderProps) {
 
   return (
     <Header
+      className="header"
       style={{
         background: isDark ? '#555555' : '#f0edf2',
         padding: `0 ${16 * scale}px`,

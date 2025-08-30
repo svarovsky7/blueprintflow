@@ -26,6 +26,9 @@ import PortalSettings from './pages/admin/PortalSettings'
 import { useLogo } from './shared/contexts/LogoContext'
 import { useScale } from './shared/contexts/ScaleContext'
 
+import { debugTableScroll } from './shared/debugTableScroll'
+
+
 
 const { Sider, Content } = Layout
 
@@ -62,6 +65,12 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     }
     setOpenKeys(newOpenKeys)
   }, [location.pathname])
+
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      debugTableScroll()
+    }
+  }, [])
   
   const LetterIcon = ({ letter, children, onClick, isActive }: { letter: string; children?: React.ReactNode; onClick?: () => void; isActive?: boolean }) => {
     const iconContent = (
@@ -495,7 +504,9 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           }
         `}
       </style>
-      <Layout style={{ height: '100vh' }}>
+
+      <Layout className="app-root" style={{ height: '100vh' }}>
+
         <Sider
           theme={isDark ? 'dark' : 'light'}
           style={{
@@ -554,9 +565,12 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             onOpenChange={setOpenKeys}
           />
         </Sider>
-        <Layout style={{ height: '100%', minHeight: 0 }}>
+
+        <Layout className="layout" style={{ height: '100%', minHeight: 0 }}>
+
           <PortalHeader isDark={isDark} />
           <Content
+            className="content"
             style={{
               flex: 1,
               margin: 16 * scale,

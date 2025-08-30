@@ -2824,11 +2824,11 @@ export default function Chessboard() {
       flex: 1,
       display: 'flex',
       flexDirection: 'column',
-      overflow: 'hidden',
+
       position: 'relative',
       minHeight: 0
     }}>
-      <div style={{ flexShrink: 0, paddingBottom: 16 }}>
+      <div className="filters" style={{ flexShrink: 0, paddingBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
           <Space align="center" size="middle">
             <Text style={{ fontSize: '16px' }}>Объект:</Text>
@@ -3099,7 +3099,7 @@ export default function Chessboard() {
       
       {/* Таблица */}
       {appliedFilters && (
-        <div className="chessboard-table" style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+        <div className="table-host chessboard-table">
           {mode === 'add' ? (
             <Table<TableRow>
 
@@ -3108,10 +3108,9 @@ export default function Chessboard() {
               pagination={false}
               rowKey="key"
               sticky
-              style={{ height: '100%' }}
               scroll={{
-                x: 'max-content',
-                y: '100%'
+                x: 'max-content'
+
               }}
               rowClassName={(record) => (record.color ? `row-${record.color}` : '')}
             />
@@ -3122,10 +3121,9 @@ export default function Chessboard() {
               pagination={false}
               rowKey="key"
               sticky
-              style={{ height: '100%' }}
               scroll={{
-                x: 'max-content',
-                y: '100%'
+                x: 'max-content'
+
               }}
               rowClassName={(record) => {
                 const color = editingRows[record.key]?.color ?? record.color

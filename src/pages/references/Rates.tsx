@@ -879,10 +879,10 @@ export default function Rates() {
       flex: 1,
       display: 'flex',
       flexDirection: 'column',
-      overflow: 'hidden',
+
       minHeight: 0
     }}>
-      <div style={{ flexShrink: 0, paddingBottom: 16 }}>
+      <div className="filters" style={{ flexShrink: 0, paddingBottom: 16 }}>
         <Title level={2} style={{ margin: '0 0 16px 0' }}>Расценки</Title>
         
         {/* Фильтры */}
@@ -1021,7 +1021,7 @@ export default function Rates() {
       </div>
 
       {/* Таблица */}
-      <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+      <div className="table-host">
         <Table
 
           columns={visibleColumns}
@@ -1029,10 +1029,8 @@ export default function Rates() {
           rowKey="id"
           loading={isLoading}
           sticky
-          style={{ height: '100%' }}
           scroll={{
-            x: 'max-content',
-            y: '100%'
+            x: 'max-content'
           }}
 
           pagination={{

@@ -144,64 +144,6 @@ export default function Documentation() {
   const [columnOrder, setColumnOrder] = useState<string[]>([])
   
   // Диагностика двойного скролла
-  useEffect(() => {
-    const checkScrollbars = () => {
-      const body = document.body
-      const html = document.documentElement
-      const table = document.querySelector('.ant-table-wrapper')
-      const tableContainer = document.querySelector('.ant-table-container')
-      const tableBody = document.querySelector('.ant-table-body')
-      const mainContent = document.querySelector('.ant-layout-content')
-      
-      console.log('📊 Documentation Scroll diagnostics:')
-      console.log('Body height:', body.scrollHeight, 'Client height:', body.clientHeight)
-      console.log('Body has scroll:', body.scrollHeight > body.clientHeight)
-      console.log('HTML height:', html.scrollHeight, 'Client height:', html.clientHeight)
-      console.log('HTML has scroll:', html.scrollHeight > html.clientHeight)
-      console.log('Window inner height:', window.innerHeight)
-      console.log('Document height:', document.documentElement.scrollHeight)
-      
-      if (mainContent) {
-        console.log('Main content:', mainContent.scrollHeight, mainContent.clientHeight)
-        console.log('Main content overflow:', window.getComputedStyle(mainContent).overflow)
-      }
-      
-      if (table) {
-        console.log('Table wrapper:', table.scrollHeight, table.clientHeight)
-        const tableRect = table.getBoundingClientRect()
-        console.log('Table position:', { top: tableRect.top, height: tableRect.height, bottom: tableRect.bottom })
-      }
-      if (tableContainer) {
-        console.log('Table container:', tableContainer.scrollHeight, tableContainer.clientHeight)
-      }
-      if (tableBody) {
-        console.log('Table body:', tableBody.scrollHeight, tableBody.clientHeight)
-        console.log('Table body overflow:', window.getComputedStyle(tableBody).overflow)
-      }
-      
-      // Проверяем стили overflow
-      console.log('Body overflow:', window.getComputedStyle(body).overflow)
-      console.log('HTML overflow:', window.getComputedStyle(html).overflow)
-      
-      // Проверяем все элементы со скроллом
-      const scrollableElements = Array.from(document.querySelectorAll('*')).filter(el => {
-        const style = window.getComputedStyle(el)
-        return (style.overflow === 'auto' || style.overflow === 'scroll' || 
-                style.overflowY === 'auto' || style.overflowY === 'scroll') &&
-                el.scrollHeight > el.clientHeight
-      })
-      console.log('Elements with scroll:', scrollableElements.length)
-      scrollableElements.forEach(el => {
-        console.log('Scrollable element:', el.className, el.scrollHeight, el.clientHeight)
-      })
-    }
-    
-    // Проверяем после рендера
-    setTimeout(checkScrollbars, 500)
-    window.addEventListener('resize', checkScrollbars)
-    
-    return () => window.removeEventListener('resize', checkScrollbars)
-  }, [appliedFilters])
 
   // Функции управления столбцами
   const toggleColumnVisibility = useCallback((key: string) => {
@@ -1423,10 +1365,10 @@ export default function Documentation() {
       flex: 1,
       display: 'flex',
       flexDirection: 'column',
-      overflow: 'hidden',
+
       minHeight: 0
     }}>
-      <div style={{ flexShrink: 0, paddingBottom: 16 }}>
+      <div className="filters" style={{ flexShrink: 0, paddingBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
           <Space align="center" size="middle">
             <Text style={{ fontSize: '16px' }}>Проект:</Text>
@@ -1704,7 +1646,8 @@ export default function Documentation() {
       </div>
 
       {/* Таблица */}
-      <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+      <div className="table-host">
+
         {!appliedFilters.project_id ? (
           <Empty
             description="Выберите проект для просмотра документации"
@@ -1727,12 +1670,9 @@ export default function Documentation() {
               },
             }}
             sticky
-
-            style={{ height: '100%' }}
-
             scroll={{
-              x: 'max-content',
-              y: '100%'
+              x: 'max-content'
+
             }}
           // TODO: раскомментировать после добавления колонки color в БД
           /*onRow={(record: DocumentationTableRow) => ({
