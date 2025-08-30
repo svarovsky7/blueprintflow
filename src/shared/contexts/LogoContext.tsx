@@ -1,7 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, type ReactNode } from 'react'
-import light from '@/logo_light.svg'
-import dark from '@/logo_dark_1.svg'
+import logoDark from '@/logo_dark_1.svg'
 
 interface LogoContextType {
   lightLogo: string
@@ -14,10 +13,10 @@ const LogoContext = createContext<LogoContextType | undefined>(undefined)
 
 export function LogoProvider({ children }: { children: ReactNode }) {
   const [lightLogo, setLightLogoState] = useState<string>(
-    () => localStorage.getItem('blueprintflow-logo-light') ?? light
+    () => localStorage.getItem('blueprintflow-logo-light') ?? logoDark
   )
   const [darkLogo, setDarkLogoState] = useState<string>(
-    () => localStorage.getItem('blueprintflow-logo-dark') ?? dark
+    () => localStorage.getItem('blueprintflow-logo-dark') ?? logoDark
   )
 
   const setLightLogo = (logo: string) => {
