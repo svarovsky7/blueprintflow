@@ -439,7 +439,10 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               border-radius: calc(4px * var(--app-scale)) !important;
               box-shadow: none !important;
               color: #a69ead !important;
-              margin: calc(2px * var(--app-scale)) calc(8px * var(--app-scale)) !important;
+              margin: calc(2px * var(--app-scale)) 0 !important;
+              padding: 0 calc(8px * var(--app-scale)) !important;
+              padding-left: calc(28px * var(--app-scale)) !important;
+              box-sizing: border-box !important;
             }
 
             .ant-menu-submenu .ant-menu-item-selected a {
