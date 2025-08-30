@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import light from '@/logo_light.svg'
-import dark from '@/logo_dark.svg'
+import dark from '@/logo_dark_1.svg'
 
 interface LogoContextType {
   lightLogo: string
