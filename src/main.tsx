@@ -7,7 +7,6 @@ import 'antd/dist/reset.css'
 import './index.css'
 import App from './App.tsx'
 import { LogoProvider } from './shared/contexts/LogoContext'
-import { ScaleProvider } from './shared/contexts/ScaleContext'
 
 unstableSetRender((node, container) => {
   const root = createRoot(container)
@@ -63,11 +62,9 @@ export function Root() {
       <AntdApp>
         <QueryClientProvider client={queryClient}>
           <LogoProvider>
-            <ScaleProvider>
-              <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-                <App isDark={isDark} toggleTheme={() => setIsDark((prev) => !prev)} />
-              </BrowserRouter>
-            </ScaleProvider>
+            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+              <App isDark={isDark} toggleTheme={() => setIsDark((prev) => !prev)} />
+            </BrowserRouter>
           </LogoProvider>
         </QueryClientProvider>
       </AntdApp>

@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react'
-import { Layout, Menu, Popover, Switch, Select } from 'antd'
+import { Layout, Menu, Popover, Switch } from 'antd'
 import { Link, Route, Routes, useNavigate, useLocation } from 'react-router-dom'
 import { MoonOutlined } from '@ant-design/icons'
 import Dashboard from './pages/Dashboard'
@@ -24,7 +24,6 @@ import TestTableStructure from './pages/TestTableStructure'
 
 import PortalSettings from './pages/admin/PortalSettings'
 import { useLogo } from './shared/contexts/LogoContext'
-import { useScale } from './shared/contexts/ScaleContext'
 
 
 const { Sider, Content } = Layout
@@ -40,13 +39,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
   const navigate = useNavigate()
   const location = useLocation()
   const { lightLogo, darkLogo } = useLogo()
-  const { scale, setScale } = useScale()
-  const scaleOptions = [
-    { value: 0.7, label: '70%' },
-    { value: 0.8, label: '80%' },
-    { value: 0.9, label: '90%' },
-    { value: 1, label: '100%' }
-  ]
 
   // Автоматически открываем нужные подменю при смене роута
   useEffect(() => {
@@ -291,20 +283,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
       >
-        <span style={linkStyle}>Масштаб</span>
-        <Select<number>
-          value={scale}
-          onChange={(value) => setScale(value)}
-          options={scaleOptions}
-          style={{ width: 80 }}
-          size="small"
-        />
-      </div>
-      <div
-        style={{ ...menuItemStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
-        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-      >
         <span style={linkStyle}>Тема</span>
         <Switch
           checked={isDark}
@@ -373,21 +351,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         {
           key: 'portal-settings',
           label: <Link to="/admin/portal-settings">Настройка портала</Link>
-        },
-        {
-          key: 'scale',
-          label: (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span>Масштаб</span>
-              <Select<number>
-                value={scale}
-                onChange={(value) => setScale(value)}
-                options={scaleOptions}
-                style={{ width: 80 }}
-                size="small"
-              />
-            </div>
-          ),
         },
         {
           key: 'theme-toggle',
@@ -497,12 +460,11 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           }
         `}
       </style>
-      <Layout style={{ height: '100%' }}>
+      <Layout style={{ minHeight: '100vh' }}>
         <Sider
           theme={isDark ? 'dark' : 'light'}
           style={{
             background: 'var(--menu-bg)',
-            height: '100%'
           }}
           collapsible
           collapsed={collapsed}
@@ -530,7 +492,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             mode="inline"
             inlineCollapsed={collapsed}
             items={items}
-            style={{ background: 'var(--menu-bg)', height: '100%' }}
+            style={{ background: 'var(--menu-bg)' }}
             selectedKeys={[
               location.pathname === '/' ? 'dashboard' :
               location.pathname.startsWith('/documents/chessboard') ? 'chessboard' :
@@ -552,27 +514,23 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             onOpenChange={setOpenKeys}
           />
         </Sider>
-        <Layout style={{ height: '100%' }}>
+        <Layout>
           <PortalHeader isDark={isDark} />
           <Content
             style={{
-              flex: 1,
               margin: 16,
               background: isDark ? '#555555' : '#FCFCFC',
               color: isDark ? '#ffffff' : '#000000',
-              display: 'flex',
-              flexDirection: 'column'
             }}
           >
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-              <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/documents" element={<Documents />}> 
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/documents" element={<Documents />}>
                 <Route path="chessboard" element={<Chessboard />} />
                 <Route path="vor" element={<Vor />} />
                 <Route path="documentation" element={<Documentation />} />
               </Route>
-              <Route path="/references" element={<References />} >
+              <Route path="/references" element={<References />}>
                 <Route index element={<Units />} />
                 <Route path="cost-categories" element={<CostCategories />} />
                 <Route path="projects" element={<Projects />} />
@@ -580,7 +538,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                 <Route path="rates" element={<Rates />} />
                 <Route path="nomenclature" element={<Nomenclature />} />
               </Route>
-              <Route path="/admin" element={<Admin />} >
+              <Route path="/admin" element={<Admin />}>
                 <Route path="documentation-tags" element={<DocumentationTags />} />
                 <Route path="statuses" element={<Statuses />} />
                 <Route path="disk" element={<Disk />} />
@@ -588,7 +546,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               </Route>
               <Route path="/test-table" element={<TestTableStructure />} />
             </Routes>
-            </div>
           </Content>
         </Layout>
       </Layout>
