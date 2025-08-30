@@ -3,6 +3,7 @@ import { BellOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import { useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useScale } from '../shared/contexts/ScaleContext';
 
 const { Header } = Layout;
 
@@ -46,6 +47,7 @@ interface PortalHeaderProps {
 export default function PortalHeader({ isDark }: PortalHeaderProps) {
   const { pathname } = useLocation();
   const [userEmail, setUserEmail] = useState<string>('');
+  const { scale } = useScale();
 
   useEffect(() => {
     if (!supabase) return;
@@ -56,27 +58,29 @@ export default function PortalHeader({ isDark }: PortalHeaderProps) {
 
   return (
     <Header
+      className="header"
       style={{
         background: isDark ? '#555555' : '#f0edf2',
-        padding: '0 16px',
+        padding: `0 ${16 * scale}px`,
+        height: `${64 * scale}px`,
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         color: isDark ? '#ffffff' : '#000000',
       }}
     >
-        <div style={{ fontSize: '16px', fontWeight: 500 }}>
+        <div style={{ fontSize: `${16 * scale}px`, fontWeight: 500 }}>
           <span style={{ fontWeight: 600 }}>BlueprintFlow</span>
           {getPageTitle(pathname) && (
             <>
-              <span style={{ margin: '0 8px', opacity: 0.5 }}>/</span>
+              <span style={{ margin: `0 ${8 * scale}px`, opacity: 0.5 }}>/</span>
               <span>{getPageTitle(pathname)}</span>
             </>
           )}
         </div>
-      <Space size="middle">
+      <Space size={16 * scale}>
         <Button type="text" icon={<BellOutlined />} />
-        <Space>
+        <Space size={4 * scale}>
           <UserOutlined />
           <span>{userEmail}</span>
         </Space>

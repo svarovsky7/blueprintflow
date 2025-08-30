@@ -1,8 +1,23 @@
+:root {
+  --app-scale: 1;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+html {
+  font-size: calc(16px * var(--app-scale));
+}
+
 body {
   margin: 0;
   font-family: system-ui, sans-serif;
   background-color: #FCFCFC;
   color: #000;
+  overflow: hidden;
 }
 
 body[data-theme='light'] {
@@ -13,6 +28,11 @@ body[data-theme='light'] {
 body[data-theme='dark'] {
   --menu-bg: #555555;
   --menu-color: #ffffff;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
 }
 
 .ant-menu-dark,
@@ -70,7 +90,58 @@ body[data-theme='dark'] {
   color: #000000 !important;
 }
 
+.ant-table {
+  font-size: calc(14px * var(--app-scale));
+}
+
 .chessboard-table .ant-table-cell {
-  padding-top: 2px !important;
-  padding-bottom: 2px !important;
+  padding-top: calc(2px * var(--app-scale)) !important;
+  padding-bottom: calc(2px * var(--app-scale)) !important;
+}
+
+/* Layout and table scrolling */
+.app-root {
+  height: 100vh;
+  display: flex;
+  overflow: hidden;
+}
+
+.layout {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.header,
+.filters {
+  flex: 0 0 auto;
+}
+
+.table-host {
+  position: relative;
+  flex: 1 1 0%;
+  min-height: 0;
+  height: auto;
+  overflow: auto;
+  box-sizing: border-box;
+  overscroll-behavior: contain;
+}
+
+.table-host thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.layout > *,
+.content > *,
+.table-host > * {
+  min-height: 0;
 }

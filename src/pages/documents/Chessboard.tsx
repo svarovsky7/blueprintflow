@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
 import { documentationApi } from '@/entities/documentation'
 import { documentationTagsApi } from '@/entities/documentation-tags'
+import { useScale } from '@/shared/contexts/ScaleContext'
 
 type RowColor = '' | 'green' | 'yellow' | 'blue' | 'red'
 
@@ -290,42 +291,7 @@ const collapseMap: Record<string, HiddenColKey> = {
 
 export default function Chessboard() {
   const { message } = App.useApp()
-  
-  // Диагностика скролла
-  useEffect(() => {
-    const checkScrollbars = () => {
-      const body = document.body
-      const html = document.documentElement
-      const mainContainer = document.querySelector('.ant-layout-content')
-      
-      console.log('🎯 Chessboard Scroll diagnostics:')
-      console.log('Body height:', body.scrollHeight, 'Client height:', body.clientHeight)
-      console.log('Body has scroll:', body.scrollHeight > body.clientHeight)
-      console.log('HTML height:', html.scrollHeight, 'Client height:', html.clientHeight)
-      console.log('HTML has scroll:', html.scrollHeight > html.clientHeight)
-      console.log('Window inner height:', window.innerHeight)
-      
-      if (mainContainer) {
-        console.log('Main content:', mainContainer.scrollHeight, mainContainer.clientHeight)
-        console.log('Main content overflow:', window.getComputedStyle(mainContainer).overflow)
-      }
-      
-      // Проверяем все элементы со скроллом
-      const scrollableElements = Array.from(document.querySelectorAll('*')).filter(el => {
-        const style = window.getComputedStyle(el)
-        return (style.overflow === 'auto' || style.overflow === 'scroll' || 
-                style.overflowY === 'auto' || style.overflowY === 'scroll') &&
-                el.scrollHeight > el.clientHeight
-      })
-      console.log('Elements with scroll:', scrollableElements.length)
-      scrollableElements.forEach(el => {
-        console.log('Scrollable element:', el.className || el.tagName, el.scrollHeight, el.clientHeight)
-      })
-    }
-    
-    setTimeout(checkScrollbars, 500)
-    return () => {}
-  })
+  const { scale } = useScale()
   
   const [filters, setFilters] = useState<{ projectId?: string; blockId?: string; categoryId?: string; typeId?: string; tagId?: string; documentationId?: string }>({})
   const [appliedFilters, setAppliedFilters] = useState<
@@ -2853,20 +2819,20 @@ export default function Chessboard() {
   }, [viewRows, allColumns])
 
   return (
-    <div style={{ 
-      height: 'calc(100vh - 96px)', 
-      display: 'flex', 
+    <div style={{
+      flex: 1,
+      display: 'flex',
       flexDirection: 'column',
-      overflow: 'hidden',
-      position: 'relative'
+      position: 'relative',
+      minHeight: 0
     }}>
-      <div style={{ flexShrink: 0, paddingBottom: 16 }}>
+      <div className="filters" style={{ flexShrink: 0, paddingBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
           <Space align="center" size="middle">
             <Text style={{ fontSize: '16px' }}>Объект:</Text>
             <Select
               placeholder="Выберите проект"
-              style={{ width: 280 }}
+              style={{ width: 280 * scale }}
               size="large"
               allowClear
               value={filters.projectId}
@@ -3131,37 +3097,35 @@ export default function Chessboard() {
       
       {/* Таблица */}
       {appliedFilters && (
-        <div className="chessboard-table" style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+        <div className="table-host chessboard-table">
           {mode === 'add' ? (
             <Table<TableRow>
-            dataSource={tableRows}
-            columns={orderedAddColumns}
-            pagination={false}
-            rowKey="key"
-            sticky
-            scroll={{ 
-              x: 'max-content',
-              y: 'calc(100vh - 300px)'
-            }}
-            rowClassName={(record) => (record.color ? `row-${record.color}` : '')}
-          />
-        ) : (
-          <Table<ViewRow>
-            dataSource={viewRows}
-            columns={orderedViewColumns}
-            pagination={false}
-            rowKey="key"
-            sticky
-            scroll={{ 
-              x: 'max-content',
-              y: 'calc(100vh - 300px)'
-            }}
-            rowClassName={(record) => {
-              const color = editingRows[record.key]?.color ?? record.color
-              return color ? `row-${color}` : ''
-            }}
-          />
-        )}
+              dataSource={tableRows}
+              columns={orderedAddColumns}
+              pagination={false}
+              rowKey="key"
+              sticky
+              scroll={{
+                x: 'max-content'
+              }}
+              rowClassName={(record) => (record.color ? `row-${record.color}` : '')}
+            />
+          ) : (
+            <Table<ViewRow>
+              dataSource={viewRows}
+              columns={orderedViewColumns}
+              pagination={false}
+              rowKey="key"
+              sticky
+              scroll={{
+                x: 'max-content'
+              }}
+              rowClassName={(record) => {
+                const color = editingRows[record.key]?.color ?? record.color
+                return color ? `row-${color}` : ''
+              }}
+            />
+          )}
         </div>
       )}
       <Modal

@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react'
-import { Layout, Menu, Popover, Switch } from 'antd'
+import { Layout, Menu, Popover, Switch, Select } from 'antd'
 import { Link, Route, Routes, useNavigate, useLocation } from 'react-router-dom'
 import { MoonOutlined } from '@ant-design/icons'
 import Dashboard from './pages/Dashboard'
@@ -24,6 +24,8 @@ import TestTableStructure from './pages/TestTableStructure'
 
 import PortalSettings from './pages/admin/PortalSettings'
 import { useLogo } from './shared/contexts/LogoContext'
+import { useScale } from './shared/contexts/ScaleContext'
+import { debugTableScroll } from './shared/debugTableScroll'
 
 
 const { Sider, Content } = Layout
@@ -39,6 +41,13 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
   const navigate = useNavigate()
   const location = useLocation()
   const { lightLogo, darkLogo } = useLogo()
+  const { scale, setScale } = useScale()
+  const scaleOptions = [
+    { value: 0.7, label: '70%' },
+    { value: 0.8, label: '80%' },
+    { value: 0.9, label: '90%' },
+    { value: 1, label: '100%' }
+  ]
 
   // Автоматически открываем нужные подменю при смене роута
   useEffect(() => {
@@ -54,12 +63,18 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     }
     setOpenKeys(newOpenKeys)
   }, [location.pathname])
+
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      debugTableScroll()
+    }
+  }, [])
   
   const LetterIcon = ({ letter, children, onClick, isActive }: { letter: string; children?: React.ReactNode; onClick?: () => void; isActive?: boolean }) => {
     const iconContent = (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
         justifyContent: 'center',
         width: '100%',
         height: '100%',
@@ -71,23 +86,21 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
       }}>
         <div
           style={{
-            width: 32,
-            height: 32,
-            borderRadius: 4,
-              border: `1px solid ${isActive
-                ? '#a69ead'
-                : 'transparent'}`,
+            width: 32 * scale,
+            height: 32 * scale,
+            borderRadius: 4 * scale,
+            border: `1px solid ${isActive ? '#a69ead' : 'transparent'}`,
             boxShadow: 'none',
             backgroundColor: isActive
               ? isDark ? 'rgba(166, 158, 173, 0.1)' : 'rgba(166, 158, 173, 0.05)'
               : 'transparent',
-              color: isActive
-                ? '#a69ead'
-                : isDark ? '#ffffff' : '#000000',
+            color: isActive
+              ? '#a69ead'
+              : isDark ? '#ffffff' : '#000000',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 16,
+            fontSize: 16 * scale,
             fontWeight: 600,
             cursor: 'pointer',
             transition: 'background-color 0.3s, color 0.3s',
@@ -119,7 +132,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           content={children}
           placement="rightTop"
           trigger="hover"
-          overlayStyle={{ paddingLeft: 10 }}
+          overlayStyle={{ paddingLeft: 10 * scale }}
           arrow={false}
           align={{
             offset: [0, -16]
@@ -134,16 +147,16 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
   }
 
   const menuItemStyle: React.CSSProperties = {
-    paddingLeft: '12px',
-    paddingRight: '12px',
-    minWidth: '180px',
+    paddingLeft: 12 * scale,
+    paddingRight: 12 * scale,
+    minWidth: 180 * scale,
     transition: 'background-color 0.3s',
   }
 
   const linkStyle: React.CSSProperties = {
     color: isDark ? '#fff' : '#000',
     display: 'block',
-    padding: '5px 0',
+    padding: `${5 * scale}px 0`,
     textDecoration: 'none',
   }
 
@@ -159,7 +172,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
   )
 
   const documentsSubmenu = (
-    <div style={{ backgroundColor: isDark ? '#1f1f1f' : '#fff', borderRadius: 4, padding: '4px 0' }}>
+    <div style={{ backgroundColor: isDark ? '#1f1f1f' : '#fff', borderRadius: 4 * scale, padding: `${4 * scale}px 0` }}>
       <div 
         style={menuItemStyle}
         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
@@ -182,7 +195,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
   )
 
   const referencesSubmenu = (
-    <div style={{ backgroundColor: isDark ? '#1f1f1f' : '#fff', borderRadius: 4, padding: '4px 0' }}>
+    <div style={{ backgroundColor: isDark ? '#1f1f1f' : '#fff', borderRadius: 4 * scale, padding: `${4 * scale}px 0` }}>
       <div 
         style={menuItemStyle}
         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
@@ -241,7 +254,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
   )
 
   const adminSubmenu = (
-    <div style={{ backgroundColor: isDark ? '#1f1f1f' : '#fff', borderRadius: 4, padding: '4px 0' }}>
+    <div style={{ backgroundColor: isDark ? '#1f1f1f' : '#fff', borderRadius: 4 * scale, padding: `${4 * scale}px 0` }}>
       <div 
         style={menuItemStyle}
         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
@@ -277,6 +290,20 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         <Link to="/admin/portal-settings" style={linkStyle}>
           Настройка портала
         </Link>
+      </div>
+      <div
+        style={{ ...menuItemStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+      >
+        <span style={linkStyle}>Масштаб</span>
+        <Select<number>
+          value={scale}
+          onChange={(value) => setScale(value)}
+          options={scaleOptions}
+          style={{ width: 80 * scale }}
+          size="small"
+        />
       </div>
       <div
         style={{ ...menuItemStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
@@ -353,6 +380,21 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           label: <Link to="/admin/portal-settings">Настройка портала</Link>
         },
         {
+          key: 'scale',
+          label: (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Масштаб</span>
+              <Select<number>
+                value={scale}
+                onChange={(value) => setScale(value)}
+                options={scaleOptions}
+                style={{ width: 80 * scale }}
+                size="small"
+              />
+            </div>
+          ),
+        },
+        {
           key: 'theme-toggle',
           label: (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -392,10 +434,10 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             .ant-menu-submenu .ant-menu-item-selected {
               background-color: ${isDark ? 'rgba(166, 158, 173, 0.1)' : 'rgba(166, 158, 173, 0.05)'} !important;
               border: 1px solid #a69ead !important;
-              border-radius: 4px !important;
+              border-radius: calc(4px * var(--app-scale)) !important;
               box-shadow: none !important;
               color: #a69ead !important;
-              margin: 2px 8px !important;
+              margin: calc(2px * var(--app-scale)) calc(8px * var(--app-scale)) !important;
             }
 
             .ant-menu-submenu .ant-menu-item-selected a {
@@ -427,45 +469,50 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           .ant-menu-item {
             padding: 0 !important;
             margin: 0 !important;
-            height: 40px !important;
-            line-height: 40px !important;
+            height: calc(40px * var(--app-scale)) !important;
+            line-height: calc(40px * var(--app-scale)) !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
           }
-          
+
           .ant-menu-item-selected {
             padding: 0 !important;
             margin: 0 !important;
-            height: 40px !important;
-            line-height: 40px !important;
+            height: calc(40px * var(--app-scale)) !important;
+            line-height: calc(40px * var(--app-scale)) !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
             transform: none !important;
           }
-          
+
           .ant-menu:not(.ant-menu-inline-collapsed) > .ant-menu-item {
-            padding-left: 10px !important;
+            padding-left: calc(10px * var(--app-scale)) !important;
             justify-content: flex-start !important;
           }
-          
+
           .ant-menu:not(.ant-menu-inline-collapsed) .ant-menu-submenu-title {
-            padding-left: 10px !important;
+            padding-left: calc(10px * var(--app-scale)) !important;
           }
-          
+
           .ant-menu:not(.ant-menu-inline-collapsed) .ant-menu-submenu .ant-menu-item {
-            padding-left: 20px !important;
+            padding-left: calc(20px * var(--app-scale)) !important;
             justify-content: flex-start !important;
           }
         `}
       </style>
-      <Layout style={{ minHeight: '100vh' }}>
+      <Layout className="app-root" style={{ height: '100vh' }}>
         <Sider
           theme={isDark ? 'dark' : 'light'}
           style={{
             background: 'var(--menu-bg)',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column'
           }}
+          width={200 * scale}
+          collapsedWidth={80 * scale}
           collapsible
           collapsed={collapsed}
           onCollapse={setCollapsed}
@@ -492,7 +539,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             mode="inline"
             inlineCollapsed={collapsed}
             items={items}
-            style={{ background: 'var(--menu-bg)' }}
+            style={{ background: 'var(--menu-bg)', flex: 1 }}
             selectedKeys={[
               location.pathname === '/' ? 'dashboard' :
               location.pathname.startsWith('/documents/chessboard') ? 'chessboard' :
@@ -514,23 +561,29 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             onOpenChange={setOpenKeys}
           />
         </Sider>
-        <Layout>
+        <Layout className="layout" style={{ height: '100%', minHeight: 0 }}>
           <PortalHeader isDark={isDark} />
           <Content
+            className="content"
             style={{
-              margin: 16,
+              flex: 1,
+              margin: 16 * scale,
               background: isDark ? '#555555' : '#FCFCFC',
               color: isDark ? '#ffffff' : '#000000',
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0
             }}
           >
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/documents" element={<Documents />}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/documents" element={<Documents />}> 
                 <Route path="chessboard" element={<Chessboard />} />
                 <Route path="vor" element={<Vor />} />
                 <Route path="documentation" element={<Documentation />} />
               </Route>
-              <Route path="/references" element={<References />}>
+              <Route path="/references" element={<References />} >
                 <Route index element={<Units />} />
                 <Route path="cost-categories" element={<CostCategories />} />
                 <Route path="projects" element={<Projects />} />
@@ -538,7 +591,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                 <Route path="rates" element={<Rates />} />
                 <Route path="nomenclature" element={<Nomenclature />} />
               </Route>
-              <Route path="/admin" element={<Admin />}>
+              <Route path="/admin" element={<Admin />} >
                 <Route path="documentation-tags" element={<DocumentationTags />} />
                 <Route path="statuses" element={<Statuses />} />
                 <Route path="disk" element={<Disk />} />
@@ -546,6 +599,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               </Route>
               <Route path="/test-table" element={<TestTableStructure />} />
             </Routes>
+            </div>
           </Content>
         </Layout>
       </Layout>
