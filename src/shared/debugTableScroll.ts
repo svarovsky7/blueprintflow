@@ -1,7 +1,10 @@
 export function debugTableScroll() {
-  ;(function debugTableScrollIIFE() {
+  (function debugTableScrollIIFE() {
     const host = document.querySelector('.table-host') as HTMLElement | null
-    if (!host) return
+    if (!host) {
+      console.warn('[scroll-debug] .table-host не найден')
+      return
+    }
 
     function dump(where: string) {
       const s = getComputedStyle(host!)
@@ -32,21 +35,19 @@ export function debugTableScroll() {
       (e) => {
         console.log('[scroll-debug] wheel on host', { deltaY: e.deltaY, target: e.target })
       },
-      { passive: true },
+      { passive: true }
     )
 
     window.addEventListener(
       'wheel',
       (e) => {
         if (!host!.contains(e.target as Node)) {
-          console.log(
-            '[scroll-debug] wheel OUTSIDE host — кто-то забирает прокрутку выше',
-            e.target,
-          )
+          console.log('[scroll-debug] wheel OUTSIDE host — кто-то забирает прокрутку выше', e.target)
         }
       },
-      { passive: true },
+      { passive: true }
     )
+
     ;(function traceAncestors(el: HTMLElement | null) {
       let i = 0
       while (el && i < 8) {
