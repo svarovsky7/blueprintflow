@@ -10,7 +10,7 @@ export default function Disk() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['disk-settings'],
-    queryFn: diskApi.getSettings
+    queryFn: diskApi.getSettings,
   })
 
   useEffect(() => {
@@ -27,26 +27,11 @@ export default function Disk() {
     onError: (err) => {
       console.error('Failed to save settings:', err)
       message.error('Не удалось сохранить настройки')
-    }
+    },
   })
 
   const handleFinish = async (values: DiskSettings) => {
     await mutation.mutateAsync(values)
-  }
-
-  const fillMutation = useMutation({
-    mutationFn: diskApi.fillMappings,
-    onSuccess: () => {
-      message.success('Таблица заполнена')
-    },
-    onError: (err) => {
-      console.error('Failed to fill mappings:', err)
-      message.error('Не удалось заполнить таблицу')
-    }
-  })
-
-  const handleFill = async () => {
-    await fillMutation.mutateAsync()
   }
 
   return (
@@ -57,12 +42,7 @@ export default function Disk() {
             Диск
           </Title>
         </div>
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleFinish}
-          autoComplete="off"
-        >
+        <Form form={form} layout="vertical" onFinish={handleFinish} autoComplete="off">
           <Form.Item
             label="OAuth токен"
             name="token"
@@ -75,19 +55,14 @@ export default function Disk() {
             name="base_path"
             rules={[{ required: true, message: 'Введите путь' }]}
           >
-
             <Input placeholder="Например, disk:/blueprintflow" />
-
           </Form.Item>
           <Form.Item label="Публиковать автоматически" name="make_public" valuePropName="checked">
             <Switch />
           </Form.Item>
           <Form.Item style={{ textAlign: 'right' }}>
-            <Button type="primary" htmlType="submit" loading={mutation.isPending} style={{ marginRight: 8 }}>
+            <Button type="primary" htmlType="submit" loading={mutation.isPending}>
               Сохранить
-            </Button>
-            <Button onClick={handleFill} loading={fillMutation.isPending}>
-              Заполнить соответствия
             </Button>
           </Form.Item>
         </Form>

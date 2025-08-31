@@ -201,35 +201,6 @@ begin
 end;
 $$ language plpgsql immutable;
 
--- Заполнение таблицы соответствий
-create or replace function fill_storage_mappings() returns void as $$
-begin
-  insert into storage_mappings(table_name, entity_id, slug)
-  select 'projects', id::text, transliterate(name)
-  from projects
-  on conflict (table_name, entity_id) do update
-    set slug = excluded.slug,
-        updated_at = now();
-
-  insert into storage_mappings(table_name, entity_id, slug)
-  select 'documentation_tags', id::text, transliterate(name)
-  from documentation_tags
-  on conflict (table_name, entity_id) do update
-    set slug = excluded.slug,
-        updated_at = now();
-
-  insert into storage_mappings(table_name, entity_id, slug)
-  select 'documentation_versions', v.id::text, transliterate(d.code) || '_ver' || v.version_number
-  from documentation_versions v
-  join documentations d on d.id = v.documentation_id
-  on conflict (table_name, entity_id) do update
-    set slug = excluded.slug,
-        updated_at = now();
-end;
-$$ language plpgsql security definer;
-
-grant execute on function fill_storage_mappings() to anon, authenticated, service_role;
-
 -- Триггеры для автоматического заполнения соответствий
 create or replace function trg_storage_projects() returns trigger as $$
 begin
