@@ -644,11 +644,9 @@ export default function Chessboard() {
       if (!appliedFilters?.projectId) return []
       const fetchFilters = { project_id: appliedFilters.projectId }
       return documentationApi.getDocumentation(fetchFilters)
-
     },
     enabled: !!appliedFilters?.projectId,
   })
-
 
   const { data: tableData, refetch } = useQuery<DbRow[]>({
     queryKey: ['chessboard', appliedFilters],
@@ -1880,7 +1878,6 @@ export default function Chessboard() {
                   style={{ width: 150 }}
                   value={record.documentationId}
                   onChange={(value) => {
-
                     handleRowChange(record.key, 'documentationId', value)
                     const doc = documentations?.find((d: DocumentationRecord) => d.id === value)
                     handleRowChange(record.key, 'projectCode', doc?.project_code ?? '')
@@ -1891,7 +1888,6 @@ export default function Chessboard() {
                         (doc: DocumentationRecord) =>
                           !record.tagId || String(doc.tag_id) === record.tagId,
                       )
-
                       .map((doc: DocumentationRecord) => ({
                         value: doc.id,
                         label: doc.project_code,
@@ -1907,9 +1903,11 @@ export default function Chessboard() {
                 />
               )
             case 'material':
-              return (
+                return (
                 <AutoComplete
                   style={{ width: 300 }}
+                  popupMatchSelectWidth={300}
+
                   options={materialOptions}
                   value={record.material}
                   onSelect={(value, option) => {
@@ -1965,7 +1963,6 @@ export default function Chessboard() {
                 <Select
                   style={{ width: 250 }}
                   popupMatchSelectWidth={nomenclatureDropdownWidth}
-
                   value={record.nomenclatureId}
                   onChange={(value) => {
                     handleRowChange(record.key, 'nomenclatureId', value)
@@ -1984,7 +1981,6 @@ export default function Chessboard() {
                 <Select
                   style={{ width: 250 }}
                   popupMatchSelectWidth={supplierDropdownWidths[record.key] ?? 250}
-
                   value={record.supplier || undefined}
                   onChange={(value) => handleRowChange(record.key, 'supplier', value)}
                   options={supplierOptions[record.key] ?? []}
@@ -2344,7 +2340,6 @@ export default function Chessboard() {
                   style={{ width: 150 }}
                   value={edit.documentationId}
                   onChange={(value) => {
-
                     handleEditChange(record.key, 'documentationId', value)
                     const doc = documentations?.find((d: DocumentationRecord) => d.id === value)
                     handleEditChange(record.key, 'projectCode', doc?.project_code ?? '')
@@ -2355,7 +2350,6 @@ export default function Chessboard() {
                         (doc: DocumentationRecord) =>
                           !edit.tagId || String(doc.tag_id) === edit.tagId,
                       )
-
                       .map((doc: DocumentationRecord) => ({
                         value: doc.id,
                         label: doc.project_code,
@@ -2371,9 +2365,11 @@ export default function Chessboard() {
                 />
               )
             case 'material':
-              return (
+                return (
                 <AutoComplete
                   style={{ width: 300 }}
+                  popupMatchSelectWidth={300}
+
                   options={materialOptions}
                   value={edit.material}
                   onSelect={(value, option) => {
@@ -2429,7 +2425,6 @@ export default function Chessboard() {
                 <Select
                   style={{ width: 250 }}
                   popupMatchSelectWidth={nomenclatureDropdownWidth}
-
                   value={edit.nomenclatureId}
                   onChange={(value) => {
                     handleEditChange(record.key, 'nomenclatureId', value)
