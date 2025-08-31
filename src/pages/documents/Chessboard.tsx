@@ -641,14 +641,44 @@ export default function Chessboard() {
   const { data: documentations } = useQuery<DocumentationRecord[]>({
     queryKey: ['documentations', appliedFilters?.projectId],
     queryFn: async () => {
-      if (!appliedFilters?.projectId) return []
+      console.log('📚 DOCUMENTATION QUERY - Executing:', {
+        projectId: appliedFilters?.projectId,
+        enabled: !!appliedFilters?.projectId,
+      })
+      if (!appliedFilters?.projectId) {
+        console.log('⚠️ DOCUMENTATION QUERY - No project ID, returning empty array')
+        return []
+      }
       const fetchFilters = { project_id: appliedFilters.projectId }
-      return documentationApi.getDocumentation(fetchFilters)
+      const result = await documentationApi.getDocumentation(fetchFilters)
 
+      console.log('✅ DOCUMENTATION QUERY - Loaded:', {
+        projectId: appliedFilters.projectId,
+        totalCount: result.length,
+        uniqueTagIds: [...new Set(result.map((doc) => doc.tag_id))],
+        sampleData: result.slice(0, 5).map((doc) => ({
+          id: doc.id,
+          code: doc.project_code,
+          tag_id: doc.tag_id,
+          tag_name: doc.tag_name,
+          tag_number: doc.tag_number,
+        })),
+      })
+      return result
     },
     enabled: !!appliedFilters?.projectId,
   })
 
+  // Логируем состояние каждый рендер
+  console.log('🎯 CHESSBOARD STATE:', {
+    appliedFiltersProjectId: appliedFilters?.projectId,
+    queryEnabled: !!appliedFilters?.projectId,
+    documentationsLoaded: !!documentations,
+    documentationsCount: documentations?.length ?? 'undefined',
+    mode,
+    editingRowsCount: Object.keys(editingRows).length,
+    addRowsCount: rows.length,
+  })
 
   const { data: tableData, refetch } = useQuery<DbRow[]>({
     queryKey: ['chessboard', appliedFilters],
@@ -1879,19 +1909,45 @@ export default function Chessboard() {
                 <Select
                   style={{ width: 150 }}
                   value={record.documentationId}
+                  onDropdownVisibleChange={(open) => {
+                    if (open) {
+                      const filteredDocs =
+                        documentations?.filter(
+                          (doc: DocumentationRecord) =>
+                            !record.tagId || String(doc.tag_id) === record.tagId,
+                        ) ?? []
+                      console.log('🔽 ADD MODE - Project Code dropdown opened:', {
+                        recordKey: record.key,
+                        tagId: record.tagId,
+                        totalDocs: documentations?.length ?? 0,
+                        filteredDocs: filteredDocs.length,
+                        availableOptions: filteredDocs.length,
+                      })
+                    }
+                  }}
                   onChange={(value) => {
-
+                    console.log('✏️ ADD MODE - Project Code selected:', {
+                      value,
+                      recordKey: record.key,
+                    })
                     handleRowChange(record.key, 'documentationId', value)
                     const doc = documentations?.find((d: DocumentationRecord) => d.id === value)
                     handleRowChange(record.key, 'projectCode', doc?.project_code ?? '')
                   }}
                   options={
                     documentations
-                      ?.filter(
-                        (doc: DocumentationRecord) =>
-                          !record.tagId || String(doc.tag_id) === record.tagId,
-                      )
-
+                      ?.filter((doc: DocumentationRecord) => {
+                        const matches = !record.tagId || String(doc.tag_id) === record.tagId
+                        console.log('🔍 ADD MODE - Filtering documentation:', {
+                          docId: doc.id,
+                          docCode: doc.project_code,
+                          docTagId: doc.tag_id,
+                          recordTagId: record.tagId,
+                          matches,
+                          docTagName: doc.tag_name,
+                        })
+                        return matches
+                      })
                       .map((doc: DocumentationRecord) => ({
                         value: doc.id,
                         label: doc.project_code,
@@ -2341,19 +2397,45 @@ export default function Chessboard() {
                 <Select
                   style={{ width: 150 }}
                   value={edit.documentationId}
+                  onDropdownVisibleChange={(open) => {
+                    if (open) {
+                      const filteredDocs =
+                        documentations?.filter(
+                          (doc: DocumentationRecord) =>
+                            !edit.tagId || String(doc.tag_id) === edit.tagId,
+                        ) ?? []
+                      console.log('🔽 EDIT MODE - Project Code dropdown opened:', {
+                        recordKey: record.key,
+                        tagId: edit.tagId,
+                        totalDocs: documentations?.length ?? 0,
+                        filteredDocs: filteredDocs.length,
+                        availableOptions: filteredDocs.length,
+                      })
+                    }
+                  }}
                   onChange={(value) => {
-
+                    console.log('✏️ EDIT MODE - Project Code selected:', {
+                      value,
+                      recordKey: record.key,
+                    })
                     handleEditChange(record.key, 'documentationId', value)
                     const doc = documentations?.find((d: DocumentationRecord) => d.id === value)
                     handleEditChange(record.key, 'projectCode', doc?.project_code ?? '')
                   }}
                   options={
                     documentations
-                      ?.filter(
-                        (doc: DocumentationRecord) =>
-                          !edit.tagId || String(doc.tag_id) === edit.tagId,
-                      )
-
+                      ?.filter((doc: DocumentationRecord) => {
+                        const matches = !edit.tagId || String(doc.tag_id) === edit.tagId
+                        console.log('🔍 EDIT MODE - Filtering documentation:', {
+                          docId: doc.id,
+                          docCode: doc.project_code,
+                          docTagId: doc.tag_id,
+                          editTagId: edit.tagId,
+                          matches,
+                          docTagName: doc.tag_name,
+                        })
+                        return matches
+                      })
                       .map((doc: DocumentationRecord) => ({
                         value: doc.id,
                         label: doc.project_code,
