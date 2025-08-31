@@ -1,5 +1,7 @@
 import { supabase } from '@/lib/supabase'
+
 import type { PostgrestError } from '@supabase/supabase-js'
+
 import type { Material } from '../model/types'
 
 export const materialsApi = {
@@ -54,6 +56,7 @@ export const materialsApi = {
 
         return existing as Material
       }
+
 
       console.error('Failed to insert material:', insertError)
       throw insertError
