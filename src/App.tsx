@@ -66,11 +66,11 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     setOpenKeys(newOpenKeys)
   }, [location.pathname])
 
-  useEffect(() => {
-    if (import.meta.env.DEV) {
-      debugTableScroll()
-    }
-  }, [])
+    useEffect(() => {
+      if (import.meta.env.DEV && localStorage.getItem('debug-table-scroll') === '1') {
+        debugTableScroll()
+      }
+    }, [])
   
   const LetterIcon = ({ letter, children, onClick, isActive }: { letter: string; children?: React.ReactNode; onClick?: () => void; isActive?: boolean }) => {
     const iconContent = (

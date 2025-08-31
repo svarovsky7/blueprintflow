@@ -1907,9 +1907,11 @@ export default function Chessboard() {
                 />
               )
             case 'material':
-              return (
+                return (
                 <AutoComplete
                   style={{ width: 300 }}
+                  popupMatchSelectWidth={300}
+
                   options={materialOptions}
                   value={record.material}
                   onSelect={(value, option) => {
@@ -2344,7 +2346,6 @@ export default function Chessboard() {
                   style={{ width: 150 }}
                   value={edit.documentationId}
                   onChange={(value) => {
-
                     handleEditChange(record.key, 'documentationId', value)
                     const doc = documentations?.find((d: DocumentationRecord) => d.id === value)
                     handleEditChange(record.key, 'projectCode', doc?.project_code ?? '')
@@ -2355,7 +2356,6 @@ export default function Chessboard() {
                         (doc: DocumentationRecord) =>
                           !edit.tagId || String(doc.tag_id) === edit.tagId,
                       )
-
                       .map((doc: DocumentationRecord) => ({
                         value: doc.id,
                         label: doc.project_code,
@@ -2371,9 +2371,11 @@ export default function Chessboard() {
                 />
               )
             case 'material':
-              return (
+                return (
                 <AutoComplete
                   style={{ width: 300 }}
+                  popupMatchSelectWidth={300}
+
                   options={materialOptions}
                   value={edit.material}
                   onSelect={(value, option) => {
@@ -2429,7 +2431,6 @@ export default function Chessboard() {
                 <Select
                   style={{ width: 250 }}
                   popupMatchSelectWidth={nomenclatureDropdownWidth}
-
                   value={edit.nomenclatureId}
                   onChange={(value) => {
                     handleEditChange(record.key, 'nomenclatureId', value)
