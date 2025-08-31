@@ -1,9 +1,9 @@
 export interface Documentation {
   id: string // UUID
   code: string
-  stage?: 'П' | 'Р' | null   // Стадия проектирования
+  stage?: 'П' | 'Р' | null // Стадия проектирования
   tag_id: number | null
-  color?: string | null      // Цвет строки
+  color?: string | null // Цвет строки
   created_at: string
   updated_at: string
   // Relations
@@ -33,7 +33,6 @@ export interface DocumentationVersion {
   version_number: number
   issue_date: string | null
   file_url: string | null
-  file_path: string | null
   local_files: LocalFile[]
   status: 'filled_recalc' | 'filled_spec' | 'not_filled' | 'vor_created'
   created_at: string
@@ -60,14 +59,14 @@ export interface DocumentationTag {
 }
 
 export interface Project {
-  id: string  // UUID
+  id: string // UUID
   name: string
   code?: string
   address?: string
 }
 
 export interface Block {
-  id: string  // UUID
+  id: string // UUID
   name: string
   bottom_underground_floor?: number
   top_ground_floor?: number
@@ -76,7 +75,7 @@ export interface Block {
 // Import types
 export interface DocumentationImportRow {
   tag: string // Раздел
-  code: string // Шифр проекта  
+  code: string // Шифр проекта
   version_number: number // Номер версии
   issue_date?: string // Дата выдачи версии
   file_url?: string // Ссылка на документ
@@ -89,7 +88,7 @@ export interface DocumentationImportRow {
 export interface DocumentationTableRow {
   id: string // Уникальный ключ для React
   documentation_id: string // UUID
-  stage?: 'П' | 'Р' | null   // Стадия проектирования
+  stage?: 'П' | 'Р' | null // Стадия проектирования
   tag_id: number | null // ID тега для фильтрации
   tag_name: string
   tag_number: number
@@ -100,8 +99,8 @@ export interface DocumentationTableRow {
   selected_version?: number // Выбранная версия для отображения
   selected_version_id?: string // ID выбранной версии (для случаев когда все версии имеют одинаковый номер)
   comments: string
-  project_id: string | null  // UUID
-  block_id: string | null    // UUID
+  project_id: string | null // UUID
+  block_id: string | null // UUID
   color?: string // Цвет строки
   isNew?: boolean // Признак новой записи
   // Поля для новых версий
@@ -113,10 +112,10 @@ export interface DocumentationTableRow {
 
 // Filter types
 export interface DocumentationFilters {
-  project_id?: string  // UUID
+  project_id?: string // UUID
   tag_id?: number
-  block_id?: string     // UUID
-  stage?: 'П' | 'Р'     // Стадия документа
+  block_id?: string // UUID
+  stage?: 'П' | 'Р' // Стадия документа
   status?: string
   show_latest_only?: boolean
 }
