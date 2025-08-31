@@ -64,6 +64,7 @@ export const documentationApi = {
 
     // TODO: Добавить колонку color в БД
 
+
     const { data, error } = await supabase.from('documentations').select().eq('id', id).single()
 
     if (error) {
@@ -75,9 +76,7 @@ export const documentationApi = {
   },
   // Получение всех записей документации с фильтрами
   async getDocumentation(filters?: DocumentationFilters) {
-    if (!supabase) {
-      return []
-    }
+    if (!supabase) throw new Error('Supabase client not initialized')
 
     // Если есть фильтр по проекту или блоку, сначала получаем документы через маппинг
     let documentationIds: string[] | null = null
