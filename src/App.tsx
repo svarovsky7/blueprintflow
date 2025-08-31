@@ -6,15 +6,14 @@ import Dashboard from './pages/Dashboard'
 import Documents from './pages/Documents'
 import Chessboard from './pages/documents/Chessboard'
 import Vor from './pages/documents/Vor'
-import DocumentationDocs from './pages/Documentation'
 import References from './pages/References'
 import Units from './pages/references/Units'
-import DocumentationReference from './pages/references/Documentation'
 import CostCategories from './pages/references/CostCategories'
 import Projects from './pages/references/Projects'
 import Locations from './pages/references/Locations'
 import Rates from './pages/references/Rates'
 import Nomenclature from './pages/references/Nomenclature'
+import Documentation from './pages/documents/Documentation'
 import Admin from './pages/Admin'
 import DocumentationTags from './pages/admin/DocumentationTags'
 import Statuses from './pages/admin/Statuses'
@@ -223,6 +222,19 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           ВОР
         </Link>
       </div>
+      <div
+        style={menuItemStyle}
+        onMouseEnter={(e) =>
+          (e.currentTarget.style.backgroundColor = isDark
+            ? 'rgba(255, 255, 255, 0.1)'
+            : 'rgba(0, 0, 0, 0.05)')
+        }
+        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+      >
+        <Link to="/documents/documentation" style={linkStyle}>
+          Документация
+        </Link>
+      </div>
     </div>
   )
 
@@ -245,19 +257,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
       >
         <Link to="/references" style={linkStyle}>
           Единицы измерения
-        </Link>
-      </div>
-      <div
-        style={menuItemStyle}
-        onMouseEnter={(e) =>
-          (e.currentTarget.style.backgroundColor = isDark
-            ? 'rgba(255, 255, 255, 0.1)'
-            : 'rgba(0, 0, 0, 0.05)')
-        }
-        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-      >
-        <Link to="/references/documentation" style={linkStyle}>
-          Документация
         </Link>
       </div>
       <div
@@ -477,10 +476,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         : [
             { key: 'units', label: <Link to="/references">Единицы измерения</Link> },
             {
-              key: 'documentation',
-              label: <Link to="/references/documentation">Документация</Link>,
-            },
-            {
               key: 'cost-categories',
               label: <Link to="/references/cost-categories">Категории затрат</Link>,
             },
@@ -694,29 +689,27 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                     ? 'vor'
                     : location.pathname.startsWith('/documents/documentation')
                       ? 'docs'
-                      : location.pathname.startsWith('/references/documentation')
-                        ? 'documentation'
-                        : location.pathname.startsWith('/references/cost-categories')
-                          ? 'cost-categories'
-                          : location.pathname.startsWith('/references/projects')
-                            ? 'projects'
-                            : location.pathname.startsWith('/references/locations')
-                              ? 'locations'
-                              : location.pathname.startsWith('/references/rates')
-                                ? 'rates'
-                                : location.pathname.startsWith('/references/nomenclature')
-                                  ? 'nomenclature'
-                                  : location.pathname.startsWith('/references')
-                                    ? 'units'
-                                    : location.pathname.startsWith('/admin/documentation-tags')
-                                      ? 'documentation-tags'
-                                      : location.pathname.startsWith('/admin/statuses')
-                                        ? 'statuses'
-                                        : location.pathname.startsWith('/admin/disk')
-                                          ? 'disk'
-                                          : location.pathname.startsWith('/admin/portal-settings')
-                                            ? 'portal-settings'
-                                            : location.pathname,
+                      : location.pathname.startsWith('/references/cost-categories')
+                        ? 'cost-categories'
+                        : location.pathname.startsWith('/references/projects')
+                          ? 'projects'
+                          : location.pathname.startsWith('/references/locations')
+                            ? 'locations'
+                            : location.pathname.startsWith('/references/rates')
+                              ? 'rates'
+                              : location.pathname.startsWith('/references/nomenclature')
+                                ? 'nomenclature'
+                                : location.pathname.startsWith('/references')
+                                  ? 'units'
+                                  : location.pathname.startsWith('/admin/documentation-tags')
+                                    ? 'documentation-tags'
+                                    : location.pathname.startsWith('/admin/statuses')
+                                      ? 'statuses'
+                                      : location.pathname.startsWith('/admin/disk')
+                                        ? 'disk'
+                                        : location.pathname.startsWith('/admin/portal-settings')
+                                          ? 'portal-settings'
+                                          : location.pathname,
             ]}
             openKeys={openKeys}
             onOpenChange={setOpenKeys}
@@ -743,11 +736,10 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                 <Route path="/documents" element={<Documents />}>
                   <Route path="chessboard" element={<Chessboard />} />
                   <Route path="vor" element={<Vor />} />
-                  <Route path="documentation" element={<DocumentationDocs />} />
+                  <Route path="documentation" element={<Documentation />} />
                 </Route>
                 <Route path="/references" element={<References />}>
                   <Route index element={<Units />} />
-                  <Route path="documentation" element={<DocumentationReference />} />
                   <Route path="cost-categories" element={<CostCategories />} />
                   <Route path="projects" element={<Projects />} />
                   <Route path="locations" element={<Locations />} />
