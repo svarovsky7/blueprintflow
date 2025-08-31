@@ -62,8 +62,10 @@ export const documentationApi = {
   async updateDocumentationColor(id: string, _color: string | null) {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    // TODO: Добавить колонку color в БД
+    // TODO: Раскомментировать после добавления колонки color в БД
+    console.warn('Color update temporarily disabled - column not yet in database')
 
+    // Возвращаем документацию без обновления
     const { data, error } = await supabase.from('documentations').select().eq('id', id).single()
 
     if (error) {
