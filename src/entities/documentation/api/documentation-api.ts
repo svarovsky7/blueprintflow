@@ -64,6 +64,7 @@ export const documentationApi = {
 
     // TODO: Добавить колонку color в БД
 
+
     const { data, error } = await supabase.from('documentations').select().eq('id', id).single()
 
     if (error) {
@@ -75,9 +76,7 @@ export const documentationApi = {
   },
   // Получение всех записей документации с фильтрами
   async getDocumentation(filters?: DocumentationFilters) {
-    if (!supabase) {
-      return []
-    }
+    if (!supabase) throw new Error('Supabase client not initialized')
 
     // Если есть фильтр по проекту или блоку, сначала получаем документы через маппинг
     let documentationIds: string[] | null = null
@@ -114,7 +113,7 @@ export const documentationApi = {
           version_number,
           issue_date,
           file_url,
-          file_paths:documentation_file_paths(file_path),
+          local_files,
           status,
           created_at,
           updated_at
@@ -152,21 +151,7 @@ export const documentationApi = {
 
     // Преобразуем данные для отображения в таблице
     const tableData: DocumentationTableRow[] = (data || []).map((doc) => {
-      let versions = Array.isArray(doc.versions)
-        ? ((doc.versions as any[]).map((v) => ({
-            ...v,
-            local_files: Array.isArray(v.file_paths)
-              ? v.file_paths.map((fp: { file_path: string }) => ({
-                  name: fp.file_path.split('/').pop() || '',
-                  path: fp.file_path,
-                  size: 0,
-                  type: '',
-                  extension: fp.file_path.split('.').pop() || '',
-                  uploadedAt: '',
-                }))
-              : [],
-          })) as DocumentationVersion[])
-        : []
+      let versions = Array.isArray(doc.versions) ? doc.versions : []
 
       // Фильтруем по статусу если нужно
       if (filters?.status) {
@@ -289,6 +274,7 @@ export const documentationApi = {
     versionNumber: number,
     issueDate?: string,
     fileUrl?: string,
+    filePath?: string,
     status: DocumentationVersion['status'] = 'not_filled',
   ) {
     if (!supabase) throw new Error('Supabase client not initialized')
@@ -298,6 +284,7 @@ export const documentationApi = {
       version_number: versionNumber,
       issue_date: issueDate || null,
       file_url: fileUrl || null,
+      file_path: filePath || null,
       status,
     }
 
@@ -322,6 +309,7 @@ export const documentationApi = {
     versionNumber: number,
     issueDate?: string,
     fileUrl?: string,
+    filePath?: string,
     status: DocumentationVersion['status'] = 'not_filled',
   ) {
     if (!supabase) throw new Error('Supabase client not initialized')
@@ -339,6 +327,7 @@ export const documentationApi = {
       version_number: versionNumber,
       issue_date: issueDate || null,
       file_url: fileUrl || null,
+      file_path: filePath || null,
       status,
     }
 
@@ -349,6 +338,7 @@ export const documentationApi = {
         .update({
           issue_date: issueDate || null,
           file_url: fileUrl || null,
+          file_path: filePath || null,
           status,
         })
         .eq('id', existingVersion.id)
@@ -400,40 +390,30 @@ export const documentationApi = {
   // Обновление локальных файлов версии
   async updateVersionLocalFiles(versionId: string, localFiles: LocalFile[]) {
     if (!supabase) throw new Error('Supabase client not initialized')
-    const { error: deleteError } = await supabase
-      .from('documentation_file_paths')
-      .delete()
-      .eq('version_id', versionId)
 
-    if (deleteError) {
-      console.error('Failed to update version local files:', deleteError)
-      throw deleteError
-    }
+    const { data, error } = await supabase
+      .from('documentation_versions')
+      .update({
+        local_files: localFiles,
+      })
+      .eq('id', versionId)
+      .select()
+      .single()
 
-    if (localFiles.length) {
+    if (!error) {
+      await supabase.from('documentation_file_paths').delete().eq('version_id', versionId)
       const rows = localFiles.map((f) => ({ version_id: versionId, file_path: f.path }))
-      const { error: insertError } = await supabase.from('documentation_file_paths').insert(rows)
-
-      if (insertError) {
-        console.error('Failed to update version local files:', insertError)
-        throw insertError
+      if (rows.length) {
+        await supabase.from('documentation_file_paths').insert(rows)
       }
     }
 
-    const { data, error: fetchError } = await supabase
-      .from('documentation_versions')
-      .select(
-        'id, documentation_id, version_number, issue_date, file_url, status, created_at, updated_at',
-      )
-      .eq('id', versionId)
-      .single()
-
-    if (fetchError) {
-      console.error('Failed to fetch version after updating files:', fetchError)
-      throw fetchError
+    if (error) {
+      console.error('Failed to update version local files:', error)
+      throw error
     }
 
-    return { ...(data as DocumentationVersion), local_files: localFiles }
+    return data as DocumentationVersion
   },
 
   // Проверка конфликтов перед импортом
@@ -655,6 +635,7 @@ export const documentationApi = {
     versionNumber?: number
     issueDate?: string
     fileUrl?: string
+    filePath?: string
     status?: DocumentationVersion['status']
     comment?: string
     forceOverwrite?: boolean // Флаг для принудительной перезаписи при конфликте
@@ -682,14 +663,15 @@ export const documentationApi = {
             data.versionNumber,
             data.issueDate,
             data.fileUrl,
+            data.filePath,
             data.status || 'not_filled',
           )
-        } else {
           version = await this.createVersion(
             doc.id,
             data.versionNumber,
             data.issueDate,
             data.fileUrl,
+            data.filePath,
             data.status || 'not_filled',
           )
         }
