@@ -30,5 +30,6 @@ export const materialsApi = {
     }
 
     return data as Material
+
   },
 }

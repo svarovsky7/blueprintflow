@@ -1907,6 +1907,7 @@ export default function Chessboard() {
                 <AutoComplete
                   style={{ width: 300 }}
                   popupMatchSelectWidth={300}
+
                   options={materialOptions}
                   value={record.material}
                   onSelect={(value, option) => {
@@ -2368,6 +2369,7 @@ export default function Chessboard() {
                 <AutoComplete
                   style={{ width: 300 }}
                   popupMatchSelectWidth={300}
+
                   options={materialOptions}
                   value={edit.material}
                   onSelect={(value, option) => {
