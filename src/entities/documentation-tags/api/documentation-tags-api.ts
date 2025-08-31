@@ -7,9 +7,7 @@ import type {
 
 export const documentationTagsApi = {
   async getAll() {
-    if (!supabase) {
-      return []
-    }
+    if (!supabase) throw new Error('Supabase client not initialized')
 
     const { data, error } = await supabase
       .from('documentation_tags')
@@ -79,7 +77,10 @@ export const documentationTagsApi = {
   async delete(id: number) {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    const { error } = await supabase.from('documentation_tags').delete().eq('id', id)
+    const { error } = await supabase
+      .from('documentation_tags')
+      .delete()
+      .eq('id', id)
 
     if (error) {
       console.error('Failed to delete documentation tag:', error)
