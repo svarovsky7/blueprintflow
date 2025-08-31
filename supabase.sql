@@ -40,10 +40,15 @@ create table if not exists estimate_items (
   unit_price numeric
 );
 
+create table if not exists materials (
+  uuid uuid primary key default gen_random_uuid(),
+  name text unique not null
+);
+
 create table if not exists chessboard (
   id uuid primary key default gen_random_uuid(),
   project_id uuid references projects on delete cascade,
-  material text,
+  material uuid references materials(uuid),
   unit_id uuid references units on delete set null,
   cost_category_code text,
   color text,
