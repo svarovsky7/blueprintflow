@@ -19,10 +19,7 @@ export const documentationApi = {
   async deleteDocumentation(id: string) {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    const { error } = await supabase
-      .from('documentations')
-      .delete()
-      .eq('id', id)
+    const { error } = await supabase.from('documentations').delete().eq('id', id)
 
     if (error) {
       console.error('Failed to delete documentation code:', error)
@@ -34,10 +31,7 @@ export const documentationApi = {
   async deleteVersion(id: string) {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    const { error } = await supabase
-      .from('documentation_versions')
-      .delete()
-      .eq('id', id)
+    const { error } = await supabase.from('documentation_versions').delete().eq('id', id)
 
     if (error) {
       console.error('Failed to delete version:', error)
@@ -68,15 +62,8 @@ export const documentationApi = {
   async updateDocumentationColor(id: string, _color: string | null) {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    // TODO: Раскомментировать после добавления колонки color в БД
-    console.warn('Color update temporarily disabled - column not yet in database')
-    
-    // Возвращаем документацию без обновления
-    const { data, error } = await supabase
-      .from('documentations')
-      .select()
-      .eq('id', id)
-      .single()
+    // TODO: Добавить колонку color в БД
+    const { data, error } = await supabase.from('documentations').select().eq('id', id).single()
 
     if (error) {
       console.error('Failed to fetch documentation:', error)
@@ -89,16 +76,12 @@ export const documentationApi = {
   async getDocumentation(filters?: DocumentationFilters) {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    console.log('Getting documentation with filters:', filters)
-
     // Если есть фильтр по проекту или блоку, сначала получаем документы через маппинг
     let documentationIds: string[] | null = null
-    
+
     if (filters?.project_id || filters?.block_id) {
-      let mappingQuery = supabase
-        .from('documentations_projects_mapping')
-        .select('documentation_id')
-      
+      let mappingQuery = supabase.from('documentations_projects_mapping').select('documentation_id')
+
       if (filters.project_id) {
         mappingQuery = mappingQuery.eq('project_id', filters.project_id)
       }
@@ -113,13 +96,13 @@ export const documentationApi = {
         throw mappingError
       }
 
-      documentationIds = mappingData?.map(m => m.documentation_id) || []
-      console.log('🔍 FILTERING - Documentation IDs from mapping:', documentationIds.length)
+      documentationIds = mappingData?.map((m) => m.documentation_id) || []
     }
 
     let query = supabase
       .from('documentations')
-      .select(`
+      .select(
+        `
         *,
         tag:documentation_tags(*),
         versions:documentation_versions(
@@ -137,7 +120,8 @@ export const documentationApi = {
           project:projects(*),
           block:blocks(*)
         )
-      `)
+      `,
+      )
       .order('code', { ascending: true })
 
     // Применяем фильтры
@@ -148,7 +132,7 @@ export const documentationApi = {
       }
       query = query.in('id', documentationIds)
     }
-    
+
     if (filters?.tag_id) {
       query = query.eq('tag_id', filters.tag_id)
     }
@@ -163,31 +147,15 @@ export const documentationApi = {
       throw error
     }
 
-    console.log('Fetched documentations:', data?.length || 0)
-    
-    // Debug первые записи
-    if (data && data.length > 0) {
-      console.log('First 2 records raw data:', data.slice(0, 2).map(d => ({
-        id: d.id,
-        code: d.code,
-        versions: d.versions
-      })))
-    }
-
     // Преобразуем данные для отображения в таблице
-    const tableData: DocumentationTableRow[] = (data || []).map((doc, index) => {
+    const tableData: DocumentationTableRow[] = (data || []).map((doc) => {
       let versions = Array.isArray(doc.versions) ? doc.versions : []
-      
-      // Debug версии до фильтрации
-      if (index < 2) {
-        console.log(`Doc ${doc.code} versions before filtering:`, versions)
-      }
-      
+
       // Фильтруем по статусу если нужно
       if (filters?.status) {
         versions = versions.filter((v: DocumentationVersion) => v.status === filters.status)
       }
-      
+
       // Оставляем только последнюю версию если нужно
       if (filters?.show_latest_only && versions.length > 0) {
         const maxVersion = Math.max(...versions.map((v: DocumentationVersion) => v.version_number))
@@ -195,37 +163,32 @@ export const documentationApi = {
       }
 
       // Сортируем версии по номеру
-      versions.sort((a: DocumentationVersion, b: DocumentationVersion) => a.version_number - b.version_number)
+      versions.sort(
+        (a: DocumentationVersion, b: DocumentationVersion) => a.version_number - b.version_number,
+      )
 
       // Получаем данные проекта и блока из маппинга
-      const projectMapping = (doc as Documentation & { project_mappings?: Array<{ project?: Project; block?: Block }> }).project_mappings?.[0]
+      const projectMapping = (
+        doc as Documentation & { project_mappings?: Array<{ project?: Project; block?: Block }> }
+      ).project_mappings?.[0]
       const project = projectMapping?.project
       const block = projectMapping?.block
 
       // Так как все версии имеют одинаковый номер (1), нужно использовать ID версии
       let defaultSelectedVersionId: string | undefined
       let defaultSelectedVersionNumber: number | undefined
-      
+
       if (versions.length > 0) {
-        // Debug версии для первых записей
-        if (index < 3) {
-          console.log(`Doc ${doc.code} ALL versions details:`)
-          versions.forEach((v: DocumentationVersion, idx: number) => {
-            console.log(`  [${idx}] Version ${v.version_number} (id: ${v.id}): date="${v.issue_date}", url="${v.file_url}"`)
-          })
-        }
-        
         // Находим версию с максимальным номером версии
-        const maxVersion = versions.reduce((max: DocumentationVersion, current: DocumentationVersion) => {
-          return current.version_number > max.version_number ? current : max
-        }, versions[0])
-        
+        const maxVersion = versions.reduce(
+          (max: DocumentationVersion, current: DocumentationVersion) => {
+            return current.version_number > max.version_number ? current : max
+          },
+          versions[0],
+        )
+
         defaultSelectedVersionId = maxVersion.id
         defaultSelectedVersionNumber = maxVersion.version_number
-        
-        if (index < 3) {
-          console.log(`Doc ${doc.code}: Selected max version ${maxVersion.version_number} (id: ${maxVersion.id})`)
-        }
       }
 
       return {
@@ -252,7 +215,14 @@ export const documentationApi = {
   },
 
   // Создание или обновление документации
-  async upsertDocumentation(code: string, tagId?: number, projectId?: string, blockId?: string, _color?: string, stage?: 'П' | 'Р') {
+  async upsertDocumentation(
+    code: string,
+    tagId?: number,
+    projectId?: string,
+    blockId?: string,
+    _color?: string,
+    stage?: 'П' | 'Р',
+  ) {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     // 1. Сохраняем документацию (только шифр проекта, тэг и стадию)
@@ -266,7 +236,7 @@ export const documentationApi = {
           // color: color || null, // TODO: раскомментировать после добавления колонки в БД
           // Убираем project_id и block_id - они теперь в таблице маппинга
         },
-        { onConflict: 'code' }
+        { onConflict: 'code' },
       )
       .select()
       .single()
@@ -278,16 +248,14 @@ export const documentationApi = {
 
     // 2. Сохраняем связь с проектом и корпусом в таблице маппинга
     if (projectId) {
-      const { error: mappingError } = await supabase
-        .from('documentations_projects_mapping')
-        .upsert(
-          {
-            documentation_id: data.id,
-            project_id: projectId,
-            block_id: blockId || null,
-          },
-          { onConflict: 'documentation_id,project_id' }
-        )
+      const { error: mappingError } = await supabase.from('documentations_projects_mapping').upsert(
+        {
+          documentation_id: data.id,
+          project_id: projectId,
+          block_id: blockId || null,
+        },
+        { onConflict: 'documentation_id,project_id' },
+      )
 
       if (mappingError) {
         console.error('Failed to create project mapping:', mappingError)
@@ -305,7 +273,7 @@ export const documentationApi = {
     issueDate?: string,
     fileUrl?: string,
     filePath?: string,
-    status: DocumentationVersion['status'] = 'not_filled'
+    status: DocumentationVersion['status'] = 'not_filled',
   ) {
     if (!supabase) throw new Error('Supabase client not initialized')
 
@@ -317,8 +285,6 @@ export const documentationApi = {
       file_path: filePath || null,
       status,
     }
-    
-    console.log('Creating version with data:', insertData)
 
     const { data, error } = await supabase
       .from('documentation_versions')
@@ -332,7 +298,6 @@ export const documentationApi = {
       throw error
     }
 
-    console.log('Version created successfully:', data)
     return data as DocumentationVersion
   },
 
@@ -343,7 +308,7 @@ export const documentationApi = {
     issueDate?: string,
     fileUrl?: string,
     filePath?: string,
-    status: DocumentationVersion['status'] = 'not_filled'
+    status: DocumentationVersion['status'] = 'not_filled',
   ) {
     if (!supabase) throw new Error('Supabase client not initialized')
 
@@ -363,10 +328,9 @@ export const documentationApi = {
       file_path: filePath || null,
       status,
     }
-    
+
     if (existingVersion) {
       // Обновляем существующую версию
-      console.log('Updating existing version:', existingVersion.id)
       const { data, error } = await supabase
         .from('documentation_versions')
         .update({
@@ -384,11 +348,9 @@ export const documentationApi = {
         throw error
       }
 
-      console.log('Version updated successfully:', data)
       return data as DocumentationVersion
     } else {
       // Создаем новую версию
-      console.log('Creating new version')
       const { data, error } = await supabase
         .from('documentation_versions')
         .insert(versionData)
@@ -400,7 +362,6 @@ export const documentationApi = {
         throw error
       }
 
-      console.log('Version created successfully:', data)
       return data as DocumentationVersion
     }
   },
@@ -432,7 +393,6 @@ export const documentationApi = {
       .from('documentation_versions')
       .update({
         local_files: localFiles,
-
       })
       .eq('id', versionId)
       .select()
@@ -440,7 +400,7 @@ export const documentationApi = {
 
     if (!error) {
       await supabase.from('documentation_file_paths').delete().eq('version_id', versionId)
-      const rows = localFiles.map(f => ({ version_id: versionId, file_path: f.path }))
+      const rows = localFiles.map((f) => ({ version_id: versionId, file_path: f.path }))
       if (rows.length) {
         await supabase.from('documentation_file_paths').insert(rows)
       }
@@ -459,11 +419,11 @@ export const documentationApi = {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     const conflicts: ImportConflict[] = []
-    const uniqueCodes = [...new Set(rows.map(r => r.code))]
-    
+    const uniqueCodes = [...new Set(rows.map((r) => r.code))]
+
     // Получаем project_id из первой строки (все строки импорта относятся к одному проекту)
     const projectId = rows[0]?.project_id
-    
+
     if (!projectId) {
       console.warn('No project_id in import rows, checking conflicts globally')
     }
@@ -471,7 +431,8 @@ export const documentationApi = {
     // Получаем существующие записи с этими кодами
     const { data: existingDocs } = await supabase
       .from('documentations')
-      .select(`
+      .select(
+        `
         *,
         tag:documentation_tags(*),
         versions:documentation_versions(*),
@@ -479,21 +440,22 @@ export const documentationApi = {
           project_id,
           block_id
         )
-      `)
+      `,
+      )
       .in('code', uniqueCodes)
 
     if (existingDocs && existingDocs.length > 0) {
       // Фильтруем документы по проекту, если указан
-      const relevantDocs = projectId 
-        ? existingDocs.filter(doc => 
-            doc.project_mappings?.some((mapping: any) => mapping.project_id === projectId)
+      const relevantDocs = projectId
+        ? existingDocs.filter((doc) =>
+            doc.project_mappings?.some((mapping: any) => mapping.project_id === projectId),
           )
         : existingDocs
-      
+
       // Создаем карту существующих документов с учетом версий
       const existingMap = new Map<string, any>()
-      
-      relevantDocs.forEach(doc => {
+
+      relevantDocs.forEach((doc) => {
         if (doc.versions && doc.versions.length > 0) {
           doc.versions.forEach((version: any) => {
             const key = `${doc.code}_${version.version_number}`
@@ -504,24 +466,23 @@ export const documentationApi = {
           existingMap.set(doc.code, doc)
         }
       })
-      
+
       rows.forEach((row, index) => {
         // Проверяем конфликт по сочетанию код + версия
         const versionKey = `${row.code}_${row.version_number}`
         const existingWithVersion = existingMap.get(versionKey)
-        
+
         if (existingWithVersion) {
           conflicts.push({
             row,
             existingData: existingWithVersion,
-            index
+            index,
           })
         } else {
           // Проверяем, существует ли документ с таким кодом (для новых версий)
           const existingDoc = existingMap.get(row.code)
           if (existingDoc && !existingDoc.conflictVersion) {
             // Документ существует, но это новая версия - не конфликт
-            console.log(`Document ${row.code} exists, but version ${row.version_number} is new - no conflict`)
           }
         }
       })
@@ -533,12 +494,9 @@ export const documentationApi = {
   // Импорт данных из Excel с учетом разрешения конфликтов
   async importFromExcelWithResolutions(
     rows: DocumentationImportRow[],
-    resolutions?: Map<number, ConflictResolution>
+    resolutions?: Map<number, ConflictResolution>,
   ) {
     if (!supabase) throw new Error('Supabase client not initialized')
-
-    console.log('Starting import with rows:', rows.length)
-    console.log('First 3 rows data:', rows.slice(0, 3))
 
     const results = []
     const errors = []
@@ -546,23 +504,12 @@ export const documentationApi = {
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i]
-      
-      console.log(`Processing row ${i + 1}:`, {
-        code: row.code,
-        tag: row.tag,
-        version: row.version_number,
-        date: row.issue_date,
-        url: row.file_url,
-        project_id: row.project_id,
-        stage: row.stage
-      })
-      
+
       // Проверяем, есть ли решение для этой строки
       const hasResolution = resolutions?.has(i)
       const resolution = resolutions?.get(i)
-      
+
       if (hasResolution && resolution === 'skip') {
-        console.log(`Row ${i + 1} skipped by user resolution`)
         skipped.push({ row, reason: 'Пропущено пользователем' })
         continue
       }
@@ -571,7 +518,6 @@ export const documentationApi = {
         // Находим или создаем тэг по имени
         let tagId: number | null = null
         if (row.tag) {
-          console.log(`Looking for tag: "${row.tag}"`)
           const { data: tags, error: tagError } = await supabase
             .from('documentation_tags')
             .select('id')
@@ -582,29 +528,13 @@ export const documentationApi = {
             console.error(`Error finding tag "${row.tag}":`, tagError)
           } else if (tags && tags.length > 0) {
             tagId = tags[0].id
-            console.log(`Found tag ID: ${tagId} for "${row.tag}"`)
-          } else {
-            console.log(`Tag "${row.tag}" not found in database`)
           }
         }
 
         // Если пользователь выбрал "Принять" при конфликте, устанавливаем флаг перезаписи
         const forceOverwrite = hasResolution && resolution === 'accept'
-        
+
         // Используем комплексный метод сохранения для Excel импорта
-        console.log(`Calling saveDocumentationComplete for row ${i + 1} with:`, {
-          code: row.code,
-          tagId: tagId ?? undefined,
-          projectId: row.project_id,
-          blockId: row.block_id,
-          stage: row.stage || 'П',
-          versionNumber: row.version_number,
-          issueDate: row.issue_date,
-          fileUrl: row.file_url,
-          status: 'not_filled',
-          forceOverwrite
-        })
-        
         const result = await this.saveDocumentationComplete({
           code: row.code,
           tagId: tagId ?? undefined,
@@ -615,23 +545,15 @@ export const documentationApi = {
           issueDate: row.issue_date,
           fileUrl: row.file_url,
           status: 'not_filled',
-          forceOverwrite
+          forceOverwrite,
         })
 
-        console.log(`Row ${i + 1} imported successfully:`, result)
         results.push({ row, ...result })
       } catch (error) {
         console.error(`Error importing row ${i + 1}:`, row, error)
         errors.push({ row, error })
       }
     }
-
-    console.log('Import complete:', {
-      total: rows.length,
-      success: results.length,
-      errors: errors.length,
-      skipped: skipped.length
-    })
 
     return { results, errors, skipped }
   },
@@ -661,13 +583,11 @@ export const documentationApi = {
     }
 
     // Связываем с сущностью
-    const { error: linkError } = await supabase
-      .from('entity_comments_mapping')
-      .insert({
-        entity_type: entityType,
-        entity_id: entityId, // Теперь UUID
-        comment_id: comment.id,
-      })
+    const { error: linkError } = await supabase.from('entity_comments_mapping').insert({
+      entity_type: entityType,
+      entity_id: entityId, // Теперь UUID
+      comment_id: comment.id,
+    })
 
     if (linkError) {
       console.error('Failed to link comment:', linkError)
@@ -692,12 +612,14 @@ export const documentationApi = {
       throw error
     }
 
-    return (data || []).map((item: { comment: Comment | Comment[] }) => {
-      if (Array.isArray(item.comment)) {
-        return item.comment[0]
-      }
-      return item.comment
-    }).filter(Boolean) as Comment[]
+    return (data || [])
+      .map((item: { comment: Comment | Comment[] }) => {
+        if (Array.isArray(item.comment)) {
+          return item.comment[0]
+        }
+        return item.comment
+      })
+      .filter(Boolean) as Comment[]
   },
 
   // Комплексное сохранение документации с версиями и комментариями
@@ -718,34 +640,20 @@ export const documentationApi = {
   }) {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    console.log('saveDocumentationComplete called with:', data)
-
     try {
       // 1. Сохраняем документацию (шифр проекта, тэг и стадию)
-      console.log('Step 1: Upserting documentation...')
       const doc = await this.upsertDocumentation(
         data.code,
         data.tagId,
         data.projectId,
         data.blockId,
         data.color,
-        data.stage
+        data.stage,
       )
-      console.log('Documentation upserted:', doc)
 
       // 2. Создаем или обновляем версию документации
       let version: DocumentationVersion | null = null
       if (data.versionNumber) {
-        console.log('Step 2: Upserting version with:', {
-          documentationId: doc.id,
-          versionNumber: data.versionNumber,
-          issueDate: data.issueDate,
-          fileUrl: data.fileUrl,
-          filePath: data.filePath,
-          status: data.status || 'not_filled',
-          forceOverwrite: data.forceOverwrite
-        })
-        
         // Если флаг forceOverwrite установлен, используем upsertVersion для перезаписи
         if (data.forceOverwrite) {
           version = await this.upsertVersion(
@@ -754,42 +662,30 @@ export const documentationApi = {
             data.issueDate,
             data.fileUrl,
             data.filePath,
-            data.status || 'not_filled'
+            data.status || 'not_filled',
           )
-          console.log('Version upserted (overwritten):', version)
-        } else {
-          // Иначе пытаемся создать новую версию
           version = await this.createVersion(
             doc.id,
             data.versionNumber,
             data.issueDate,
             data.fileUrl,
             data.filePath,
-            data.status || 'not_filled'
+            data.status || 'not_filled',
           )
-          console.log('Version created:', version)
         }
-      } else {
-        console.log('Step 2: Skipping version creation (no version number)')
       }
 
       // 3. Сохраняем комментарий, если есть
       let comment: Comment | null = null
       if (data.comment && data.comment.trim()) {
-        console.log('Step 3: Creating comment...')
         comment = await this.addComment(data.comment, 'documentation', doc.id)
-        console.log('Comment created:', comment)
-      } else {
-        console.log('Step 3: No comment to create')
       }
 
-      const result = {
+      return {
         documentation: doc,
         version,
-        comment
+        comment,
       }
-      console.log('saveDocumentationComplete completed successfully:', result)
-      return result
     } catch (error) {
       console.error('Failed to save documentation complete:', error)
       throw error
