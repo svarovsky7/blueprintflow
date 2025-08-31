@@ -63,6 +63,7 @@ export const documentationApi = {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     // TODO: Добавить колонку color в БД
+
     const { data, error } = await supabase.from('documentations').select().eq('id', id).single()
 
     if (error) {
