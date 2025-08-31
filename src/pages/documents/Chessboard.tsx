@@ -118,6 +118,7 @@ interface RowData {
   documentationId?: string
   tagId?: string
   tagName?: string
+  tagNumber?: number | null
   projectCode?: string
   floorQuantities?: FloorQuantities
 }
@@ -157,6 +158,7 @@ interface ViewRow {
   color: RowColor
   documentationId?: string
   tagName?: string
+  tagNumber?: number | null
   projectCode?: string
 }
 
@@ -334,6 +336,11 @@ const emptyRow = (defaults: Partial<RowData>): RowData => ({
   rateId: '',
   floors: defaults.floors ?? '',
   color: '',
+  documentationId: defaults.documentationId ?? '',
+  tagId: defaults.tagId ?? '',
+  tagName: defaults.tagName ?? '',
+  tagNumber: defaults.tagNumber ?? null,
+  projectCode: defaults.projectCode ?? '',
   floorQuantities: undefined,
 })
 
@@ -637,6 +644,12 @@ export default function Chessboard() {
     queryFn: documentationTagsApi.getAll,
   })
 
+  const sortedDocumentationTags = useMemo(
+    () =>
+      documentationTags ? [...documentationTags].sort((a, b) => a.tag_number - b.tag_number) : [],
+    [documentationTags],
+  )
+
   // Загрузка документации для выбранного проекта
   const { data: documentations } = useQuery<DocumentationRecord[]>({
     queryKey: ['documentations', appliedFilters?.projectId],
@@ -824,7 +837,8 @@ export default function Chessboard() {
           floors: item.floors ?? '',
           color: (item.color as RowColor | null) ?? '',
           documentationId: documentation?.id,
-          tagName: tag ? `${tag.tag_number || ''} ${tag.name}`.trim() : '',
+          tagName: tag?.name ?? '',
+          tagNumber: tag?.tag_number ?? null,
           projectCode: documentation?.code ?? '',
         }
       }),
@@ -852,6 +866,9 @@ export default function Chessboard() {
         rateId: v.workName,
         floors: v.floors,
         color: v.color,
+        tagName: v.tagName,
+        tagNumber: v.tagNumber,
+        projectCode: v.projectCode,
         isExisting: true,
       })),
     ],
@@ -950,31 +967,37 @@ export default function Chessboard() {
     })
   }, [])
 
-  const handleRowChange = useCallback((key: string, field: keyof RowData, value: string) => {
-    setRows((prev) =>
-      prev.map((r) =>
-        r.key === key
-          ? {
-              ...r,
-              [field]: value,
-              ...(field === 'quantityPd' || field === 'quantitySpec' || field === 'quantityRd'
-                ? { floorQuantities: undefined }
-                : {}),
-            }
-          : r,
-      ),
-    )
-  }, [])
+  const handleRowChange = useCallback(
+    (key: string, field: keyof RowData, value: string | number | null) => {
+      setRows((prev) =>
+        prev.map((r) =>
+          r.key === key
+            ? {
+                ...r,
+                [field]: value,
+                ...(field === 'quantityPd' || field === 'quantitySpec' || field === 'quantityRd'
+                  ? { floorQuantities: undefined }
+                  : {}),
+              }
+            : r,
+        ),
+      )
+    },
+    [],
+  )
 
-  const handleEditChange = useCallback((key: string, field: keyof RowData, value: string) => {
-    setEditingRows((prev) => {
-      const updated = { ...prev[key], [field]: value }
-      if (field === 'quantityPd' || field === 'quantitySpec' || field === 'quantityRd') {
-        delete updated.floorQuantities
-      }
-      return { ...prev, [key]: updated }
-    })
-  }, [])
+  const handleEditChange = useCallback(
+    (key: string, field: keyof RowData, value: string | number | null) => {
+      setEditingRows((prev) => {
+        const updated = { ...prev[key], [field]: value }
+        if (field === 'quantityPd' || field === 'quantitySpec' || field === 'quantityRd') {
+          delete updated.floorQuantities
+        }
+        return { ...prev, [key]: updated }
+      })
+    },
+    [],
+  )
 
   const handleMaterialBlur = useCallback(
     async (key: string, name: string, isEdit = false) => {
@@ -1275,9 +1298,9 @@ export default function Chessboard() {
             tagId: dbRow.chessboard_documentation_mapping?.documentations?.tag_id
               ? String(dbRow.chessboard_documentation_mapping.documentations.tag_id)
               : '',
-            tagName: dbRow.chessboard_documentation_mapping?.documentations?.tag
-              ? `${dbRow.chessboard_documentation_mapping.documentations.tag.tag_number || ''} ${dbRow.chessboard_documentation_mapping.documentations.tag.name}`.trim()
-              : '',
+            tagName: dbRow.chessboard_documentation_mapping?.documentations?.tag?.name ?? '',
+            tagNumber:
+              dbRow.chessboard_documentation_mapping?.documentations?.tag?.tag_number ?? null,
             projectCode: dbRow.chessboard_documentation_mapping?.documentations?.code ?? '',
             floorQuantities: dbRow.floorQuantities,
           },
@@ -1826,14 +1849,17 @@ export default function Chessboard() {
         )
         const filters = values.map((v) => ({ text: String(v), value: String(v) }))
 
-        const sorter = (a: TableRow, b: TableRow) => {
-          const aVal = a[col.dataIndex]
-          const bVal = b[col.dataIndex]
-          const aNum = Number(aVal)
-          const bNum = Number(bVal)
-          if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum
-          return String(aVal ?? '').localeCompare(String(bVal ?? ''))
-        }
+        const sorter =
+          col.dataIndex === 'tagName'
+            ? (a: TableRow, b: TableRow) => (a.tagNumber ?? 0) - (b.tagNumber ?? 0)
+            : (a: TableRow, b: TableRow) => {
+                const aVal = a[col.dataIndex]
+                const bVal = b[col.dataIndex]
+                const aNum = Number(aVal)
+                const bNum = Number(bVal)
+                if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum
+                return String(aVal ?? '').localeCompare(String(bVal ?? ''))
+              }
 
         const onFilter = (value: boolean | Key, record: TableRow) =>
           String(record[col.dataIndex] ?? '') === String(value)
@@ -1848,22 +1874,17 @@ export default function Chessboard() {
                   value={record.tagId}
                   onChange={(value) => {
                     handleRowChange(record.key, 'tagId', value)
-                    const tag = documentationTags?.find((t) => String(t.id) === value)
-                    handleRowChange(
-                      record.key,
-                      'tagName',
-                      tag ? `${tag.tag_number || ''} ${tag.name}`.trim() : '',
-                    )
+                    const tag = sortedDocumentationTags.find((t) => String(t.id) === value)
+                    handleRowChange(record.key, 'tagName', tag?.name ?? '')
+                    handleRowChange(record.key, 'tagNumber', tag?.tag_number ?? null)
                     // Сбрасываем выбранный документ при смене тэга
                     handleRowChange(record.key, 'documentationId', '')
                     handleRowChange(record.key, 'projectCode', '')
                   }}
-                  options={
-                    documentationTags?.map((tag) => ({
-                      value: String(tag.id),
-                      label: `${tag.tag_number || ''} ${tag.name}`.trim(),
-                    })) ?? []
-                  }
+                  options={sortedDocumentationTags.map((tag) => ({
+                    value: String(tag.id),
+                    label: tag.name,
+                  }))}
                   allowClear
                   showSearch
                   filterOption={(input, option) => {
@@ -1903,11 +1924,10 @@ export default function Chessboard() {
                 />
               )
             case 'material':
-                return (
+              return (
                 <AutoComplete
                   style={{ width: 300 }}
                   popupMatchSelectWidth={300}
-
                   options={materialOptions}
                   value={record.material}
                   onSelect={(value, option) => {
@@ -2189,7 +2209,7 @@ export default function Chessboard() {
     costTypes,
     locations,
     blocks,
-    documentationTags,
+    sortedDocumentationTags,
     documentations,
     appliedFilters,
     startEdit,
@@ -2310,22 +2330,17 @@ export default function Chessboard() {
                   value={edit.tagId}
                   onChange={(value) => {
                     handleEditChange(record.key, 'tagId', value)
-                    const tag = documentationTags?.find((t) => String(t.id) === value)
-                    handleEditChange(
-                      record.key,
-                      'tagName',
-                      tag ? `${tag.tag_number || ''} ${tag.name}`.trim() : '',
-                    )
+                    const tag = sortedDocumentationTags.find((t) => String(t.id) === value)
+                    handleEditChange(record.key, 'tagName', tag?.name ?? '')
+                    handleEditChange(record.key, 'tagNumber', tag?.tag_number ?? null)
                     // Сбрасываем выбранный документ при смене тэга
                     handleEditChange(record.key, 'documentationId', '')
                     handleEditChange(record.key, 'projectCode', '')
                   }}
-                  options={
-                    documentationTags?.map((tag) => ({
-                      value: String(tag.id),
-                      label: `${tag.tag_number || ''} ${tag.name}`.trim(),
-                    })) ?? []
-                  }
+                  options={sortedDocumentationTags.map((tag) => ({
+                    value: String(tag.id),
+                    label: tag.name,
+                  }))}
                   allowClear
                   showSearch
                   filterOption={(input, option) => {
@@ -2365,11 +2380,10 @@ export default function Chessboard() {
                 />
               )
             case 'material':
-                return (
+              return (
                 <AutoComplete
                   style={{ width: 300 }}
                   popupMatchSelectWidth={300}
-
                   options={materialOptions}
                   value={edit.material}
                   onSelect={(value, option) => {
@@ -2593,15 +2607,18 @@ export default function Chessboard() {
         return {
           ...col,
           filterSearch: true,
-          sorter: (a: ViewRow, b: ViewRow) => {
-            const dataIndex = col.dataIndex as keyof ViewRow
-            const aVal = a[dataIndex]
-            const bVal = b[dataIndex]
-            const aNum = Number(aVal)
-            const bNum = Number(bVal)
-            if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum
-            return String(aVal ?? '').localeCompare(String(bVal ?? ''))
-          },
+          sorter:
+            col.dataIndex === 'tagName'
+              ? (a: ViewRow, b: ViewRow) => (a.tagNumber ?? 0) - (b.tagNumber ?? 0)
+              : (a: ViewRow, b: ViewRow) => {
+                  const dataIndex = col.dataIndex as keyof ViewRow
+                  const aVal = a[dataIndex]
+                  const bVal = b[dataIndex]
+                  const aNum = Number(aVal)
+                  const bNum = Number(bVal)
+                  if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum
+                  return String(aVal ?? '').localeCompare(String(bVal ?? ''))
+                },
           filters,
           onFilter: (value: boolean | Key, record: ViewRow) => {
             const dataIndex = col.dataIndex as keyof ViewRow
@@ -2668,7 +2685,7 @@ export default function Chessboard() {
     costCategories,
     costTypes,
     locations,
-    documentationTags,
+    sortedDocumentationTags,
     documentations,
     hiddenCols,
     deleteMode,
@@ -3212,12 +3229,10 @@ export default function Chessboard() {
                   onChange={(value) =>
                     setFilters((f) => ({ ...f, tagId: value, documentationId: undefined }))
                   }
-                  options={
-                    documentationTags?.map((tag) => ({
-                      value: String(tag.id),
-                      label: `${tag.tag_number || ''} ${tag.name}`.trim(),
-                    })) ?? []
-                  }
+                  options={sortedDocumentationTags.map((tag) => ({
+                    value: String(tag.id),
+                    label: tag.name,
+                  }))}
                   allowClear
                   showSearch
                   filterOption={(input, option) => {
