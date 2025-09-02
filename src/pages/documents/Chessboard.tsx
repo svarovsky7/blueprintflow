@@ -362,19 +362,19 @@ export default function Chessboard() {
 
   const [filters, setFilters] = useState<{
     projectId?: string
-    blockId?: string
-    categoryId?: string
-    typeId?: string
-    tagId?: string
-    documentationId?: string
+    blockId?: string[]
+    categoryId?: string[]
+    typeId?: string[]
+    tagId?: string[]
+    documentationId?: string[]
   }>({})
   const [appliedFilters, setAppliedFilters] = useState<{
     projectId: string
-    blockId?: string
-    categoryId?: string
-    typeId?: string
-    tagId?: string
-    documentationId?: string
+    blockId?: string[]
+    categoryId?: string[]
+    typeId?: string[]
+    tagId?: string[]
+    documentationId?: string[]
   } | null>(null)
   const [mode, setMode] = useState<'view' | 'add'>('view')
   const [rows, setRows] = useState<RowData[]>([])
@@ -395,9 +395,9 @@ export default function Chessboard() {
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importState, setImportState] = useState<{
     projectId?: string
-    blockId?: string
-    categoryId?: string
-    typeId?: string
+    blockId?: string[]
+    categoryId?: string[]
+    typeId?: string[]
     locationId?: string
   }>({})
 
@@ -667,9 +667,17 @@ export default function Chessboard() {
     queryFn: async () => {
       if (!supabase || !appliedFilters) return []
       const relation =
-        appliedFilters.blockId || appliedFilters.categoryId || appliedFilters.typeId
+        (appliedFilters.blockId && appliedFilters.blockId.length > 0) || 
+        (appliedFilters.categoryId && appliedFilters.categoryId.length > 0) || 
+        (appliedFilters.typeId && appliedFilters.typeId.length > 0)
           ? 'chessboard_mapping!inner'
           : 'chessboard_mapping'
+      
+      const docRelation = 
+        (appliedFilters.documentationId && appliedFilters.documentationId.length > 0) ||
+        (appliedFilters.tagId && appliedFilters.tagId.length > 0)
+          ? 'chessboard_documentation_mapping!inner'
+          : 'chessboard_documentation_mapping'
       const query = supabase
         .from('chessboard')
         .select(
@@ -677,24 +685,25 @@ export default function Chessboard() {
           chessboard_nomenclature_mapping!left(nomenclature_id, supplier_name, nomenclature(name)),
           ${relation}(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name)),
           chessboard_rates_mapping(rate_id, rates(work_name)),
-          chessboard_documentation_mapping(documentation_id, documentations(id, code, tag_id, stage, tag:documentation_tags(id, name, tag_number)))`,
+          ${docRelation}(documentation_id, documentations(id, code, tag_id, stage, tag:documentation_tags(id, name, tag_number)))`
         )
         .eq('project_id', appliedFilters.projectId)
-      if (appliedFilters.blockId) query.eq('chessboard_mapping.block_id', appliedFilters.blockId)
-      if (appliedFilters.categoryId)
-        query.eq('chessboard_mapping.cost_category_id', Number(appliedFilters.categoryId))
-      if (appliedFilters.typeId)
-        query.eq('chessboard_mapping.cost_type_id', Number(appliedFilters.typeId))
+      if (appliedFilters.blockId && appliedFilters.blockId.length > 0) 
+        query.in('chessboard_mapping.block_id', appliedFilters.blockId)
+      if (appliedFilters.categoryId && appliedFilters.categoryId.length > 0)
+        query.in('chessboard_mapping.cost_category_id', appliedFilters.categoryId.map(Number))
+      if (appliedFilters.typeId && appliedFilters.typeId.length > 0)
+        query.in('chessboard_mapping.cost_type_id', appliedFilters.typeId.map(Number))
       // Фильтрация по документации
-      if (appliedFilters.documentationId) {
-        query.eq(
+      if (appliedFilters.documentationId && appliedFilters.documentationId.length > 0) {
+        query.in(
           'chessboard_documentation_mapping.documentation_id',
           appliedFilters.documentationId,
         )
-      } else if (appliedFilters.tagId) {
-        query.eq(
+      } else if (appliedFilters.tagId && appliedFilters.tagId.length > 0) {
+        query.in(
           'chessboard_documentation_mapping.documentations.tag_id',
-          Number(appliedFilters.tagId),
+          appliedFilters.tagId.map(Number),
         )
       }
       const { data, error } = await query.order('created_at', { ascending: false })
@@ -882,11 +891,11 @@ export default function Chessboard() {
     }
     setAppliedFilters({ ...filters } as {
       projectId: string
-      blockId?: string
-      categoryId?: string
-      typeId?: string
-      tagId?: string
-      documentationId?: string
+      blockId?: string[]
+      categoryId?: string[]
+      typeId?: string[]
+      tagId?: string[]
+      documentationId?: string[]
     })
     setMode('view')
     setFiltersExpanded(false) // Сворачиваем блок фильтров после применения
@@ -895,17 +904,17 @@ export default function Chessboard() {
   const addRow = useCallback(
     (index: number) => {
       if (!appliedFilters) return
-      const defaultLocationId = appliedFilters.typeId
-        ? String(costTypes?.find((t) => String(t.id) === appliedFilters.typeId)?.location_id ?? '')
+      const defaultLocationId = appliedFilters.typeId && appliedFilters.typeId.length > 0
+        ? String(costTypes?.find((t) => String(t.id) === appliedFilters.typeId![0])?.location_id ?? '')
         : ''
-      const blockName = appliedFilters.blockId
-        ? (blocks?.find((b) => b.id === appliedFilters.blockId)?.name ?? '')
+      const blockName = appliedFilters.blockId && appliedFilters.blockId.length > 0
+        ? (blocks?.find((b) => b.id === appliedFilters.blockId![0])?.name ?? '')
         : ''
       setRows((prev) => {
         const newRow = emptyRow({
-          blockId: appliedFilters.blockId ?? '',
-          costCategoryId: appliedFilters.categoryId ?? '',
-          costTypeId: appliedFilters.typeId ?? '',
+          blockId: appliedFilters.blockId && appliedFilters.blockId.length > 0 ? appliedFilters.blockId[0] : '',
+          costCategoryId: appliedFilters.categoryId && appliedFilters.categoryId.length > 0 ? appliedFilters.categoryId[0] : '',
+          costTypeId: appliedFilters.typeId && appliedFilters.typeId.length > 0 ? appliedFilters.typeId[0] : '',
           locationId: defaultLocationId,
           block: blockName,
         })
@@ -1218,17 +1227,17 @@ export default function Chessboard() {
 
   const startAdd = useCallback(() => {
     if (!appliedFilters) return
-    const defaultLocationId = appliedFilters.typeId
-      ? String(costTypes?.find((t) => String(t.id) === appliedFilters.typeId)?.location_id ?? '')
+    const defaultLocationId = appliedFilters.typeId && appliedFilters.typeId.length > 0
+      ? String(costTypes?.find((t) => String(t.id) === appliedFilters.typeId![0])?.location_id ?? '')
       : ''
-    const blockName = appliedFilters.blockId
-      ? (blocks?.find((b) => b.id === appliedFilters.blockId)?.name ?? '')
+    const blockName = appliedFilters.blockId && appliedFilters.blockId.length > 0
+      ? (blocks?.find((b) => b.id === appliedFilters.blockId![0])?.name ?? '')
       : ''
     setRows([
       emptyRow({
-        blockId: appliedFilters.blockId ?? '',
-        costCategoryId: appliedFilters.categoryId ?? '',
-        costTypeId: appliedFilters.typeId ?? '',
+        blockId: appliedFilters.blockId && appliedFilters.blockId.length > 0 ? appliedFilters.blockId[0] : '',
+        costCategoryId: appliedFilters.categoryId && appliedFilters.categoryId.length > 0 ? appliedFilters.categoryId[0] : '',
+        costTypeId: appliedFilters.typeId && appliedFilters.typeId.length > 0 ? appliedFilters.typeId[0] : '',
         locationId: defaultLocationId,
         block: blockName,
       }),
@@ -1508,8 +1517,8 @@ export default function Chessboard() {
   )
 
   const openImport = useCallback(() => {
-    const loc = appliedFilters?.typeId
-      ? costTypes?.find((t) => String(t.id) === appliedFilters.typeId)?.location_id
+    const loc = appliedFilters?.typeId && appliedFilters.typeId.length > 0
+      ? costTypes?.find((t) => String(t.id) === appliedFilters.typeId![0])?.location_id
       : undefined
     setImportState({
       projectId: appliedFilters?.projectId,
@@ -2058,7 +2067,7 @@ export default function Chessboard() {
                     costCategories
                       ?.filter(
                         (c) =>
-                          !appliedFilters?.categoryId || String(c.id) === appliedFilters.categoryId,
+                          !appliedFilters?.categoryId || appliedFilters.categoryId.length === 0 || appliedFilters.categoryId.includes(String(c.id)),
                       )
                       .map((c) => ({
                         value: String(c.id),
@@ -2085,7 +2094,7 @@ export default function Chessboard() {
                       ?.filter((t) => {
                         const categoryId = record.costCategoryId || appliedFilters?.categoryId
                         if (categoryId && t.cost_category_id !== Number(categoryId)) return false
-                        if (appliedFilters?.typeId) return String(t.id) === appliedFilters.typeId
+                        if (appliedFilters?.typeId && appliedFilters.typeId.length > 0) return appliedFilters.typeId.includes(String(t.id))
                         return true
                       })
                       .map((t) => ({ value: String(t.id), label: t.name })) ?? []
@@ -3030,11 +3039,11 @@ export default function Chessboard() {
             <Badge
               count={
                 [
-                  filters.blockId,
-                  filters.categoryId,
-                  filters.typeId,
-                  filters.tagId,
-                  filters.documentationId,
+                  filters.blockId && filters.blockId.length > 0 ? filters.blockId : null,
+                  filters.categoryId && filters.categoryId.length > 0 ? filters.categoryId : null,
+                  filters.typeId && filters.typeId.length > 0 ? filters.typeId : null,
+                  filters.tagId && filters.tagId.length > 0 ? filters.tagId : null,
+                  filters.documentationId && filters.documentationId.length > 0 ? filters.documentationId : null,
                 ].filter(Boolean).length
               }
               size="small"
@@ -3164,6 +3173,7 @@ export default function Chessboard() {
                   disabled={!filters.projectId}
                   allowClear
                   showSearch
+                  mode="multiple"
                   filterOption={(input, option) => {
                     const text = (option?.label ?? '').toString()
                     return text.toLowerCase().includes(input.toLowerCase())
@@ -3199,6 +3209,7 @@ export default function Chessboard() {
                   }
                   allowClear
                   showSearch
+                  mode="multiple"
                   filterOption={(input, option) => {
                     const text = (option?.label ?? '').toString()
                     return text.toLowerCase().includes(input.toLowerCase())
@@ -3211,12 +3222,13 @@ export default function Chessboard() {
                   onChange={(value) => setFilters((f) => ({ ...f, typeId: value }))}
                   options={
                     costTypes
-                      ?.filter((t) => String(t.cost_category_id) === filters.categoryId)
+                      ?.filter((t) => !filters.categoryId || filters.categoryId.length === 0 || filters.categoryId.includes(String(t.cost_category_id)))
                       .map((t) => ({ value: String(t.id), label: t.name })) ?? []
                   }
-                  disabled={!filters.categoryId}
+                  disabled={!filters.categoryId || filters.categoryId.length === 0}
                   allowClear
                   showSearch
+                  mode="multiple"
                   filterOption={(input, option) => {
                     const text = (option?.label ?? '').toString()
                     return text.toLowerCase().includes(input.toLowerCase())
@@ -3235,6 +3247,7 @@ export default function Chessboard() {
                   }))}
                   allowClear
                   showSearch
+                  mode="multiple"
                   filterOption={(input, option) => {
                     const text = (option?.label ?? '').toString()
                     return text.toLowerCase().includes(input.toLowerCase())
@@ -3249,16 +3262,17 @@ export default function Chessboard() {
                     documentations
                       ?.filter(
                         (doc: DocumentationRecord) =>
-                          !filters.tagId || String(doc.tag_id) === filters.tagId,
+                          !filters.tagId || filters.tagId.length === 0 || filters.tagId.includes(String(doc.tag_id)),
                       )
                       .map((doc: DocumentationRecord) => ({
                         value: doc.id,
                         label: doc.project_code,
                       })) ?? []
                   }
-                  disabled={!filters.tagId}
+                  disabled={!filters.tagId || filters.tagId.length === 0}
                   allowClear
                   showSearch
+                  mode="multiple"
                   filterOption={(input, option) => {
                     const text = (option?.label ?? '').toString()
                     return text.toLowerCase().includes(input.toLowerCase())
@@ -3428,7 +3442,10 @@ export default function Chessboard() {
             style={{ width: '100%' }}
             value={importState.typeId}
             onChange={(value) => {
-              const loc = costTypes?.find((t) => String(t.id) === value)?.location_id
+              const loc = costTypes?.find((t) => {
+                const typeValue = Array.isArray(value) && value.length > 0 ? value[0] : value as unknown as string
+                return String(t.id) === typeValue
+              })?.location_id
               setImportState((s) => ({
                 ...s,
                 typeId: value || undefined,
@@ -3437,7 +3454,7 @@ export default function Chessboard() {
             }}
             options={
               costTypes
-                ?.filter((t) => String(t.cost_category_id) === importState.categoryId)
+                ?.filter((t) => !importState.categoryId || importState.categoryId.length === 0 || importState.categoryId.includes(String(t.cost_category_id)))
                 .map((t) => ({ value: String(t.id), label: t.name })) ?? []
             }
             disabled={!importState.categoryId}

@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 # Development
 npm install           # Install dependencies
-npm run dev          # Start dev server (http://localhost:5173)
+npm run dev          # Start dev server (http://192.168.8.85:5173)
 npm run preview      # Preview production build
 
 # Build & Quality
@@ -57,7 +57,7 @@ src/
 └── components/   # Legacy UI components (ConflictResolutionDialog, DataTable, FileUpload, etc.)
 ```
 
-**Note**: The project is in transition to FSD architecture. Current entities include: chessboard, documentation, documentation-tags, and rates.
+**Note**: The project is in transition to FSD architecture. Current entities include: chessboard, documentation, documentation-tags, rates, materials, and disk.
 
 ### Key Patterns
 - **Public API**: Each slice exposes through `index.ts`
@@ -74,11 +74,12 @@ src/
 - **Error Handling**: All Supabase queries must include error handling
 
 ### Key Directories
-- `src/entities/` - Domain entities (chessboard, documentation, rates, materials, etc.)
+- `src/entities/` - Domain entities (chessboard, documentation, documentation-tags, rates, materials, disk)
 - `src/pages/` - Main application pages organized by sections (admin/, documents/, references/)
 - `src/features/auth/` - Authentication logic using Supabase
 - `src/shared/contexts/` - React contexts for global state (LogoContext, ScaleContext)
 - `src/lib/supabase.ts` - Supabase client configuration
+- `src/components/` - Legacy UI components being migrated to FSD structure
 
 ## Core Features
 
@@ -381,6 +382,21 @@ From technical specification (`tech_task.md`):
    - `sticky` - для закрепления заголовков
    - `scroll.y: calc(100vh - 300px)` - фиксированная высота, НЕ используйте `100%` или `auto`
    - Для страниц с пагинацией: `scroll.y: calc(100vh - 350px)`
+
+## Application Structure Notes
+
+### Multi-Select Filter Support
+In the Chessboard component, all filters except "Проект" (Project) support multiple selection. The project filter remains single-select as it's the primary filter that determines data scope. All other filters (Корпус, Категория затрат, Вид затрат, Раздел, Шифр документа) should allow users to select multiple values for more flexible data filtering.
+
+### Entity Pattern
+All entities follow the same structure:
+- `api/entity-name-api.ts` - API functions for server communication
+- `model/types.ts` - TypeScript types and interfaces
+- `index.ts` - Public API exports
+
+### Context Providers
+- `LogoContext` - Manages light and dark theme logos with localStorage persistence
+- `ScaleContext` - Handles UI scaling for responsive design
 
 ## Important Notes
 - Excel import headers are flexible - use fuzzy matching
