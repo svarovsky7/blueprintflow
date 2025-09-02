@@ -6,24 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **ВАЖНО**: Все ответы, комментарии, сообщения об ошибках, диалоги и любое другое общение с пользователем должно быть на русском языке. Код и технические термины остаются на английском.
 
-## Project Overview
-
-BlueprintFlow is a React-based construction management portal for analyzing work documentation and cost estimation department of a construction general contractor. The system supports OAuth 2.0 authentication, Excel import capabilities, and real-time collaboration features for a team of 200+ employees.
-
-## Tech Stack
-- **Frontend**: React 19.1, TypeScript 5.8 (strict mode), Vite 7.0
-- **UI Library**: Ant Design 5.21 with Vibe design approach
-- **State Management**: TanStack Query 5.59+ (server state), Zustand 5.0+ (auth state)
-- **Backend**: Supabase 2.47+ (PostgreSQL 17, Auth, Storage, Edge Functions, Realtime WebSocket)
-- **Authentication**: Supabase Auth with OAuth 2.0 (Google, Microsoft) and MFA support
-- **Observability**: Sentry, Grafana Cloud, OpenTelemetry
-- **Excel Processing**: xlsx 0.18 library for import/export
-- **Utilities**: Day.js 1.11 for dates
-- **Routing**: React Router DOM 6.27
-- **Development**: ESLint, Prettier, dotenv for environment management
-- **Editor**: WebStorm
-
-## Commands
+## Common Development Commands
 
 ```bash
 # Development
@@ -37,9 +20,6 @@ npm run lint         # ESLint check (MUST pass before commit)
 npm run format       # Prettier formatting
 npm run format:check # Check formatting without changes
 npx tsc --noEmit    # Type checking only (standalone)
-
-# Database Operations
-node -e "import('@supabase/supabase-js').then(m => {const c = m.createClient('https://hfqgcaxmufzitdfafdlp.supabase.co', process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhmcWdjYXhtdWZ6aXRkZmFmZGxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4OTI5MjMsImV4cCI6MjA3MDQ2ODkyM30.XnOEKdwZdJM-DilhrjZ7PdzHU2rx3L72oQ1rJYo5pXc'); c.from('TABLE_NAME').select('*', {count: 'exact', head: true}).then(r => console.log('Count:', r.count)).catch(console.error)})"  # Quick table count
 ```
 
 ## Pre-commit Checklist
@@ -48,7 +28,20 @@ node -e "import('@supabase/supabase-js').then(m => {const c = m.createClient('ht
 3. Run `npm run build` and ensure project builds successfully
 4. Follow Conventional Commits format (`feat:`, `fix:`, `chore:`, etc.)
 
-## Architecture
+## Architecture Overview
+
+### Tech Stack
+- **Frontend**: React 19.1, TypeScript 5.8 (strict mode), Vite 7.0
+- **UI Library**: Ant Design 5.21 with Vibe design approach
+- **State Management**: TanStack Query 5.59+ (server state), Zustand 5.0+ (auth state)
+- **Backend**: Supabase 2.47+ (PostgreSQL 17, Auth, Storage, Edge Functions, Realtime WebSocket)
+- **Authentication**: Supabase Auth with OAuth 2.0 (Google, Microsoft) and MFA support
+- **Observability**: Sentry, Grafana Cloud, OpenTelemetry
+- **Excel Processing**: xlsx 0.18 library for import/export
+- **Utilities**: Day.js 1.11 for dates
+- **Routing**: React Router DOM 6.27
+- **Development**: ESLint, Prettier, dotenv for environment management
+- **Editor**: WebStorm
 
 ### Feature-Sliced Design (FSD) Structure
 ```
@@ -80,12 +73,38 @@ src/
 - **API Files**: Named as `entity-name-api.ts` in `entities/*/api/`
 - **Error Handling**: All Supabase queries must include error handling
 
-## Database
+### Key Directories
+- `src/entities/` - Domain entities (chessboard, documentation, rates, materials, etc.)
+- `src/pages/` - Main application pages organized by sections (admin/, documents/, references/)
+- `src/features/auth/` - Authentication logic using Supabase
+- `src/shared/contexts/` - React contexts for global state (LogoContext, ScaleContext)
+- `src/lib/supabase.ts` - Supabase client configuration
 
-**CRITICAL**: Always reference `supabase/schemas/prod.sql` for current database structure.
+## Core Features
 
+### Chessboard Component (`src/pages/documents/Chessboard.tsx`)
+- Complex material tracking with Excel import
+- Hierarchical filtering: Project → Block → Cost Category → Cost Type
+- Real-time inline editing with optimistic locking
+- Row coloring system for visual categorization
+- Cascading dropdowns with automatic location assignment
+- Column settings persistence in localStorage
+
+### Excel Import Requirements
+- Headers use fuzzy matching for: "материал", "кол", "ед" columns
+- Support drag-and-drop upload up to 250 MB
+- Store original files in Supabase Storage
+- Import 5,000 rows ≤ 30 seconds (performance target)
+
+### Real-time Collaboration
+- Supabase Realtime WebSocket channels
+- Optimistic locking for concurrent editing
+- Conflict resolver: Merge/Overwrite/Rollback options
+- Latency < 300ms for real-time sync
 
 ## Database Integration
+
+**CRITICAL**: Always reference `supabase/schemas/prod.sql` for current database structure.
 
 ### Supabase Configuration
 Environment variables required:
@@ -96,22 +115,6 @@ VITE_STORAGE_BUCKET=<storage_url>
 ```
 
 Configuration: `src/lib/supabase.ts`
-
-### MCP Server Setup
-The project includes `.mcp.json` configuration for Claude Code to automatically connect to Supabase:
-
-**IMPORTANT**: To enable MCP server functionality, you need to:
-1. Set `SUPABASE_ACCESS_TOKEN` in your environment or update `.mcp.json`
-2. Claude Code will automatically initialize the MCP server on startup
-3. Use MCP tools for database operations instead of manual queries
-
-Quick database inspection:
-```bash
-# Count records in any table (replace TABLE_NAME)
-node -e "import('@supabase/supabase-js').then(m => {const c = m.createClient('https://hfqgcaxmufzitdfafdlp.supabase.co', process.env.VITE_SUPABASE_ANON_KEY); c.from('TABLE_NAME').select('*', {count: 'exact', head: true}).then(r => console.log('Count:', r.count)).catch(console.error)})"
-
-# Or use MCP server tools when available (preferred)
-```
 
 ### Database Deployment
 Deploy database schema:
@@ -154,28 +157,6 @@ if (error) {
   throw error;
 }
 ```
-
-## Core Features
-
-### Chessboard Component (`src/pages/documents/Chessboard.tsx`)
-- Complex material tracking with Excel import
-- Hierarchical filtering: Project → Block → Cost Category → Cost Type
-- Real-time inline editing with optimistic locking
-- Row coloring system for visual categorization
-- Cascading dropdowns with automatic location assignment
-- Column settings persistence in localStorage
-
-### Excel Import Requirements
-- Headers use fuzzy matching for: "материал", "кол", "ед" columns
-- Support drag-and-drop upload up to 250 MB
-- Store original files in Supabase Storage
-- Import 5,000 rows ≤ 30 seconds (performance target)
-
-### Real-time Collaboration
-- Supabase Realtime WebSocket channels
-- Optimistic locking for concurrent editing
-- Conflict resolver: Merge/Overwrite/Rollback options
-- Latency < 300ms for real-time sync
 
 ## Performance Requirements
 
@@ -263,53 +244,6 @@ From technical specification (`tech_task.md`):
 - Build info cached in `node_modules/.tmp/`
 - Module resolution: bundler mode with ESNext modules
 
-## Current Pages Structure
-
-### Documents (`/documents/*`)
-- Chessboard (`src/pages/documents/Chessboard.tsx`) - Complex material tracking with Excel import, filtering, and inline editing
-- VOR (`src/pages/documents/Vor.tsx`) - Volume of work documentation
-
-### References (`/references/*`)
-- Units (`src/pages/references/Units.tsx`) - Units of measurement
-- Cost Categories (`src/pages/references/CostCategories.tsx`) - Cost categorization
-- Projects (`src/pages/references/Projects.tsx`) - Project management
-- Locations (`src/pages/references/Locations.tsx`) - Location management
-- Documentation (`src/pages/references/Documentation.tsx`) - Project documentation with "Document" template
-- Rates (`src/pages/references/Rates.tsx`) - Rate management
-
-### Admin Pages (`/admin/*`)
-- Documentation Tags (`src/pages/admin/DocumentationTags.tsx`) - Tag management
-- Statuses (`src/pages/admin/Statuses.tsx`) - Status management
-
-### Additional Pages
-- Dashboard (`src/pages/Dashboard.tsx`) - Analytics widgets for completed work
-- Blueprints PD/RD (`src/pages/BlueprintsPD.tsx`, `src/pages/BlueprintsRD.tsx`) - Blueprint management
-- Estimate/Smeta (`src/pages/Estimate.tsx`, `src/pages/Smeta.tsx`) - Cost estimation pages
-
-## Git Workflow
-- Work in feature branches
-- Submit changes via Pull Request
-- Use Conventional Commits format (`feat:`, `fix:`, `chore:`, etc.)
-- Update documentation as needed
-
-## Deployment
-- Frontend: GitHub Actions → Vercel
-- Backend: Supabase Cloud
-- Configure Sentry and Grafana Cloud for monitoring
-
-## Additional Features
-- Onboarding wizard for new users
-- AI-powered suggestions (Codex integration)
-- Analytics dashboard (win-rate, cost dynamics)
-- Full action history logging
-
-## Important Files
-- `tech_task.md` - Technical specification with performance requirements
-- `supabase.sql` - Database schema
-- `sql/` - Migration scripts
-- `.env.local` - Environment variables (contains actual Supabase credentials)
-- `.mcp.json` - MCP server configuration for Claude Code database access
-
 ## UI Templates
 
 ### Шаблон "Документ" (Document Template)
@@ -381,55 +315,13 @@ From technical specification (`tech_task.md`):
 - **Обработка конфликтов** при импорте
 - **Экспорт в Excel** текущих отфильтрованных данных
 
-#### 9. Технические требования
-```typescript
-// Структура компонента
-interface DocumentTemplateProps {
-  // Основные данные
-  data: any[]
-  loading: boolean
-  
-  // Фильтры
-  filters: Record<string, any>
-  onFiltersChange: (filters: Record<string, any>) => void
-  
-  // Режимы
-  mode: 'view' | 'add' | 'edit' | 'delete'
-  
-  // Колбэки
-  onSave: (rows: any[]) => Promise<void>
-  onDelete: (ids: string[]) => Promise<void>
-  onImport: (data: any[]) => Promise<void>
-}
+#### 9. Цветовая схема строк:
+- green: #d9f7be
+- yellow: #fff1b8
+- blue: #e6f7ff
+- red: #ffa39e
 
-// Состояния для управления столбцами
-const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({})
-const [columnOrder, setColumnOrder] = useState<string[]>([])
-
-// Функции управления столбцами  
-const toggleColumnVisibility = (key: string) => void
-const selectAllColumns = (select: boolean, allColumns: Array<{key: string, title: string}>) => void
-const resetToDefaults = (allColumns: Array<{key: string, title: string}>) => void
-const moveColumn = (key: string, direction: 'up' | 'down') => void
-
-// Сохранение настроек в localStorage
-localStorage.setItem('{page-name}-column-visibility', JSON.stringify(columnVisibility))
-localStorage.setItem('{page-name}-column-order', JSON.stringify(columnOrder))
-```
-
-#### 10. Стили и верстка
-- **Ant Design компоненты** для единообразия
-- **Responsive дизайн** с адаптацией под разные экраны
-- **Минимальная высота таблицы**: calc(100vh - 300px)
-- **Размер кнопок**: Стандартный размер (без указания size="large") для всех кнопок включая "Добавить", для соответствия странице Шахматка
-- **Кнопки в столбце "Действия"**: Только иконки без текста (title/tooltip разрешен)
-- **Цветовая схема строк**:
-  - green: #d9f7be
-  - yellow: #fff1b8
-  - blue: #e6f7ff
-  - red: #ffa39e
-
-#### Пример использования шаблона
+### Пример использования шаблона
 
 При создании новой страницы с применением шаблона "Документ":
 
@@ -489,36 +381,6 @@ localStorage.setItem('{page-name}-column-order', JSON.stringify(columnOrder))
    - `sticky` - для закрепления заголовков
    - `scroll.y: calc(100vh - 300px)` - фиксированная высота, НЕ используйте `100%` или `auto`
    - Для страниц с пагинацией: `scroll.y: calc(100vh - 350px)`
-
-#### Частые ошибки, приводящие к двойному скроллу:
-
-❌ **НЕ ДЕЛАЙТЕ ТАК:**
-```tsx
-// Неправильно - создаст двойной скролл
-<div style={{ overflow: 'auto' }}>  // Создаст дополнительный скролл
-  <Table scroll={{ y: '100%' }} />  // Может не работать правильно
-</div>
-
-// Неправильно - непредсказуемая высота
-<div>  // Без фиксированной высоты
-  <Table scroll={{ y: 'auto' }} />  // Непредсказуемое поведение
-</div>
-```
-
-#### Проверка корректности:
-
-После внесения изменений проверьте:
-1. При прокрутке таблицы меню, шапка и фильтры остаются на месте
-2. Есть только один вертикальный скролл - внутри таблицы
-3. Горизонтальный скролл таблицы (если есть) находится внизу видимой области
-4. При изменении размера окна структура адаптируется корректно
-
-#### Пример для страниц Документация, Расценки, Шахматка:
-
-Все три страницы используют единую структуру:
-- Высота контейнера: `calc(100vh - 96px)`
-- Контейнер таблицы: `overflow: hidden`
-- Скролл таблицы: `y: calc(100vh - 300px)` или `350px` с пагинацией
 
 ## Important Notes
 - Excel import headers are flexible - use fuzzy matching
