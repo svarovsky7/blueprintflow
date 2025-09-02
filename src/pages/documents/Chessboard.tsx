@@ -910,6 +910,12 @@ export default function Chessboard() {
       const blockName = appliedFilters.blockId && appliedFilters.blockId.length > 0
         ? (blocks?.find((b) => b.id === appliedFilters.blockId![0])?.name ?? '')
         : ''
+      const tagData = appliedFilters.tagId && appliedFilters.tagId.length === 1
+        ? sortedDocumentationTags.find((t) => String(t.id) === appliedFilters.tagId![0])
+        : undefined
+      const docData = appliedFilters.documentationId && appliedFilters.documentationId.length === 1
+        ? documentations?.find((d: DocumentationRecord) => d.id === appliedFilters.documentationId![0])
+        : undefined
       setRows((prev) => {
         const newRow = emptyRow({
           blockId: appliedFilters.blockId && appliedFilters.blockId.length > 0 ? appliedFilters.blockId[0] : '',
@@ -917,13 +923,18 @@ export default function Chessboard() {
           costTypeId: appliedFilters.typeId && appliedFilters.typeId.length > 0 ? appliedFilters.typeId[0] : '',
           locationId: defaultLocationId,
           block: blockName,
+          tagId: tagData ? String(tagData.id) : '',
+          tagName: tagData?.name ?? '',
+          tagNumber: tagData?.tag_number ?? null,
+          documentationId: docData?.id ?? '',
+          projectCode: docData?.project_code ?? '',
         })
         const next = [...prev]
         next.splice(index + 1, 0, newRow)
         return next
       })
     },
-    [appliedFilters, costTypes, blocks],
+    [appliedFilters, costTypes, blocks, sortedDocumentationTags, documentations],
   )
 
   const copyRow = useCallback((index: number) => {
@@ -1233,6 +1244,12 @@ export default function Chessboard() {
     const blockName = appliedFilters.blockId && appliedFilters.blockId.length > 0
       ? (blocks?.find((b) => b.id === appliedFilters.blockId![0])?.name ?? '')
       : ''
+    const tagData = appliedFilters.tagId && appliedFilters.tagId.length === 1
+      ? sortedDocumentationTags.find((t) => String(t.id) === appliedFilters.tagId![0])
+      : undefined
+    const docData = appliedFilters.documentationId && appliedFilters.documentationId.length === 1
+      ? documentations?.find((d: DocumentationRecord) => d.id === appliedFilters.documentationId![0])
+      : undefined
     setRows([
       emptyRow({
         blockId: appliedFilters.blockId && appliedFilters.blockId.length > 0 ? appliedFilters.blockId[0] : '',
@@ -1240,10 +1257,15 @@ export default function Chessboard() {
         costTypeId: appliedFilters.typeId && appliedFilters.typeId.length > 0 ? appliedFilters.typeId[0] : '',
         locationId: defaultLocationId,
         block: blockName,
+        tagId: tagData ? String(tagData.id) : '',
+        tagName: tagData?.name ?? '',
+        tagNumber: tagData?.tag_number ?? null,
+        documentationId: docData?.id ?? '',
+        projectCode: docData?.project_code ?? '',
       }),
     ])
     setMode('add')
-  }, [appliedFilters, costTypes, blocks])
+  }, [appliedFilters, costTypes, blocks, sortedDocumentationTags, documentations])
 
   const startEdit = useCallback(
     (id: string) => {
@@ -1880,7 +1902,7 @@ export default function Chessboard() {
               return (
                 <Select
                   style={{ width: 200 }}
-                  value={record.tagId}
+                  value={record.tagId || (appliedFilters?.tagId?.length === 1 ? appliedFilters.tagId[0] : undefined)}
                   onChange={(value) => {
                     handleRowChange(record.key, 'tagId', value)
                     const tag = sortedDocumentationTags.find((t) => String(t.id) === value)
@@ -1906,7 +1928,7 @@ export default function Chessboard() {
               return (
                 <Select
                   style={{ width: 150 }}
-                  value={record.documentationId}
+                  value={record.documentationId || (appliedFilters?.documentationId?.length === 1 ? appliedFilters.documentationId[0] : undefined)}
                   onChange={(value) => {
                     handleRowChange(record.key, 'documentationId', value)
                     const doc = documentations?.find((d: DocumentationRecord) => d.id === value)
@@ -2032,7 +2054,7 @@ export default function Chessboard() {
               return (
                 <Select
                   style={{ width: 120 }}
-                  value={record.blockId}
+                  value={record.blockId || (appliedFilters?.blockId?.length === 1 ? appliedFilters.blockId[0] : undefined)}
                   onChange={(value) => {
                     handleRowChange(record.key, 'blockId', value)
                     const name = blocks?.find((b) => b.id === value)?.name ?? ''
@@ -2054,7 +2076,7 @@ export default function Chessboard() {
               return (
                 <Select
                   style={{ width: 200 }}
-                  value={record.costCategoryId}
+                  value={record.costCategoryId || (appliedFilters?.categoryId?.length === 1 ? appliedFilters.categoryId[0] : undefined)}
                   onChange={(value) => {
                     handleRowChange(record.key, 'costCategoryId', value)
                     handleRowChange(record.key, 'costTypeId', '')
@@ -2080,7 +2102,7 @@ export default function Chessboard() {
               return (
                 <Select
                   style={{ width: 200 }}
-                  value={record.costTypeId}
+                  value={record.costTypeId || (appliedFilters?.typeId?.length === 1 ? appliedFilters.typeId[0] : undefined)}
                   onChange={(value) => {
                     handleRowChange(record.key, 'costTypeId', value)
                     const loc = costTypes?.find((t) => t.id === Number(value))?.location_id
@@ -3033,6 +3055,50 @@ export default function Chessboard() {
                   .includes(input.toLowerCase())
               }}
             />
+            <Select
+              placeholder="Раздел"
+              style={{ width: 200 }}
+              value={filters.tagId}
+              onChange={(value) =>
+                setFilters((f) => ({ ...f, tagId: value, documentationId: undefined }))
+              }
+              options={sortedDocumentationTags.map((tag) => ({
+                value: String(tag.id),
+                label: tag.name,
+              }))}
+              allowClear
+              showSearch
+              mode="multiple"
+              filterOption={(input, option) => {
+                const text = (option?.label ?? '').toString()
+                return text.toLowerCase().includes(input.toLowerCase())
+              }}
+            />
+            <Select
+              placeholder="Шифр документа"
+              style={{ width: 200 }}
+              value={filters.documentationId}
+              onChange={(value) => setFilters((f) => ({ ...f, documentationId: value }))}
+              options={
+                documentations
+                  ?.filter(
+                    (doc: DocumentationRecord) =>
+                      !filters.tagId || filters.tagId.length === 0 || (doc.tag_id !== null && filters.tagId.includes(String(doc.tag_id))),
+                  )
+                  .map((doc: DocumentationRecord) => ({
+                    value: doc.id,
+                    label: doc.project_code,
+                  })) ?? []
+              }
+              disabled={!filters.tagId || filters.tagId.length === 0}
+              allowClear
+              showSearch
+              mode="multiple"
+              filterOption={(input, option) => {
+                const text = (option?.label ?? '').toString()
+                return text.toLowerCase().includes(input.toLowerCase())
+              }}
+            />
             <Button type="primary" size="large" onClick={handleApply} disabled={!filters.projectId}>
               Применить
             </Button>
@@ -3226,50 +3292,6 @@ export default function Chessboard() {
                       .map((t) => ({ value: String(t.id), label: t.name })) ?? []
                   }
                   disabled={!filters.categoryId || filters.categoryId.length === 0}
-                  allowClear
-                  showSearch
-                  mode="multiple"
-                  filterOption={(input, option) => {
-                    const text = (option?.label ?? '').toString()
-                    return text.toLowerCase().includes(input.toLowerCase())
-                  }}
-                />
-                <Select
-                  placeholder="Раздел"
-                  style={{ width: 200 }}
-                  value={filters.tagId}
-                  onChange={(value) =>
-                    setFilters((f) => ({ ...f, tagId: value, documentationId: undefined }))
-                  }
-                  options={sortedDocumentationTags.map((tag) => ({
-                    value: String(tag.id),
-                    label: tag.name,
-                  }))}
-                  allowClear
-                  showSearch
-                  mode="multiple"
-                  filterOption={(input, option) => {
-                    const text = (option?.label ?? '').toString()
-                    return text.toLowerCase().includes(input.toLowerCase())
-                  }}
-                />
-                <Select
-                  placeholder="Шифр документа"
-                  style={{ width: 200 }}
-                  value={filters.documentationId}
-                  onChange={(value) => setFilters((f) => ({ ...f, documentationId: value }))}
-                  options={
-                    documentations
-                      ?.filter(
-                        (doc: DocumentationRecord) =>
-                          !filters.tagId || filters.tagId.length === 0 || filters.tagId.includes(String(doc.tag_id)),
-                      )
-                      .map((doc: DocumentationRecord) => ({
-                        value: doc.id,
-                        label: doc.project_code,
-                      })) ?? []
-                  }
-                  disabled={!filters.tagId || filters.tagId.length === 0}
                   allowClear
                   showSearch
                   mode="multiple"
