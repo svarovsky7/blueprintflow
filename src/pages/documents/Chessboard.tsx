@@ -569,6 +569,151 @@ export default function Chessboard() {
     [],
   )
 
+  // Функция для создания многострочного заголовка
+  const createMultilineTitle = useCallback((title: string): React.ReactNode => {
+    const multilineMap: Record<string, string> = {
+      'Шифр проекта': 'Шифр\nпроекта',
+      'Кол-во по ПД': 'Кол-во\nпо ПД',
+      'Кол-во по спеке РД': 'Кол-во по\nспеке РД',
+      'Кол-во по пересчету РД': 'Кол-во по\nпересчету РД',
+      'Наименование поставщика': 'Наименование\nпоставщика',
+      'Категория затрат': 'Категория\nзатрат',
+      'Вид затрат': 'Вид\nзатрат',
+      'Наименование работ': 'Наименование\nработ',
+    }
+
+    const multilineText = multilineMap[title]
+    if (multilineText) {
+      return (
+        <div style={{ whiteSpace: 'pre-line', textAlign: 'center', lineHeight: '1.2' }}>
+          {multilineText}
+        </div>
+      )
+    }
+
+    return title
+  }, [])
+
+  // Функция для вычисления динамической ширины столбца
+  const calculateColumnWidth = useCallback((
+    dataIndex: string,
+    title: string,
+    data: (RowData | ViewRow)[],
+    maxWidth: number
+  ): number => {
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d')
+    if (!context) return maxWidth
+
+    // Устанавливаем шрифт как в таблице Ant Design
+    context.font = '14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    
+    let maxContentWidth = 0
+
+    // Измеряем ширину заголовка (для многострочных заголовков берем максимальную ширину строки)
+    const multilineMap: Record<string, string> = {
+      'Шифр проекта': 'Шифр\nпроекта',
+      'Кол-во по ПД': 'Кол-во\nпо ПД',
+      'Кол-во по спеке РД': 'Кол-во по\nспеке РД',
+      'Кол-во по пересчету РД': 'Кол-во по\nпересчету РД',
+      'Наименование поставщика': 'Наименование\nпоставщика',
+      'Категория затрат': 'Категория\nзатрат',
+      'Вид затрат': 'Вид\nзатрат',
+      'Наименование работ': 'Наименование\nработ',
+    }
+
+    const multilineText = multilineMap[title]
+    if (multilineText) {
+      // Для многострочных заголовков измеряем каждую строку и берем максимальную
+      const lines = multilineText.split('\n')
+      const titleWidth = Math.max(...lines.map(line => context.measureText(line).width))
+      maxContentWidth = Math.max(maxContentWidth, titleWidth)
+    } else {
+      const titleWidth = context.measureText(title).width
+      maxContentWidth = Math.max(maxContentWidth, titleWidth)
+    }
+
+    // Измеряем ширину контента в каждой строке
+    data.forEach((row) => {
+      let value = ''
+      
+      // Получаем значение в зависимости от типа столбца
+      if (dataIndex === 'tagName' && 'tagName' in row) {
+        value = row.tagName || ''
+      } else if (dataIndex === 'projectCode' && 'projectCode' in row) {
+        value = row.projectCode || ''
+      } else if (dataIndex === 'material') {
+        value = row.material || ''
+      } else if (dataIndex === 'quantityPd') {
+        value = row.quantityPd || ''
+      } else if (dataIndex === 'quantitySpec') {
+        value = row.quantitySpec || ''
+      } else if (dataIndex === 'quantityRd') {
+        value = row.quantityRd || ''
+      } else if (dataIndex === 'nomenclatureId' || dataIndex === 'nomenclature') {
+        if ('nomenclature' in row) {
+          value = row.nomenclature || ''
+        } else {
+          // Для добавления строк ищем по nomenclatureId
+          value = row.nomenclatureId || ''
+        }
+      } else if (dataIndex === 'supplier') {
+        value = row.supplier || ''
+      } else if (dataIndex === 'unitId' || dataIndex === 'unit') {
+        if ('unit' in row) {
+          value = row.unit || ''
+        } else {
+          // Для добавления строк ищем по unitId
+          value = row.unitId || ''
+        }
+      } else if (dataIndex === 'block') {
+        value = row.block || ''
+      } else if (dataIndex === 'floors') {
+        value = row.floors || ''
+      } else if (dataIndex === 'costCategoryId' || dataIndex === 'costCategory') {
+        if ('costCategory' in row) {
+          value = row.costCategory || ''
+        } else {
+          // Для добавления строк ищем по costCategoryId
+          value = row.costCategoryId || ''
+        }
+      } else if (dataIndex === 'costTypeId' || dataIndex === 'costType') {
+        if ('costType' in row) {
+          value = row.costType || ''
+        } else {
+          // Для добавления строк ищем по costTypeId
+          value = row.costTypeId || ''
+        }
+      } else if (dataIndex === 'rateId' || dataIndex === 'workName') {
+        if ('workName' in row) {
+          value = row.workName || ''
+        } else {
+          // Для добавления строк ищем по rateId
+          value = row.rateId || ''
+        }
+      } else if (dataIndex === 'locationId' || dataIndex === 'location') {
+        if ('location' in row) {
+          value = row.location || ''
+        } else {
+          // Для добавления строк ищем по locationId
+          value = row.locationId || ''
+        }
+      }
+
+      if (value) {
+        const contentWidth = context.measureText(String(value)).width
+        maxContentWidth = Math.max(maxContentWidth, contentWidth)
+      }
+    })
+
+    // Добавляем отступы (padding) и возможность для иконок/кнопок
+    const padding = 32 // 16px с каждой стороны
+    const calculatedWidth = maxContentWidth + padding
+
+    // Ограничиваем максимальной шириной
+    return Math.min(calculatedWidth, maxWidth)
+  }, [])
+
   const { data: costCategories } = useQuery<CostCategoryOption[]>({
     queryKey: ['costCategories'],
     queryFn: async () => {
@@ -1828,28 +1973,29 @@ export default function Chessboard() {
       title: string
       dataIndex: keyof TableRow
       width?: number
+      maxWidth: number
       align?: 'left' | 'right' | 'center'
     }> = [
-      { title: 'Раздел', dataIndex: 'tagName', width: 200 },
-      { title: 'Шифр проекта', dataIndex: 'projectCode', width: 150 },
-      { title: 'Материал', dataIndex: 'material', width: 300 },
-      { title: 'Кол-во по ПД', dataIndex: 'quantityPd', width: 120, align: 'center' },
-      { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', width: 150, align: 'center' },
+      { title: 'Раздел', dataIndex: 'tagName', maxWidth: 200 },
+      { title: 'Шифр проекта', dataIndex: 'projectCode', maxWidth: 150 },
+      { title: 'Материал', dataIndex: 'material', maxWidth: 300 },
+      { title: 'Кол-во по ПД', dataIndex: 'quantityPd', maxWidth: 120, align: 'center' },
+      { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', maxWidth: 150, align: 'center' },
       {
         title: 'Кол-во по пересчету РД',
         dataIndex: 'quantityRd',
-        width: 180,
+        maxWidth: 180,
         align: 'center',
       },
-      { title: 'Номенклатура', dataIndex: 'nomenclatureId', width: 250 },
-      { title: 'Наименование поставщика', dataIndex: 'supplier', width: 250 },
-      { title: 'Ед.изм.', dataIndex: 'unitId', width: 160 },
-      { title: 'Корпус', dataIndex: 'block', width: 120 },
-      { title: 'Этажи', dataIndex: 'floors', width: 150 },
-      { title: 'Категория затрат', dataIndex: 'costCategoryId', width: 200 },
-      { title: 'Вид затрат', dataIndex: 'costTypeId', width: 200 },
-      { title: 'Наименование работ', dataIndex: 'rateId', width: 300 },
-      { title: 'Локализация', dataIndex: 'locationId', width: 200 },
+      { title: 'Номенклатура', dataIndex: 'nomenclatureId', maxWidth: 250 },
+      { title: 'Наименование поставщика', dataIndex: 'supplier', maxWidth: 250 },
+      { title: 'Ед.изм.', dataIndex: 'unitId', maxWidth: 160 },
+      { title: 'Корпус', dataIndex: 'block', maxWidth: 120 },
+      { title: 'Этажи', dataIndex: 'floors', maxWidth: 150 },
+      { title: 'Категория затрат', dataIndex: 'costCategoryId', maxWidth: 200 },
+      { title: 'Вид затрат', dataIndex: 'costTypeId', maxWidth: 200 },
+      { title: 'Наименование работ', dataIndex: 'rateId', maxWidth: 300 },
+      { title: 'Локализация', dataIndex: 'locationId', maxWidth: 200 },
     ]
 
     const dataColumns = base
@@ -2174,7 +2320,24 @@ export default function Chessboard() {
           }
         }
 
-        return { ...col, filters, filterSearch: true, sorter, onFilter, render }
+        // Вычисляем динамическую ширину столбца
+        const dynamicWidth = calculateColumnWidth(
+          col.dataIndex as string,
+          col.title,
+          rows,
+          col.maxWidth
+        )
+
+        return { 
+          ...col, 
+          title: createMultilineTitle(col.title),
+          width: dynamicWidth, 
+          filters, 
+          filterSearch: true, 
+          sorter, 
+          onFilter, 
+          render 
+        }
       })
 
     return [
@@ -2234,6 +2397,9 @@ export default function Chessboard() {
     ]
   }, [
     viewRows,
+    rows,
+    calculateColumnWidth,
+    createMultilineTitle,
     handleRowChange,
     units,
     costCategories,
@@ -2248,7 +2414,6 @@ export default function Chessboard() {
     addRow,
     copyRow,
     deleteRow,
-    rows,
     hiddenCols,
     columnVisibility,
     columnOrder,
@@ -2284,28 +2449,29 @@ export default function Chessboard() {
       title: string
       dataIndex: string
       width?: number
+      maxWidth: number
       align?: 'left' | 'right' | 'center'
     }> = [
-      { title: 'Раздел', dataIndex: 'tagName', width: 200 },
-      { title: 'Шифр проекта', dataIndex: 'projectCode', width: 150 },
-      { title: 'Материал', dataIndex: 'material', width: 300 },
-      { title: 'Кол-во по ПД', dataIndex: 'quantityPd', width: 120, align: 'center' },
-      { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', width: 150, align: 'center' },
+      { title: 'Раздел', dataIndex: 'tagName', maxWidth: 200 },
+      { title: 'Шифр проекта', dataIndex: 'projectCode', maxWidth: 150 },
+      { title: 'Материал', dataIndex: 'material', maxWidth: 300 },
+      { title: 'Кол-во по ПД', dataIndex: 'quantityPd', maxWidth: 120, align: 'center' },
+      { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', maxWidth: 150, align: 'center' },
       {
         title: 'Кол-во по пересчету РД',
         dataIndex: 'quantityRd',
-        width: 180,
+        maxWidth: 180,
         align: 'center',
       },
-      { title: 'Номенклатура', dataIndex: 'nomenclature', width: 250 },
-      { title: 'Наименование поставщика', dataIndex: 'supplier', width: 250 },
-      { title: 'Ед.изм.', dataIndex: 'unit', width: 160 },
-      { title: 'Корпус', dataIndex: 'block', width: 120 },
-      { title: 'Этажи', dataIndex: 'floors', width: 150 },
-      { title: 'Категория затрат', dataIndex: 'costCategory', width: 200 },
-      { title: 'Вид затрат', dataIndex: 'costType', width: 200 },
-      { title: 'Наименование работ', dataIndex: 'workName', width: 300 },
-      { title: 'Локализация', dataIndex: 'location', width: 200 },
+      { title: 'Номенклатура', dataIndex: 'nomenclature', maxWidth: 250 },
+      { title: 'Наименование поставщика', dataIndex: 'supplier', maxWidth: 250 },
+      { title: 'Ед.изм.', dataIndex: 'unit', maxWidth: 160 },
+      { title: 'Корпус', dataIndex: 'block', maxWidth: 120 },
+      { title: 'Этажи', dataIndex: 'floors', maxWidth: 150 },
+      { title: 'Категория затрат', dataIndex: 'costCategory', maxWidth: 200 },
+      { title: 'Вид затрат', dataIndex: 'costType', maxWidth: 200 },
+      { title: 'Наименование работ', dataIndex: 'workName', maxWidth: 300 },
+      { title: 'Локализация', dataIndex: 'location', maxWidth: 200 },
     ]
 
     const dataColumns = base
@@ -2635,8 +2801,18 @@ export default function Chessboard() {
           }
         }
 
+        // Вычисляем динамическую ширину столбца
+        const dynamicWidth = calculateColumnWidth(
+          col.dataIndex,
+          col.title,
+          viewRows,
+          col.maxWidth
+        )
+
         return {
           ...col,
+          title: createMultilineTitle(col.title),
+          width: dynamicWidth,
           filterSearch: true,
           sorter:
             col.dataIndex === 'tagName'
@@ -2707,6 +2883,8 @@ export default function Chessboard() {
     return checkboxColumn ? [checkboxColumn, ...finalColumns] : finalColumns
   }, [
     viewRows,
+    calculateColumnWidth,
+    createMultilineTitle,
     editingRows,
     handleEditChange,
     startEdit,
