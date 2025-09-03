@@ -1834,11 +1834,32 @@ export default function Chessboard() {
             return null // Не создаем mapping если нет категории
           }
           
+          // Проверяем, что выбранная категория действительно существует в справочнике
+          const categoryExists = costCategories?.some(cat => cat.id === categoryId)
+          if (!categoryExists) {
+            console.warn(`Категория затрат с ID ${categoryId} не найдена в справочнике`)
+            return null // Не создаем mapping если категория не существует
+          }
+          
+          // Проверяем тип затрат, если он выбран
+          let typeId: number | null = null
+          if (importState.typeId && importState.typeId.length > 0) {
+            const selectedTypeId = Number(importState.typeId[0])
+            const typeExists = costTypes?.find(type => 
+              type.id === selectedTypeId && type.cost_category_id === categoryId
+            )
+            if (typeExists) {
+              typeId = selectedTypeId
+            } else {
+              console.warn(`Тип затрат с ID ${selectedTypeId} не найден или не принадлежит категории ${categoryId}`)
+            }
+          }
+          
           return {
             chessboard_id: d.id,
             block_id: blockId || null,
             cost_category_id: categoryId,
-            cost_type_id: importState.typeId && importState.typeId.length > 0 ? Number(importState.typeId[0]) : null,
+            cost_type_id: typeId,
             location_id: importState.locationId ? Number(importState.locationId) : null,
           }
         })
@@ -2024,7 +2045,7 @@ export default function Chessboard() {
       })
       // Не закрываем модальное окно при ошибке, чтобы пользователь мог исправить данные
     }
-  }, [importFile, importState, message, modal, refetch, units, refetchMaterials, blocks])
+  }, [importFile, importState, message, modal, refetch, units, refetchMaterials, blocks, costCategories, costTypes])
 
   const handleSave = async () => {
     if (!supabase || !appliedFilters) return
