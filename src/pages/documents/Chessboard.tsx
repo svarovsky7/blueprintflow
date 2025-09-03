@@ -37,7 +37,7 @@ import {
   CaretDownFilled,
   UploadOutlined,
 } from '@ant-design/icons'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
 import { documentationApi } from '@/entities/documentation'
@@ -137,6 +137,21 @@ interface FloorModalInfo {
   unit: string
 }
 
+interface Comment {
+  id: string
+  comment_text: string
+  author_id?: number
+  created_at: string
+  updated_at: string
+}
+
+interface CommentWithMapping extends Comment {
+  entity_comments_mapping: {
+    entity_type: string
+    entity_id: string
+  }[]
+}
+
 interface ViewRow {
   key: string
   materialId: string
@@ -160,6 +175,7 @@ interface ViewRow {
   tagName?: string
   tagNumber?: number | null
   projectCode?: string
+  comments?: Comment[]
 }
 
 interface TableRow extends RowData {
@@ -359,6 +375,7 @@ const collapseMap: Record<string, HiddenColKey> = {
 export default function Chessboard() {
   const { message, modal } = App.useApp()
   const { scale } = useScale()
+  const queryClient = useQueryClient()
 
   const [filters, setFilters] = useState<{
     projectId?: string
@@ -402,6 +419,13 @@ export default function Chessboard() {
     tagId?: string
     documentationId?: string
   }>({})
+  
+  // Состояние для модального окна комментариев
+  const [commentsModalOpen, setCommentsModalOpen] = useState(false)
+  const [selectedRowForComments, setSelectedRowForComments] = useState<string>('')
+  const [comments, setComments] = useState<Comment[]>([])
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
+  const [newCommentText, setNewCommentText] = useState('')
 
   const { data: projects } = useQuery<ProjectOption[]>({
     queryKey: ['projects'],
@@ -812,6 +836,17 @@ export default function Chessboard() {
     enabled: !!appliedFilters?.projectId,
   })
 
+  // Загрузка документации для фильтров (до применения)
+  const { data: filterDocumentations } = useQuery<DocumentationRecord[]>({
+    queryKey: ['filter-documentations', filters.projectId],
+    queryFn: async () => {
+      if (!filters.projectId) return []
+      const fetchFilters = { project_id: filters.projectId }
+      return documentationApi.getDocumentation(fetchFilters)
+    },
+    enabled: !!filters.projectId,
+  })
+
   const { data: tableData, refetch } = useQuery<DbRow[]>({
     queryKey: ['chessboard', appliedFilters],
     enabled: !!appliedFilters?.projectId,
@@ -951,9 +986,54 @@ export default function Chessboard() {
     },
   })
 
+  // Запрос комментариев для всех строк
+  const { data: commentsData } = useQuery<CommentWithMapping[]>({
+    queryKey: ['chessboard-comments', appliedFilters?.projectId],
+    enabled: !!appliedFilters?.projectId && !!tableData && tableData.length > 0,
+    queryFn: async () => {
+      if (!supabase || !tableData) return []
+      
+      const chessboardIds = tableData.map(item => item.id)
+      if (chessboardIds.length === 0) return []
+      
+      const { data, error } = await supabase
+        .from('comments')
+        .select('*, entity_comments_mapping!inner(entity_type, entity_id)')
+        .eq('entity_comments_mapping.entity_type', 'chessboard')
+        .in('entity_comments_mapping.entity_id', chessboardIds)
+        .order('created_at', { ascending: false })
+      
+      if (error) {
+        console.error('Ошибка загрузки комментариев:', error)
+        return []
+      }
+      
+      return (data as CommentWithMapping[]) || []
+    }
+  })
+
   const viewRows = useMemo<ViewRow[]>(
-    () =>
-      (tableData ?? []).map((item) => {
+    () => {
+      const commentsMap = new Map<string, Comment[]>()
+      
+      // Группируем комментарии по entity_id
+      if (commentsData) {
+        commentsData.forEach(comment => {
+          const entityId = comment.entity_comments_mapping[0]?.entity_id
+          if (!commentsMap.has(entityId)) {
+            commentsMap.set(entityId, [])
+          }
+          commentsMap.get(entityId)!.push({
+            id: comment.id,
+            comment_text: comment.comment_text,
+            author_id: comment.author_id,
+            created_at: comment.created_at,
+            updated_at: comment.updated_at
+          })
+        })
+      }
+      
+      return (tableData ?? []).map((item) => {
         const documentation = item.chessboard_documentation_mapping?.documentations
         const tag = documentation?.tag
         const sumPd = item.floorQuantities
@@ -1000,9 +1080,11 @@ export default function Chessboard() {
           tagName: tag?.name ?? '',
           tagNumber: tag?.tag_number ?? null,
           projectCode: documentation?.code ?? '',
+          comments: commentsMap.get(item.id) || [],
         }
-      }),
-    [tableData],
+      })
+    },
+    [tableData, commentsData],
   )
 
   const tableRows = useMemo<TableRow[]>(
@@ -1397,6 +1479,127 @@ export default function Chessboard() {
   }, [floorModalRowKey, floorModalData, floorModalIsEdit, editingRows, setEditingRows, setRows])
 
   const cancelFloorModal = useCallback(() => setFloorModalOpen(false), [])
+
+  // Функции для работы с комментариями
+  const openCommentsModal = useCallback(async (rowKey: string) => {
+    setSelectedRowForComments(rowKey)
+    setCommentsModalOpen(true)
+    setNewCommentText('')
+    setEditingCommentId(null)
+    
+    // Загрузка комментариев для строки
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('comments')
+        .select('*, entity_comments_mapping!inner(entity_type, entity_id)')
+        .eq('entity_comments_mapping.entity_type', 'chessboard')
+        .eq('entity_comments_mapping.entity_id', rowKey)
+        .order('created_at', { ascending: false })
+      
+      if (error) {
+        console.error('Ошибка загрузки комментариев:', error)
+      } else {
+        setComments(data || [])
+      }
+    }
+  }, [supabase])
+
+  const closeCommentsModal = useCallback(() => {
+    setCommentsModalOpen(false)
+    setSelectedRowForComments('')
+    setComments([])
+    setNewCommentText('')
+    setEditingCommentId(null)
+  }, [])
+
+  const saveComment = useCallback(async () => {
+    if (!supabase || !newCommentText.trim() || !selectedRowForComments) return
+
+    try {
+      if (editingCommentId) {
+        // Редактирование существующего комментария
+        const { error } = await supabase
+          .from('comments')
+          .update({ 
+            comment_text: newCommentText.trim(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', editingCommentId)
+
+        if (error) throw error
+      } else {
+        // Добавление нового комментария
+        const { data: comment, error: commentError } = await supabase
+          .from('comments')
+          .insert({
+            comment_text: newCommentText.trim(),
+            author_id: null // TODO: добавить информацию о пользователе
+          })
+          .select()
+          .single()
+
+        if (commentError) throw commentError
+
+        // Создание маппинга
+        const { error: mappingError } = await supabase
+          .from('entity_comments_mapping')
+          .insert({
+            entity_type: 'chessboard',
+            entity_id: selectedRowForComments,
+            comment_id: comment.id
+          })
+
+        if (mappingError) throw mappingError
+      }
+
+      // Перезагрузка комментариев в модальном окне
+      await openCommentsModal(selectedRowForComments)
+      setNewCommentText('')
+      setEditingCommentId(null)
+      
+      // Обновление кэша комментариев для таблицы
+      queryClient.invalidateQueries({ queryKey: ['chessboard-comments'] })
+    } catch (error) {
+      console.error('Ошибка сохранения комментария:', error)
+    }
+  }, [supabase, newCommentText, selectedRowForComments, editingCommentId, openCommentsModal, queryClient])
+
+  const startEditComment = useCallback((comment: Comment) => {
+    setEditingCommentId(comment.id)
+    setNewCommentText(comment.comment_text)
+  }, [])
+
+  const deleteComment = useCallback(async (commentId: string) => {
+    if (!supabase) return
+
+    try {
+      // Удаление маппинга
+      const { error: mappingError } = await supabase
+        .from('entity_comments_mapping')
+        .delete()
+        .eq('comment_id', commentId)
+
+      if (mappingError) throw mappingError
+
+      // Удаление самого комментария
+      const { error: commentError } = await supabase
+        .from('comments')
+        .delete()
+        .eq('id', commentId)
+
+      if (commentError) throw commentError
+
+      // Перезагрузка комментариев
+      if (selectedRowForComments) {
+        await openCommentsModal(selectedRowForComments)
+      }
+      
+      // Обновление кэша комментариев для таблицы
+      queryClient.invalidateQueries({ queryKey: ['chessboard-comments'] })
+    } catch (error) {
+      console.error('Ошибка удаления комментария:', error)
+    }
+  }, [supabase, selectedRowForComments, openCommentsModal, queryClient])
 
   const startAdd = useCallback(() => {
     if (!appliedFilters) return
@@ -1869,7 +2072,6 @@ export default function Chessboard() {
             )
             if (typeExists) {
               typeId = selectedTypeId
-            } else {
             }
           }
           
@@ -2269,10 +2471,10 @@ export default function Chessboard() {
       { title: 'Ед.изм.', dataIndex: 'unitId', maxWidth: 160 },
       { title: 'Корпус', dataIndex: 'block', maxWidth: 120 },
       { title: 'Этажи', dataIndex: 'floors', maxWidth: 150 },
-      { title: 'Категория затрат', dataIndex: 'costCategoryId', maxWidth: 200 },
+      { title: 'Категория затрат', dataIndex: 'costCategoryId', minWidth: 120, maxWidth: 200 },
       { title: 'Вид затрат', dataIndex: 'costTypeId', maxWidth: 200 },
       { title: 'Наименование работ', dataIndex: 'rateId', maxWidth: 300 },
-      { title: 'Локализация', dataIndex: 'locationId', maxWidth: 200 },
+      { title: 'Локализация', dataIndex: 'locationId', minWidth: 100, maxWidth: 180 },
     ]
 
     const dataColumns = base
@@ -2749,12 +2951,13 @@ export default function Chessboard() {
       { title: 'Номенклатура', dataIndex: 'nomenclature', maxWidth: 250 },
       { title: 'Наименование поставщика', dataIndex: 'supplier', maxWidth: 250 },
       { title: 'Ед.изм.', dataIndex: 'unit', maxWidth: 160 },
+      { title: 'Комментарии', dataIndex: 'comments', width: 140, maxWidth: 140 },
       { title: 'Корпус', dataIndex: 'block', maxWidth: 120 },
       { title: 'Этажи', dataIndex: 'floors', maxWidth: 150 },
-      { title: 'Категория затрат', dataIndex: 'costCategory', maxWidth: 200 },
+      { title: 'Категория затрат', dataIndex: 'costCategory', minWidth: 120, maxWidth: 200 },
       { title: 'Вид затрат', dataIndex: 'costType', maxWidth: 200 },
       { title: 'Наименование работ', dataIndex: 'workName', maxWidth: 300 },
-      { title: 'Локализация', dataIndex: 'location', maxWidth: 200 },
+      { title: 'Локализация', dataIndex: 'location', minWidth: 100, maxWidth: 180 },
     ]
 
     const dataColumns = base
@@ -2777,14 +2980,51 @@ export default function Chessboard() {
         return aIndex - bIndex
       })
       .map((col) => {
-        const values = Array.from(
-          new Set(viewRows.map((row) => row[col.dataIndex as keyof ViewRow]).filter((v) => v)),
+        // Исключаем comments из фильтров, так как это массив объектов
+        const values = col.dataIndex === 'comments' ? [] : Array.from(
+          new Set(viewRows.map((row) => row[col.dataIndex as keyof ViewRow]).filter((v) => v && typeof v !== 'object')),
         )
         const filters = values.map((v) => ({ text: String(v), value: String(v) }))
 
-        const render: ColumnType<ViewRow>['render'] = (_, record) => {
+        const render: ColumnType<ViewRow>['render'] = (_, record): React.ReactNode => {
           const edit = editingRows[record.key]
           if (!edit) {
+            if (col.dataIndex === 'comments') {
+              const rowComments = record.comments || []
+              if (rowComments.length === 0) {
+                return (
+                  <Button
+                    type="text"
+                    icon={<PlusOutlined />}
+                    onClick={() => openCommentsModal(record.key)}
+                    title="Добавить комментарий"
+                  />
+                )
+              } else {
+                // Показываем последний (самый новый) комментарий
+                const latestComment = rowComments[0]
+                return (
+                  <div
+                    style={{ 
+                      width: '120px',
+                      maxWidth: '120px',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      cursor: 'pointer',
+                      color: '#1890ff',
+                      textDecoration: 'underline',
+                      padding: '4px 0'
+                    }}
+                    onClick={() => openCommentsModal(record.key)}
+                    title={latestComment.comment_text}
+                  >
+                    {latestComment.comment_text}
+                  </div>
+                )
+              }
+            }
+            
             if (
               ['quantityPd', 'quantitySpec', 'quantityRd'].includes(col.dataIndex) &&
               parseFloorsString(record.floors).length > 1 &&
@@ -2796,11 +3036,18 @@ export default function Chessboard() {
                   style={{ padding: 0 }}
                   onClick={() => openFloorModal(record.key, false)}
                 >
-                  {record[col.dataIndex as keyof ViewRow]}
+                  {(() => {
+                    const value = record[col.dataIndex as keyof ViewRow]
+                    return Array.isArray(value) ? '' : value
+                  })()}
                 </Button>
               )
             }
-            return record[col.dataIndex as keyof ViewRow]
+            // Исключаем comments из обычного рендера - они обрабатываются выше
+            if (col.dataIndex === 'comments') return null
+            
+            const value = record[col.dataIndex as keyof ViewRow]
+            return Array.isArray(value) ? null : value
           }
           switch (col.dataIndex) {
             case 'tagName':
@@ -3079,8 +3326,11 @@ export default function Chessboard() {
                   }
                 />
               )
-            default:
-              return record[col.dataIndex as keyof ViewRow]
+            default: {
+              if (col.dataIndex === 'comments') return null
+              const value = record[col.dataIndex as keyof ViewRow]
+              return Array.isArray(value) ? null : value
+            }
           }
         }
 
@@ -3195,6 +3445,7 @@ export default function Chessboard() {
     getNomenclatureSelectOptions,
     materialOptions,
     handleMaterialBlur,
+    openCommentsModal,
   ])
 
   const { Text } = Typography
@@ -3217,6 +3468,7 @@ export default function Chessboard() {
       { key: 'nomenclature', title: 'Номенклатура' },
       { key: 'supplier', title: 'Наименование поставщика' },
       { key: 'unit', title: 'Ед.изм.' },
+      { key: 'comments', title: 'Комментарии' },
     ],
     [],
   )
@@ -3495,7 +3747,6 @@ export default function Chessboard() {
       <div className="filters" style={{ flexShrink: 0, paddingBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
           <Space align="center" size="middle">
-            <Text style={{ fontSize: '16px' }}>Объект:</Text>
             <Select
               placeholder="Выберите проект"
               style={{ width: 280 * scale }}
@@ -3517,50 +3768,54 @@ export default function Chessboard() {
                   .includes(input.toLowerCase())
               }}
             />
-            <Select
-              placeholder="Раздел"
-              style={{ width: 200 }}
-              value={filters.tagId}
-              onChange={(value) =>
-                setFilters((f) => ({ ...f, tagId: value, documentationId: undefined }))
-              }
-              options={sortedDocumentationTags.map((tag) => ({
-                value: String(tag.id),
-                label: tag.name,
-              }))}
-              allowClear
-              showSearch
-              mode="multiple"
-              filterOption={(input, option) => {
-                const text = (option?.label ?? '').toString()
-                return text.toLowerCase().includes(input.toLowerCase())
-              }}
-            />
-            <Select
-              placeholder="Шифр документа"
-              style={{ width: 200 }}
-              value={filters.documentationId}
-              onChange={(value) => setFilters((f) => ({ ...f, documentationId: value }))}
-              options={
-                documentations
-                  ?.filter(
-                    (doc: DocumentationRecord) =>
-                      !filters.tagId || filters.tagId.length === 0 || (doc.tag_id !== null && filters.tagId.includes(String(doc.tag_id))),
-                  )
-                  .map((doc: DocumentationRecord) => ({
-                    value: doc.id,
-                    label: doc.project_code,
-                  })) ?? []
-              }
-              disabled={!filters.tagId || filters.tagId.length === 0}
-              allowClear
-              showSearch
-              mode="multiple"
-              filterOption={(input, option) => {
-                const text = (option?.label ?? '').toString()
-                return text.toLowerCase().includes(input.toLowerCase())
-              }}
-            />
+            {filters.projectId && (
+              <>
+                <Select
+                  placeholder="Раздел"
+                  style={{ width: 200 }}
+                  value={filters.tagId}
+                  onChange={(value) =>
+                    setFilters((f) => ({ ...f, tagId: value, documentationId: undefined }))
+                  }
+                  options={sortedDocumentationTags.map((tag) => ({
+                    value: String(tag.id),
+                    label: tag.name,
+                  }))}
+                  allowClear
+                  showSearch
+                  mode="multiple"
+                  filterOption={(input, option) => {
+                    const text = (option?.label ?? '').toString()
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }}
+                />
+                <Select
+                  placeholder="Шифр документа"
+                  style={{ width: 200 }}
+                  value={filters.documentationId}
+                  onChange={(value) => setFilters((f) => ({ ...f, documentationId: value }))}
+                  options={
+                    filterDocumentations
+                      ?.filter(
+                        (doc: DocumentationRecord) =>
+                          !filters.tagId || filters.tagId.length === 0 || (doc.tag_id !== null && filters.tagId.includes(String(doc.tag_id))),
+                      )
+                      .map((doc: DocumentationRecord) => ({
+                        value: doc.id,
+                        label: doc.project_code,
+                      })) ?? []
+                  }
+                  disabled={!filters.tagId || filters.tagId.length === 0}
+                  allowClear
+                  showSearch
+                  mode="multiple"
+                  filterOption={(input, option) => {
+                    const text = (option?.label ?? '').toString()
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }}
+                />
+              </>
+            )}
             <Button type="primary" size="large" onClick={handleApply} disabled={!filters.projectId}>
               Применить
             </Button>
@@ -3570,8 +3825,6 @@ export default function Chessboard() {
                   filters.blockId && filters.blockId.length > 0 ? filters.blockId : null,
                   filters.categoryId && filters.categoryId.length > 0 ? filters.categoryId : null,
                   filters.typeId && filters.typeId.length > 0 ? filters.typeId : null,
-                  filters.tagId && filters.tagId.length > 0 ? filters.tagId : null,
-                  filters.documentationId && filters.documentationId.length > 0 ? filters.documentationId : null,
                 ].filter(Boolean).length
               }
               size="small"
@@ -4018,6 +4271,82 @@ export default function Chessboard() {
             }}
           />
         </Space>
+      </Modal>
+
+      {/* Модальное окно комментариев */}
+      <Modal
+        title="Комментарии"
+        open={commentsModalOpen}
+        onCancel={closeCommentsModal}
+        footer={null}
+        width={600}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Input.TextArea
+            value={newCommentText}
+            onChange={(e) => setNewCommentText(e.target.value)}
+            placeholder={editingCommentId ? "Редактировать комментарий..." : "Добавить комментарий..."}
+            rows={3}
+            style={{ marginBottom: 8 }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            {editingCommentId && (
+              <Button onClick={() => {
+                setEditingCommentId(null)
+                setNewCommentText('')
+              }}>
+                Отмена
+              </Button>
+            )}
+            <Button 
+              type="primary" 
+              onClick={saveComment}
+              disabled={!newCommentText.trim()}
+            >
+              {editingCommentId ? 'Сохранить' : 'Добавить'}
+            </Button>
+          </div>
+        </div>
+        
+        {comments.length > 0 && (
+          <div>
+            <Typography.Title level={5}>Все комментарии:</Typography.Title>
+            {comments.map((comment) => (
+              <Card key={comment.id} size="small" style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1 }}>
+                    <Typography.Text>{comment.comment_text}</Typography.Text>
+                    <div style={{ marginTop: 4, fontSize: '12px', color: '#666' }}>
+                      Создан: {new Date(comment.created_at).toLocaleString('ru')}
+                      {comment.updated_at !== comment.created_at && (
+                        <span> • Изменен: {new Date(comment.updated_at).toLocaleString('ru')}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, marginLeft: 8 }}>
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<EditOutlined />}
+                      onClick={() => startEditComment(comment)}
+                    />
+                    <Popconfirm
+                      title="Удалить комментарий?"
+                      onConfirm={() => deleteComment(comment.id)}
+                    >
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<DeleteOutlined />}
+                        danger
+                      />
+                    </Popconfirm>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </Modal>
 
       <Drawer
