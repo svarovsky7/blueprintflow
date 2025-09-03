@@ -587,13 +587,17 @@ export default function Chessboard() {
     const multilineText = multilineMap[title]
     if (multilineText) {
       return (
-        <div style={{ whiteSpace: 'pre-line', textAlign: 'center', lineHeight: '1.2' }}>
+        <div style={{ whiteSpace: 'pre-line', textAlign: 'center', lineHeight: '1.2', wordBreak: 'keep-all', wordWrap: 'normal' }}>
           {multilineText}
         </div>
       )
     }
 
-    return title
+    return (
+      <div style={{ textAlign: 'center', wordBreak: 'keep-all', wordWrap: 'normal' }}>
+        {title}
+      </div>
+    )
   }, [])
 
   // Функция для вычисления динамической ширины столбца
@@ -708,8 +712,8 @@ export default function Chessboard() {
       }
     })
 
-    // Добавляем отступы (padding) и возможность для иконок/кнопок
-    const padding = 32 // 16px с каждой стороны
+    // Добавляем отступы (padding) и место для иконок сортировки/фильтрации
+    const padding = 64 // 16px с каждой стороны + 32px для иконок сортировки и фильтрации
     const calculatedWidth = maxContentWidth + padding
 
     // Ограничиваем максимальной шириной

@@ -57,7 +57,7 @@ src/
 └── components/   # Legacy UI components (ConflictResolutionDialog, DataTable, FileUpload, etc.)
 ```
 
-**Note**: The project is in transition to FSD architecture. Current entities include: chessboard, documentation, documentation-tags, rates, materials, and disk.
+**Note**: The project is in transition to FSD architecture. Current entities include: chessboard, disk, documentation, documentation-tags, materials, and rates.
 
 ### Key Patterns
 - **Public API**: Each slice exposes through `index.ts`
@@ -74,7 +74,7 @@ src/
 - **Error Handling**: All Supabase queries must include error handling
 
 ### Key Directories
-- `src/entities/` - Domain entities (chessboard, documentation, documentation-tags, rates, materials, disk)
+- `src/entities/` - Domain entities (chessboard, disk, documentation, documentation-tags, materials, rates)
 - `src/pages/` - Main application pages organized by sections (admin/, documents/, references/)
 - `src/features/auth/` - Authentication logic using Supabase
 - `src/shared/contexts/` - React contexts for global state (LogoContext, ScaleContext)
