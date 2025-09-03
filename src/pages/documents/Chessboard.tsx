@@ -259,16 +259,21 @@ interface DbRow {
       }[]
     | null
   chessboard_documentation_mapping?: {
-    documentation_id: string | null
-    documentations?: {
+    version_id: string | null
+    documentation_versions?: {
       id: string
-      code: string
-      tag_id: number | null
-      stage: string | null
-      tag?: {
-        id: number
-        name: string
-        tag_number: number | null
+      version_number: number
+      documentation_id: string | null
+      documentations?: {
+        id: string
+        code: string
+        tag_id: number | null
+        stage: string | null
+        tag?: {
+          id: number
+          name: string
+          tag_number: number | null
+        } | null
       } | null
     } | null
   } | null
@@ -426,6 +431,10 @@ export default function Chessboard() {
   const [comments, setComments] = useState<Comment[]>([])
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
   const [newCommentText, setNewCommentText] = useState('')
+
+  // Состояние для модального окна версий
+  const [versionsModalOpen, setVersionsModalOpen] = useState(false)
+  const [selectedVersions, setSelectedVersions] = useState<Record<string, string>>({}) // documentationId -> versionId
 
   const { data: projects } = useQuery<ProjectOption[]>({
     queryKey: ['projects'],
@@ -847,6 +856,28 @@ export default function Chessboard() {
     enabled: !!filters.projectId,
   })
 
+  // Загрузка версий для выбранных документов
+  const { data: documentVersions } = useQuery({
+    queryKey: ['document-versions', appliedFilters?.documentationId],
+    queryFn: async () => {
+      if (!supabase || !appliedFilters?.documentationId || appliedFilters.documentationId.length === 0) return []
+      
+      const { data, error } = await supabase
+        .from('documentation_versions')
+        .select('id, documentation_id, version_number, issue_date, status')
+        .in('documentation_id', appliedFilters.documentationId)
+        .order('version_number', { ascending: false })
+      
+      if (error) {
+        console.error('Ошибка загрузки версий документов:', error)
+        return []
+      }
+      
+      return data || []
+    },
+    enabled: !!appliedFilters?.documentationId && appliedFilters.documentationId.length > 0,
+  })
+
   const { data: tableData, refetch } = useQuery<DbRow[]>({
     queryKey: ['chessboard', appliedFilters],
     enabled: !!appliedFilters?.projectId,
@@ -871,7 +902,7 @@ export default function Chessboard() {
           chessboard_nomenclature_mapping!left(nomenclature_id, supplier_name, nomenclature(name)),
           ${relation}(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name)),
           chessboard_rates_mapping(rate_id, rates(work_name)),
-          ${docRelation}(documentation_id, documentations(id, code, tag_id, stage, tag:documentation_tags(id, name, tag_number)))`
+          ${docRelation}(version_id, documentation_versions(id, version_number, documentation_id, documentations(id, code, tag_id, stage, tag:documentation_tags(id, name, tag_number))))`
         )
         .eq('project_id', appliedFilters.projectId)
       if (appliedFilters.blockId && appliedFilters.blockId.length > 0) 
@@ -880,15 +911,15 @@ export default function Chessboard() {
         query.in('chessboard_mapping.cost_category_id', appliedFilters.categoryId.map(Number))
       if (appliedFilters.typeId && appliedFilters.typeId.length > 0)
         query.in('chessboard_mapping.cost_type_id', appliedFilters.typeId.map(Number))
-      // Фильтрация по документации
+      // Фильтрация по документации через версии
       if (appliedFilters.documentationId && appliedFilters.documentationId.length > 0) {
         query.in(
-          'chessboard_documentation_mapping.documentation_id',
+          'chessboard_documentation_mapping.documentation_versions.documentation_id',
           appliedFilters.documentationId,
         )
       } else if (appliedFilters.tagId && appliedFilters.tagId.length > 0) {
         query.in(
-          'chessboard_documentation_mapping.documentations.tag_id',
+          'chessboard_documentation_mapping.documentation_versions.documentations.tag_id',
           appliedFilters.tagId.map(Number),
         )
       }
@@ -1034,7 +1065,8 @@ export default function Chessboard() {
       }
       
       return (tableData ?? []).map((item) => {
-        const documentation = item.chessboard_documentation_mapping?.documentations
+        const version = item.chessboard_documentation_mapping?.documentation_versions
+        const documentation = version?.documentations
         const tag = documentation?.tag
         const sumPd = item.floorQuantities
           ? Object.values(item.floorQuantities).reduce(
@@ -1601,8 +1633,47 @@ export default function Chessboard() {
     }
   }, [supabase, selectedRowForComments, openCommentsModal, queryClient])
 
+  // Функции для работы с версиями
+  const closeVersionsModal = useCallback(() => {
+    setVersionsModalOpen(false)
+  }, [])
+
+  const handleVersionSelect = useCallback((documentationId: string, versionId: string) => {
+    setSelectedVersions(prev => ({
+      ...prev,
+      [documentationId]: versionId
+    }))
+  }, [])
+
+  const applyVersions = useCallback(() => {
+    // Проверяем, что для всех документов выбрана версия
+    const requiredDocIds = appliedFilters?.documentationId || []
+    const missingVersions = requiredDocIds.filter(docId => !selectedVersions[docId])
+    
+    if (missingVersions.length > 0) {
+      message.warning('Необходимо выбрать версии для всех документов')
+      return
+    }
+    
+    // Сохраняем выбранные версии в состоянии
+    setVersionsModalOpen(false)
+    message.success(`Выбрано версий документов: ${Object.keys(selectedVersions).length}`)
+    
+    // Обновляем данные таблицы с учетом выбранных версий
+    refetch()
+  }, [selectedVersions, appliedFilters, refetch])
+
   const startAdd = useCallback(() => {
     if (!appliedFilters) return
+    
+    // Проверяем, что для всех выбранных документов выбраны версии
+    if (appliedFilters.documentationId && appliedFilters.documentationId.length > 0) {
+      const missingVersions = appliedFilters.documentationId.filter(docId => !selectedVersions[docId])
+      if (missingVersions.length > 0) {
+        message.warning('Необходимо выбрать версии документов через кнопку "Версии" перед добавлением строк')
+        return
+      }
+    }
     const defaultLocationId = appliedFilters.typeId && appliedFilters.typeId.length > 0
       ? String(costTypes?.find((t) => String(t.id) === appliedFilters.typeId![0])?.location_id ?? '')
       : ''
@@ -1709,6 +1780,15 @@ export default function Chessboard() {
 
   const handleUpdate = useCallback(async () => {
     if (!supabase || Object.keys(editingRows).length === 0) return
+    
+    // Проверяем, что для всех выбранных документов выбраны версии
+    if (appliedFilters?.documentationId && appliedFilters.documentationId.length > 0) {
+      const missingVersions = appliedFilters.documentationId.filter(docId => !selectedVersions[docId])
+      if (missingVersions.length > 0) {
+        message.warning('Необходимо выбрать версии документов через кнопку "Версии" перед сохранением изменений')
+        return
+      }
+    }
 
     // Параллельное выполнение всех обновлений
     const updatePromises = Object.values(editingRows).map(async (r) => {
@@ -1803,7 +1883,7 @@ export default function Chessboard() {
         }
       }
 
-      // Обновляем связь с документацией
+      // Обновляем связь с версией документа (шифр + версия)
       const updateDocumentationMapping = async () => {
         let docId = r.documentationId
 
@@ -1818,13 +1898,21 @@ export default function Chessboard() {
         }
 
         if (docId) {
-          await supabase!.from('chessboard_documentation_mapping').upsert(
-            {
-              chessboard_id: r.key,
-              documentation_id: docId,
-            },
-            { onConflict: 'chessboard_id' },
-          )
+          // Получаем выбранную версию для документа
+          const selectedVersionId = selectedVersions[docId]
+          
+          if (selectedVersionId) {
+            // Сохраняем прямую ссылку на версию документа (новая схема)
+            await supabase!.from('chessboard_documentation_mapping').upsert(
+              {
+                chessboard_id: r.key,
+                version_id: selectedVersionId,
+              },
+              { onConflict: 'chessboard_id' },
+            )
+          } else {
+            throw new Error('Не выбрана версия документа. Сохранение невозможно.')
+          }
         } else {
           // Если ни документация, ни шифр проекта не выбраны, удаляем связь
           await supabase!
@@ -3819,6 +3907,14 @@ export default function Chessboard() {
             <Button type="primary" size="large" onClick={handleApply} disabled={!filters.projectId}>
               Применить
             </Button>
+            {appliedFilters?.documentationId && appliedFilters.documentationId.length > 0 && (
+              <Button 
+                size="large" 
+                onClick={() => setVersionsModalOpen(true)}
+              >
+                Версии
+              </Button>
+            )}
             <Badge
               count={
                 [
@@ -4347,6 +4443,64 @@ export default function Chessboard() {
             ))}
           </div>
         )}
+      </Modal>
+
+      {/* Модальное окно версий документов */}
+      <Modal
+        title="Выбор версий документов"
+        open={versionsModalOpen}
+        onCancel={closeVersionsModal}
+        onOk={applyVersions}
+        width={800}
+        okText="Применить версии"
+        cancelText="Отмена"
+      >
+        <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+          {documentations
+            ?.filter(doc => appliedFilters?.documentationId?.includes(doc.id))
+            .map(doc => {
+              const docVersions = documentVersions?.filter(v => v.documentation_id === doc.id) || []
+              return (
+                <Card key={doc.id} size="small" style={{ marginBottom: 16 }}>
+                  <Typography.Title level={5} style={{ marginBottom: 8 }}>
+                    Шифр: {doc.project_code}
+                  </Typography.Title>
+                  {docVersions.length > 0 ? (
+                    <Select
+                      placeholder="Выберите версию"
+                      style={{ width: '100%' }}
+                      value={selectedVersions[doc.id]}
+                      onChange={(value) => handleVersionSelect(doc.id, value)}
+                      options={docVersions.map(version => ({
+                        value: version.id,
+                        label: (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>Версия {version.version_number}</span>
+                            <div style={{ display: 'flex', gap: 8, fontSize: '12px', color: '#666' }}>
+                              {version.issue_date && (
+                                <span>{new Date(version.issue_date).toLocaleDateString('ru')}</span>
+                              )}
+                              <span style={{
+                                color: version.status === 'filled_recalc' ? '#52c41a' : 
+                                       version.status === 'filled_spec' ? '#1890ff' : 
+                                       version.status === 'vor_created' ? '#722ed1' : '#faad14'
+                              }}>
+                                {version.status === 'filled_recalc' ? 'Заполнено (пересчет)' :
+                                 version.status === 'filled_spec' ? 'Заполнено (спец.)' :
+                                 version.status === 'vor_created' ? 'ВОР создан' : 'Не заполнено'}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      }))}
+                    />
+                  ) : (
+                    <Typography.Text type="secondary">Версии не найдены</Typography.Text>
+                  )}
+                </Card>
+              )
+            })}
+        </div>
       </Modal>
 
       <Drawer
