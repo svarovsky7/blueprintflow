@@ -1829,7 +1829,23 @@ export default function Chessboard() {
           }
           
           // Если категория затрат не выбрана, не создаем mapping
-          const categoryId = importState.categoryId && importState.categoryId.length > 0 ? Number(importState.categoryId[0]) : null
+          let categoryId: number | null = null
+          
+          
+          // Правильная обработка categoryId в зависимости от типа
+          if (importState.categoryId) {
+            if (Array.isArray(importState.categoryId) && importState.categoryId.length > 0) {
+              // Если это массив, берем первый элемент
+              categoryId = Number(importState.categoryId[0])
+            } else if (typeof importState.categoryId === 'string') {
+              // Если это строка, преобразуем напрямую
+              categoryId = Number(importState.categoryId)
+            } else {
+              // Если что-то другое, пытаемся преобразовать
+              categoryId = Number(importState.categoryId)
+            }
+          }
+          
           if (!categoryId) {
             return null // Не создаем mapping если нет категории
           }
@@ -1837,7 +1853,6 @@ export default function Chessboard() {
           // Проверяем, что выбранная категория действительно существует в справочнике
           const categoryExists = costCategories?.some(cat => cat.id === categoryId)
           if (!categoryExists) {
-            console.warn(`Категория затрат с ID ${categoryId} не найдена в справочнике`)
             return null // Не создаем mapping если категория не существует
           }
           
@@ -1851,7 +1866,6 @@ export default function Chessboard() {
             if (typeExists) {
               typeId = selectedTypeId
             } else {
-              console.warn(`Тип затрат с ID ${selectedTypeId} не найден или не принадлежит категории ${categoryId}`)
             }
           }
           
@@ -3901,30 +3915,33 @@ export default function Chessboard() {
             placeholder="Категория затрат"
             style={{ width: '100%' }}
             value={importState.categoryId}
-            onChange={(value) =>
+            onChange={(value) => {
               setImportState((s) => ({
                 ...s,
                 categoryId: value || undefined,
                 typeId: undefined,
                 locationId: undefined,
               }))
-            }
+            }}
             popupMatchSelectWidth={false}
             options={
-              costCategories
-                ?.sort((a, b) => {
-                  // Сортируем по номеру, если он есть
-                  if (a.number && b.number) {
-                    const aNum = String(a.number)
-                    const bNum = String(b.number)
-                    return aNum.localeCompare(bNum)
-                  }
-                  return a.name.localeCompare(b.name)
-                })
-                .map((c) => ({
-                  value: String(c.id),
-                  label: c.name, // Отображаем только название без номера
-                })) ?? []
+              (() => {
+                const options = costCategories
+                  ?.sort((a, b) => {
+                    // Сортируем по номеру, если он есть
+                    if (a.number && b.number) {
+                      const aNum = String(a.number)
+                      const bNum = String(b.number)
+                      return aNum.localeCompare(bNum)
+                    }
+                    return a.name.localeCompare(b.name)
+                  })
+                  .map((c) => ({
+                    value: String(c.id),
+                    label: c.name, // Отображаем только название без номера
+                  })) ?? []
+                return options
+              })()
             }
           />
           <Select
