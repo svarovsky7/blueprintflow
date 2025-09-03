@@ -357,7 +357,7 @@ const collapseMap: Record<string, HiddenColKey> = {
 }
 
 export default function Chessboard() {
-  const { message } = App.useApp()
+  const { message, modal } = App.useApp()
   const { scale } = useScale()
 
   const [filters, setFilters] = useState<{
@@ -399,6 +399,8 @@ export default function Chessboard() {
     categoryId?: string[]
     typeId?: string[]
     locationId?: string
+    tagId?: string
+    documentationId?: string
   }>({})
 
   const { data: projects } = useQuery<ProjectOption[]>({
@@ -1132,6 +1134,17 @@ export default function Chessboard() {
     })
   }, [])
 
+  const toggleSelectAll = useCallback(() => {
+    if (selectedRows.size === viewRows.length && viewRows.length > 0) {
+      // Если все строки выделены, снимаем выделение
+      setSelectedRows(new Set())
+    } else {
+      // Выделяем все строки
+      const allKeys = new Set(viewRows.map((row: ViewRow) => row.key))
+      setSelectedRows(allKeys)
+    }
+  }, [selectedRows, viewRows])
+
   const handleRowChange = useCallback(
     (key: string, field: keyof RowData, value: string | number | null) => {
       setRows((prev) =>
@@ -1693,13 +1706,15 @@ export default function Chessboard() {
       categoryId: appliedFilters?.categoryId,
       typeId: appliedFilters?.typeId,
       locationId: loc ? String(loc) : undefined,
+      tagId: appliedFilters?.tagId && appliedFilters.tagId.length === 1 ? appliedFilters.tagId[0] : undefined,
+      documentationId: appliedFilters?.documentationId && appliedFilters.documentationId.length === 1 ? appliedFilters.documentationId[0] : undefined,
     })
     setImportOpen(true)
   }, [appliedFilters, costTypes])
 
   const handleImport = useCallback(async () => {
-    if (!supabase || !importFile || !importState.projectId || !importState.blockId) {
-      message.error('Выберите проект, корпус и файл')
+    if (!supabase || !importFile || !importState.projectId) {
+      message.error('Выберите проект и файл')
       return
     }
     try {
@@ -1711,12 +1726,29 @@ export default function Chessboard() {
         project_id: string
         material: string
         unit_id: string | null
+        cost_category_code?: string
       }[] = []
-      const quantities: (number | null)[] = []
+      const additionalData: {
+        quantityPd: number | null
+        quantitySpec: number | null
+        quantityRd: number | null
+        block: string
+        floors: string
+        nomenclature: string
+        supplier: string
+      }[] = []
       const header = rows[0]?.map((h) => String(h || '').toLowerCase()) ?? []
       const materialIdx = header.findIndex((h) => h.includes('материал'))
-      const quantityIdx = header.findIndex((h) => h.includes('кол'))
+      const quantityPdIdx = header.findIndex((h) => h.includes('кол') && h.includes('пд'))
+      const quantitySpecIdx = header.findIndex((h) => 
+        h.includes('кол') && h.includes('спек')
+      )
+      const quantityRdIdx = header.findIndex((h) => h.includes('кол') && h.includes('пересчет'))
       const unitIdx = header.findIndex((h) => h.includes('ед'))
+      const blockIdx = header.findIndex((h) => h.includes('корпус'))
+      const floorsIdx = header.findIndex((h) => h.includes('этаж'))
+      const nomenclatureIdx = header.findIndex((h) => h.includes('номенклатур'))
+      const supplierIdx = header.findIndex((h) => h.includes('поставщик'))
       const materialMap: Record<string, string> = {}
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i]
@@ -1730,14 +1762,27 @@ export default function Chessboard() {
         }
         const materialId = materialMap[material]
 
-        const quantityCell = quantityIdx >= 0 ? row[quantityIdx] : undefined
+        // Извлекаем данные из всех столбцов
+        const quantityPdCell = quantityPdIdx >= 0 ? row[quantityPdIdx] : undefined
+        const quantitySpecCell = quantitySpecIdx >= 0 ? row[quantitySpecIdx] : undefined
+        const quantityRdCell = quantityRdIdx >= 0 ? row[quantityRdIdx] : undefined
         const unitName = unitIdx >= 0 ? String(row[unitIdx] ?? '').trim() : ''
+        const blockName = blockIdx >= 0 ? String(row[blockIdx] ?? '').trim() : ''
+        const floorsValue = floorsIdx >= 0 ? String(row[floorsIdx] ?? '').trim() : ''
+        const nomenclatureName = nomenclatureIdx >= 0 ? String(row[nomenclatureIdx] ?? '').trim() : ''
+        const supplierName = supplierIdx >= 0 ? String(row[supplierIdx] ?? '').trim() : ''
 
-        const quantityValue =
-          quantityCell != null && String(quantityCell).trim() !== ''
-            ? Number(String(quantityCell).replace(',', '.'))
-            : null
-        const quantity = Number.isNaN(quantityValue) ? null : quantityValue
+        // Парсим количественные данные
+        const parseQuantity = (cell: string | number | null | undefined) => {
+          if (cell == null || String(cell).trim() === '') return null
+          const value = Number(String(cell).replace(',', '.'))
+          return Number.isNaN(value) ? null : value
+        }
+
+        const quantityPd = parseQuantity(quantityPdCell)
+        const quantitySpec = parseQuantity(quantitySpecCell)
+        const quantityRd = parseQuantity(quantityRdCell)
+        
         const unitId = unitName
           ? units?.find((u) => u.name.toLowerCase() === unitName.toLowerCase())?.id || null
           : null
@@ -1746,8 +1791,20 @@ export default function Chessboard() {
           project_id: importState.projectId,
           material: materialId,
           unit_id: unitId,
+          cost_category_code: importState.categoryId && importState.categoryId.length > 0 
+            ? importState.categoryId[0] 
+            : undefined, // Оставляем пустым если не выбрано
         })
-        quantities.push(quantity)
+        
+        additionalData.push({
+          quantityPd,
+          quantitySpec,
+          quantityRd,
+          block: blockName,
+          floors: floorsValue,
+          nomenclature: nomenclatureName,
+          supplier: supplierName,
+        })
       }
       if (payload.length === 0) {
         message.error('Нет данных для импорта')
@@ -1758,35 +1815,216 @@ export default function Chessboard() {
         .insert(payload)
         .select('id')
       if (error || !inserted) throw error
-      const mappings = inserted.map((d) => ({
-        chessboard_id: d.id,
-        block_id: importState.blockId,
-        cost_category_id: importState.categoryId ? Number(importState.categoryId) : null,
-        cost_type_id: importState.typeId ? Number(importState.typeId) : null,
-        location_id: importState.locationId ? Number(importState.locationId) : null,
-      }))
-      const { error: mapError } = await supabase!.from('chessboard_mapping').insert(mappings)
-      if (mapError) throw mapError
+      const mappings = inserted
+        .map((d, idx) => {
+          // Используем block из файла если есть, иначе из настроек импорта
+          let blockId = importState.blockId && importState.blockId.length > 0 ? importState.blockId[0] : undefined
+          if (additionalData[idx].block && blocks) {
+            const foundBlock = blocks.find(b => 
+              b.name.toLowerCase() === additionalData[idx].block.toLowerCase()
+            )
+            if (foundBlock) {
+              blockId = foundBlock.id
+            }
+          }
+          
+          // Если категория затрат не выбрана, не создаем mapping
+          const categoryId = importState.categoryId && importState.categoryId.length > 0 ? Number(importState.categoryId[0]) : null
+          if (!categoryId) {
+            return null // Не создаем mapping если нет категории
+          }
+          
+          return {
+            chessboard_id: d.id,
+            block_id: blockId || null,
+            cost_category_id: categoryId,
+            cost_type_id: importState.typeId && importState.typeId.length > 0 ? Number(importState.typeId[0]) : null,
+            location_id: importState.locationId ? Number(importState.locationId) : null,
+          }
+        })
+        .filter((mapping): mapping is NonNullable<typeof mapping> => mapping !== null) // Фильтруем только валидные записи
+      
+      if (mappings.length > 0) {
+        const { error: mapError } = await supabase!.from('chessboard_mapping').insert(mappings)
+        if (mapError) {
+          console.error('Ошибка вставки в chessboard_mapping:', mapError)
+          throw mapError
+        }
+      }
       const floorMappings = inserted.map((d, idx) => ({
         chessboard_id: d.id,
+        floor_number: null, // Будет NULL при импорте, так как этажи указываются отдельно
         location_id: importState.locationId ? Number(importState.locationId) : null,
-        quantityPd: null,
-        quantitySpec: quantities[idx],
-        quantityRd: null,
+        quantityPd: additionalData[idx].quantityPd,
+        quantitySpec: additionalData[idx].quantitySpec,
+        quantityRd: additionalData[idx].quantityRd,
       }))
       if (floorMappings.length > 0) {
-        await supabase!.from('chessboard_floor_mapping').insert(floorMappings)
+        const { error: floorError } = await supabase!.from('chessboard_floor_mapping').insert(floorMappings)
+        if (floorError) {
+          console.error('Ошибка вставки в chessboard_floor_mapping:', floorError)
+          throw floorError
+        }
       }
+
+      // Создаем маппинги номенклатуры и поставщиков
+      const nomenclatureMappings: { chessboard_id: string; nomenclature_id: string; supplier_name?: string }[] = []
+      for (let i = 0; i < inserted.length; i++) {
+        const recordId = inserted[i].id
+        const nomenclature = additionalData[i].nomenclature
+        const supplier = additionalData[i].supplier
+
+        if (nomenclature || supplier) {
+          // Попробуем найти или создать номенклатуру
+          let nomenclatureId = null
+          if (nomenclature) {
+            const { data: existingNomenclature } = await supabase!
+              .from('nomenclature')
+              .select('id')
+              .eq('name', nomenclature)
+              .single()
+
+            if (existingNomenclature) {
+              nomenclatureId = existingNomenclature.id
+            } else {
+              const { data: newNomenclature, error: nomenclatureError } = await supabase!
+                .from('nomenclature')
+                .insert({ name: nomenclature })
+                .select('id')
+                .single()
+
+              if (!nomenclatureError && newNomenclature) {
+                nomenclatureId = newNomenclature.id
+              }
+            }
+          }
+
+          if (nomenclatureId) {
+            nomenclatureMappings.push({
+              chessboard_id: recordId,
+              nomenclature_id: nomenclatureId,
+              supplier_name: supplier || undefined,
+            })
+          }
+        }
+      }
+
+      if (nomenclatureMappings.length > 0) {
+        await supabase!.from('chessboard_nomenclature_mapping').insert(nomenclatureMappings)
+      }
+
+      // Создаем связи с документацией если выбраны раздел и/или шифр тома
+      if (importState.tagId || importState.documentationId) {
+        let documentationId = importState.documentationId
+
+        // Если не выбран шифр тома, но выбран раздел, создаем или находим документ
+        if (!documentationId && importState.tagId && importState.projectId) {
+          const defaultCode = `DOC-${Date.now()}`
+          const doc = await documentationApi.upsertDocumentation(
+            defaultCode,
+            Number(importState.tagId),
+            importState.projectId
+          )
+          documentationId = doc.id
+        }
+
+        if (documentationId) {
+          const docMappings = inserted.map((d) => ({
+            chessboard_id: d.id,
+            documentation_id: documentationId,
+          }))
+          
+          const { error: docError } = await supabase!
+            .from('chessboard_documentation_mapping')
+            .insert(docMappings)
+          if (docError) throw docError
+        }
+      }
+
       await refetchMaterials()
-      message.success('Импорт завершен')
+      await refetch()
+      
+      // Сначала закрываем модальное окно импорта
       setImportOpen(false)
       setImportFile(null)
       setImportState({})
-      await refetch()
+      
+      // Затем показываем модальное окно с результатами
+      modal.success({
+        title: 'Импорт завершен успешно!',
+        content: (
+          <div>
+            <p>Успешно импортировано строк: <strong>{inserted.length}</strong></p>
+            {mappings.length > 0 && (
+              <p>Создано связей с категориями: <strong>{mappings.length}</strong></p>
+            )}
+            <p style={{ color: '#666', fontSize: '14px', marginTop: 16 }}>
+              Данные были добавлены в таблицу согласно выбранным параметрам импорта.
+            </p>
+          </div>
+        ),
+        okText: 'ОК',
+        width: 400,
+      })
     } catch (e) {
-      message.error(`Не удалось импортировать: ${(e as Error).message}`)
+      console.error('Ошибка импорта:', e)
+      const error = e as { code?: string; message?: string; details?: string }
+      let errorMessage = 'Неизвестная ошибка'
+      
+      if (error?.code) {
+        switch (error.code) {
+          case '23503': // Foreign key violation
+            if (error.details?.includes('cost_category_id')) {
+              errorMessage = 'Выбранная категория затрат не найдена в базе данных. Выберите другую категорию или обратитесь к администратору.'
+            } else if (error.details?.includes('cost_type_id')) {
+              errorMessage = 'Выбранный вид затрат не найден в базе данных. Выберите другой вид затрат.'
+            } else if (error.details?.includes('block_id')) {
+              errorMessage = 'Выбранный корпус не найден в базе данных. Выберите другой корпус.'
+            } else if (error.details?.includes('location_id')) {
+              errorMessage = 'Выбранная локация не найдена в базе данных. Выберите другую локацию.'
+            } else {
+              errorMessage = 'Ссылка на несуществующую запись в базе данных. Проверьте корректность выбранных данных.'
+            }
+            break
+          case '23505': // Unique violation
+            errorMessage = 'Данные уже существуют в базе данных. Проверьте на дублирование.'
+            break
+          case '23514': // Check constraint violation
+            errorMessage = 'Данные не соответствуют ограничениям базы данных. Проверьте корректность значений.'
+            break
+          default:
+            errorMessage = error.message || 'Неизвестная ошибка базы данных'
+        }
+      } else if (error?.message) {
+        errorMessage = error.message
+      }
+      
+      modal.error({
+        title: 'Ошибка импорта',
+        content: (
+          <div>
+            <div style={{ marginBottom: 16 }}>{errorMessage}</div>
+            {error?.details && (
+              <div style={{ marginTop: 16, padding: 12, backgroundColor: '#f5f5f5', borderRadius: 4 }}>
+                <div style={{ fontSize: '12px', color: '#666', fontWeight: 'bold', marginBottom: 8 }}>
+                  Техническая информация:
+                </div>
+                <div style={{ fontSize: '12px', color: '#666', fontFamily: 'monospace' }}>
+                  {error.details}
+                </div>
+              </div>
+            )}
+            <div style={{ marginTop: 16, fontSize: '14px', color: '#666' }}>
+              Исправьте данные в форме импорта и попробуйте снова.
+            </div>
+          </div>
+        ),
+        okText: 'Понятно',
+        width: 500,
+      })
+      // Не закрываем модальное окно при ошибке, чтобы пользователь мог исправить данные
     }
-  }, [importFile, importState, message, refetch, units, refetchMaterials])
+  }, [importFile, importState, message, modal, refetch, units, refetchMaterials, blocks])
 
   const handleSave = async () => {
     if (!supabase || !appliedFilters) return
@@ -2432,7 +2670,13 @@ export default function Chessboard() {
     // Чекбокс колонка для режима удаления
     const checkboxColumn: ColumnType<ViewRow> | null = deleteMode
       ? {
-          title: '',
+          title: () => (
+            <Checkbox
+              checked={selectedRows.size === viewRows.length && viewRows.length > 0}
+              indeterminate={selectedRows.size > 0 && selectedRows.size < viewRows.length}
+              onChange={toggleSelectAll}
+            />
+          ),
           dataIndex: 'checkbox',
           width: 50,
           fixed: 'left',
@@ -2900,6 +3144,7 @@ export default function Chessboard() {
     deleteMode,
     selectedRows,
     toggleRowSelection,
+    toggleSelectAll,
     columnVisibility,
     columnOrder,
     getRateOptions,
@@ -3572,9 +3817,33 @@ export default function Chessboard() {
         onOk={handleImport}
         okText="Импорт"
         cancelText="Отмена"
-        okButtonProps={{ disabled: !importFile || !importState.projectId || !importState.blockId }}
+        okButtonProps={{ disabled: !importFile || !importState.projectId }}
       >
         <Space direction="vertical" style={{ width: '100%' }}>
+          <div style={{ marginBottom: 16 }}>
+            <Typography.Text strong style={{ fontSize: '16px' }}>
+              Столбцы для импорта:
+            </Typography.Text>
+            <div style={{ marginTop: 8, padding: 12, backgroundColor: '#f5f5f5', borderRadius: 6 }}>
+              <Typography.Text style={{ fontSize: '14px' }}>
+                Данные будут загружены из следующих столбцов Excel (любые столбцы могут быть пустыми):
+              </Typography.Text>
+              <ul style={{ margin: '8px 0', paddingLeft: 20 }}>
+                <li>Корпус</li>
+                <li>Этажи</li>
+                <li>Материал</li>
+                <li>Кол-во по ПД</li>
+                <li>Кол-во по спеке РД</li>
+                <li>Кол-во по пересчету РД</li>
+                <li>Номенклатура</li>
+                <li>Наименование поставщика</li>
+                <li>Ед.изм.</li>
+              </ul>
+              <Typography.Text style={{ fontSize: '12px', color: '#666' }}>
+                Система автоматически найдет соответствующие столбцы по названиям
+              </Typography.Text>
+            </div>
+          </div>
           <Upload.Dragger
             beforeUpload={(file) => {
               setImportFile(file)
@@ -3665,6 +3934,46 @@ export default function Chessboard() {
             value={importState.locationId ?? ''}
             onChange={(value) => setImportState((s) => ({ ...s, locationId: value || undefined }))}
             options={locations?.map((l) => ({ value: String(l.id), label: l.name })) ?? []}
+          />
+          <Select
+            placeholder="Раздел"
+            style={{ width: '100%' }}
+            value={importState.tagId}
+            onChange={(value) => setImportState((s) => ({ ...s, tagId: value || undefined, documentationId: undefined }))}
+            options={sortedDocumentationTags.map((tag) => ({
+              value: String(tag.id),
+              label: tag.name,
+            }))}
+            allowClear
+            showSearch
+            filterOption={(input, option) => {
+              const text = (option?.label ?? '').toString()
+              return text.toLowerCase().includes(input.toLowerCase())
+            }}
+          />
+          <Select
+            placeholder="Шифр тома"
+            style={{ width: '100%' }}
+            value={importState.documentationId}
+            onChange={(value) => setImportState((s) => ({ ...s, documentationId: value || undefined }))}
+            options={
+              documentations
+                ?.filter(
+                  (doc: DocumentationRecord) =>
+                    !importState.tagId || (doc.tag_id !== null && String(doc.tag_id) === importState.tagId)
+                )
+                .map((doc: DocumentationRecord) => ({
+                  value: doc.id,
+                  label: doc.project_code,
+                })) ?? []
+            }
+            disabled={!importState.tagId}
+            allowClear
+            showSearch
+            filterOption={(input, option) => {
+              const text = (option?.label ?? '').toString()
+              return text.toLowerCase().includes(input.toLowerCase())
+            }}
           />
         </Space>
       </Modal>

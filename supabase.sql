@@ -119,8 +119,14 @@ create table if not exists detail_cost_categories (
   updated_at timestamptz default now()
 );
 
-insert into cost_categories (number, name)
-values (99, 'Прочее')
+insert into cost_categories (number, name, description)
+values 
+  (1, 'Строительные работы', 'Основные строительные работы'),
+  (2, 'Монтажные работы', 'Монтажные и установочные работы'),
+  (3, 'Материалы', 'Строительные материалы'),
+  (4, 'Оборудование', 'Технологическое оборудование'),
+  (5, 'Транспорт', 'Транспортные расходы'),
+  (99, 'Прочее', 'Прочие расходы')
 on conflict (number) do nothing;
 
 update chessboard
