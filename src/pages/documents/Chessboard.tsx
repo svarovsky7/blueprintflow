@@ -259,16 +259,21 @@ interface DbRow {
       }[]
     | null
   chessboard_documentation_mapping?: {
-    documentation_id: string | null
-    documentations?: {
+    version_id: string | null
+    documentation_versions?: {
       id: string
-      code: string
-      tag_id: number | null
-      stage: string | null
-      tag?: {
-        id: number
-        name: string
-        tag_number: number | null
+      version_number: number
+      documentation_id: string | null
+      documentations?: {
+        id: string
+        code: string
+        tag_id: number | null
+        stage: string | null
+        tag?: {
+          id: number
+          name: string
+          tag_number: number | null
+        } | null
       } | null
     } | null
   } | null
@@ -897,7 +902,7 @@ export default function Chessboard() {
           chessboard_nomenclature_mapping!left(nomenclature_id, supplier_name, nomenclature(name)),
           ${relation}(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name)),
           chessboard_rates_mapping(rate_id, rates(work_name)),
-          ${docRelation}(documentation_id, documentations(id, code, tag_id, stage, tag:documentation_tags(id, name, tag_number)))`
+          ${docRelation}(version_id, documentation_versions(id, version_number, documentation_id, documentations(id, code, tag_id, stage, tag:documentation_tags(id, name, tag_number))))`
         )
         .eq('project_id', appliedFilters.projectId)
       if (appliedFilters.blockId && appliedFilters.blockId.length > 0) 
@@ -906,15 +911,15 @@ export default function Chessboard() {
         query.in('chessboard_mapping.cost_category_id', appliedFilters.categoryId.map(Number))
       if (appliedFilters.typeId && appliedFilters.typeId.length > 0)
         query.in('chessboard_mapping.cost_type_id', appliedFilters.typeId.map(Number))
-      // Фильтрация по документации
+      // Фильтрация по документации через версии
       if (appliedFilters.documentationId && appliedFilters.documentationId.length > 0) {
         query.in(
-          'chessboard_documentation_mapping.documentation_id',
+          'chessboard_documentation_mapping.documentation_versions.documentation_id',
           appliedFilters.documentationId,
         )
       } else if (appliedFilters.tagId && appliedFilters.tagId.length > 0) {
         query.in(
-          'chessboard_documentation_mapping.documentations.tag_id',
+          'chessboard_documentation_mapping.documentation_versions.documentations.tag_id',
           appliedFilters.tagId.map(Number),
         )
       }
@@ -1060,7 +1065,8 @@ export default function Chessboard() {
       }
       
       return (tableData ?? []).map((item) => {
-        const documentation = item.chessboard_documentation_mapping?.documentations
+        const version = item.chessboard_documentation_mapping?.documentation_versions
+        const documentation = version?.documentations
         const tag = documentation?.tag
         const sumPd = item.floorQuantities
           ? Object.values(item.floorQuantities).reduce(
@@ -1877,7 +1883,7 @@ export default function Chessboard() {
         }
       }
 
-      // Обновляем связь с документацией (временно старая схема до миграции)
+      // Обновляем связь с версией документа (новая схема)
       const updateDocumentationMapping = async () => {
         let docId = r.documentationId
 
@@ -1892,21 +1898,18 @@ export default function Chessboard() {
         }
 
         if (docId) {
-          // Получаем выбранную версию для документа (для валидации)
+          // Получаем выбранную версию для документа
           const selectedVersionId = selectedVersions[docId]
           
-          if (appliedFilters?.documentationId && appliedFilters.documentationId.length > 0) {
-            // Проверяем выбор версии только если есть выбранные документы
-            if (!selectedVersionId) {
-              throw new Error('Не выбрана версия документа. Сохранение невозможно.')
-            }
+          if (!selectedVersionId) {
+            throw new Error('Не выбрана версия документа. Сохранение невозможно.')
           }
           
-          // Временно сохраняем по старой схеме (до миграции БД)
+          // Сохраняем прямую ссылку на версию документа (новая схема)
           await supabase!.from('chessboard_documentation_mapping').upsert(
             {
               chessboard_id: r.key,
-              documentation_id: docId,
+              version_id: selectedVersionId,
             },
             { onConflict: 'chessboard_id' },
           )
