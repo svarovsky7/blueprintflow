@@ -5,9 +5,36 @@
 ALTER TABLE public.chessboard_documentation_mapping 
 DROP CONSTRAINT IF EXISTS fk_chessboard_documentation_mapping_documentation;
 
--- Переименование поля documentation_id в version_id
+-- Сначала очищаем таблицу от записей, которые не смогут быть сопоставлены с версиями
+-- Удаляем записи где documentation_id не существует в documentations
+DELETE FROM public.chessboard_documentation_mapping 
+WHERE documentation_id NOT IN (SELECT id FROM public.documentations);
+
+-- Добавляем новое поле version_id
 ALTER TABLE public.chessboard_documentation_mapping 
-RENAME COLUMN documentation_id TO version_id;
+ADD COLUMN version_id uuid;
+
+-- Заполняем version_id последними версиями для каждого документа
+UPDATE public.chessboard_documentation_mapping 
+SET version_id = (
+  SELECT dv.id 
+  FROM public.documentation_versions dv 
+  WHERE dv.documentation_id = chessboard_documentation_mapping.documentation_id
+  ORDER BY dv.version_number DESC 
+  LIMIT 1
+);
+
+-- Удаляем записи где не удалось найти версию
+DELETE FROM public.chessboard_documentation_mapping 
+WHERE version_id IS NULL;
+
+-- Удаляем старое поле documentation_id
+ALTER TABLE public.chessboard_documentation_mapping 
+DROP COLUMN documentation_id;
+
+-- Делаем version_id обязательным
+ALTER TABLE public.chessboard_documentation_mapping 
+ALTER COLUMN version_id SET NOT NULL;
 
 -- Добавление внешнего ключа на таблицу documentation_versions
 ALTER TABLE public.chessboard_documentation_mapping 
