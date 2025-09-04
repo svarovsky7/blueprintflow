@@ -175,6 +175,7 @@ interface ViewRow {
   tagName?: string
   tagNumber?: number | null
   projectCode?: string
+  versionNumber?: number
   comments?: Comment[]
 }
 
@@ -1112,6 +1113,7 @@ export default function Chessboard() {
           tagName: tag?.name ?? '',
           tagNumber: tag?.tag_number ?? null,
           projectCode: documentation?.code ?? '',
+          versionNumber: version?.version_number ?? undefined,
           comments: commentsMap.get(item.id) || [],
         }
       })
@@ -3027,6 +3029,7 @@ export default function Chessboard() {
     }> = [
       { title: 'Раздел', dataIndex: 'tagName', maxWidth: 200 },
       { title: 'Шифр проекта', dataIndex: 'projectCode', maxWidth: 150 },
+      { title: 'Вер.', dataIndex: 'versionNumber', width: 60, maxWidth: 60, align: 'center' },
       { title: 'Материал', dataIndex: 'material', maxWidth: 300 },
       { title: 'Кол-во по ПД', dataIndex: 'quantityPd', maxWidth: 120, align: 'center' },
       { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', maxWidth: 150, align: 'center' },
@@ -3543,6 +3546,7 @@ export default function Chessboard() {
     () => [
       { key: 'tagName', title: 'Раздел' },
       { key: 'projectCode', title: 'Шифр проекта' },
+      { key: 'versionNumber', title: 'Вер.' },
       { key: 'block', title: 'Корпус' },
       { key: 'floors', title: 'Этажи' },
       { key: 'costCategory', title: 'Категория затрат' },
