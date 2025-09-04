@@ -3567,6 +3567,18 @@ export default function Chessboard() {
 
   // Инициализация состояния видимости столбцов при первой загрузке
   useMemo(() => {
+    // Проверяем версию схемы столбцов
+    const COLUMN_SCHEMA_VERSION = '1.1' // Увеличиваем версию для обновления порядка
+    const savedVersion = localStorage.getItem('chessboard-column-schema-version')
+    
+    // Если версия не совпадает, сбрасываем настройки
+    if (savedVersion !== COLUMN_SCHEMA_VERSION) {
+      localStorage.removeItem('chessboard-column-visibility')
+      localStorage.removeItem('chessboard-column-order')
+      localStorage.removeItem('chessboard-column-order-v2')
+      localStorage.setItem('chessboard-column-schema-version', COLUMN_SCHEMA_VERSION)
+    }
+    
     // Попытка загрузить из localStorage
     const savedVisibility = localStorage.getItem('chessboard-column-visibility')
     // Сброс устаревшего ключа порядка столбцов
@@ -3609,27 +3621,55 @@ export default function Chessboard() {
         const parsed = JSON.parse(savedOrder)
         // Добавляем новые столбцы, которых нет в сохраненном порядке
         const missingColumns = allColumns.filter((col) => !parsed.includes(col.key))
-        // Добавляем новые столбцы в начало (tagName и projectCode должны быть первыми)
+        // Добавляем новые столбцы в правильные позиции
         if (missingColumns.length > 0) {
           const tagNameCol = missingColumns.find((c) => c.key === 'tagName')
           const projectCodeCol = missingColumns.find((c) => c.key === 'projectCode')
+          const versionNumberCol = missingColumns.find((c) => c.key === 'versionNumber')
+          
+          // Создаем правильный порядок
           const newOrder = []
+          const remainingMissing = [...missingColumns]
 
-          // Добавляем tagName и projectCode в начало
+          // 1. tagName в начало
           if (tagNameCol) {
             newOrder.push('tagName')
-            missingColumns.splice(missingColumns.indexOf(tagNameCol), 1)
+            remainingMissing.splice(remainingMissing.indexOf(tagNameCol), 1)
           }
+          
+          // 2. projectCode после tagName
           if (projectCodeCol) {
-            newOrder.push('projectCode')
-            missingColumns.splice(missingColumns.indexOf(projectCodeCol), 1)
+            newOrder.push('projectCode')  
+            remainingMissing.splice(remainingMissing.indexOf(projectCodeCol), 1)
+          }
+          
+          // 3. versionNumber после projectCode
+          if (versionNumberCol) {
+            newOrder.push('versionNumber')
+            remainingMissing.splice(remainingMissing.indexOf(versionNumberCol), 1)
           }
 
-          // Затем все остальные существующие столбцы
-          newOrder.push(...parsed)
-
-          // И оставшиеся новые столбцы в конец
-          newOrder.push(...missingColumns.map((c) => c.key))
+          // 4. Вставляем существующие столбцы, но учитываем новую структуру
+          const updatedParsed = []
+          for (const colKey of parsed) {
+            if (colKey === 'tagName' && !newOrder.includes('tagName')) {
+              newOrder.push('tagName')
+            } else if (colKey === 'projectCode' && !newOrder.includes('projectCode')) {
+              newOrder.push('projectCode')
+              // После projectCode добавляем versionNumber если он есть в новых столбцах
+              if (versionNumberCol && !newOrder.includes('versionNumber')) {
+                newOrder.push('versionNumber')
+                remainingMissing.splice(remainingMissing.indexOf(versionNumberCol), 1)
+              }
+            } else if (colKey !== 'tagName' && colKey !== 'projectCode') {
+              updatedParsed.push(colKey)
+            }
+          }
+          
+          newOrder.push(...updatedParsed)
+          
+          // 5. Оставшиеся новые столбцы в конец
+          newOrder.push(...remainingMissing.map((c) => c.key))
 
           setColumnOrder(newOrder)
           // Обновляем localStorage
