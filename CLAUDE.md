@@ -193,6 +193,12 @@ From technical specification (`tech_task.md`):
 - Use RLS (Row Level Security)
 - Store secrets or generated artifacts in repository
 
+### DATABASE SCHEMA FILES
+- **ALWAYS commit** `supabase/schemas/prod.sql` - это основной файл схемы БД проекта
+- Файл содержит актуальную схему базы данных и критически важен для развертывания
+- Не исключать из коммитов даже если файл очень большой (сотни тысяч строк)
+- Схема БД является частью инфраструктуры как код (Infrastructure as Code)
+
 ## UI/UX Guidelines
 - **Mobile-first** design approach
 - **WCAG 2.1 AA** accessibility compliance
