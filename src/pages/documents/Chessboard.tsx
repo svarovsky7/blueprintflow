@@ -105,6 +105,7 @@ interface RowData {
   quantitySpec: string
   quantityRd: string
   nomenclatureId: string
+  nomenclature?: string
   supplier?: string
   unitId: string
   blockId: string
@@ -120,6 +121,7 @@ interface RowData {
   tagName?: string
   tagNumber?: number | null
   projectCode?: string
+  versionNumber?: number
   floorQuantities?: FloorQuantities
 }
 
@@ -363,6 +365,7 @@ const emptyRow = (defaults: Partial<RowData>): RowData => ({
   tagName: defaults.tagName ?? '',
   tagNumber: defaults.tagNumber ?? null,
   projectCode: defaults.projectCode ?? '',
+  versionNumber: defaults.versionNumber ?? undefined,
   floorQuantities: undefined,
 })
 
@@ -424,6 +427,7 @@ export default function Chessboard() {
     locationId?: string
     tagId?: string
     documentationId?: string
+    versionId?: string
   }>({})
   
   // Состояние для модального окна комментариев
@@ -857,16 +861,30 @@ export default function Chessboard() {
     enabled: !!filters.projectId,
   })
 
-  // Загрузка версий для выбранных документов
+  // Загрузка версий для документов проекта
   const { data: documentVersions } = useQuery({
-    queryKey: ['document-versions', appliedFilters?.documentationId],
+    queryKey: ['document-versions', appliedFilters?.projectId],
     queryFn: async () => {
-      if (!supabase || !appliedFilters?.documentationId || appliedFilters.documentationId.length === 0) return []
+      if (!supabase || !appliedFilters?.projectId) return []
       
+      // Сначала получаем все документы проекта через маппинг таблицу
+      const { data: projectDocs, error: docsError } = await supabase
+        .from('documentations_projects_mapping')
+        .select('documentation_id')
+        .eq('project_id', appliedFilters.projectId)
+      
+      if (docsError) {
+        console.error('Ошибка загрузки документов проекта:', docsError)
+        return []
+      }
+      
+      if (!projectDocs || projectDocs.length === 0) return []
+      
+      // Затем получаем версии для всех документов проекта
       const { data, error } = await supabase
         .from('documentation_versions')
         .select('id, documentation_id, version_number, issue_date, status')
-        .in('documentation_id', appliedFilters.documentationId)
+        .in('documentation_id', projectDocs.map(doc => doc.documentation_id))
         .order('version_number', { ascending: false })
       
       if (error) {
@@ -874,9 +892,19 @@ export default function Chessboard() {
         return []
       }
       
+      console.log('Loaded document versions:', {
+        projectId: appliedFilters.projectId,
+        totalVersions: data?.length || 0,
+        versions: data?.map(v => ({
+          id: v.id,
+          documentation_id: v.documentation_id,
+          version_number: v.version_number
+        }))
+      })
+      
       return data || []
     },
-    enabled: !!appliedFilters?.documentationId && appliedFilters.documentationId.length > 0,
+    enabled: !!appliedFilters?.projectId,
   })
 
   const { data: tableData, refetch } = useQuery<DbRow[]>({
@@ -1069,6 +1097,28 @@ export default function Chessboard() {
         const version = item.chessboard_documentation_mapping?.documentation_versions
         const documentation = version?.documentations
         const tag = documentation?.tag
+        
+        
+        // Заполняем данные из фильтров, если они отсутствуют в записи
+        const fallbackTag = appliedFilters?.tagId?.length === 1 
+          ? sortedDocumentationTags.find(t => String(t.id) === appliedFilters.tagId![0])
+          : null
+        const fallbackDoc = appliedFilters?.documentationId?.length === 1
+          ? documentations?.find(d => d.id === appliedFilters.documentationId![0])
+          : null
+        const fallbackVersion = fallbackDoc && documentVersions
+          ? documentVersions
+              .filter(v => v.documentation_id === fallbackDoc.id)
+              .sort((a, b) => b.version_number - a.version_number)[0]
+          : null
+        
+        // Для существующих записей без версии, но с документом, найдем последнюю версию
+        const documentIdForVersion = documentation?.id || fallbackDoc?.id
+        const autoVersion = !version && documentIdForVersion && documentVersions
+          ? documentVersions
+              .filter(v => v.documentation_id === documentIdForVersion)
+              .sort((a, b) => b.version_number - a.version_number)[0]
+          : null
         const sumPd = item.floorQuantities
           ? Object.values(item.floorQuantities).reduce(
               (s, q) => s + (parseFloat(q.quantityPd) || 0),
@@ -1109,16 +1159,16 @@ export default function Chessboard() {
           location: item.chessboard_mapping?.location?.name ?? '',
           floors: item.floors ?? '',
           color: (item.color as RowColor | null) ?? '',
-          documentationId: documentation?.id,
-          tagName: tag?.name ?? '',
-          tagNumber: tag?.tag_number ?? null,
-          projectCode: documentation?.code ?? '',
-          versionNumber: version?.version_number ?? undefined,
+          documentationId: documentation?.id || fallbackDoc?.id,
+          tagName: tag?.name || fallbackTag?.name || '',
+          tagNumber: tag?.tag_number ?? fallbackTag?.tag_number ?? null,
+          projectCode: documentation?.code || fallbackDoc?.project_code || '',
+          versionNumber: version?.version_number ?? autoVersion?.version_number ?? fallbackVersion?.version_number ?? undefined,
           comments: commentsMap.get(item.id) || [],
         }
       })
     },
-    [tableData, commentsData],
+    [tableData, commentsData, appliedFilters, sortedDocumentationTags, documentations, documentVersions],
   )
 
   const tableRows = useMemo<TableRow[]>(
@@ -1145,6 +1195,7 @@ export default function Chessboard() {
         tagName: v.tagName,
         tagNumber: v.tagNumber,
         projectCode: v.projectCode,
+        versionNumber: v.versionNumber,
         isExisting: true,
       })),
     ],
@@ -1164,6 +1215,40 @@ export default function Chessboard() {
       tagId?: string[]
       documentationId?: string[]
     })
+    
+    // Автоматически устанавливаем последние версии для выбранных документов
+    if (documentVersions) {
+      const latestVersions: Record<string, string> = {}
+      
+      if (filters.documentationId && filters.documentationId.length > 0) {
+        // Если выбраны конкретные документы
+        filters.documentationId.forEach(docId => {
+          const versions = documentVersions.filter(v => v.documentation_id === docId)
+          if (versions.length > 0) {
+            const latestVersion = versions.sort((a, b) => b.version_number - a.version_number)[0]
+            latestVersions[docId] = latestVersion.id
+          }
+        })
+      } else if (filters.tagId && filters.tagId.length > 0) {
+        // Если выбраны только разделы, устанавливаем версии для всех документов этих разделов
+        const tagDocuments = documentations?.filter(d => 
+          d.tag_id && filters.tagId!.includes(String(d.tag_id))
+        ) || []
+        
+        tagDocuments.forEach(doc => {
+          const versions = documentVersions.filter(v => v.documentation_id === doc.id)
+          if (versions.length > 0) {
+            const latestVersion = versions.sort((a, b) => b.version_number - a.version_number)[0]
+            latestVersions[doc.id] = latestVersion.id
+          }
+        })
+      }
+      
+      if (Object.keys(latestVersions).length > 0) {
+        setSelectedVersions(latestVersions)
+      }
+    }
+    
     setMode('view')
     setFiltersExpanded(false) // Сворачиваем блок фильтров после применения
   }
@@ -1183,6 +1268,9 @@ export default function Chessboard() {
       const docData = appliedFilters.documentationId && appliedFilters.documentationId.length === 1
         ? documentations?.find((d: DocumentationRecord) => d.id === appliedFilters.documentationId![0])
         : undefined
+      const versionData = docData && selectedVersions[docData.id]
+        ? documentVersions?.find(v => v.id === selectedVersions[docData.id])
+        : undefined
       setRows((prev) => {
         const newRow = emptyRow({
           blockId: appliedFilters.blockId && appliedFilters.blockId.length > 0 ? appliedFilters.blockId[0] : '',
@@ -1195,13 +1283,14 @@ export default function Chessboard() {
           tagNumber: tagData?.tag_number ?? null,
           documentationId: docData?.id ?? '',
           projectCode: docData?.project_code ?? '',
+          versionNumber: versionData?.version_number ?? undefined,
         })
         const next = [...prev]
         next.splice(index + 1, 0, newRow)
         return next
       })
     },
-    [appliedFilters, costTypes, blocks, sortedDocumentationTags, documentations],
+    [appliedFilters, costTypes, blocks, sortedDocumentationTags, documentations, selectedVersions, documentVersions],
   )
 
   const copyRow = useCallback((index: number) => {
@@ -1636,6 +1725,31 @@ export default function Chessboard() {
   }, [supabase, selectedRowForComments, openCommentsModal, queryClient])
 
   // Функции для работы с версиями
+  const openVersionsModal = useCallback(() => {
+    // Автоматически устанавливаем последние версии, если они еще не установлены
+    if (appliedFilters?.documentationId && documentVersions) {
+      const newVersions: Record<string, string> = { ...selectedVersions }
+      let hasChanges = false
+      
+      appliedFilters.documentationId.forEach(docId => {
+        if (!selectedVersions[docId]) {
+          const versions = documentVersions.filter(v => v.documentation_id === docId)
+          if (versions.length > 0) {
+            const latestVersion = versions.sort((a, b) => b.version_number - a.version_number)[0]
+            newVersions[docId] = latestVersion.id
+            hasChanges = true
+          }
+        }
+      })
+      
+      if (hasChanges) {
+        setSelectedVersions(newVersions)
+      }
+    }
+    
+    setVersionsModalOpen(true)
+  }, [appliedFilters, documentVersions, selectedVersions])
+
   const closeVersionsModal = useCallback(() => {
     setVersionsModalOpen(false)
   }, [])
@@ -1668,12 +1782,24 @@ export default function Chessboard() {
   const startAdd = useCallback(() => {
     if (!appliedFilters) return
     
-    // Проверяем, что для всех выбранных документов выбраны версии
-    if (appliedFilters.documentationId && appliedFilters.documentationId.length > 0) {
-      const missingVersions = appliedFilters.documentationId.filter(docId => !selectedVersions[docId])
-      if (missingVersions.length > 0) {
-        message.warning('Необходимо выбрать версии документов через кнопку "Версии" перед добавлением строк')
-        return
+    // Автоматически устанавливаем последние версии для документов, если они не установлены
+    if (appliedFilters.documentationId && appliedFilters.documentationId.length > 0 && documentVersions) {
+      const newVersions = { ...selectedVersions }
+      let hasChanges = false
+      
+      appliedFilters.documentationId.forEach(docId => {
+        if (!selectedVersions[docId]) {
+          const versions = documentVersions.filter(v => v.documentation_id === docId)
+          if (versions.length > 0) {
+            const latestVersion = versions.sort((a, b) => b.version_number - a.version_number)[0]
+            newVersions[docId] = latestVersion.id
+            hasChanges = true
+          }
+        }
+      })
+      
+      if (hasChanges) {
+        setSelectedVersions(newVersions)
       }
     }
     const defaultLocationId = appliedFilters.typeId && appliedFilters.typeId.length > 0
@@ -1688,6 +1814,9 @@ export default function Chessboard() {
     const docData = appliedFilters.documentationId && appliedFilters.documentationId.length === 1
       ? documentations?.find((d: DocumentationRecord) => d.id === appliedFilters.documentationId![0])
       : undefined
+    const versionData = docData && selectedVersions[docData.id]
+      ? documentVersions?.find(v => v.id === selectedVersions[docData.id])
+      : undefined
     setRows([
       emptyRow({
         blockId: appliedFilters.blockId && appliedFilters.blockId.length > 0 ? appliedFilters.blockId[0] : '',
@@ -1700,10 +1829,11 @@ export default function Chessboard() {
         tagNumber: tagData?.tag_number ?? null,
         documentationId: docData?.id ?? '',
         projectCode: docData?.project_code ?? '',
+        versionNumber: versionData?.version_number ?? undefined,
       }),
     ])
     setMode('add')
-  }, [appliedFilters, costTypes, blocks, sortedDocumentationTags, documentations])
+  }, [appliedFilters, costTypes, blocks, sortedDocumentationTags, documentations, documentVersions, selectedVersions, setSelectedVersions])
 
   const startEdit = useCallback(
     (id: string) => {
@@ -1711,6 +1841,7 @@ export default function Chessboard() {
       if (!dbRow) return
       const mapping = getNomenclatureMapping(dbRow.chessboard_nomenclature_mapping)
       const nomenclatureId = mapping?.nomenclature_id ?? ''
+      const nomenclatureName = mapping?.nomenclature?.name ?? ''
       const supplierName = mapping?.supplier_name ?? ''
       setEditingRows((prev) => {
         if (prev[id]) return prev
@@ -1745,6 +1876,7 @@ export default function Chessboard() {
                 )
               : '',
             nomenclatureId,
+            nomenclature: nomenclatureName,
             supplier: supplierName,
             unitId: dbRow.unit_id ?? '',
             blockId: dbRow.chessboard_mapping?.block_id ?? '',
@@ -1763,14 +1895,15 @@ export default function Chessboard() {
               : '',
             floors: dbRow.floors ?? '',
             color: (dbRow.color as RowColor | null) ?? '',
-            documentationId: dbRow.chessboard_documentation_mapping?.documentation_id ?? '',
-            tagId: dbRow.chessboard_documentation_mapping?.documentations?.tag_id
-              ? String(dbRow.chessboard_documentation_mapping.documentations.tag_id)
+            documentationId: dbRow.chessboard_documentation_mapping?.documentation_versions?.documentation_id ?? '',
+            tagId: dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.tag_id
+              ? String(dbRow.chessboard_documentation_mapping.documentation_versions.documentations.tag_id)
               : '',
-            tagName: dbRow.chessboard_documentation_mapping?.documentations?.tag?.name ?? '',
+            tagName: dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.tag?.name ?? '',
             tagNumber:
-              dbRow.chessboard_documentation_mapping?.documentations?.tag?.tag_number ?? null,
-            projectCode: dbRow.chessboard_documentation_mapping?.documentations?.code ?? '',
+              dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.tag?.tag_number ?? null,
+            projectCode: dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.code ?? '',
+            versionNumber: dbRow.chessboard_documentation_mapping?.documentation_versions?.version_number ?? null,
             floorQuantities: dbRow.floorQuantities,
           },
         }
@@ -1782,15 +1915,6 @@ export default function Chessboard() {
 
   const handleUpdate = useCallback(async () => {
     if (!supabase || Object.keys(editingRows).length === 0) return
-    
-    // Проверяем, что для всех выбранных документов выбраны версии
-    if (appliedFilters?.documentationId && appliedFilters.documentationId.length > 0) {
-      const missingVersions = appliedFilters.documentationId.filter(docId => !selectedVersions[docId])
-      if (missingVersions.length > 0) {
-        message.warning('Необходимо выбрать версии документов через кнопку "Версии" перед сохранением изменений')
-        return
-      }
-    }
 
     // Параллельное выполнение всех обновлений
     const updatePromises = Object.values(editingRows).map(async (r) => {
@@ -1899,24 +2023,39 @@ export default function Chessboard() {
           docId = doc.id
         }
 
-        if (docId) {
-          // Получаем выбранную версию для документа
-          const selectedVersionId = selectedVersions[docId]
+        if (docId && r.versionNumber) {
+          // Ищем существующую версию или создаём новую
+          let version = documentVersions?.find(
+            v => v.documentation_id === docId && v.version_number === r.versionNumber
+          )
           
-          if (!selectedVersionId) {
-            throw new Error('Не выбрана версия документа. Сохранение невозможно.')
+          if (!version) {
+            // Создаем новую версию
+            const { data: newVersion, error: versionError } = await supabase!
+              .from('documentation_versions')
+              .insert({
+                documentation_id: docId,
+                version_number: r.versionNumber,
+              })
+              .select()
+              .single()
+              
+            if (versionError) {
+              throw new Error(`Не удалось создать версию документа: ${versionError.message}`)
+            }
+            version = newVersion
           }
           
           // Сохраняем прямую ссылку на версию документа (новая схема)
           await supabase!.from('chessboard_documentation_mapping').upsert(
             {
               chessboard_id: r.key,
-              version_id: selectedVersionId,
+              version_id: version.id,
             },
             { onConflict: 'chessboard_id' },
           )
         } else {
-          // Если ни документация, ни шифр проекта не выбраны, удаляем связь
+          // Если ни документация, ни версия не выбраны, удаляем связь
           await supabase!
             .from('chessboard_documentation_mapping')
             .delete()
@@ -1997,6 +2136,8 @@ export default function Chessboard() {
     const loc = appliedFilters?.typeId && appliedFilters.typeId.length > 0
       ? costTypes?.find((t) => String(t.id) === appliedFilters.typeId![0])?.location_id
       : undefined
+    const docId = appliedFilters?.documentationId && appliedFilters.documentationId.length === 1 ? appliedFilters.documentationId[0] : undefined
+    const versionId = docId && selectedVersions[docId] ? selectedVersions[docId] : undefined
     setImportState({
       projectId: appliedFilters?.projectId,
       blockId: appliedFilters?.blockId,
@@ -2004,10 +2145,11 @@ export default function Chessboard() {
       typeId: appliedFilters?.typeId,
       locationId: loc ? String(loc) : undefined,
       tagId: appliedFilters?.tagId && appliedFilters.tagId.length === 1 ? appliedFilters.tagId[0] : undefined,
-      documentationId: appliedFilters?.documentationId && appliedFilters.documentationId.length === 1 ? appliedFilters.documentationId[0] : undefined,
+      documentationId: docId,
+      versionId: versionId,
     })
     setImportOpen(true)
-  }, [appliedFilters, costTypes])
+  }, [appliedFilters, costTypes, selectedVersions])
 
   const handleImport = useCallback(async () => {
     if (!supabase || !importFile || !importState.projectId) {
@@ -2260,15 +2402,47 @@ export default function Chessboard() {
         }
 
         if (documentationId) {
-          const docMappings = inserted.map((d) => ({
-            chessboard_id: d.id,
-            documentation_id: documentationId,
-          }))
+          // Определяем version_id для связи
+          let versionId = importState.versionId
           
-          const { error: docError } = await supabase!
-            .from('chessboard_documentation_mapping')
-            .insert(docMappings)
-          if (docError) throw docError
+          // Если версия не выбрана, используем последнюю версию документа или создаем новую
+          if (!versionId && documentVersions) {
+            const existingVersion = documentVersions
+              .filter(v => v.documentation_id === documentationId)
+              .sort((a, b) => b.version_number - a.version_number)[0]
+              
+            if (existingVersion) {
+              versionId = existingVersion.id
+            } else {
+              // Создаем новую версию с номером 1
+              const { data: newVersion, error: versionError } = await supabase!
+                .from('documentation_versions')
+                .insert({
+                  documentation_id: documentationId,
+                  version_number: 1,
+                })
+                .select()
+                .single()
+                
+              if (versionError) {
+                console.error('Ошибка создания версии документа:', versionError)
+                throw versionError
+              }
+              versionId = newVersion.id
+            }
+          }
+          
+          if (versionId) {
+            const docMappings = inserted.map((d) => ({
+              chessboard_id: d.id,
+              version_id: versionId,
+            }))
+            
+            const { error: docError } = await supabase!
+              .from('chessboard_documentation_mapping')
+              .insert(docMappings)
+            if (docError) throw docError
+          }
         }
       }
 
@@ -2355,7 +2529,7 @@ export default function Chessboard() {
       })
       // Не закрываем модальное окно при ошибке, чтобы пользователь мог исправить данные
     }
-  }, [importFile, importState, message, modal, refetch, units, refetchMaterials, blocks, costCategories, costTypes])
+  }, [importFile, importState, message, modal, refetch, units, refetchMaterials, blocks, costCategories, costTypes, documentVersions])
 
   const handleSave = async () => {
     if (!supabase || !appliedFilters) return
@@ -2395,10 +2569,14 @@ export default function Chessboard() {
     const nomenclatureMappings = data
       .map((d, idx) =>
         rows[idx].nomenclatureId
-          ? { chessboard_id: d.id, nomenclature_id: rows[idx].nomenclatureId }
+          ? { 
+              chessboard_id: d.id, 
+              nomenclature_id: rows[idx].nomenclatureId,
+              supplier_name: rows[idx].supplier || null
+            }
           : null,
       )
-      .filter((m): m is { chessboard_id: string; nomenclature_id: string } => m !== null)
+      .filter((m): m is { chessboard_id: string; nomenclature_id: string; supplier_name: string | null } => m !== null)
     if (nomenclatureMappings.length) {
       const { error: nomError } = await supabase
         .from('chessboard_nomenclature_mapping')
@@ -2487,9 +2665,10 @@ export default function Chessboard() {
       }
     }
 
-    // Сохраняем связь с документацией
+    // Сохраняем связь с версией документа
     for (let idx = 0; idx < data.length; idx++) {
       let docId = rows[idx].documentationId
+      let versionId = null
 
       if (!docId && rows[idx].projectCode && rows[idx].tagId) {
         const doc = await documentationApi.upsertDocumentation(
@@ -2501,12 +2680,40 @@ export default function Chessboard() {
       }
 
       if (docId) {
+        // Ищем существующую версию или создаём новую
+        const versionNumber = rows[idx].versionNumber || 1
+        let version = documentVersions?.find(
+          v => v.documentation_id === docId && v.version_number === versionNumber
+        )
+        
+        if (!version) {
+          // Создаем новую версию
+          const { data: newVersion, error: versionError } = await supabase
+            .from('documentation_versions')
+            .insert({
+              documentation_id: docId,
+              version_number: versionNumber,
+            })
+            .select()
+            .single()
+            
+          if (versionError) {
+            console.error(`Не удалось создать версию документа: ${versionError.message}`)
+            continue
+          }
+          version = newVersion
+        }
+        
+        versionId = version.id
+      }
+
+      if (versionId) {
         const { error: docError } = await supabase.from('chessboard_documentation_mapping').insert({
           chessboard_id: data[idx].id,
-          documentation_id: docId,
+          version_id: versionId,
         })
         if (docError) {
-          console.error(`Не удалось сохранить связь с документацией: ${docError.message}`)
+          console.error(`Не удалось сохранить связь с версией документа: ${docError.message}`)
         }
       }
     }
@@ -2547,6 +2754,7 @@ export default function Chessboard() {
     }> = [
       { title: 'Раздел', dataIndex: 'tagName', maxWidth: 200 },
       { title: 'Шифр проекта', dataIndex: 'projectCode', maxWidth: 150 },
+      { title: 'Вер.', dataIndex: 'versionNumber', width: 60, maxWidth: 60, align: 'center' },
       { title: 'Материал', dataIndex: 'material', maxWidth: 300 },
       { title: 'Кол-во по ПД', dataIndex: 'quantityPd', maxWidth: 120, align: 'center' },
       { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', maxWidth: 150, align: 'center' },
@@ -2627,10 +2835,19 @@ export default function Chessboard() {
                     handleRowChange(record.key, 'documentationId', '')
                     handleRowChange(record.key, 'projectCode', '')
                   }}
-                  options={sortedDocumentationTags.map((tag) => ({
-                    value: String(tag.id),
-                    label: tag.name,
-                  }))}
+                  options={
+                    appliedFilters?.tagId && appliedFilters.tagId.length > 0
+                      ? sortedDocumentationTags
+                          .filter(tag => appliedFilters.tagId!.includes(String(tag.id)))
+                          .map((tag) => ({
+                            value: String(tag.id),
+                            label: tag.name,
+                          }))
+                      : sortedDocumentationTags.map((tag) => ({
+                          value: String(tag.id),
+                          label: tag.name,
+                        }))
+                  }
                   allowClear
                   showSearch
                   filterOption={(input, option) => {
@@ -2639,7 +2856,7 @@ export default function Chessboard() {
                   }}
                 />
               )
-            case 'projectCode':
+            case 'documentationId':
               return (
                 <Select
                   style={{ width: 150 }}
@@ -2667,6 +2884,68 @@ export default function Chessboard() {
                     const text = (option?.label ?? '').toString()
                     return text.toLowerCase().includes(input.toLowerCase())
                   }}
+                />
+              )
+            case 'projectCode':
+              return (
+                <Select
+                  style={{ width: 150 }}
+                  placeholder="Шифр проекта"
+                  allowClear
+                  showSearch
+                  value={record.projectCode}
+                  onChange={(value) => {
+                    const selectedDoc = documentations?.find(doc => doc.project_code === value)
+                    handleRowChange(record.key, 'projectCode', value)
+                    handleRowChange(record.key, 'documentationId', selectedDoc?.id || null)
+                    handleRowChange(record.key, 'versionNumber', null)
+                  }}
+                  filterOption={(input, option) => {
+                    const text = (option?.label ?? '').toString()
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }}
+                  options={
+                    documentations
+                      ?.filter((doc) => {
+                        // Фильтруем по выбранным документам в фильтрах, если они есть
+                        if (appliedFilters?.documentationId && appliedFilters.documentationId.length > 0) {
+                          return appliedFilters.documentationId.includes(doc.id)
+                        }
+                        // Иначе фильтруем по тегу строки
+                        return !record.tagName || doc.tag?.name === record.tagName
+                      })
+                      .map((doc) => ({
+                        value: doc.project_code,
+                        label: doc.project_code,
+                      })) ?? []
+                  }
+                  disabled={!record.tagName}
+                />
+              )
+            case 'versionNumber':
+              return (
+                <Select
+                  style={{ width: 60 }}
+                  placeholder="Вер."
+                  allowClear
+                  showSearch
+                  value={record.versionNumber}
+                  onChange={(value) => {
+                    handleRowChange(record.key, 'versionNumber', value)
+                  }}
+                  filterOption={(input, option) => {
+                    const text = (option?.label ?? '').toString()
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }}
+                  options={
+                    documentVersions
+                      ?.filter((version) => version.documentation_id === record.documentationId)
+                      .map((version) => ({
+                        value: version.version_number,
+                        label: version.version_number.toString(),
+                      })) ?? []
+                  }
+                  disabled={!record.documentationId}
                 />
               )
             case 'material':
@@ -2730,12 +3009,13 @@ export default function Chessboard() {
                   style={{ width: 250 }}
                   popupMatchSelectWidth={nomenclatureDropdownWidth}
                   value={record.nomenclatureId}
-                  onChange={(value) => {
+                  onChange={(value, option) => {
                     handleRowChange(record.key, 'nomenclatureId', value)
+                    handleRowChange(record.key, 'nomenclature', option?.label || '')
                     loadSupplierOptions(value, record.key)
                     handleRowChange(record.key, 'supplier', '')
                   }}
-                  options={getNomenclatureSelectOptions(record.nomenclatureId)}
+                  options={getNomenclatureSelectOptions(record.nomenclatureId, record.nomenclature)}
                   showSearch
                   onSearch={handleNomenclatureSearch}
                   filterOption={false}
@@ -3167,7 +3447,7 @@ export default function Chessboard() {
                   }}
                 />
               )
-            case 'projectCode':
+            case 'documentationId':
               return (
                 <Select
                   style={{ width: 150 }}
@@ -3195,6 +3475,68 @@ export default function Chessboard() {
                     const text = (option?.label ?? '').toString()
                     return text.toLowerCase().includes(input.toLowerCase())
                   }}
+                />
+              )
+            case 'projectCode':
+              return (
+                <Select
+                  style={{ width: 150 }}
+                  placeholder="Шифр проекта"
+                  allowClear
+                  showSearch
+                  value={edit.projectCode}
+                  onChange={(value) => {
+                    const selectedDoc = documentations?.find(doc => doc.project_code === value)
+                    handleEditChange(record.key, 'projectCode', value)
+                    handleEditChange(record.key, 'documentationId', selectedDoc?.id || null)
+                    handleEditChange(record.key, 'versionNumber', null)
+                  }}
+                  filterOption={(input, option) => {
+                    const text = (option?.label ?? '').toString()
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }}
+                  options={
+                    documentations
+                      ?.filter((doc) => {
+                        // Фильтруем по выбранным документам в фильтрах, если они есть
+                        if (appliedFilters?.documentationId && appliedFilters.documentationId.length > 0) {
+                          return appliedFilters.documentationId.includes(doc.id)
+                        }
+                        // Иначе фильтруем по тегу строки
+                        return !edit.tagName || doc.tag?.name === edit.tagName
+                      })
+                      .map((doc) => ({
+                        value: doc.project_code,
+                        label: doc.project_code,
+                      })) ?? []
+                  }
+                  disabled={!edit.tagName}
+                />
+              )
+            case 'versionNumber':
+              return (
+                <Select
+                  style={{ width: 60 }}
+                  placeholder="Вер."
+                  allowClear
+                  showSearch
+                  value={edit.versionNumber}
+                  onChange={(value) => {
+                    handleEditChange(record.key, 'versionNumber', value)
+                  }}
+                  filterOption={(input, option) => {
+                    const text = (option?.label ?? '').toString()
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }}
+                  options={
+                    documentVersions
+                      ?.filter((version) => version.documentation_id === edit.documentationId)
+                      .map((version) => ({
+                        value: version.version_number,
+                        label: version.version_number.toString(),
+                      })) ?? []
+                  }
+                  disabled={!edit.documentationId}
                 />
               )
             case 'material':
@@ -3258,8 +3600,9 @@ export default function Chessboard() {
                   style={{ width: 250 }}
                   popupMatchSelectWidth={nomenclatureDropdownWidth}
                   value={edit.nomenclatureId}
-                  onChange={(value) => {
+                  onChange={(value, option) => {
                     handleEditChange(record.key, 'nomenclatureId', value)
+                    handleEditChange(record.key, 'nomenclature', option?.label || '')
                     loadSupplierOptions(value, record.key)
                     handleEditChange(record.key, 'supplier', '')
                   }}
@@ -3538,8 +3881,6 @@ export default function Chessboard() {
     handleMaterialBlur,
     openCommentsModal,
   ])
-
-  const { Text } = Typography
 
   // Инициализация порядка и видимости столбцов
   const allColumns = useMemo(
@@ -3954,7 +4295,7 @@ export default function Chessboard() {
             {appliedFilters?.documentationId && appliedFilters.documentationId.length > 0 && (
               <Button 
                 size="large" 
-                onClick={() => setVersionsModalOpen(true)}
+                onClick={openVersionsModal}
               >
                 Версии
               </Button>
@@ -4390,7 +4731,7 @@ export default function Chessboard() {
             placeholder="Шифр тома"
             style={{ width: '100%' }}
             value={importState.documentationId}
-            onChange={(value) => setImportState((s) => ({ ...s, documentationId: value || undefined }))}
+            onChange={(value) => setImportState((s) => ({ ...s, documentationId: value || undefined, versionId: undefined }))}
             options={
               documentations
                 ?.filter(
@@ -4403,6 +4744,28 @@ export default function Chessboard() {
                 })) ?? []
             }
             disabled={!importState.tagId}
+            allowClear
+            showSearch
+            filterOption={(input, option) => {
+              const text = (option?.label ?? '').toString()
+              return text.toLowerCase().includes(input.toLowerCase())
+            }}
+          />
+          <Select
+            placeholder="Версия"
+            style={{ width: '100%' }}
+            value={importState.versionId}
+            onChange={(value) => setImportState((s) => ({ ...s, versionId: value || undefined }))}
+            options={
+              documentVersions
+                ?.filter((version) => version.documentation_id === importState.documentationId)
+                .sort((a, b) => b.version_number - a.version_number)
+                .map((version) => ({
+                  value: version.id,
+                  label: `Версия ${version.version_number}`,
+                })) ?? []
+            }
+            disabled={!importState.documentationId}
             allowClear
             showSearch
             filterOption={(input, option) => {
