@@ -5,7 +5,14 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(npm run lint)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(find:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(npx supabase db describe:*)",
+      "Bash(npx supabase:*)",
+      "Bash(npm run dev:*)",
+      "Bash(psql:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []
