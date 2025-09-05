@@ -51,10 +51,12 @@ import {
   type ConflictResolution,
 } from '@/entities/documentation'
 import { documentationTagsApi } from '@/entities/documentation-tags'
+import { chessboardSetsApi, type ChessboardSetTableRow } from '@/entities/chessboard'
 import { supabase } from '@/lib/supabase'
 import { useScale } from '@/shared/contexts/ScaleContext'
 import { DOCUMENT_STAGES } from '@/shared/types'
 import ConflictResolutionDialog from '@/components/ConflictResolutionDialog'
+import { useNavigate } from 'react-router-dom'
 
 const { Text, Title } = Typography
 
@@ -106,6 +108,7 @@ export default function Documentation() {
   const { message } = App.useApp()
   const { scale } = useScale()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [filters, setFilters] = useState<DocumentationFilters>({})
   const [appliedFilters, setAppliedFilters] = useState<DocumentationFilters>({})
   const [filtersExpanded, setFiltersExpanded] = useState(true) // По умолчанию развернут
@@ -275,6 +278,13 @@ export default function Documentation() {
       return blocksData || []
     },
     enabled: !!importSelectedProjectId,
+  })
+
+  // Загрузка комплектов шахматок для текущего проекта
+  const { data: chessboardSets = [] } = useQuery({
+    queryKey: ['chessboard-sets', appliedFilters.project_id],
+    queryFn: () => chessboardSetsApi.getSets({ project_id: appliedFilters.project_id }),
+    enabled: !!appliedFilters.project_id,
   })
 
   // Копирование строки
@@ -560,7 +570,58 @@ export default function Documentation() {
               />
             )
           }
-          return text
+          
+          // Ищем комплекты для данного документа
+          const documentSets = chessboardSets.filter(set => 
+            set.documentation_code === record.project_code
+          )
+          
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>{text}</span>
+              {documentSets.length > 0 && (
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {documentSets.map(set => (
+                    <div
+                      key={set.id}
+                      style={{
+                        width: 12,
+                        height: 12,
+                        backgroundColor: set.status_color,
+                        borderRadius: '2px',
+                        cursor: 'pointer',
+                        border: '1px solid #d9d9d9',
+                        flexShrink: 0
+                      }}
+                      onClick={async () => {
+                        try {
+                          // Получаем полную информацию о комплекте
+                          const fullSet = await chessboardSetsApi.getSetById(set.id)
+                          if (fullSet) {
+                            const filters = chessboardSetsApi.getFiltersFromSet(fullSet)
+                            const searchParams = new URLSearchParams()
+                            if (filters.project_id) searchParams.set('project_id', filters.project_id)
+                            if (filters.documentation_id) searchParams.set('documentation_id', filters.documentation_id)
+                            if (filters.version_id) searchParams.set('version_id', filters.version_id)
+                            if (filters.tag_id) searchParams.set('tag_id', filters.tag_id.toString())
+                            if (filters.block_ids) searchParams.set('block_ids', JSON.stringify(filters.block_ids))
+                            if (filters.cost_category_ids) searchParams.set('cost_category_ids', JSON.stringify(filters.cost_category_ids))
+                            if (filters.cost_type_ids) searchParams.set('cost_type_ids', JSON.stringify(filters.cost_type_ids))
+                            
+                            navigate(`/documents/chessboard?${searchParams.toString()}`)
+                          }
+                        } catch (error) {
+                          console.error('Ошибка при загрузке комплекта:', error)
+                          message.error('Не удалось загрузить комплект')
+                        }
+                      }}
+                      title={`Комплект: ${set.set_number} (${set.status_name})`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )
         },
       },
       {

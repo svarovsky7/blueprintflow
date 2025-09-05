@@ -43,7 +43,9 @@ import { supabase } from '../../lib/supabase'
 import { documentationApi, type DocumentationRecordForList } from '@/entities/documentation'
 import { documentationTagsApi } from '@/entities/documentation-tags'
 import { materialsApi } from '@/entities/materials'
+import { chessboardSetsApi, type ChessboardSetStatus } from '@/entities/chessboard'
 import { useScale } from '@/shared/contexts/ScaleContext'
+import ChessboardSetsModal from './ChessboardSetsModal'
 
 type RowColor = '' | 'green' | 'yellow' | 'blue' | 'red'
 
@@ -439,6 +441,10 @@ export default function Chessboard() {
   // Состояние для модального окна версий
   const [versionsModalOpen, setVersionsModalOpen] = useState(false)
   const [selectedVersions, setSelectedVersions] = useState<Record<string, string>>({}) // documentationId -> versionId
+
+  // Состояния для комплектов
+  const [selectedSetStatus, setSelectedSetStatus] = useState<number | undefined>(undefined)
+  const [setsModalOpen, setSetsModalOpen] = useState(false)
 
   const { data: projects } = useQuery<ProjectOption[]>({
     queryKey: ['projects'],
@@ -839,6 +845,12 @@ export default function Chessboard() {
       documentationTags ? [...documentationTags].sort((a, b) => a.tag_number - b.tag_number) : [],
     [documentationTags],
   )
+
+  // Загрузка статусов комплектов
+  const { data: setStatuses } = useQuery<ChessboardSetStatus[]>({
+    queryKey: ['chessboard-set-statuses'],
+    queryFn: chessboardSetsApi.getStatuses,
+  })
 
   // Загрузка документации для выбранного проекта
   const { data: documentations } = useQuery<DocumentationRecordForList[]>({
@@ -1857,6 +1869,77 @@ export default function Chessboard() {
     ])
     setMode('add')
   }, [appliedFilters, costTypes, blocks, sortedDocumentationTags, documentations, documentVersions, selectedVersions, setSelectedVersions])
+
+  // Функция для создания комплекта
+  const createChessboardSet = useCallback(async (statusId: number) => {
+    if (!appliedFilters) {
+      message.error('Нет примененных фильтров для создания комплекта')
+      return
+    }
+
+    // Проверяем обязательные фильтры
+    if (!appliedFilters.projectId) {
+      message.error('Проект обязателен для создания комплекта')
+      return
+    }
+
+    if (!appliedFilters.documentationId || appliedFilters.documentationId.length === 0) {
+      message.error('Шифр проекта обязателен для создания комплекта')
+      return
+    }
+
+    if (appliedFilters.documentationId.length > 1) {
+      message.error('Для создания комплекта должен быть выбран только один шифр проекта')
+      return
+    }
+
+    const documentationId = appliedFilters.documentationId[0]
+    const versionId = selectedVersions[documentationId]
+    
+    if (!versionId) {
+      message.error('Версия шифра проекта обязательна для создания комплекта')
+      return
+    }
+
+    try {
+      const createRequest = {
+        filters: {
+          project_id: appliedFilters.projectId,
+          documentation_id: documentationId,
+          version_id: versionId,
+          tag_id: appliedFilters.tagId && appliedFilters.tagId.length === 1 ? parseInt(appliedFilters.tagId[0]) : null,
+          block_ids: appliedFilters.blockId && appliedFilters.blockId.length > 0 ? appliedFilters.blockId : null,
+          cost_category_ids: appliedFilters.categoryId && appliedFilters.categoryId.length > 0 
+            ? appliedFilters.categoryId.map(id => parseInt(id)) : null,
+          cost_type_ids: appliedFilters.typeId && appliedFilters.typeId.length > 0 
+            ? appliedFilters.typeId.map(id => parseInt(id)) : null,
+        },
+        status_id: statusId,
+      }
+
+      await chessboardSetsApi.createSet(createRequest)
+      message.success('Комплект успешно создан')
+      setSelectedSetStatus(undefined) // Сбрасываем выбор статуса
+    } catch (error) {
+      console.error('Ошибка создания комплекта:', error)
+      message.error('Ошибка при создании комплекта')
+    }
+  }, [appliedFilters, selectedVersions])
+
+  // Функция для открытия модального окна со списком комплектов
+  const openSetsModal = useCallback(() => {
+    if (!appliedFilters?.projectId) {
+      message.warning('Выберите проект для просмотра комплектов')
+      return
+    }
+    setSetsModalOpen(true)
+  }, [appliedFilters?.projectId])
+
+  // Обработчик изменения статуса комплекта
+  const handleSetStatusChange = useCallback((statusId: number) => {
+    setSelectedSetStatus(statusId)
+    createChessboardSet(statusId)
+  }, [createChessboardSet])
 
   const startEdit = useCallback(
     (id: string) => {
@@ -4407,9 +4490,40 @@ export default function Chessboard() {
               !Object.keys(editingRows).length &&
               mode === 'view' &&
               !deleteMode && (
-                <Button type="primary" icon={<PlusOutlined />} onClick={startAdd}>
-                  Добавить
-                </Button>
+                <>
+                  <Space.Compact>
+                    <Button onClick={openSetsModal}>
+                      Комплект
+                    </Button>
+                    <Select
+                      placeholder="Выберите статус"
+                      style={{ width: 200 }}
+                      value={selectedSetStatus}
+                      onChange={handleSetStatusChange}
+                      allowClear
+                      options={setStatuses?.map(status => ({
+                        value: status.id,
+                        label: (
+                          <Space>
+                            <div
+                              style={{
+                                width: 12,
+                                height: 12,
+                                backgroundColor: status.color,
+                                borderRadius: 2,
+                                display: 'inline-block'
+                              }}
+                            />
+                            {status.name}
+                          </Space>
+                        ),
+                      }))}
+                    />
+                  </Space.Compact>
+                  <Button type="primary" icon={<PlusOutlined />} onClick={startAdd}>
+                    Добавить
+                  </Button>
+                </>
               )}
             {Object.keys(editingRows).length > 0 && (
               <>
@@ -5039,6 +5153,13 @@ export default function Chessboard() {
           }
         />
       </Drawer>
+
+      {/* Модальное окно со списком комплектов */}
+      <ChessboardSetsModal
+        open={setsModalOpen}
+        onClose={() => setSetsModalOpen(false)}
+        projectId={appliedFilters?.projectId}
+      />
     </div>
   )
 }
