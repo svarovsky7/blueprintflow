@@ -126,6 +126,7 @@ export interface DocumentationColumnSettings {
   visible: {
     tag: boolean
     code: boolean
+    project_name: boolean
     version_count: boolean // Теперь это столбец "Версия"
     comments: boolean
   }

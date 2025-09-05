@@ -14,6 +14,21 @@ import type {
   Block,
 } from '../types'
 
+// Импортируем DocumentationRecord из Chessboard.tsx
+// Временное решение - определим здесь для избежания циклических зависимостей
+export type DocumentationRecordForList = {
+  id: string
+  project_code: string
+  project_name?: string | null
+  tag_id: number | null
+  tag_name?: string | null
+  tag?: {
+    id: number
+    name: string
+    tag_number: number | null
+  } | null
+}
+
 export const documentationApi = {
   // Удаление записи документации
   async deleteDocumentation(id: string) {
@@ -229,6 +244,89 @@ export const documentationApi = {
     })
 
     return tableData
+  },
+
+  // Получение простого списка документации для использования в других компонентах (например, Шахматке)
+  async getDocumentationList(filters?: { project_id?: string; block_id?: string }): Promise<DocumentationRecordForList[]> {
+    if (!supabase) {
+      return []
+    }
+
+    // Если есть фильтр по проекту или блоку, сначала получаем документы через маппинг
+    let documentationIds: string[] | null = null
+
+    if (filters?.project_id || filters?.block_id) {
+      let mappingQuery = supabase.from('documentations_projects_mapping').select('documentation_id')
+
+      if (filters.project_id) {
+        mappingQuery = mappingQuery.eq('project_id', filters.project_id)
+      }
+      if (filters.block_id) {
+        mappingQuery = mappingQuery.eq('block_id', filters.block_id)
+      }
+
+      const { data: mappingData, error: mappingError } = await mappingQuery
+
+      if (mappingError) {
+        console.error('Failed to fetch project mapping:', mappingError)
+        throw mappingError
+      }
+
+      documentationIds = mappingData?.map((m) => m.documentation_id) || []
+    }
+
+    let query = supabase
+      .from('documentations')
+      .select(`
+        id,
+        code,
+        project_name,
+        tag_id,
+        stage,
+        tag:documentation_tags(id, name, tag_number)
+      `)
+      .order('code', { ascending: true })
+
+    // Применяем фильтры
+    if (documentationIds !== null) {
+      if (documentationIds.length === 0) {
+        // Если нет документов для данного проекта/блока, возвращаем пустой результат
+        return []
+      }
+      query = query.in('id', documentationIds)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error('Failed to fetch documentation list:', error)
+      throw error
+    }
+
+    return (data || []).map(doc => {
+      // Обрабатываем tag - может быть объектом, массивом или null
+      let tagData = null
+      let tagName = null
+      
+      if (doc.tag) {
+        if (Array.isArray(doc.tag)) {
+          tagData = doc.tag.length > 0 ? doc.tag[0] : null
+          tagName = tagData?.name || null
+        } else {
+          tagData = doc.tag as { id: number; name: string; tag_number: number | null }
+          tagName = tagData.name || null
+        }
+      }
+      
+      return {
+        id: doc.id,
+        project_code: doc.code,
+        project_name: doc.project_name,
+        tag_id: doc.tag_id,
+        tag_name: tagName,
+        tag: tagData
+      }
+    }) as DocumentationRecordForList[]
   },
 
   // Создание или обновление документации

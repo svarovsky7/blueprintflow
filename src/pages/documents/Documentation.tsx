@@ -94,6 +94,7 @@ const getColumnSettings = (): DocumentationColumnSettings => {
     visible: {
       tag: true,
       code: true,
+      project_name: true,
       version_count: true,
       comments: true,
     },

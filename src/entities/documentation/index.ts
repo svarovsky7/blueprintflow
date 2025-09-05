@@ -1,4 +1,5 @@
 export { documentationApi } from './api/documentation-api'
+export type { DocumentationRecordForList } from './api/documentation-api'
 export type {
   Documentation,
   DocumentationVersion,

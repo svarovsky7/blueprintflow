@@ -40,7 +40,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
-import { documentationApi } from '@/entities/documentation'
+import { documentationApi, type DocumentationRecordForList } from '@/entities/documentation'
 import { documentationTagsApi } from '@/entities/documentation-tags'
 import { materialsApi } from '@/entities/materials'
 import { useScale } from '@/shared/contexts/ScaleContext'
@@ -121,7 +121,8 @@ interface RowData {
   tagName?: string
   tagNumber?: number | null
   projectCode?: string
-  versionNumber?: number
+  projectName?: string
+  versionNumber?: number | null
   floorQuantities?: FloorQuantities
 }
 
@@ -134,6 +135,7 @@ interface FloorModalRow {
 
 interface FloorModalInfo {
   projectCode?: string
+  projectName?: string
   workName?: string
   material: string
   unit: string
@@ -177,6 +179,7 @@ interface ViewRow {
   tagName?: string
   tagNumber?: number | null
   projectCode?: string
+  projectName?: string
   versionNumber?: number
   comments?: Comment[]
 }
@@ -201,12 +204,7 @@ interface NomenclatureOption {
   id: string
   name: string
 }
-interface DocumentationRecord {
-  id: string
-  project_code: string
-  tag_id: number | null
-  tag_name?: string | null
-}
+// Removed DocumentationRecord interface - now using DocumentationRecordForList from API
 interface CostCategoryOption {
   id: number
   number: number | null
@@ -365,6 +363,7 @@ const emptyRow = (defaults: Partial<RowData>): RowData => ({
   tagName: defaults.tagName ?? '',
   tagNumber: defaults.tagNumber ?? null,
   projectCode: defaults.projectCode ?? '',
+  projectName: defaults.projectName ?? '',
   versionNumber: defaults.versionNumber ?? undefined,
   floorQuantities: undefined,
 })
@@ -686,6 +685,8 @@ export default function Chessboard() {
         value = row.tagName || ''
       } else if (dataIndex === 'projectCode' && 'projectCode' in row) {
         value = row.projectCode || ''
+      } else if (dataIndex === 'projectName' && 'projectName' in row) {
+        value = row.projectName || ''
       } else if (dataIndex === 'material') {
         value = row.material || ''
       } else if (dataIndex === 'quantityPd') {
@@ -840,23 +841,23 @@ export default function Chessboard() {
   )
 
   // Загрузка документации для выбранного проекта
-  const { data: documentations } = useQuery<DocumentationRecord[]>({
+  const { data: documentations } = useQuery<DocumentationRecordForList[]>({
     queryKey: ['documentations', appliedFilters?.projectId],
     queryFn: async () => {
       if (!appliedFilters?.projectId) return []
       const fetchFilters = { project_id: appliedFilters.projectId }
-      return documentationApi.getDocumentation(fetchFilters)
+      return documentationApi.getDocumentationList(fetchFilters)
     },
     enabled: !!appliedFilters?.projectId,
   })
 
   // Загрузка документации для фильтров (до применения)
-  const { data: filterDocumentations } = useQuery<DocumentationRecord[]>({
+  const { data: filterDocumentations } = useQuery<DocumentationRecordForList[]>({
     queryKey: ['filter-documentations', filters.projectId],
     queryFn: async () => {
       if (!filters.projectId) return []
       const fetchFilters = { project_id: filters.projectId }
-      return documentationApi.getDocumentation(fetchFilters)
+      return documentationApi.getDocumentationList(fetchFilters)
     },
     enabled: !!filters.projectId,
   })
@@ -1163,6 +1164,16 @@ export default function Chessboard() {
           tagName: tag?.name || fallbackTag?.name || '',
           tagNumber: tag?.tag_number ?? fallbackTag?.tag_number ?? null,
           projectCode: documentation?.code || fallbackDoc?.project_code || '',
+          projectName: (() => {
+            // Сначала пытаемся найти по коду проекта из документации
+            const projectCode = documentation?.code || fallbackDoc?.project_code || ''
+            if (projectCode && documentations) {
+              const matchingDoc = documentations.find(d => d.project_code === projectCode)
+              if (matchingDoc?.project_name) return matchingDoc.project_name
+            }
+            // Fallback к прямому поиску по project_name
+            return (documentation as any)?.project_name || (fallbackDoc as any)?.project_name || ''
+          })(),
           versionNumber: version?.version_number ?? autoVersion?.version_number ?? fallbackVersion?.version_number ?? undefined,
           comments: commentsMap.get(item.id) || [],
         }
@@ -1173,7 +1184,13 @@ export default function Chessboard() {
 
   const tableRows = useMemo<TableRow[]>(
     () => [
-      ...rows.map((r) => ({ ...r })),
+      ...rows.map((r) => ({ 
+        ...r,
+        // Обеспечиваем fallback для projectName если он пустой
+        projectName: r.projectName || 
+          (r.projectCode && documentations?.find(d => d.project_code === r.projectCode)?.project_name) || 
+          r.projectName
+      })),
       ...viewRows.map((v) => ({
         key: v.key,
         material: v.material,
@@ -1195,11 +1212,12 @@ export default function Chessboard() {
         tagName: v.tagName,
         tagNumber: v.tagNumber,
         projectCode: v.projectCode,
+        projectName: v.projectName, // Добавляем projectName
         versionNumber: v.versionNumber,
         isExisting: true,
       })),
     ],
-    [rows, viewRows],
+    [rows, viewRows, documentations],
   )
 
   const handleApply = () => {
@@ -1266,7 +1284,7 @@ export default function Chessboard() {
         ? sortedDocumentationTags.find((t) => String(t.id) === appliedFilters.tagId![0])
         : undefined
       const docData = appliedFilters.documentationId && appliedFilters.documentationId.length === 1
-        ? documentations?.find((d: DocumentationRecord) => d.id === appliedFilters.documentationId![0])
+        ? documentations?.find((d: DocumentationRecordForList) => d.id === appliedFilters.documentationId![0])
         : undefined
       const versionData = docData && selectedVersions[docData.id]
         ? documentVersions?.find(v => v.id === selectedVersions[docData.id])
@@ -1435,9 +1453,14 @@ export default function Chessboard() {
       const projectCode =
         'projectCode' in row
           ? row.projectCode
-          : ((row as DbRow).chessboard_documentation_mapping?.documentations?.code ?? '')
+          : (((row as DbRow).chessboard_documentation_mapping as any)?.documentation_versions?.documentations?.code ?? '')
+      const projectName =
+        'projectName' in row
+          ? row.projectName
+          : (((row as DbRow).chessboard_documentation_mapping as any)?.documentation_versions?.documentations?.project_name ?? '')
       setFloorModalInfo({
         projectCode,
+        projectName,
         workName,
         material: row.material || '',
         unit: unitName,
@@ -1812,7 +1835,7 @@ export default function Chessboard() {
       ? sortedDocumentationTags.find((t) => String(t.id) === appliedFilters.tagId![0])
       : undefined
     const docData = appliedFilters.documentationId && appliedFilters.documentationId.length === 1
-      ? documentations?.find((d: DocumentationRecord) => d.id === appliedFilters.documentationId![0])
+      ? documentations?.find((d: DocumentationRecordForList) => d.id === appliedFilters.documentationId![0])
       : undefined
     const versionData = docData && selectedVersions[docData.id]
       ? documentVersions?.find(v => v.id === selectedVersions[docData.id])
@@ -1903,6 +1926,16 @@ export default function Chessboard() {
             tagNumber:
               dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.tag?.tag_number ?? null,
             projectCode: dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.code ?? '',
+            projectName: (() => {
+              // Сначала пытаемся найти по коду проекта из документации
+              const projectCode = dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.code ?? ''
+              if (projectCode && documentations) {
+                const matchingDoc = documentations.find(d => d.project_code === projectCode)
+                if (matchingDoc?.project_name) return matchingDoc.project_name
+              }
+              // Fallback к прямому поиску по project_name
+              return (dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations as any)?.project_name ?? ''
+            })(),
             versionNumber: dbRow.chessboard_documentation_mapping?.documentation_versions?.version_number ?? null,
             floorQuantities: dbRow.floorQuantities,
           },
@@ -2050,7 +2083,7 @@ export default function Chessboard() {
           await supabase!.from('chessboard_documentation_mapping').upsert(
             {
               chessboard_id: r.key,
-              version_id: version.id,
+              version_id: version?.id || '',
             },
             { onConflict: 'chessboard_id' },
           )
@@ -2704,7 +2737,7 @@ export default function Chessboard() {
           version = newVersion
         }
         
-        versionId = version.id
+        versionId = version?.id || ''
       }
 
       if (versionId) {
@@ -2749,11 +2782,12 @@ export default function Chessboard() {
       title: string
       dataIndex: keyof TableRow
       width?: number
-      maxWidth: number
+      maxWidth?: number
       align?: 'left' | 'right' | 'center'
     }> = [
-      { title: 'Раздел', dataIndex: 'tagName', maxWidth: 200 },
+      { title: 'Раздел', dataIndex: 'tagName' },
       { title: 'Шифр проекта', dataIndex: 'projectCode', maxWidth: 150 },
+      { title: 'Название проекта', dataIndex: 'projectName', maxWidth: 200 },
       { title: 'Вер.', dataIndex: 'versionNumber', width: 60, maxWidth: 60, align: 'center' },
       { title: 'Материал', dataIndex: 'material', maxWidth: 300 },
       { title: 'Кол-во по ПД', dataIndex: 'quantityPd', maxWidth: 120, align: 'center' },
@@ -2769,10 +2803,10 @@ export default function Chessboard() {
       { title: 'Ед.изм.', dataIndex: 'unitId', maxWidth: 160 },
       { title: 'Корпус', dataIndex: 'block', maxWidth: 120 },
       { title: 'Этажи', dataIndex: 'floors', maxWidth: 150 },
-      { title: 'Категория затрат', dataIndex: 'costCategoryId', minWidth: 120, maxWidth: 200 },
+      { title: 'Категория затрат', dataIndex: 'costCategoryId', maxWidth: 200 },
       { title: 'Вид затрат', dataIndex: 'costTypeId', maxWidth: 200 },
       { title: 'Наименование работ', dataIndex: 'rateId', maxWidth: 300 },
-      { title: 'Локализация', dataIndex: 'locationId', minWidth: 100, maxWidth: 180 },
+      { title: 'Локализация', dataIndex: 'locationId', maxWidth: 180 },
     ]
 
     const dataColumns = base
@@ -2863,16 +2897,16 @@ export default function Chessboard() {
                   value={record.documentationId || (appliedFilters?.documentationId?.length === 1 ? appliedFilters.documentationId[0] : undefined)}
                   onChange={(value) => {
                     handleRowChange(record.key, 'documentationId', value)
-                    const doc = documentations?.find((d: DocumentationRecord) => d.id === value)
+                    const doc = documentations?.find((d: DocumentationRecordForList) => d.id === value)
                     handleRowChange(record.key, 'projectCode', doc?.project_code ?? '')
                   }}
                   options={
                     documentations
                       ?.filter(
-                        (doc: DocumentationRecord) =>
+                        (doc: DocumentationRecordForList) =>
                           !record.tagId || String(doc.tag_id) === record.tagId,
                       )
-                      .map((doc: DocumentationRecord) => ({
+                      .map((doc: DocumentationRecordForList) => ({
                         value: doc.id,
                         label: doc.project_code,
                       })) ?? []
@@ -2897,6 +2931,7 @@ export default function Chessboard() {
                   onChange={(value) => {
                     const selectedDoc = documentations?.find(doc => doc.project_code === value)
                     handleRowChange(record.key, 'projectCode', value)
+                    handleRowChange(record.key, 'projectName', selectedDoc?.project_name || '')
                     handleRowChange(record.key, 'documentationId', selectedDoc?.id || null)
                     handleRowChange(record.key, 'versionNumber', null)
                   }}
@@ -2912,7 +2947,8 @@ export default function Chessboard() {
                           return appliedFilters.documentationId.includes(doc.id)
                         }
                         // Иначе фильтруем по тегу строки
-                        return !record.tagName || doc.tag?.name === record.tagName
+                        if (!record.tagName) return true
+                        return doc.tag_name === record.tagName || (doc.tag && doc.tag.name === record.tagName)
                       })
                       .map((doc) => ({
                         value: doc.project_code,
@@ -2922,6 +2958,12 @@ export default function Chessboard() {
                   disabled={!record.tagName}
                 />
               )
+            case 'projectName':
+              return <span style={{ padding: '4px 8px' }}>{
+                record.projectName || 
+                (record.projectCode && documentations?.find(d => d.project_code === record.projectCode)?.project_name) || 
+                '-'
+              }</span>
             case 'versionNumber':
               return (
                 <Select
@@ -3011,7 +3053,7 @@ export default function Chessboard() {
                   value={record.nomenclatureId}
                   onChange={(value, option) => {
                     handleRowChange(record.key, 'nomenclatureId', value)
-                    handleRowChange(record.key, 'nomenclature', option?.label || '')
+                    handleRowChange(record.key, 'nomenclature', (option as any)?.label || '')
                     loadSupplierOptions(value, record.key)
                     handleRowChange(record.key, 'supplier', '')
                   }}
@@ -3174,7 +3216,7 @@ export default function Chessboard() {
           col.dataIndex as string,
           col.title,
           rows,
-          col.maxWidth
+          col.maxWidth || 200
         )
 
         return { 
@@ -3304,11 +3346,12 @@ export default function Chessboard() {
       title: string
       dataIndex: string
       width?: number
-      maxWidth: number
+      maxWidth?: number
       align?: 'left' | 'right' | 'center'
     }> = [
-      { title: 'Раздел', dataIndex: 'tagName', maxWidth: 200 },
+      { title: 'Раздел', dataIndex: 'tagName' },
       { title: 'Шифр проекта', dataIndex: 'projectCode', maxWidth: 150 },
+      { title: 'Название проекта', dataIndex: 'projectName', maxWidth: 200 },
       { title: 'Вер.', dataIndex: 'versionNumber', width: 60, maxWidth: 60, align: 'center' },
       { title: 'Материал', dataIndex: 'material', maxWidth: 300 },
       { title: 'Кол-во по ПД', dataIndex: 'quantityPd', maxWidth: 120, align: 'center' },
@@ -3325,10 +3368,10 @@ export default function Chessboard() {
       { title: 'Комментарии', dataIndex: 'comments', width: 140, maxWidth: 140 },
       { title: 'Корпус', dataIndex: 'block', maxWidth: 120 },
       { title: 'Этажи', dataIndex: 'floors', maxWidth: 150 },
-      { title: 'Категория затрат', dataIndex: 'costCategory', minWidth: 120, maxWidth: 200 },
+      { title: 'Категория затрат', dataIndex: 'costCategory', maxWidth: 200 },
       { title: 'Вид затрат', dataIndex: 'costType', maxWidth: 200 },
       { title: 'Наименование работ', dataIndex: 'workName', maxWidth: 300 },
-      { title: 'Локализация', dataIndex: 'location', minWidth: 100, maxWidth: 180 },
+      { title: 'Локализация', dataIndex: 'location', maxWidth: 180 },
     ]
 
     const dataColumns = base
@@ -3454,16 +3497,16 @@ export default function Chessboard() {
                   value={edit.documentationId}
                   onChange={(value) => {
                     handleEditChange(record.key, 'documentationId', value)
-                    const doc = documentations?.find((d: DocumentationRecord) => d.id === value)
+                    const doc = documentations?.find((d: DocumentationRecordForList) => d.id === value)
                     handleEditChange(record.key, 'projectCode', doc?.project_code ?? '')
                   }}
                   options={
                     documentations
                       ?.filter(
-                        (doc: DocumentationRecord) =>
+                        (doc: DocumentationRecordForList) =>
                           !edit.tagId || String(doc.tag_id) === edit.tagId,
                       )
-                      .map((doc: DocumentationRecord) => ({
+                      .map((doc: DocumentationRecordForList) => ({
                         value: doc.id,
                         label: doc.project_code,
                       })) ?? []
@@ -3488,6 +3531,7 @@ export default function Chessboard() {
                   onChange={(value) => {
                     const selectedDoc = documentations?.find(doc => doc.project_code === value)
                     handleEditChange(record.key, 'projectCode', value)
+                    handleEditChange(record.key, 'projectName', selectedDoc?.project_name || '')
                     handleEditChange(record.key, 'documentationId', selectedDoc?.id || null)
                     handleEditChange(record.key, 'versionNumber', null)
                   }}
@@ -3503,7 +3547,8 @@ export default function Chessboard() {
                           return appliedFilters.documentationId.includes(doc.id)
                         }
                         // Иначе фильтруем по тегу строки
-                        return !edit.tagName || doc.tag?.name === edit.tagName
+                        if (!edit.tagName) return true
+                        return doc.tag_name === edit.tagName || (doc.tag && doc.tag.name === edit.tagName)
                       })
                       .map((doc) => ({
                         value: doc.project_code,
@@ -3513,6 +3558,12 @@ export default function Chessboard() {
                   disabled={!edit.tagName}
                 />
               )
+            case 'projectName':
+              return <span style={{ padding: '4px 8px' }}>{
+                edit.projectName || 
+                (edit.projectCode && documentations?.find(d => d.project_code === edit.projectCode)?.project_name) || 
+                '-'
+              }</span>
             case 'versionNumber':
               return (
                 <Select
@@ -3602,7 +3653,7 @@ export default function Chessboard() {
                   value={edit.nomenclatureId}
                   onChange={(value, option) => {
                     handleEditChange(record.key, 'nomenclatureId', value)
-                    handleEditChange(record.key, 'nomenclature', option?.label || '')
+                    handleEditChange(record.key, 'nomenclature', (option as any)?.label || '')
                     loadSupplierOptions(value, record.key)
                     handleEditChange(record.key, 'supplier', '')
                   }}
@@ -3773,7 +3824,7 @@ export default function Chessboard() {
           col.dataIndex,
           col.title,
           viewRows,
-          col.maxWidth
+          col.maxWidth || 200
         )
 
         return {
@@ -3887,6 +3938,7 @@ export default function Chessboard() {
     () => [
       { key: 'tagName', title: 'Раздел' },
       { key: 'projectCode', title: 'Шифр проекта' },
+      { key: 'projectName', title: 'Название проекта' },
       { key: 'versionNumber', title: 'Вер.' },
       { key: 'block', title: 'Корпус' },
       { key: 'floors', title: 'Этажи' },
@@ -3966,6 +4018,7 @@ export default function Chessboard() {
         if (missingColumns.length > 0) {
           const tagNameCol = missingColumns.find((c) => c.key === 'tagName')
           const projectCodeCol = missingColumns.find((c) => c.key === 'projectCode')
+          const projectNameCol = missingColumns.find((c) => c.key === 'projectName')
           const versionNumberCol = missingColumns.find((c) => c.key === 'versionNumber')
           
           // Создаем правильный порядок
@@ -3984,25 +4037,36 @@ export default function Chessboard() {
             remainingMissing.splice(remainingMissing.indexOf(projectCodeCol), 1)
           }
           
-          // 3. versionNumber после projectCode
+          // 3. projectName после projectCode
+          if (projectNameCol) {
+            newOrder.push('projectName')  
+            remainingMissing.splice(remainingMissing.indexOf(projectNameCol), 1)
+          }
+          
+          // 4. versionNumber после projectName
           if (versionNumberCol) {
             newOrder.push('versionNumber')
             remainingMissing.splice(remainingMissing.indexOf(versionNumberCol), 1)
           }
 
-          // 4. Вставляем существующие столбцы, но учитываем новую структуру
+          // 5. Вставляем существующие столбцы, но учитываем новую структуру
           const updatedParsed = []
           for (const colKey of parsed) {
             if (colKey === 'tagName' && !newOrder.includes('tagName')) {
               newOrder.push('tagName')
             } else if (colKey === 'projectCode' && !newOrder.includes('projectCode')) {
               newOrder.push('projectCode')
-              // После projectCode добавляем versionNumber если он есть в новых столбцах
+              // После projectCode добавляем projectName если он есть в новых столбцах
+              if (projectNameCol && !newOrder.includes('projectName')) {
+                newOrder.push('projectName')
+                remainingMissing.splice(remainingMissing.indexOf(projectNameCol), 1)
+              }
+              // После projectName добавляем versionNumber если он есть в новых столбцах
               if (versionNumberCol && !newOrder.includes('versionNumber')) {
                 newOrder.push('versionNumber')
                 remainingMissing.splice(remainingMissing.indexOf(versionNumberCol), 1)
               }
-            } else if (colKey !== 'tagName' && colKey !== 'projectCode') {
+            } else if (colKey !== 'tagName' && colKey !== 'projectCode' && colKey !== 'projectName') {
               updatedParsed.push(colKey)
             }
           }
@@ -4270,10 +4334,10 @@ export default function Chessboard() {
                   options={
                     filterDocumentations
                       ?.filter(
-                        (doc: DocumentationRecord) =>
+                        (doc: DocumentationRecordForList) =>
                           !filters.tagId || filters.tagId.length === 0 || (doc.tag_id !== null && filters.tagId.includes(String(doc.tag_id))),
                       )
-                      .map((doc: DocumentationRecord) => ({
+                      .map((doc: DocumentationRecordForList) => ({
                         value: doc.id,
                         label: doc.project_code,
                       })) ?? []
@@ -4557,6 +4621,7 @@ export default function Chessboard() {
       >
         <div style={{ marginBottom: 16 }}>
           <div>Шифр проекта: {floorModalInfo.projectCode}</div>
+          <div>Название проекта: {floorModalInfo.projectName || '-'}</div>
           <div>Наименование работ: {floorModalInfo.workName}</div>
           <div>
             Материал: {floorModalInfo.material} ({floorModalInfo.unit})
@@ -4735,10 +4800,10 @@ export default function Chessboard() {
             options={
               documentations
                 ?.filter(
-                  (doc: DocumentationRecord) =>
+                  (doc: DocumentationRecordForList) =>
                     !importState.tagId || (doc.tag_id !== null && String(doc.tag_id) === importState.tagId)
                 )
-                .map((doc: DocumentationRecord) => ({
+                .map((doc: DocumentationRecordForList) => ({
                   value: doc.id,
                   label: doc.project_code,
                 })) ?? []
