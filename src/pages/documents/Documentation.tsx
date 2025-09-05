@@ -563,6 +563,77 @@ export default function Documentation() {
         },
       },
       {
+        title: 'Название проекта',
+        dataIndex: 'project_name',
+        key: 'project_name',
+        width: 200,
+        sorter: (a, b) => (a.project_name || '').localeCompare(b.project_name || ''),
+        filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }) => (
+          <div style={{ padding: 8 }}>
+            <Input
+              placeholder="Поиск по названию"
+              value={selectedKeys[0]}
+              onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+              onPressEnter={() => confirm()}
+              style={{ marginBottom: 8, display: 'block' }}
+            />
+            <Space>
+              <Button
+                type="primary"
+                onClick={() => confirm()}
+                icon={<FilterOutlined />}
+                size="small"
+                style={{ width: 90 }}
+              >
+                Поиск
+              </Button>
+              <Button
+                onClick={() => clearFilters && clearFilters()}
+                size="small"
+                style={{ width: 90 }}
+              >
+                Сброс
+              </Button>
+            </Space>
+          </div>
+        ),
+        onFilter: (value, record) => {
+          if (typeof value === 'string') {
+            return (record.project_name || '').toLowerCase().includes(value.toLowerCase())
+          }
+          return false
+        },
+        visible: columnSettings.visible.project_name,
+        render: (text, record: DocumentationTableRow) => {
+          if (record.isNew || editingKey === record.id || editingRows[record.id]) {
+            const editedRow = editingRows[record.id] || record
+            return (
+              <Input
+                value={record.isNew ? text : editedRow.project_name}
+                onChange={(e) => {
+                  if (record.isNew) {
+                    const updated = newRows.map((r) =>
+                      r.id === record.id ? { ...r, project_name: e.target.value } : r,
+                    )
+                    setNewRows(updated)
+                  } else {
+                    setEditingRows((prev) => ({
+                      ...prev,
+                      [record.id]: {
+                        ...editedRow,
+                        project_name: e.target.value,
+                      },
+                    }))
+                  }
+                }}
+                placeholder="Введите название проекта"
+              />
+            )
+          }
+          return text || '-'
+        },
+      },
+      {
         title: 'Версия',
         key: 'version',
         width: 100,
@@ -825,7 +896,13 @@ export default function Documentation() {
                     const editedRow = editingRows[record.id]
                     if (editedRow) {
                       try {
-                        // TODO: Добавить сохранение через API
+                        // Обновляем запись через API
+                        await documentationApi.updateDocumentation(editedRow.documentation_id, {
+                          code: editedRow.project_code,
+                          project_name: editedRow.project_name,
+                          stage: editedRow.stage,
+                          tag_id: editedRow.tag_id,
+                        })
                         message.success('Запись обновлена')
                         setEditingRows((prev) => {
                           const newRows = { ...prev }
@@ -833,8 +910,8 @@ export default function Documentation() {
                           return newRows
                         })
                         queryClient.invalidateQueries({ queryKey: ['documentation'] })
-                      } catch {
-                        message.error('Ошибка при сохранении')
+                      } catch (error) {
+                        message.error(`Ошибка при сохранении: ${(error as Error).message}`)
                       }
                     }
                     setEditingKey(null)
@@ -947,6 +1024,7 @@ export default function Documentation() {
       { key: 'stage', title: 'Стадия' },
       { key: 'tag', title: 'Раздел' },
       { key: 'code', title: 'Шифр проекта' },
+      { key: 'project_name', title: 'Название проекта' },
       { key: 'version', title: 'Версия' },
       { key: 'file', title: 'Файл' },
       { key: 'project', title: 'Проект' },
@@ -1368,6 +1446,7 @@ export default function Documentation() {
         // Используем комплексный метод сохранения
         await documentationApi.saveDocumentationComplete({
           code: row.project_code,
+          projectName: row.project_name,
           stage: row.stage || 'П',
           tagId,
           projectId: row.project_id || undefined,
@@ -1544,13 +1623,23 @@ export default function Documentation() {
                   icon={<SaveOutlined />}
                   onClick={async () => {
                     try {
-                      // TODO: Добавить массовое сохранение через API
+                      // Массовое сохранение всех редактируемых записей
+                      const updatePromises = Object.values(editingRows).map(async (editedRow) => {
+                        return documentationApi.updateDocumentation(editedRow.documentation_id, {
+                          code: editedRow.project_code,
+                          project_name: editedRow.project_name,
+                          stage: editedRow.stage,
+                          tag_id: editedRow.tag_id,
+                        })
+                      })
+                      
+                      await Promise.all(updatePromises)
                       message.success(`Обновлено записей: ${Object.keys(editingRows).length}`)
                       setEditingRows({})
                       setEditingKey(null)
                       queryClient.invalidateQueries({ queryKey: ['documentation'] })
-                    } catch {
-                      message.error('Ошибка при сохранении')
+                    } catch (error) {
+                      message.error(`Ошибка при сохранении: ${(error as Error).message}`)
                     }
                   }}
                 >

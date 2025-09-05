@@ -216,7 +216,7 @@ export const documentationApi = {
         tag_name: doc.tag?.name || '',
         tag_number: doc.tag?.tag_number || 0,
         project_code: doc.code,
-        project_name: project?.name || '',
+        project_name: doc.project_name || '',
         version_count: versions.length,
         versions,
         selected_version: defaultSelectedVersionNumber,
@@ -239,6 +239,7 @@ export const documentationApi = {
     blockId?: string,
     _color?: string,
     stage?: 'П' | 'Р',
+    projectName?: string,
   ) {
     if (!supabase) throw new Error('Supabase client not initialized')
 
@@ -248,6 +249,7 @@ export const documentationApi = {
       .upsert(
         {
           code,
+          project_name: projectName || null,
           tag_id: tagId || null,
           stage: stage || 'П', // По умолчанию П (проект)
           // color: color || null, // TODO: раскомментировать после добавления колонки в БД
@@ -647,6 +649,7 @@ export const documentationApi = {
   // Комплексное сохранение документации с версиями и комментариями
   async saveDocumentationComplete(data: {
     code: string
+    projectName?: string
     stage?: 'П' | 'Р'
     tagId?: number
     projectId?: string
@@ -670,6 +673,7 @@ export const documentationApi = {
         data.blockId,
         data.color,
         data.stage,
+        data.projectName,
       )
 
       // 2. Создаем или обновляем версию документации

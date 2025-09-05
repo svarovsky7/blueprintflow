@@ -1,6 +1,7 @@
 export interface Documentation {
   id: string // UUID
   code: string
+  project_name?: string | null // Название проекта
   stage?: 'П' | 'Р' | null // Стадия проектирования
   tag_id: number | null
   color?: string | null // Цвет строки
