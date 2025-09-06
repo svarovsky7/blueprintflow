@@ -1952,6 +1952,54 @@ export default function Chessboard() {
     setSetsModalOpen(true)
   }, [appliedFilters?.projectId])
 
+  // Функция для применения фильтров из выбранного комплекта
+  const applySetFilters = useCallback(async (setId: string) => {
+    try {
+      // Получаем данные комплекта
+      const setData = await chessboardSetsApi.getSetById(setId)
+      if (!setData) {
+        message.error('Комплект не найден')
+        return
+      }
+
+      // Подготавливаем фильтры из комплекта
+      const newFilters = {
+        projectId: setData.project_id,
+        blockId: setData.block_ids || undefined,
+        categoryId: setData.cost_category_ids?.map(id => String(id)) || undefined,
+        typeId: setData.cost_type_ids?.map(id => String(id)) || undefined,
+        tagId: setData.tag_id ? [String(setData.tag_id)] : undefined,
+        documentationId: setData.documentation_id ? [setData.documentation_id] : undefined,
+      }
+
+      // Устанавливаем фильтры
+      setFilters(newFilters)
+      
+      // Применяем фильтры
+      setAppliedFilters({
+        projectId: newFilters.projectId,
+        blockId: newFilters.blockId,
+        categoryId: newFilters.categoryId,
+        typeId: newFilters.typeId,
+        tagId: newFilters.tagId,
+        documentationId: newFilters.documentationId,
+      })
+
+      // Устанавливаем версию если она есть
+      if (setData.version_id && setData.documentation_id) {
+        setSelectedVersions({
+          [setData.documentation_id]: setData.version_id
+        })
+      }
+
+      message.success('Фильтры из комплекта применены')
+      setSetsModalOpen(false)
+    } catch (error) {
+      console.error('Ошибка применения фильтров из комплекта:', error)
+      message.error('Не удалось применить фильтры из комплекта')
+    }
+  }, [])
+
   // Обработчик изменения статуса комплекта
   const handleSetStatusChange = useCallback((statusId: string) => {
     setSelectedSetStatus(statusId)
@@ -4524,24 +4572,21 @@ export default function Chessboard() {
                         const status = setStatuses?.find(s => s.id === option?.value)
                         return status?.name.toLowerCase().includes(input.toLowerCase()) || false
                       }}
-                      options={setStatuses?.map(status => {
-                        const hexColor = normalizeColorToHex(status.color)
-                        return {
-                          value: status.id,
-                          label: status.name,
-                          status: status
-                        }
-                      })}
+                      options={setStatuses?.map(status => ({
+                        value: status.id,
+                        label: status.name,
+                        status: status
+                      }))}
                       optionRender={(option) => {
                         const status = option.data.status as ChessboardSetStatus
-                        const hexColor = normalizeColorToHex(status.color)
+                        const color = normalizeColorToHex(status.color)
                         return (
                           <Space>
                             <div
                               style={{
                                 width: 12,
                                 height: 12,
-                                backgroundColor: hexColor,
+                                backgroundColor: color,
                                 borderRadius: 2,
                                 border: '1px solid #d9d9d9',
                                 display: 'inline-block'
@@ -5192,6 +5237,7 @@ export default function Chessboard() {
         open={setsModalOpen}
         onClose={() => setSetsModalOpen(false)}
         projectId={appliedFilters?.projectId}
+        onSelectSet={applySetFilters}
       />
     </div>
   )

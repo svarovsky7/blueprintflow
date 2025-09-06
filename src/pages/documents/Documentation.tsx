@@ -51,7 +51,7 @@ import {
   type ConflictResolution,
 } from '@/entities/documentation'
 import { documentationTagsApi } from '@/entities/documentation-tags'
-import { chessboardSetsApi, type ChessboardSetTableRow } from '@/entities/chessboard'
+import { chessboardSetsApi } from '@/entities/chessboard'
 import { supabase } from '@/lib/supabase'
 import { useScale } from '@/shared/contexts/ScaleContext'
 import { DOCUMENT_STAGES } from '@/shared/types'
