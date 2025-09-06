@@ -1,10 +1,11 @@
 // Типы для комплектов шахматок
 
 export interface ChessboardSetStatus {
-  id: number
+  id: string // UUID из таблицы statuses
   name: string
-  color: string // hex цвет для индикатора
-  description?: string
+  color?: string // hex цвет для индикатора
+  is_active: boolean
+  applicable_pages: string[] // массив страниц, где применяется статус
   created_at: string
   updated_at: string
 }
@@ -37,7 +38,7 @@ export interface ChessboardSet {
   cost_type_ids?: number[] | null
   
   // Статус
-  status_id: number
+  status_id: string // UUID из таблицы statuses
   
   // Метаданные
   created_by?: string | null
@@ -84,13 +85,13 @@ export interface ChessboardSet {
 export interface CreateChessboardSetRequest {
   name?: string
   filters: ChessboardSetFilters
-  status_id: number
+  status_id: string // UUID из таблицы statuses
 }
 
 // Тип для обновления комплекта
 export interface UpdateChessboardSetRequest {
   name?: string
-  status_id?: number
+  status_id?: string // UUID из таблицы statuses
 }
 
 // Тип для отображения в таблице
@@ -115,7 +116,49 @@ export interface ChessboardSetTableRow {
 export interface ChessboardSetSearchFilters {
   project_id?: string
   documentation_id?: string
-  status_id?: number
+  status_id?: string // UUID из таблицы statuses
   tag_id?: number
   search?: string // поиск по номеру или названию комплекта
+}
+
+// Типы для таблицы маппинга статусов
+export interface ChessboardSetStatusMapping {
+  chessboard_set_id: string
+  status_id: string
+  assigned_at: string
+  assigned_by?: string | null
+  comment?: string | null
+  is_current: boolean
+}
+
+// Тип для истории статусов
+export interface ChessboardSetStatusHistory {
+  status_id: string
+  status_name: string
+  status_color?: string
+  assigned_at: string
+  assigned_by?: string | null
+  comment?: string | null
+  is_current: boolean
+}
+
+// Тип для добавления нового статуса
+export interface AddChessboardSetStatusRequest {
+  chessboard_set_id: string
+  status_id: string
+  comment?: string
+  assigned_by?: string
+}
+
+// Расширенный тип комплекта с текущим статусом из маппинга
+export interface ChessboardSetWithCurrentStatus extends Omit<ChessboardSet, 'status_id'> {
+  current_status?: {
+    status_id: string
+    status_name: string
+    status_color?: string
+    assigned_at: string
+    assigned_by?: string
+    comment?: string
+  }
+  status_history?: ChessboardSetStatusHistory[]
 }
