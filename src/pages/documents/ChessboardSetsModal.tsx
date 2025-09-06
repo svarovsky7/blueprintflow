@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Modal, Table, Space, Button, Input, Select, Tag, message } from 'antd'
 import { DeleteOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
@@ -25,6 +25,14 @@ export default function ChessboardSetsModal({
   const [searchFilters, setSearchFilters] = useState<ChessboardSetSearchFilters>({
     project_id: projectId,
   })
+
+  // Обновляем фильтр проекта при изменении projectId
+  useEffect(() => {
+    setSearchFilters(prev => ({
+      ...prev,
+      project_id: projectId,
+    }))
+  }, [projectId])
 
   // Загрузка комплектов
   const {

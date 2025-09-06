@@ -17,9 +17,6 @@ export const chessboardSetsMultiDocsApi = {
     if (!request.filters.documents || request.filters.documents.length === 0) {
       throw new Error('Комплект должен содержать хотя бы один документ')
     }
-    if (request.filters.documents.length > 10) {
-      throw new Error('Комплект не может содержать более 10 документов')
-    }
 
     // Проверяем уникальность набора документов и фильтров
     const existingSet = await this.findSetByMultiDocFilters(request.filters)
@@ -38,7 +35,6 @@ export const chessboardSetsMultiDocsApi = {
         .insert({
           set_number: setNumber,
           name: request.name || null,
-          description: request.description || null,
           project_id: request.filters.project_id,
           tag_id: request.filters.tag_id || null,
           block_ids: request.filters.block_ids || null,
@@ -158,6 +154,19 @@ export const chessboardSetsMultiDocsApi = {
         const typeIdsMatch = JSON.stringify(set.cost_type_ids || []) === JSON.stringify(filters.cost_type_ids || [])
 
         if (tagMatch && blockIdsMatch && categoryIdsMatch && typeIdsMatch) {
+          // Загружаем статус комплекта
+          const { data: statusMapping } = await supabase
+            .from('statuses_mapping')
+            .select('status:statuses(id, name, color)')
+            .eq('entity_type', 'chessboard_set')
+            .eq('entity_id', set.id)
+            .eq('is_current', true)
+            .single()
+          
+          if (statusMapping?.status) {
+            set.status = statusMapping.status
+          }
+          
           return set as ChessboardSet
         }
       }
@@ -176,9 +185,6 @@ export const chessboardSetsMultiDocsApi = {
     // Валидация количества документов
     if (!documents || documents.length === 0) {
       throw new Error('Комплект должен содержать хотя бы один документ')
-    }
-    if (documents.length > 10) {
-      throw new Error('Комплект не может содержать более 10 документов')
     }
 
     try {
@@ -220,16 +226,13 @@ export const chessboardSetsMultiDocsApi = {
   async addDocumentToSet(setId: string, document: ChessboardSetDocument): Promise<void> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    // Проверяем текущее количество документов
+    // Получаем текущее количество документов для order_index
     const { count, error: countError } = await supabase
       .from('chessboard_sets_documents_mapping')
       .select('*', { count: 'exact', head: true })
       .eq('set_id', setId)
 
     if (countError) throw countError
-    if ((count || 0) >= 10) {
-      throw new Error('Комплект не может содержать более 10 документов')
-    }
 
     // Добавляем документ
     const { error } = await supabase

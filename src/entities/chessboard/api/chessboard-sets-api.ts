@@ -139,17 +139,10 @@ export const chessboardSetsApi = {
   async getSets(filters?: ChessboardSetSearchFilters): Promise<ChessboardSetTableRow[]> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
+    // Используем представление с документами для получения полной информации
     let query = supabase
-      .from('chessboard_sets')
-      .select(
-        `
-        *,
-        project:projects(id, name),
-        documentation:documentations(id, code),
-        version:documentation_versions(id, version_number),
-        tag:documentation_tags(id, name)
-      `,
-      )
+      .from('chessboard_sets_with_documents')
+      .select('*')
       .order('created_at', { ascending: false })
 
     // Применяем фильтры
@@ -210,13 +203,18 @@ export const chessboardSetsApi = {
     // Преобразуем в формат для таблицы
     return filteredData.map((set) => {
       const status = statusesMap[set.id]
+      
+      // Обработка документов - берем первый для обратной совместимости отображения
+      const firstDoc = set.documents && set.documents.length > 0 ? set.documents[0] : null
+      const docCodes = set.documents ? set.documents.map((d: any) => d.code).filter(Boolean).join(', ') : ''
+      
       return {
         id: set.id,
         set_number: set.set_number,
         name: set.name,
         project_name: set.project?.name || '',
-        documentation_code: set.documentation?.code || '',
-        version_number: set.version?.version_number || 0,
+        documentation_code: docCodes || firstDoc?.code || '',
+        version_number: firstDoc?.version_number || 0,
         tag_name: set.tag?.name || '',
         block_names: '', // TODO: загрузить названия блоков по ID
         cost_category_names: '', // TODO: загрузить названия категорий по ID
@@ -234,16 +232,8 @@ export const chessboardSetsApi = {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     const { data, error } = await supabase
-      .from('chessboard_sets')
-      .select(
-        `
-        *,
-        project:projects(id, name),
-        documentation:documentations(id, code, project_name),
-        version:documentation_versions(id, version_number, issue_date),
-        tag:documentation_tags(id, name, tag_number)
-      `,
-      )
+      .from('chessboard_sets_with_documents')
+      .select('*')
       .eq('id', id)
       .single()
 

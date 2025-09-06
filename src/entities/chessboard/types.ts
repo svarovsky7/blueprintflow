@@ -27,7 +27,7 @@ export interface ChessboardSetFilters {
   project_id: string
   
   // Новый формат - массив документов
-  documents?: ChessboardSetDocument[] // Массив документов с версиями (от 1 до 10)
+  documents?: ChessboardSetDocument[] // Массив документов с версиями (неограниченное количество)
   
   // Старый формат для обратной совместимости (deprecated)
   documentation_id?: string
@@ -55,7 +55,6 @@ export interface ChessboardSet {
   id: string
   set_number: string // уникальный номер комплекта
   name?: string // название комплекта (опционально)
-  description?: string // описание комплекта (опционально)
 
   // Фильтры (развернутые)
   project_id: string
@@ -122,7 +121,6 @@ export interface ChessboardSet {
 // Тип для создания нового комплекта
 export interface CreateChessboardSetRequest {
   name?: string
-  description?: string
   filters: ChessboardSetFilters
   status_id?: string // UUID из таблицы statuses (опционально)
 }

@@ -46,6 +46,7 @@ import { documentationTagsApi } from '@/entities/documentation-tags'
 import { materialsApi } from '@/entities/materials'
 import {
   chessboardSetsApi,
+  chessboardSetsMultiDocsApi,
   type ChessboardSetStatus,
   type ChessboardSet,
 } from '@/entities/chessboard'
@@ -2002,25 +2003,34 @@ export default function Chessboard() {
         return
       }
 
-      if (appliedFilters.documentationId.length > 1) {
-        message.error('Для создания комплекта должен быть выбран только один шифр проекта')
-        return
-      }
-
-      const documentationId = appliedFilters.documentationId[0]
-      const versionId = selectedVersions[documentationId]
-
-      if (!versionId) {
-        message.error('Версия шифра проекта обязательна для создания комплекта')
-        return
+      // Собираем документы с их версиями
+      const documents = []
+      for (const docId of appliedFilters.documentationId) {
+        const versionId = selectedVersions[docId]
+        if (!versionId) {
+          const doc = documentations?.find(d => d.id === docId)
+          console.error('Версия не найдена для документа:', {
+            docId,
+            selectedVersions,
+            appliedFilters,
+            doc
+          })
+          message.error(`Версия для шифра проекта "${doc?.project_code || 'неизвестный'}" обязательна для создания комплекта. Пожалуйста, выберите версию.`)
+          // Открываем модальное окно выбора версий
+          openVersionsModal()
+          return
+        }
+        documents.push({
+          documentation_id: docId,
+          version_id: versionId,
+        })
       }
 
       try {
         const createRequest = {
           filters: {
             project_id: appliedFilters.projectId,
-            documentation_id: documentationId,
-            version_id: versionId,
+            documents: documents, // Массив документов с версиями
             tag_id:
               appliedFilters.tagId && appliedFilters.tagId.length === 1
                 ? parseInt(appliedFilters.tagId[0])
@@ -2041,7 +2051,7 @@ export default function Chessboard() {
           status_id: statusId,
         }
 
-        await chessboardSetsApi.createSet(createRequest)
+        await chessboardSetsMultiDocsApi.createSetWithMultipleDocs(createRequest)
         message.success('Комплект успешно создан')
         setSelectedSetStatus(undefined) // Сбрасываем выбор статуса
       } catch (error) {
@@ -2073,13 +2083,34 @@ export default function Chessboard() {
       }
 
       // Подготавливаем фильтры из комплекта
+      let documentationIds: string[] | undefined = undefined
+      const newVersions: Record<string, string> = {}
+
+      // Проверяем наличие множественных документов (новая структура)
+      if (setData.documents && Array.isArray(setData.documents) && setData.documents.length > 0) {
+        documentationIds = setData.documents.map((doc: any) => doc.documentation_id)
+        // Устанавливаем версии для каждого документа
+        setData.documents.forEach((doc: any) => {
+          if (doc.documentation_id && doc.version_id) {
+            newVersions[doc.documentation_id] = doc.version_id
+          }
+        })
+      } 
+      // Обратная совместимость со старой структурой
+      else if (setData.documentation_id) {
+        documentationIds = [setData.documentation_id]
+        if (setData.version_id) {
+          newVersions[setData.documentation_id] = setData.version_id
+        }
+      }
+
       const newFilters = {
         projectId: setData.project_id,
         blockId: setData.block_ids || undefined,
         categoryId: setData.cost_category_ids?.map((id) => String(id)) || undefined,
         typeId: setData.cost_type_ids?.map((id) => String(id)) || undefined,
         tagId: setData.tag_id ? [String(setData.tag_id)] : undefined,
-        documentationId: setData.documentation_id ? [setData.documentation_id] : undefined,
+        documentationId: documentationIds,
       }
 
       // Устанавливаем фильтры
@@ -2095,11 +2126,9 @@ export default function Chessboard() {
         documentationId: newFilters.documentationId,
       })
 
-      // Устанавливаем версию если она есть
-      if (setData.version_id && setData.documentation_id) {
-        setSelectedVersions({
-          [setData.documentation_id]: setData.version_id,
-        })
+      // Устанавливаем версии
+      if (Object.keys(newVersions).length > 0) {
+        setSelectedVersions(newVersions)
       }
 
       message.success('Фильтры из комплекта применены')
@@ -2128,11 +2157,33 @@ export default function Chessboard() {
         return
       }
 
-      // Подготавливаем фильтры для поиска
+      // Проверяем, что есть хотя бы один документ с версией
+      if (!appliedFilters.documentationId || appliedFilters.documentationId.length === 0) {
+        setMatchedSet(null)
+        setSelectedSetStatus(undefined)
+        return
+      }
+
+      // Собираем документы с их версиями
+      const documents = []
+      for (const docId of appliedFilters.documentationId) {
+        const versionId = selectedVersions[docId]
+        if (!versionId) {
+          // Если хотя бы у одного документа нет версии, не ищем комплект
+          setMatchedSet(null)
+          setSelectedSetStatus(undefined)
+          return
+        }
+        documents.push({
+          documentation_id: docId,
+          version_id: versionId,
+        })
+      }
+
+      // Подготавливаем фильтры для поиска с множественными документами
       const searchFilters = {
         project_id: appliedFilters.projectId,
-        documentation_id: appliedFilters.documentationId?.[0] || undefined,
-        version_id: selectedVersions[appliedFilters.documentationId?.[0] || ''] || undefined,
+        documents: documents,
         tag_id: appliedFilters.tagId?.[0] ? Number(appliedFilters.tagId[0]) : undefined,
         block_ids: appliedFilters.blockId || undefined,
         cost_category_ids: appliedFilters.categoryId?.map((id) => Number(id)) || undefined,
@@ -2140,7 +2191,7 @@ export default function Chessboard() {
       }
 
       try {
-        const foundSet = await chessboardSetsApi.findSetByFilters(searchFilters)
+        const foundSet = await chessboardSetsMultiDocsApi.findSetByMultiDocFilters(searchFilters)
         setMatchedSet(foundSet)
 
         if (foundSet && foundSet.status) {
@@ -4843,7 +4894,7 @@ export default function Chessboard() {
                       title={
                         matchedSet
                           ? `Найден комплект №${matchedSet.set_number}${
-                              matchedSet.description ? `: ${matchedSet.description}` : ''
+                              matchedSet.name ? `: ${matchedSet.name}` : ''
                             }`
                           : null
                       }
