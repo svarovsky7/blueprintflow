@@ -29,6 +29,11 @@ export const statusesApi = {
     return data || []
   },
 
+  // Получение статусов (alias для getAllStatuses)
+  async getStatuses(): Promise<Status[]> {
+    return this.getAllStatuses()
+  },
+
   // Инициализация статусов для Шахматки
   async initializeChessboardStatuses(): Promise<void> {
     if (!supabase) throw new Error('Supabase client not initialized')

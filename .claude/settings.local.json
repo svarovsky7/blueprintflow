@@ -15,7 +15,9 @@
       "Bash(npx tsc:*)",
       "Bash(npm install)",
       "Bash(git restore:*)",
-      "Bash(npm run format:*)"
+      "Bash(npm run format:*)",
+      "Bash(git rm:*)",
+      "Bash(npm install:*)"
     ],
     "deny": [],
     "ask": []

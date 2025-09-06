@@ -14,6 +14,8 @@ import Locations from './pages/references/Locations'
 import Rates from './pages/references/Rates'
 import Nomenclature from './pages/references/Nomenclature'
 import Documentation from './pages/documents/Documentation'
+import Reports from './pages/Reports'
+import ProjectAnalysis from './pages/reports/ProjectAnalysis'
 import Admin from './pages/Admin'
 import DocumentationTags from './pages/admin/DocumentationTags'
 import Statuses from './pages/admin/Statuses'
@@ -56,6 +58,9 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     }
     if (location.pathname.startsWith('/references')) {
       newOpenKeys.push('references')
+    }
+    if (location.pathname.startsWith('/reports')) {
+      newOpenKeys.push('reports')
     }
     if (location.pathname.startsWith('/admin')) {
       newOpenKeys.push('admin')
@@ -327,6 +332,30 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     </div>
   )
 
+  const reportsSubmenu = (
+    <div
+      style={{
+        backgroundColor: isDark ? '#1f1f1f' : '#fff',
+        borderRadius: 4 * scale,
+        padding: `${4 * scale}px 0`,
+      }}
+    >
+      <div
+        style={menuItemStyle}
+        onMouseEnter={(e) =>
+          (e.currentTarget.style.backgroundColor = isDark
+            ? 'rgba(255, 255, 255, 0.1)'
+            : 'rgba(0, 0, 0, 0.05)')
+        }
+        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+      >
+        <Link to="/reports/project-analysis" style={linkStyle}>
+          Анализ проектов
+        </Link>
+      </div>
+    </div>
+  )
+
   const adminSubmenu = (
     <div
       style={{
@@ -483,6 +512,21 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             { key: 'locations', label: <Link to="/references/locations">Локализации</Link> },
             { key: 'rates', label: <Link to="/references/rates">Расценки</Link> },
             { key: 'nomenclature', label: <Link to="/references/nomenclature">Номенклатура</Link> },
+          ],
+    },
+    {
+      key: 'reports',
+      icon: collapsed ? (
+        <LetterIcon letter="О" isActive={location.pathname.startsWith('/reports')}>
+          {reportsSubmenu}
+        </LetterIcon>
+      ) : undefined,
+      label: collapsed ? '' : 'Отчеты',
+      title: collapsed ? '' : undefined,
+      children: collapsed
+        ? undefined
+        : [
+            { key: 'project-analysis', label: <Link to="/reports/project-analysis">Анализ проектов</Link> },
           ],
     },
     {
@@ -701,15 +745,17 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                                 ? 'nomenclature'
                                 : location.pathname.startsWith('/references')
                                   ? 'units'
-                                  : location.pathname.startsWith('/admin/documentation-tags')
-                                    ? 'documentation-tags'
-                                    : location.pathname.startsWith('/admin/statuses')
-                                      ? 'statuses'
-                                      : location.pathname.startsWith('/admin/disk')
-                                        ? 'disk'
-                                        : location.pathname.startsWith('/admin/portal-settings')
-                                          ? 'portal-settings'
-                                          : location.pathname,
+                                  : location.pathname.startsWith('/reports/project-analysis')
+                                    ? 'project-analysis'
+                                    : location.pathname.startsWith('/admin/documentation-tags')
+                                      ? 'documentation-tags'
+                                      : location.pathname.startsWith('/admin/statuses')
+                                        ? 'statuses'
+                                        : location.pathname.startsWith('/admin/disk')
+                                          ? 'disk'
+                                          : location.pathname.startsWith('/admin/portal-settings')
+                                            ? 'portal-settings'
+                                            : location.pathname,
             ]}
             openKeys={openKeys}
             onOpenChange={setOpenKeys}
@@ -745,6 +791,9 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                   <Route path="locations" element={<Locations />} />
                   <Route path="rates" element={<Rates />} />
                   <Route path="nomenclature" element={<Nomenclature />} />
+                </Route>
+                <Route path="/reports" element={<Reports />}>
+                  <Route path="project-analysis" element={<ProjectAnalysis />} />
                 </Route>
                 <Route path="/admin" element={<Admin />}>
                   <Route path="documentation-tags" element={<DocumentationTags />} />

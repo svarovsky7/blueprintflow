@@ -241,7 +241,7 @@ export const chessboardSetsMultiDocsApi = {
         set_id: setId,
         documentation_id: document.documentation_id,
         version_id: document.version_id,
-        order_index: document.order_index ?? (count || 0),
+        order_index: document.order_index ?? count ?? 0,
       })
 
     if (error) throw error
