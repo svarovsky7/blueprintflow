@@ -66,6 +66,12 @@ export const chessboardSetsApi = {
   async createSet(request: CreateChessboardSetRequest): Promise<ChessboardSet> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
+    // Проверяем, существует ли уже комплект с такими же фильтрами
+    const existingSet = await this.findSetByFilters(request.filters)
+    if (existingSet) {
+      throw new Error(`Комплект с таким набором фильтров уже существует (№${existingSet.set_number})`)
+    }
+
     // Генерируем уникальный номер комплекта
     const setNumber = await this.generateSetNumber()
 

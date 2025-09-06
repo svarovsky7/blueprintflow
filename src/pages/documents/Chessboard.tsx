@@ -2046,7 +2046,8 @@ export default function Chessboard() {
         setSelectedSetStatus(undefined) // Сбрасываем выбор статуса
       } catch (error) {
         console.error('Ошибка создания комплекта:', error)
-        message.error('Ошибка при создании комплекта')
+        const errorMessage = error instanceof Error ? error.message : 'Ошибка при создании комплекта'
+        message.error(errorMessage)
       }
     },
     [appliedFilters, selectedVersions],
