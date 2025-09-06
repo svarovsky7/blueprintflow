@@ -44,6 +44,8 @@ import { documentationApi, type DocumentationRecordForList } from '@/entities/do
 import { documentationTagsApi } from '@/entities/documentation-tags'
 import { materialsApi } from '@/entities/materials'
 import { chessboardSetsApi, type ChessboardSetStatus } from '@/entities/chessboard'
+import { statusesApi } from '@/entities/statuses/api/statuses-api'
+import { normalizeColorToHex } from '@/shared/constants/statusColors'
 import { useScale } from '@/shared/contexts/ScaleContext'
 import ChessboardSetsModal from './ChessboardSetsModal'
 
@@ -443,7 +445,7 @@ export default function Chessboard() {
   const [selectedVersions, setSelectedVersions] = useState<Record<string, string>>({}) // documentationId -> versionId
 
   // Состояния для комплектов
-  const [selectedSetStatus, setSelectedSetStatus] = useState<number | undefined>(undefined)
+  const [selectedSetStatus, setSelectedSetStatus] = useState<string | undefined>(undefined)
   const [setsModalOpen, setSetsModalOpen] = useState(false)
 
   const { data: projects } = useQuery<ProjectOption[]>({
@@ -847,10 +849,25 @@ export default function Chessboard() {
   )
 
   // Загрузка статусов комплектов
-  const { data: setStatuses } = useQuery<ChessboardSetStatus[]>({
+  const { data: setStatuses, isLoading: isLoadingStatuses } = useQuery<ChessboardSetStatus[]>({
     queryKey: ['chessboard-set-statuses'],
     queryFn: chessboardSetsApi.getStatuses,
   })
+
+  // Автоматическая инициализация статусов при первой загрузке, если их нет
+  useEffect(() => {
+    if (!isLoadingStatuses && setStatuses !== undefined && setStatuses.length === 0) {
+      console.log('No statuses found, initializing...')
+      statusesApi.initializeChessboardStatuses()
+        .then(() => {
+          console.log('Statuses initialized successfully')
+          queryClient.invalidateQueries({ queryKey: ['chessboard-set-statuses'] })
+        })
+        .catch(error => {
+          console.error('Failed to initialize statuses:', error)
+        })
+    }
+  }, [isLoadingStatuses, setStatuses, queryClient])
 
   // Загрузка документации для выбранного проекта
   const { data: documentations } = useQuery<DocumentationRecordForList[]>({
@@ -1871,7 +1888,7 @@ export default function Chessboard() {
   }, [appliedFilters, costTypes, blocks, sortedDocumentationTags, documentations, documentVersions, selectedVersions, setSelectedVersions])
 
   // Функция для создания комплекта
-  const createChessboardSet = useCallback(async (statusId: number) => {
+  const createChessboardSet = useCallback(async (statusId: string) => {
     if (!appliedFilters) {
       message.error('Нет примененных фильтров для создания комплекта')
       return
@@ -1936,10 +1953,11 @@ export default function Chessboard() {
   }, [appliedFilters?.projectId])
 
   // Обработчик изменения статуса комплекта
-  const handleSetStatusChange = useCallback((statusId: number) => {
+  const handleSetStatusChange = useCallback((statusId: string) => {
     setSelectedSetStatus(statusId)
     createChessboardSet(statusId)
   }, [createChessboardSet])
+
 
   const startEdit = useCallback(
     (id: string) => {
@@ -4501,23 +4519,38 @@ export default function Chessboard() {
                       value={selectedSetStatus}
                       onChange={handleSetStatusChange}
                       allowClear
-                      options={setStatuses?.map(status => ({
-                        value: status.id,
-                        label: (
+                      showSearch
+                      filterOption={(input, option) => {
+                        const status = setStatuses?.find(s => s.id === option?.value)
+                        return status?.name.toLowerCase().includes(input.toLowerCase()) || false
+                      }}
+                      options={setStatuses?.map(status => {
+                        const hexColor = normalizeColorToHex(status.color)
+                        return {
+                          value: status.id,
+                          label: status.name,
+                          status: status
+                        }
+                      })}
+                      optionRender={(option) => {
+                        const status = option.data.status as ChessboardSetStatus
+                        const hexColor = normalizeColorToHex(status.color)
+                        return (
                           <Space>
                             <div
                               style={{
                                 width: 12,
                                 height: 12,
-                                backgroundColor: status.color,
+                                backgroundColor: hexColor,
                                 borderRadius: 2,
+                                border: '1px solid #d9d9d9',
                                 display: 'inline-block'
                               }}
                             />
                             {status.name}
                           </Space>
-                        ),
-                      }))}
+                        )
+                      }}
                     />
                   </Space.Compact>
                   <Button type="primary" icon={<PlusOutlined />} onClick={startAdd}>

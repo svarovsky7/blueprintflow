@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { ColumnsType } from 'antd/es/table'
 import { supabase } from '@/lib/supabase'
 import { PORTAL_PAGES, type PortalPageKey } from '@/shared/types'
+import { normalizeColorToHex } from '@/shared/constants/statusColors'
 
 interface Status {
   id: string
@@ -17,10 +18,14 @@ interface Status {
 }
 
 const colorOptions = [
-  { label: 'Зеленый', value: 'green', color: '#52c41a' },
-  { label: 'Желтый', value: 'yellow', color: '#faad14' },
-  { label: 'Красный', value: 'red', color: '#ff4d4f' },
-  { label: 'Синий', value: 'blue', color: '#1890ff' },
+  { label: 'Зеленый', value: '#52c41a', color: '#52c41a' },
+  { label: 'Желтый', value: '#faad14', color: '#faad14' },
+  { label: 'Красный', value: '#ff4d4f', color: '#ff4d4f' },
+  { label: 'Синий', value: '#1890ff', color: '#1890ff' },
+  { label: 'Серый', value: '#888888', color: '#888888' },
+  { label: 'Архивный', value: '#d9d9d9', color: '#d9d9d9' },
+  { label: 'Оранжевый', value: '#fa8c16', color: '#fa8c16' },
+  { label: 'Фиолетовый', value: '#722ed1', color: '#722ed1' },
 ]
 
 export default function Statuses() {
@@ -158,18 +163,20 @@ export default function Statuses() {
       key: 'color',
       width: 120,
       render: (color: string) => {
-        const colorOption = colorOptions.find(c => c.value === color)
-        return colorOption ? (
+        const hexColor = normalizeColorToHex(color)
+        const colorOption = colorOptions.find(c => c.value === hexColor)
+        return hexColor ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div
               style={{
                 width: 20,
                 height: 20,
-                backgroundColor: colorOption.color,
+                backgroundColor: hexColor,
                 borderRadius: 4,
+                border: '1px solid #d9d9d9',
               }}
             />
-            <span>{colorOption.label}</span>
+            <span>{colorOption?.label || hexColor}</span>
           </div>
         ) : '-'
       },
@@ -301,6 +308,11 @@ export default function Statuses() {
             <Select
               placeholder="Выберите цвет"
               allowClear
+              showSearch
+              filterOption={(input, option) => {
+                const label = colorOptions.find(c => c.value === option?.value)?.label || ''
+                return label.toLowerCase().includes(input.toLowerCase())
+              }}
               options={colorOptions.map(opt => ({
                 label: (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -310,6 +322,7 @@ export default function Statuses() {
                         height: 16,
                         backgroundColor: opt.color,
                         borderRadius: 2,
+                        border: '1px solid #d9d9d9',
                       }}
                     />
                     <span>{opt.label}</span>
