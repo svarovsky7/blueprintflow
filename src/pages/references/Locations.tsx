@@ -1,21 +1,8 @@
 import { useCallback, useMemo, useState } from 'react'
-import {
-  App,
-  Button,
-  Input,
-  Modal,
-  Space,
-  Table,
-  type TableProps,
-} from 'antd'
+import { App, Button, Input, Modal, Space, Table, type TableProps } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
-import {
-  EditOutlined,
-  DeleteOutlined,
-  CheckOutlined,
-  CloseOutlined,
-} from '@ant-design/icons'
+import { EditOutlined, DeleteOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons'
 
 interface Location {
   id: number
@@ -31,7 +18,11 @@ export default function Locations() {
   const [editingId, setEditingId] = useState<number | 'new' | null>(null)
   const [nameValue, setNameValue] = useState('')
 
-  const { data: locations, isLoading, refetch } = useQuery({
+  const {
+    data: locations,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ['location'],
     queryFn: async () => {
       if (!supabase) return []
@@ -84,10 +75,7 @@ export default function Locations() {
           if (error) throw error
           message.success('Запись добавлена')
         } else {
-          const { error } = await supabase
-            .from('location')
-            .update({ name: nameValue })
-            .eq('id', id)
+          const { error } = await supabase.from('location').update({ name: nameValue }).eq('id', id)
           if (error) throw error
           message.success('Запись обновлена')
         }
@@ -129,57 +117,53 @@ export default function Locations() {
 
   const columns: TableProps<LocationRow>['columns'] = useMemo(
     () => [
-    {
-      title: 'Название',
-      dataIndex: 'name',
-      sorter: (a: LocationRow, b: LocationRow) => a.name.localeCompare(b.name),
-      filters: nameFilters,
-      onFilter: (value: unknown, record: LocationRow) => record.name === value,
-      render: (_: unknown, record: LocationRow) =>
-        record.id === editingId ? (
-          <Input value={nameValue} onChange={(e) => setNameValue(e.target.value)} />
-        ) : (
-          record.name
-        ),
-    },
-    {
-      title: 'Действия',
-      dataIndex: 'actions',
-      render: (_: unknown, record: LocationRow) =>
-        record.id === editingId ? (
-          <Space>
-            <Button
-              icon={<CheckOutlined />}
-              onClick={() => save(record.id)}
-              aria-label="Сохранить"
-            />
-            <Button
-              icon={<CloseOutlined />}
-              onClick={cancelEdit}
-              aria-label="Отмена"
-            />
-          </Space>
-        ) : (
-          <Space>
-            {record.id !== 'new' && (
+      {
+        title: 'Название',
+        dataIndex: 'name',
+        sorter: (a: LocationRow, b: LocationRow) => a.name.localeCompare(b.name),
+        filters: nameFilters,
+        onFilter: (value: unknown, record: LocationRow) => record.name === value,
+        render: (_: unknown, record: LocationRow) =>
+          record.id === editingId ? (
+            <Input value={nameValue} onChange={(e) => setNameValue(e.target.value)} />
+          ) : (
+            record.name
+          ),
+      },
+      {
+        title: 'Действия',
+        dataIndex: 'actions',
+        render: (_: unknown, record: LocationRow) =>
+          record.id === editingId ? (
+            <Space>
               <Button
-                icon={<EditOutlined />}
-                onClick={() => startEdit(record as Location)}
-                aria-label="Редактировать"
+                icon={<CheckOutlined />}
+                onClick={() => save(record.id)}
+                aria-label="Сохранить"
               />
-            )}
-            {record.id !== 'new' && (
-              <Button
-                danger
-                icon={<DeleteOutlined />}
-                onClick={() => confirmDelete(record as Location)}
-                aria-label="Удалить"
-              />
-            )}
-          </Space>
-        ),
-    },
-  ],
+              <Button icon={<CloseOutlined />} onClick={cancelEdit} aria-label="Отмена" />
+            </Space>
+          ) : (
+            <Space>
+              {record.id !== 'new' && (
+                <Button
+                  icon={<EditOutlined />}
+                  onClick={() => startEdit(record as Location)}
+                  aria-label="Редактировать"
+                />
+              )}
+              {record.id !== 'new' && (
+                <Button
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={() => confirmDelete(record as Location)}
+                  aria-label="Удалить"
+                />
+              )}
+            </Space>
+          ),
+      },
+    ],
     [editingId, nameValue, nameFilters, startEdit, cancelEdit, save, confirmDelete],
   )
 
@@ -207,4 +191,3 @@ export default function Locations() {
     </div>
   )
 }
-

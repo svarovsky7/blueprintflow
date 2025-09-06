@@ -15,7 +15,7 @@ html {
 body {
   margin: 0;
   font-family: system-ui, sans-serif;
-  background-color: #FCFCFC;
+  background-color: #fcfcfc;
   color: #000;
   overflow: hidden;
 }
@@ -82,7 +82,7 @@ body[data-theme='dark'] {
 }
 
 .row-purple {
-  background-color: #DDA0DD !important;
+  background-color: #dda0dd !important;
   color: #000000 !important;
 }
 
@@ -97,7 +97,6 @@ body[data-theme='dark'] {
 .chessboard-table .ant-table-cell {
   padding-top: calc(2px * var(--app-scale)) !important;
   padding-bottom: calc(2px * var(--app-scale)) !important;
-
 }
 
 /* Layout and table scrolling */
@@ -145,5 +144,4 @@ body[data-theme='dark'] {
 .content > *,
 .table-host > * {
   min-height: 0;
-
 }

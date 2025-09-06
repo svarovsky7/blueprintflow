@@ -9,7 +9,7 @@ import type {
   ChessboardSetSearchFilters,
   ChessboardSetStatusHistory,
   AddChessboardSetStatusRequest,
-  ChessboardSetWithCurrentStatus
+  ChessboardSetWithCurrentStatus,
 } from '../types'
 
 export const chessboardSetsApi = {
@@ -18,7 +18,7 @@ export const chessboardSetsApi = {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     console.log('Fetching statuses for Chessboard page from statuses table...')
-    
+
     // Получаем все активные статусы
     const { data, error } = await supabase
       .from('statuses')
@@ -34,25 +34,31 @@ export const chessboardSetsApi = {
     }
 
     // Фильтруем статусы, у которых applicable_pages содержит "Шахматка" или "documents/chessboard"
-    const filtered = (data || []).filter(status => {
-      console.log(`Checking status "${status.name}":`, { 
+    const filtered = (data || []).filter((status) => {
+      console.log(`Checking status "${status.name}":`, {
         applicable_pages: status.applicable_pages,
         isArray: Array.isArray(status.applicable_pages),
-        includesChessboard: Array.isArray(status.applicable_pages) && 
-          (status.applicable_pages.includes('Шахматка') || status.applicable_pages.includes('documents/chessboard'))
+        includesChessboard:
+          Array.isArray(status.applicable_pages) &&
+          (status.applicable_pages.includes('Шахматка') ||
+            status.applicable_pages.includes('documents/chessboard')),
       })
-      
+
       if (!status.applicable_pages) return false
       if (Array.isArray(status.applicable_pages)) {
         // Поддерживаем оба формата: "Шахматка" и "documents/chessboard"
-        return status.applicable_pages.includes('Шахматка') || 
-               status.applicable_pages.includes('documents/chessboard')
+        return (
+          status.applicable_pages.includes('Шахматка') ||
+          status.applicable_pages.includes('documents/chessboard')
+        )
       }
       return false
     })
 
-    console.log(`Found ${filtered.length} statuses for Chessboard page out of ${data?.length || 0} total active statuses`)
-    
+    console.log(
+      `Found ${filtered.length} statuses for Chessboard page out of ${data?.length || 0} total active statuses`,
+    )
+
     return filtered
   },
 
@@ -79,13 +85,15 @@ export const chessboardSetsApi = {
     const { data, error } = await supabase
       .from('chessboard_sets')
       .insert([newSet])
-      .select(`
+      .select(
+        `
         *,
         project:projects(id, name),
         documentation:documentations(id, code, project_name),
         version:documentation_versions(id, version_number, issue_date),
         tag:documentation_tags(id, name, tag_number)
-      `)
+      `,
+      )
       .single()
 
     if (error) {
@@ -99,16 +107,17 @@ export const chessboardSetsApi = {
         await this.addStatusToSet({
           chessboard_set_id: data.id,
           status_id: request.status_id,
-          comment: 'Начальный статус при создании комплекта'
+          comment: 'Начальный статус при создании комплекта',
         })
-        
+
         // Добавляем информацию о статусе в возвращаемый объект
         const status = await this.getCurrentStatus(data.id)
         if (status) {
-          (data as any).status = {
+          const dataWithStatus = data as ChessboardSet
+          dataWithStatus.status = {
             id: status.status_id,
             name: status.status_name,
-            color: status.status_color
+            color: status.status_color,
           }
         }
       } catch (statusError) {
@@ -126,13 +135,15 @@ export const chessboardSetsApi = {
 
     let query = supabase
       .from('chessboard_sets')
-      .select(`
+      .select(
+        `
         *,
         project:projects(id, name),
         documentation:documentations(id, code),
         version:documentation_versions(id, version_number),
         tag:documentation_tags(id, name)
-      `)
+      `,
+      )
       .order('created_at', { ascending: false })
 
     // Применяем фильтры
@@ -157,34 +168,41 @@ export const chessboardSetsApi = {
     }
 
     // Получаем статусы для всех комплектов одним запросом
-    const setIds = (data || []).map(set => set.id)
-    let statusesMap: Record<string, any> = {}
-    
+    const setIds = (data || []).map((set) => set.id)
+    let statusesMap: Record<string, { id: string; name: string; color?: string }> = {}
+
     if (setIds.length > 0) {
       const { data: statusMappings } = await supabase
         .from('statuses_mapping')
-        .select(`
+        .select(
+          `
           entity_id,
           status:statuses(id, name, color)
-        `)
+        `,
+        )
         .eq('entity_type', 'chessboard_set')
         .in('entity_id', setIds)
         .eq('is_current', true)
-      
-      statusesMap = (statusMappings || []).reduce((acc, mapping) => {
-        acc[mapping.entity_id] = mapping.status
-        return acc
-      }, {} as Record<string, any>)
+
+      statusesMap = (statusMappings || []).reduce(
+        (acc, mapping) => {
+          if (mapping.status && !Array.isArray(mapping.status)) {
+            acc[mapping.entity_id] = mapping.status
+          }
+          return acc
+        },
+        {} as Record<string, { id: string; name: string; color?: string }>,
+      )
     }
 
     // Фильтр по статусу если указан
     let filteredData = data || []
     if (filters?.status_id) {
-      filteredData = filteredData.filter(set => statusesMap[set.id]?.id === filters.status_id)
+      filteredData = filteredData.filter((set) => statusesMap[set.id]?.id === filters.status_id)
     }
 
     // Преобразуем в формат для таблицы
-    return filteredData.map(set => {
+    return filteredData.map((set) => {
       const status = statusesMap[set.id]
       return {
         id: set.id,
@@ -195,7 +213,7 @@ export const chessboardSetsApi = {
         version_number: set.version?.version_number || 0,
         tag_name: set.tag?.name || '',
         block_names: '', // TODO: загрузить названия блоков по ID
-        cost_category_names: '', // TODO: загрузить названия категорий по ID  
+        cost_category_names: '', // TODO: загрузить названия категорий по ID
         cost_type_names: '', // TODO: загрузить названия типов по ID
         status_name: status?.name || '',
         status_color: status?.color || '#888888',
@@ -211,13 +229,15 @@ export const chessboardSetsApi = {
 
     const { data, error } = await supabase
       .from('chessboard_sets')
-      .select(`
+      .select(
+        `
         *,
         project:projects(id, name),
         documentation:documentations(id, code, project_name),
         version:documentation_versions(id, version_number, issue_date),
         tag:documentation_tags(id, name, tag_number)
-      `)
+      `,
+      )
       .eq('id', id)
       .single()
 
@@ -232,10 +252,11 @@ export const chessboardSetsApi = {
     // Получаем текущий статус из таблицы маппинга
     const currentStatus = await this.getCurrentStatus(id)
     if (currentStatus) {
-      (data as any).status = {
+      const dataWithStatus = data as ChessboardSet
+      dataWithStatus.status = {
         id: currentStatus.status_id,
         name: currentStatus.status_name,
-        color: currentStatus.status_color
+        color: currentStatus.status_color,
       }
     }
 
@@ -246,8 +267,8 @@ export const chessboardSetsApi = {
   async updateSet(id: string, request: UpdateChessboardSetRequest): Promise<ChessboardSet> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    const updates: any = {
-      updated_at: new Date().toISOString()
+    const updates: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
     }
 
     if (request.name !== undefined) {
@@ -259,13 +280,15 @@ export const chessboardSetsApi = {
       .from('chessboard_sets')
       .update(updates)
       .eq('id', id)
-      .select(`
+      .select(
+        `
         *,
         project:projects(id, name),
         documentation:documentations(id, code, project_name),
         version:documentation_versions(id, version_number, issue_date),
         tag:documentation_tags(id, name, tag_number)
-      `)
+      `,
+      )
       .single()
 
     if (error) {
@@ -278,16 +301,17 @@ export const chessboardSetsApi = {
       await this.addStatusToSet({
         chessboard_set_id: id,
         status_id: request.status_id,
-        comment: 'Статус обновлен'
+        comment: 'Статус обновлен',
       })
-      
+
       // Получаем обновленный статус
       const currentStatus = await this.getCurrentStatus(id)
       if (currentStatus) {
-        (data as any).status = {
+        const dataWithStatus = data as ChessboardSet
+        dataWithStatus.status = {
           id: currentStatus.status_id,
           name: currentStatus.status_name,
-          color: currentStatus.status_color
+          color: currentStatus.status_color,
         }
       }
     }
@@ -299,10 +323,7 @@ export const chessboardSetsApi = {
   async deleteSet(id: string): Promise<void> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    const { error } = await supabase
-      .from('chessboard_sets')
-      .delete()
-      .eq('id', id)
+    const { error } = await supabase.from('chessboard_sets').delete().eq('id', id)
 
     if (error) {
       console.error('Failed to delete chessboard set:', error)
@@ -360,22 +381,99 @@ export const chessboardSetsApi = {
     }
   },
 
+  // Поиск комплекта по набору фильтров
+  async findSetByFilters(filters: Partial<ChessboardSetFilters>): Promise<ChessboardSet | null> {
+    if (!supabase || !filters.project_id) return null
+
+    try {
+      let query = supabase.from('chessboard_sets').select('*').eq('project_id', filters.project_id)
+
+      // Добавляем фильтры
+      if (filters.documentation_id) {
+        query = query.eq('documentation_id', filters.documentation_id)
+      }
+      if (filters.version_id) {
+        query = query.eq('version_id', filters.version_id)
+      }
+      if (filters.tag_id !== undefined) {
+        if (filters.tag_id === null) {
+          query = query.is('tag_id', null)
+        } else {
+          query = query.eq('tag_id', filters.tag_id)
+        }
+      }
+
+      // Для массивов проверяем точное совпадение
+      const { data, error } = await query
+
+      if (error) {
+        console.error('Failed to find set by filters:', error)
+        return null
+      }
+
+      // Фильтруем по массивам вручную для точного совпадения
+      const matchedSet = (data || []).find((set) => {
+        // Проверяем block_ids
+        const blockIdsMatch =
+          (!filters.block_ids && !set.block_ids) ||
+          (filters.block_ids &&
+            set.block_ids &&
+            filters.block_ids.length === set.block_ids.length &&
+            filters.block_ids.every((id) => set.block_ids?.includes(id)))
+
+        // Проверяем cost_category_ids
+        const categoryIdsMatch =
+          (!filters.cost_category_ids && !set.cost_category_ids) ||
+          (filters.cost_category_ids &&
+            set.cost_category_ids &&
+            filters.cost_category_ids.length === set.cost_category_ids.length &&
+            filters.cost_category_ids.every((id) => set.cost_category_ids?.includes(id)))
+
+        // Проверяем cost_type_ids
+        const typeIdsMatch =
+          (!filters.cost_type_ids && !set.cost_type_ids) ||
+          (filters.cost_type_ids &&
+            set.cost_type_ids &&
+            filters.cost_type_ids.length === set.cost_type_ids.length &&
+            filters.cost_type_ids.every((id) => set.cost_type_ids?.includes(id)))
+
+        return blockIdsMatch && categoryIdsMatch && typeIdsMatch
+      })
+
+      if (matchedSet) {
+        // Получаем текущий статус
+        const currentStatus = await this.getCurrentStatus(matchedSet.id)
+        if (currentStatus) {
+          const setWithStatus = matchedSet as ChessboardSet
+          setWithStatus.status = {
+            id: currentStatus.status_id,
+            name: currentStatus.status_name,
+            color: currentStatus.status_color,
+          }
+        }
+      }
+
+      return matchedSet || null
+    } catch (error) {
+      console.error('Error finding set by filters:', error)
+      return null
+    }
+  },
+
   // Методы для работы с таблицей маппинга статусов
 
   // Добавление нового статуса комплекту (использует универсальную таблицу statuses_mapping)
   async addStatusToSet(request: AddChessboardSetStatusRequest): Promise<void> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    const { error } = await supabase
-      .from('statuses_mapping')
-      .insert({
-        entity_type: 'chessboard_set',
-        entity_id: request.chessboard_set_id,
-        status_id: request.status_id,
-        comment: request.comment || null,
-        assigned_by: request.assigned_by || null,
-        is_current: true
-      })
+    const { error } = await supabase.from('statuses_mapping').insert({
+      entity_type: 'chessboard_set',
+      entity_id: request.chessboard_set_id,
+      status_id: request.status_id,
+      comment: request.comment || null,
+      assigned_by: request.assigned_by || null,
+      is_current: true,
+    })
 
     if (error) {
       console.error('Failed to add status to set:', error)
@@ -389,10 +487,12 @@ export const chessboardSetsApi = {
 
     const { data, error } = await supabase
       .from('statuses_mapping')
-      .select(`
+      .select(
+        `
         *,
         status:statuses(id, name, color)
-      `)
+      `,
+      )
       .eq('entity_type', 'chessboard_set')
       .eq('entity_id', setId)
       .order('assigned_at', { ascending: false })
@@ -402,14 +502,14 @@ export const chessboardSetsApi = {
       throw error
     }
 
-    return (data || []).map(item => ({
+    return (data || []).map((item) => ({
       status_id: item.status_id,
       status_name: item.status?.name || '',
       status_color: item.status?.color,
       assigned_at: item.assigned_at,
       assigned_by: item.assigned_by,
       comment: item.comment,
-      is_current: item.is_current
+      is_current: item.is_current,
     }))
   },
 
@@ -419,10 +519,12 @@ export const chessboardSetsApi = {
 
     const { data, error } = await supabase
       .from('statuses_mapping')
-      .select(`
+      .select(
+        `
         *,
         status:statuses(id, name, color)
-      `)
+      `,
+      )
       .eq('entity_type', 'chessboard_set')
       .eq('entity_id', setId)
       .eq('is_current', true)
@@ -445,12 +547,14 @@ export const chessboardSetsApi = {
       assigned_at: data.assigned_at,
       assigned_by: data.assigned_by,
       comment: data.comment,
-      is_current: data.is_current
+      is_current: data.is_current,
     }
   },
 
   // Получение комплектов с текущими статусами из представления
-  async getSetsWithCurrentStatus(filters?: ChessboardSetSearchFilters): Promise<ChessboardSetWithCurrentStatus[]> {
+  async getSetsWithCurrentStatus(
+    filters?: ChessboardSetSearchFilters,
+  ): Promise<ChessboardSetWithCurrentStatus[]> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     let query = supabase
@@ -482,7 +586,7 @@ export const chessboardSetsApi = {
       throw error
     }
 
-    return (data || []).map(item => ({
+    return (data || []).map((item) => ({
       id: item.id,
       set_number: item.set_number,
       name: item.name,
@@ -495,14 +599,16 @@ export const chessboardSetsApi = {
       cost_type_ids: item.cost_type_ids,
       created_at: item.created_at,
       updated_at: item.updated_at,
-      current_status: item.status_id ? {
-        status_id: item.status_id,
-        status_name: item.status_name,
-        status_color: item.status_color,
-        assigned_at: item.status_assigned_at,
-        assigned_by: item.status_assigned_by,
-        comment: item.status_comment
-      } : undefined
+      current_status: item.status_id
+        ? {
+            status_id: item.status_id,
+            status_name: item.status_name,
+            status_color: item.status_color,
+            assigned_at: item.status_assigned_at,
+            assigned_by: item.status_assigned_by,
+            comment: item.status_comment,
+          }
+        : undefined,
     }))
-  }
+  },
 }

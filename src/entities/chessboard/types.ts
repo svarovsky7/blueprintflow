@@ -15,7 +15,7 @@ export interface ChessboardSetFilters {
   project_id: string
   documentation_id: string
   version_id: string
-  
+
   // Опциональные фильтры
   tag_id?: number | null
   block_ids?: string[] | null
@@ -27,7 +27,8 @@ export interface ChessboardSet {
   id: string
   set_number: string // уникальный номер комплекта
   name?: string // название комплекта (опционально)
-  
+  description?: string // описание комплекта (опционально)
+
   // Фильтры (развернутые)
   project_id: string
   documentation_id: string
@@ -36,15 +37,20 @@ export interface ChessboardSet {
   block_ids?: string[] | null
   cost_category_ids?: number[] | null
   cost_type_ids?: number[] | null
-  
+
   // Статус
-  status_id: string // UUID из таблицы statuses
-  
+  status_id?: string // UUID из таблицы statuses (может быть не назначен)
+  status?: { // упрощенное представление статуса для отображения
+    id: string
+    name: string
+    color?: string
+  }
+
   // Метаданные
   created_by?: string | null
   created_at: string
   updated_at: string
-  
+
   // Связанные данные (для отображения)
   project?: {
     id: string
@@ -65,7 +71,6 @@ export interface ChessboardSet {
     name: string
     tag_number: number
   }
-  status?: ChessboardSetStatus
   blocks?: Array<{
     id: string
     name: string

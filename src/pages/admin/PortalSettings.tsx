@@ -15,7 +15,7 @@ export default function PortalSettings() {
       return false
     },
     showUploadList: false,
-    accept: 'image/svg+xml'
+    accept: 'image/svg+xml',
   })
 
   return (
@@ -26,13 +26,21 @@ export default function PortalSettings() {
         </Title>
         <div style={{ display: 'flex', gap: 32 }}>
           <div style={{ textAlign: 'center' }}>
-            <img src={lightLogo} alt="Логотип светлой темы" style={{ width: 120, marginBottom: 16 }} />
+            <img
+              src={lightLogo}
+              alt="Логотип светлой темы"
+              style={{ width: 120, marginBottom: 16 }}
+            />
             <Upload {...uploadProps(setLightLogo)}>
               <Button icon={<UploadOutlined />}>Загрузить для светлой темы</Button>
             </Upload>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <img src={darkLogo} alt="Логотип тёмной темы" style={{ width: 120, marginBottom: 16 }} />
+            <img
+              src={darkLogo}
+              alt="Логотип тёмной темы"
+              style={{ width: 120, marginBottom: 16 }}
+            />
             <Upload {...uploadProps(setDarkLogo)}>
               <Button icon={<UploadOutlined />}>Загрузить для тёмной темы</Button>
             </Upload>

@@ -12,7 +12,10 @@
       "Bash(npx supabase:*)",
       "Bash(npm run dev:*)",
       "Bash(psql:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npm install)",
+      "Bash(git restore:*)",
+      "Bash(npm run format:*)"
     ],
     "deny": [],
     "ask": []

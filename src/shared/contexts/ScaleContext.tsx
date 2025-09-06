@@ -18,18 +18,13 @@ export function ScaleProvider({ children }: { children: ReactNode }) {
     document.documentElement.style.setProperty('--app-scale', String(scale))
     localStorage.setItem('blueprintflow-scale', String(scale))
     window.dispatchEvent(new Event('ui:scale-changed'))
-
   }, [scale])
 
   const setScale = (value: number) => {
     setScaleState(value)
   }
 
-  return (
-    <ScaleContext.Provider value={{ scale, setScale }}>
-      {children}
-    </ScaleContext.Provider>
-  )
+  return <ScaleContext.Provider value={{ scale, setScale }}>{children}</ScaleContext.Provider>
 }
 
 export function useScale() {
@@ -39,4 +34,3 @@ export function useScale() {
   }
   return context
 }
-

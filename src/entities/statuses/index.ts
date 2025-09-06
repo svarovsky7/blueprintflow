@@ -1,7 +1,7 @@
 export { statusesApi } from './api/statuses-api'
 export { statusesMappingApi } from './api/statuses-mapping-api'
-export type { 
+export type {
   StatusMapping,
   StatusMappingWithDetails,
-  AddStatusMappingRequest 
+  AddStatusMappingRequest,
 } from './api/statuses-mapping-api'

@@ -1,5 +1,5 @@
-import DataTable from '../components/DataTable';
+import DataTable from '../components/DataTable'
 
 export default function Estimate() {
-  return <DataTable table="estimate" />;
+  return <DataTable table="estimate" />
 }

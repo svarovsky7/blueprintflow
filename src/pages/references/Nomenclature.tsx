@@ -10,7 +10,7 @@ import {
   Modal,
   Space,
   Table,
-  Upload
+  Upload,
 } from 'antd'
 import type { UploadProps } from 'antd'
 import { useQuery } from '@tanstack/react-query'
@@ -20,7 +20,7 @@ import {
   EditOutlined,
   DeleteOutlined,
   UploadOutlined,
-  PlusOutlined
+  PlusOutlined,
 } from '@ant-design/icons'
 import * as XLSX from 'xlsx'
 import dayjs from 'dayjs'
@@ -36,10 +36,10 @@ interface Material {
 }
 
 interface MaterialExcelRow {
-  'Номенклатура': string
+  Номенклатура: string
   'Наименование поставщика'?: string
-  'Цена'?: number
-  'Дата'?: string | number | Date
+  Цена?: number
+  Дата?: string | number | Date
 }
 
 interface SupplierFormValue {
@@ -56,16 +56,25 @@ export default function Nomenclature() {
   const [supplierOptions, setSupplierOptions] = useState<{ value: string }[]>([])
   const [searchText, setSearchText] = useState('')
   const [supplierSearchText, setSupplierSearchText] = useState('')
-  const [priceDetails, setPriceDetails] = useState<{ id?: string; price: number; purchase_date: string }[]>([])
+  const [priceDetails, setPriceDetails] = useState<
+    { id?: string; price: number; purchase_date: string }[]
+  >([])
   const [supplierDetails, setSupplierDetails] = useState<{ id: string; name: string }[]>([])
 
   const [importModalOpen, setImportModalOpen] = useState(false)
   const [importStatus, setImportStatus] = useState<'idle' | 'processing' | 'finished'>('idle')
-  const [importProgress, setImportProgress] = useState<{ processed: number; total: number }>({ processed: 0, total: 0 })
+  const [importProgress, setImportProgress] = useState<{ processed: number; total: number }>({
+    processed: 0,
+    total: 0,
+  })
   const [importResult, setImportResult] = useState(0)
   const importAbortRef = useRef(false)
 
-  const { data: materials = [], isLoading, refetch } = useQuery<Material[]>({
+  const {
+    data: materials = [],
+    isLoading,
+    refetch,
+  } = useQuery<Material[]>({
     queryKey: ['nomenclature', searchText, supplierSearchText],
     queryFn: async () => {
       if (!supabase) return []
@@ -140,7 +149,7 @@ export default function Nomenclature() {
             created_at: m.created_at,
             updated_at: m.updated_at,
             average_price: null,
-            suppliers: [s]
+            suppliers: [s],
           }))
           return {
             ...m,
@@ -148,22 +157,22 @@ export default function Nomenclature() {
               ? Math.round(priceMap.get(m.id)!.sum / priceMap.get(m.id)!.count)
               : null,
             suppliers,
-            ...(children.length ? { children } : {})
+            ...(children.length ? { children } : {}),
           }
         })
         .filter((m) =>
           supplierSearchText
-            ? m.suppliers.some((s) =>
-                s.toLowerCase().includes(supplierSearchText.toLowerCase())
-              )
-            : true
+            ? m.suppliers.some((s) => s.toLowerCase().includes(supplierSearchText.toLowerCase()))
+            : true,
         ) as Material[]
     },
   })
 
   const formatPrice = (value: number | null) =>
     value !== null && value !== undefined
-      ? Math.round(value).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+      ? Math.round(value)
+          .toString()
+          .replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
       : '-'
 
   const openAddModal = () => {
@@ -199,7 +208,7 @@ export default function Nomenclature() {
         supabase
           .from('nomenclature_supplier_mapping')
           .select('supplier_id, supplier_names(name)')
-          .eq('nomenclature_id', record.id)
+          .eq('nomenclature_id', record.id),
       ])
       setPriceDetails(priceRes.data ?? [])
       const suppliersData = (supplierRes.data ?? []) as unknown as {
@@ -208,7 +217,7 @@ export default function Nomenclature() {
       }[]
       const suppliers = suppliersData.map((s) => ({
         id: s.supplier_id,
-        name: s.supplier_names?.name ?? ''
+        name: s.supplier_names?.name ?? '',
       }))
       setSupplierDetails(suppliers)
     }
@@ -219,12 +228,12 @@ export default function Nomenclature() {
     if (modalMode === 'edit' && currentMaterial) {
       form.setFieldsValue({
         name: currentMaterial.name,
-        suppliers: supplierDetails.map(s => ({ id: s.id, name: s.name })),
-        prices: priceDetails.map(p => ({
+        suppliers: supplierDetails.map((s) => ({ id: s.id, name: s.name })),
+        prices: priceDetails.map((p) => ({
           id: p.id,
           price: p.price,
-          purchase_date: dayjs(p.purchase_date)
-        }))
+          purchase_date: dayjs(p.purchase_date),
+        })),
       })
     }
   }, [modalMode, currentMaterial, priceDetails, supplierDetails, form])
@@ -254,7 +263,8 @@ export default function Nomenclature() {
       const values = await form.validateFields()
       const name: string = values.name.trim()
       const price: number | undefined = modalMode === 'add' ? values.price : undefined
-      const prices: { id?: string; price: number; purchase_date: dayjs.Dayjs }[] = values.prices || []
+      const prices: { id?: string; price: number; purchase_date: dayjs.Dayjs }[] =
+        values.prices || []
       const suppliers: SupplierFormValue[] = values.suppliers || []
       if (!supabase) return
       let materialId: string
@@ -286,11 +296,11 @@ export default function Nomenclature() {
         }
       }
 
-      const currentIds = prices.map(p => p.id).filter((v): v is string => Boolean(v))
+      const currentIds = prices.map((p) => p.id).filter((v): v is string => Boolean(v))
       const removedIds = priceDetails
-        .filter(p => p.id)
-        .map(p => p.id as string)
-        .filter(id => !currentIds.includes(id))
+        .filter((p) => p.id)
+        .map((p) => p.id as string)
+        .filter((id) => !currentIds.includes(id))
 
       for (const p of prices) {
         if (p.id) {
@@ -298,14 +308,14 @@ export default function Nomenclature() {
             .from('material_prices')
             .update({
               price: p.price,
-              purchase_date: dayjs(p.purchase_date).format('YYYY-MM-DD')
+              purchase_date: dayjs(p.purchase_date).format('YYYY-MM-DD'),
             })
             .eq('id', p.id)
         } else {
           await supabase.from('material_prices').insert({
             material_id: materialId,
             price: p.price,
-            purchase_date: dayjs(p.purchase_date).format('YYYY-MM-DD')
+            purchase_date: dayjs(p.purchase_date).format('YYYY-MM-DD'),
           })
         }
       }
@@ -332,7 +342,7 @@ export default function Nomenclature() {
           await supabase.from('material_prices').insert({
             material_id: materialId,
             price,
-            purchase_date: today
+            purchase_date: today,
           })
         }
       }
@@ -343,10 +353,7 @@ export default function Nomenclature() {
         if (!supplierName) continue
         let supplierId = s.id
         if (supplierId) {
-          await supabase
-            .from('supplier_names')
-            .update({ name: supplierName })
-            .eq('id', supplierId)
+          await supabase.from('supplier_names').update({ name: supplierName }).eq('id', supplierId)
         } else {
           const { data: existingSupplier } = await supabase
             .from('supplier_names')
@@ -369,12 +376,8 @@ export default function Nomenclature() {
       }
 
       const existingSupplierIds = supplierDetails.map((s) => s.id)
-      const supplierIdsToRemove = existingSupplierIds.filter(
-        (id) => !newSupplierIds.includes(id)
-      )
-      const supplierIdsToAdd = newSupplierIds.filter(
-        (id) => !existingSupplierIds.includes(id)
-      )
+      const supplierIdsToRemove = existingSupplierIds.filter((id) => !newSupplierIds.includes(id))
+      const supplierIdsToAdd = newSupplierIds.filter((id) => !existingSupplierIds.includes(id))
 
       for (const id of supplierIdsToRemove) {
         await supabase
@@ -418,7 +421,9 @@ export default function Nomenclature() {
     const data = await file.arrayBuffer()
     const workbook = XLSX.read(data, { type: 'array' })
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
-    const rows: MaterialExcelRow[] = XLSX.utils.sheet_to_json<MaterialExcelRow>(sheet, { defval: null })
+    const rows: MaterialExcelRow[] = XLSX.utils.sheet_to_json<MaterialExcelRow>(sheet, {
+      defval: null,
+    })
     setImportProgress({ processed: 0, total: rows.length })
     const chunkSize = 1000
     let successCount = 0
@@ -429,9 +434,7 @@ export default function Nomenclature() {
         .map((row) => {
           const priceVal = row['Цена']
           const price =
-            priceVal !== undefined &&
-            priceVal !== null &&
-            !Number.isNaN(Number(priceVal))
+            priceVal !== undefined && priceVal !== null && !Number.isNaN(Number(priceVal))
               ? Number(priceVal)
               : null
           const dateVal = row['Дата']
@@ -476,17 +479,17 @@ export default function Nomenclature() {
     setImportResult(0)
   }
 
-  const supplierFilters = Array.from(
-    new Set(materials.flatMap((m) => m.suppliers))
-  ).map((name) => ({ text: name, value: name }))
+  const supplierFilters = Array.from(new Set(materials.flatMap((m) => m.suppliers))).map(
+    (name) => ({ text: name, value: name }),
+  )
 
   const columns = [
     {
       title: 'Номенклатура',
       dataIndex: 'name',
-      filters: materials.map(m => ({ text: m.name, value: m.name })),
+      filters: materials.map((m) => ({ text: m.name, value: m.name })),
       onFilter: (value: boolean | Key, record: Material) => record.name === value,
-      sorter: (a: Material, b: Material) => a.name.localeCompare(b.name)
+      sorter: (a: Material, b: Material) => a.name.localeCompare(b.name),
     },
     {
       title: 'Наименование поставщика',
@@ -496,38 +499,46 @@ export default function Nomenclature() {
         record.suppliers.includes(value as string),
       sorter: (a: Material, b: Material) =>
         (a.suppliers[0] || '').localeCompare(b.suppliers[0] || ''),
-      render: (_: unknown, record: Material) => record.suppliers[0] || '-'
+      render: (_: unknown, record: Material) => record.suppliers[0] || '-',
     },
     {
       title: 'Цена',
       dataIndex: 'average_price',
       sorter: (a: Material, b: Material) => (a.average_price ?? 0) - (b.average_price ?? 0),
-      render: (value: number | null) => (value !== null ? formatPrice(value) : '-')
+      render: (value: number | null) => (value !== null ? formatPrice(value) : '-'),
     },
     {
       title: 'Действия',
       dataIndex: 'actions',
-    render: (_: unknown, record: Material) =>
-      record.name ? (
-        <Space>
-          <Button icon={<EyeOutlined />} onClick={() => openViewModal(record)} aria-label="Просмотр" />
-          <Button icon={<EditOutlined />} onClick={() => openEditModal(record)} aria-label="Редактировать" />
-          <Button
-            danger
-            icon={<DeleteOutlined />}
-            aria-label="Удалить"
-            onClick={() =>
-              modal.confirm({
-                title: 'Удалить запись?',
-                okText: 'Да',
-                cancelText: 'Нет',
-                onOk: () => handleDelete(record)
-              })
-            }
-          />
-        </Space>
-      ) : null
-    }
+      render: (_: unknown, record: Material) =>
+        record.name ? (
+          <Space>
+            <Button
+              icon={<EyeOutlined />}
+              onClick={() => openViewModal(record)}
+              aria-label="Просмотр"
+            />
+            <Button
+              icon={<EditOutlined />}
+              onClick={() => openEditModal(record)}
+              aria-label="Редактировать"
+            />
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              aria-label="Удалить"
+              onClick={() =>
+                modal.confirm({
+                  title: 'Удалить запись?',
+                  okText: 'Да',
+                  cancelText: 'Нет',
+                  onOk: () => handleDelete(record),
+                })
+              }
+            />
+          </Space>
+        ) : null,
+    },
   ]
 
   return (
@@ -590,7 +601,7 @@ export default function Nomenclature() {
                   }}
                 >
                   Закрыть
-                </Button>
+                </Button>,
               ]
             : undefined
         }
@@ -675,7 +686,11 @@ export default function Nomenclature() {
                 <InputNumber<number>
                   min={0}
                   step={0.01}
-                  formatter={(v) => (v !== undefined && v !== null ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') : '')}
+                  formatter={(v) =>
+                    v !== undefined && v !== null
+                      ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+                      : ''
+                  }
                   parser={(v) => (v ? parseFloat(v.replace(/\s/g, '').replace(',', '.')) : 0)}
                   style={{ width: '100%' }}
                 />
@@ -686,7 +701,11 @@ export default function Nomenclature() {
                 {(fields, { remove }) => (
                   <>
                     {fields.map(({ key, name, ...restField }) => (
-                      <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
+                      <Space
+                        key={key}
+                        align="baseline"
+                        style={{ display: 'flex', marginBottom: 8 }}
+                      >
                         <Form.Item {...restField} name={[name, 'id']} hidden>
                           <Input type="hidden" />
                         </Form.Item>
@@ -746,13 +765,13 @@ export default function Nomenclature() {
                   }}
                 >
                   OK
-                </Button>
+                </Button>,
               ]
             : importStatus === 'processing'
               ? [
                   <Button key="stop" onClick={handleImportAbort}>
                     Прервать
-                  </Button>
+                  </Button>,
                 ]
               : null
         }
@@ -776,12 +795,9 @@ export default function Nomenclature() {
               Импортировано {importProgress.processed} / {importProgress.total}
             </p>
           )}
-          {importStatus === 'finished' && (
-            <p>Загружено {importResult} строк</p>
-          )}
+          {importStatus === 'finished' && <p>Загружено {importResult} строк</p>}
         </Space>
       </Modal>
     </div>
   )
 }
-

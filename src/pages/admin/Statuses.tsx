@@ -1,5 +1,18 @@
 import { useState } from 'react'
-import { Table, Button, Space, Input, Modal, Form, message, Popconfirm, Switch, Select, Checkbox, Tag } from 'antd'
+import {
+  Table,
+  Button,
+  Space,
+  Input,
+  Modal,
+  Form,
+  message,
+  Popconfirm,
+  Switch,
+  Select,
+  Checkbox,
+  Tag,
+} from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { ColumnsType } from 'antd/es/table'
@@ -43,7 +56,7 @@ export default function Statuses() {
         .from('statuses')
         .select('*')
         .order('name', { ascending: true })
-      
+
       if (error) throw error
       return data as Status[]
     },
@@ -53,21 +66,16 @@ export default function Statuses() {
   const saveMutation = useMutation({
     mutationFn: async (values: Partial<Status>) => {
       if (!supabase) throw new Error('Supabase not initialized')
-      
+
       if (editingRecord) {
         // Обновление
-        const { error } = await supabase
-          .from('statuses')
-          .update(values)
-          .eq('id', editingRecord.id)
-        
+        const { error } = await supabase.from('statuses').update(values).eq('id', editingRecord.id)
+
         if (error) throw error
       } else {
         // Создание
-        const { error } = await supabase
-          .from('statuses')
-          .insert([values])
-        
+        const { error } = await supabase.from('statuses').insert([values])
+
         if (error) throw error
       }
     },
@@ -87,11 +95,8 @@ export default function Statuses() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       if (!supabase) throw new Error('Supabase not initialized')
-      const { error } = await supabase
-        .from('statuses')
-        .delete()
-        .eq('id', id)
-      
+      const { error } = await supabase.from('statuses').delete().eq('id', id)
+
       if (error) throw error
     },
     onSuccess: () => {
@@ -107,11 +112,8 @@ export default function Statuses() {
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
       if (!supabase) throw new Error('Supabase not initialized')
-      const { error } = await supabase
-        .from('statuses')
-        .update({ is_active })
-        .eq('id', id)
-      
+      const { error } = await supabase.from('statuses').update({ is_active }).eq('id', id)
+
       if (error) throw error
     },
     onSuccess: () => {
@@ -164,7 +166,7 @@ export default function Statuses() {
       width: 120,
       render: (color: string) => {
         const hexColor = normalizeColorToHex(color)
-        const colorOption = colorOptions.find(c => c.value === hexColor)
+        const colorOption = colorOptions.find((c) => c.value === hexColor)
         return hexColor ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div
@@ -178,7 +180,9 @@ export default function Statuses() {
             />
             <span>{colorOption?.label || hexColor}</span>
           </div>
-        ) : '-'
+        ) : (
+          '-'
+        )
       },
     },
     {
@@ -192,8 +196,8 @@ export default function Statuses() {
         }
         return (
           <Space size={4} wrap>
-            {pages.map(pageKey => {
-              const page = PORTAL_PAGES.find(p => p.key === pageKey)
+            {pages.map((pageKey) => {
+              const page = PORTAL_PAGES.find((p) => p.key === pageKey)
               return page ? (
                 <Tag key={pageKey} color="blue">
                   {page.label}
@@ -236,12 +240,7 @@ export default function Statuses() {
             okText="Да"
             cancelText="Отмена"
           >
-            <Button
-              type="text"
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-            />
+            <Button type="text" size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
       ),
@@ -252,11 +251,7 @@ export default function Statuses() {
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
         <h2>Справочник статусов</h2>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={handleAdd}
-        >
+        <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
           Добавить статус
         </Button>
       </div>
@@ -301,19 +296,16 @@ export default function Statuses() {
             <Input placeholder="Введите название статуса" />
           </Form.Item>
 
-          <Form.Item
-            name="color"
-            label="Цвет"
-          >
+          <Form.Item name="color" label="Цвет">
             <Select
               placeholder="Выберите цвет"
               allowClear
               showSearch
               filterOption={(input, option) => {
-                const label = colorOptions.find(c => c.value === option?.value)?.label || ''
+                const label = colorOptions.find((c) => c.value === option?.value)?.label || ''
                 return label.toLowerCase().includes(input.toLowerCase())
               }}
-              options={colorOptions.map(opt => ({
+              options={colorOptions.map((opt) => ({
                 label: (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div
@@ -333,13 +325,10 @@ export default function Statuses() {
             />
           </Form.Item>
 
-          <Form.Item
-            name="applicable_pages"
-            label="Применяется к страницам"
-          >
+          <Form.Item name="applicable_pages" label="Применяется к страницам">
             <Checkbox.Group style={{ width: '100%' }}>
               <Space direction="vertical" style={{ width: '100%' }}>
-                {PORTAL_PAGES.map(page => (
+                {PORTAL_PAGES.map((page) => (
                   <Checkbox key={page.key} value={page.key}>
                     {page.label}
                   </Checkbox>
@@ -348,10 +337,7 @@ export default function Statuses() {
             </Checkbox.Group>
           </Form.Item>
 
-          <Form.Item
-            name="is_active"
-            valuePropName="checked"
-          >
+          <Form.Item name="is_active" valuePropName="checked">
             <Switch checkedChildren="Активен" unCheckedChildren="Неактивен" />
           </Form.Item>
         </Form>

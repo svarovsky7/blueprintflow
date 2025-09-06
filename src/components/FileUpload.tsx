@@ -51,12 +51,15 @@ const getFileIcon = (extension: string) => {
 }
 
 const ensureFolderPath = async (folderPath: string, token: string): Promise<void> => {
-  const segments = folderPath.replace(/^disk:\//, '').split('/').filter(Boolean)
+  const segments = folderPath
+    .replace(/^disk:\//, '')
+    .split('/')
+    .filter(Boolean)
   let current = 'disk:/'
   for (const segment of segments) {
     const listRes = await fetch(
       `https://cloud-api.yandex.net/v1/disk/resources?path=${encodeURIComponent(current)}&limit=1000&fields=_embedded.items.name`,
-      { headers: { Authorization: `OAuth ${token}` } }
+      { headers: { Authorization: `OAuth ${token}` } },
     )
     if (!listRes.ok) {
       const errorText = await listRes.text()
@@ -69,7 +72,7 @@ const ensureFolderPath = async (folderPath: string, token: string): Promise<void
     if (!exists) {
       const createRes = await fetch(
         `https://cloud-api.yandex.net/v1/disk/resources?path=${encodeURIComponent(next)}`,
-        { method: 'PUT', headers: { Authorization: `OAuth ${token}` } }
+        { method: 'PUT', headers: { Authorization: `OAuth ${token}` } },
       )
       if (!createRes.ok) {
         const errorText = await createRes.text()
@@ -85,7 +88,7 @@ const fileExists = async (filePath: string, token: string): Promise<boolean> => 
   const fileName = filePath.substring(filePath.lastIndexOf('/') + 1)
   const res = await fetch(
     `https://cloud-api.yandex.net/v1/disk/resources?path=${encodeURIComponent(folder)}&limit=1000&fields=_embedded.items.name`,
-    { headers: { Authorization: `OAuth ${token}` } }
+    { headers: { Authorization: `OAuth ${token}` } },
   )
   if (!res.ok) {
     const errorText = await res.text()
@@ -101,7 +104,7 @@ const buildFilePaths = (
   projectName: string,
   sectionName: string,
   documentationCode: string,
-  fileName: string
+  fileName: string,
 ) => {
   const folderPath = `${basePath}/${transliterate(projectName)}/${transliterate(sectionName)}/${transliterate(documentationCode)}`
   const filePath = `${folderPath}/${fileName}`
@@ -112,13 +115,13 @@ const uploadFile = async (
   file: File,
   filePath: string,
   token: string,
-  makePublic: boolean
+  makePublic: boolean,
 ): Promise<{ url: string; path: string }> => {
   const res = await fetch(
     `https://cloud-api.yandex.net/v1/disk/resources/upload?path=${encodeURIComponent(filePath)}&overwrite=true`,
     {
       headers: { Authorization: `OAuth ${token}` },
-    }
+    },
   )
   if (!res.ok) {
     const errorText = await res.text()
@@ -143,7 +146,7 @@ const uploadFile = async (
       {
         method: 'PUT',
         headers: { Authorization: `OAuth ${token}` },
-      }
+      },
     )
     if (!publishRes.ok) {
       const errorText = await publishRes.text()
@@ -151,7 +154,7 @@ const uploadFile = async (
     }
     const infoRes = await fetch(
       `https://cloud-api.yandex.net/v1/disk/resources?path=${encodeURIComponent(filePath)}&fields=public_url`,
-      { headers: { Authorization: `OAuth ${token}` } }
+      { headers: { Authorization: `OAuth ${token}` } },
     )
     if (!infoRes.ok) {
       const errorText = await infoRes.text()
@@ -165,9 +168,15 @@ const uploadFile = async (
   return { url: publicUrl, path: filePath }
 }
 
-
-export default function FileUpload({ files, onChange, disabled, projectName, sectionName, documentationCode, onlineFileUrl }: FileUploadProps) {
-
+export default function FileUpload({
+  files,
+  onChange,
+  disabled,
+  projectName,
+  sectionName,
+  documentationCode,
+  onlineFileUrl,
+}: FileUploadProps) {
   const [uploading, setUploading] = useState(false)
   const [previewModalOpen, setPreviewModalOpen] = useState(false)
   const [previewFile, setPreviewFile] = useState<LocalFile | null>(null)
@@ -181,7 +190,6 @@ export default function FileUpload({ files, onChange, disabled, projectName, sec
     }
     setUploading(true)
     try {
-
       const settings = await diskApi.getSettings()
       if (!settings) throw new Error('Disk settings not configured')
 
@@ -199,7 +207,7 @@ export default function FileUpload({ files, onChange, disabled, projectName, sec
         projectName,
         sectionName,
         documentationCode,
-        file.name
+        file.name,
       )
 
       await ensureFolderPath(folderPath, settings.token)
@@ -213,7 +221,7 @@ export default function FileUpload({ files, onChange, disabled, projectName, sec
             file,
             filePath,
             settings.token,
-            settings.make_public
+            settings.make_public,
           )
           const extension = file.name.split('.').pop() || ''
           const newFile: LocalFile = {
@@ -225,7 +233,7 @@ export default function FileUpload({ files, onChange, disabled, projectName, sec
             extension,
             uploadedAt: new Date().toISOString(),
           }
-          const updatedFiles = files.filter(f => f.path !== path)
+          const updatedFiles = files.filter((f) => f.path !== path)
           updatedFiles.push(newFile)
           onChange(updatedFiles)
           onSuccess?.(null, file as unknown as XMLHttpRequestResponseType)
@@ -275,17 +283,17 @@ export default function FileUpload({ files, onChange, disabled, projectName, sec
           if (settings) {
             await fetch(
               `https://cloud-api.yandex.net/v1/disk/resources?path=${encodeURIComponent(fileToRemove.path)}`,
-              { method: 'DELETE', headers: { Authorization: `OAuth ${settings.token}` } }
+              { method: 'DELETE', headers: { Authorization: `OAuth ${settings.token}` } },
             )
           }
-          const updatedFiles = files.filter(f => f.path !== fileToRemove.path)
+          const updatedFiles = files.filter((f) => f.path !== fileToRemove.path)
           await onChange(updatedFiles)
           message.success(`Файл "${fileToRemove.name}" удален`)
         } catch (err) {
           console.error('❌ Error removing file:', err)
           message.error('Не удалось удалить файл')
         }
-      }
+      },
     })
   }
 
@@ -305,7 +313,6 @@ export default function FileUpload({ files, onChange, disabled, projectName, sec
     }
   }
 
-
   const saveFile = async (file: LocalFile) => {
     if (!file.url) {
       message.error('Ссылка на файл недоступна')
@@ -313,7 +320,7 @@ export default function FileUpload({ files, onChange, disabled, projectName, sec
     }
     try {
       const res = await fetch(
-        `https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=${encodeURIComponent(file.url)}`
+        `https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=${encodeURIComponent(file.url)}`,
       )
       if (!res.ok) {
         const errorText = await res.text()
@@ -329,14 +336,19 @@ export default function FileUpload({ files, onChange, disabled, projectName, sec
     } catch (err) {
       console.error('❌ Error saving file:', err)
       message.error('Не удалось скачать файл')
-
     }
   }
 
   const getFileMenuItems = (file: LocalFile): MenuProps['items'] => [
     { key: 'open', icon: <EyeOutlined />, label: 'Открыть', onClick: () => openFileInModal(file) },
     { key: 'save', icon: <DownloadOutlined />, label: 'Скачать', onClick: () => saveFile(file) },
-    { key: 'delete', icon: <DeleteOutlined />, danger: true, label: 'Удалить', onClick: () => handleRemoveFile(file) }
+    {
+      key: 'delete',
+      icon: <DeleteOutlined />,
+      danger: true,
+      label: 'Удалить',
+      onClick: () => handleRemoveFile(file),
+    },
   ]
 
   return (
@@ -353,7 +365,7 @@ export default function FileUpload({ files, onChange, disabled, projectName, sec
           </a>
         )}
 
-        {files.map(file => (
+        {files.map((file) => (
           <Dropdown
             key={file.path}
             menu={{ items: getFileMenuItems(file) }}
@@ -397,18 +409,44 @@ export default function FileUpload({ files, onChange, disabled, projectName, sec
         {previewUrl && previewFile && (
           <div style={{ height: '70vh' }}>
             {previewFile.extension.toLowerCase() === 'pdf' ? (
-              <iframe src={previewUrl} style={{ width: '100%', height: '100%', border: 'none' }} title={previewFile.name} />
+              <iframe
+                src={previewUrl}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+                title={previewFile.name}
+              />
             ) : ['xlsx', 'xls', 'docx', 'doc'].includes(previewFile.extension.toLowerCase()) ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 20 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '100%',
+                  gap: 20,
+                }}
+              >
                 <div style={{ fontSize: 48 }}>{getFileIcon(previewFile.extension)}</div>
                 <Text style={{ fontSize: 16 }}>{previewFile.name}</Text>
-                <Text type="secondary">Размер: {(previewFile.size / 1024 / 1024).toFixed(2)} MB</Text>
-                <Button type="primary" icon={<DownloadOutlined />} onClick={() => saveFile(previewFile)}>
+                <Text type="secondary">
+                  Размер: {(previewFile.size / 1024 / 1024).toFixed(2)} MB
+                </Text>
+                <Button
+                  type="primary"
+                  icon={<DownloadOutlined />}
+                  onClick={() => saveFile(previewFile)}
+                >
                   Скачать
                 </Button>
               </div>
             ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '100%',
+                }}
+              >
                 <Text>Предпросмотр недоступен для данного типа файла</Text>
               </div>
             )}

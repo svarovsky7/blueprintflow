@@ -49,13 +49,8 @@ export default function DocumentationTags() {
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({
-      id,
-      data,
-    }: {
-      id: number
-      data: DocumentationTagUpdateInput
-    }) => documentationTagsApi.update(id, data),
+    mutationFn: ({ id, data }: { id: number; data: DocumentationTagUpdateInput }) =>
+      documentationTagsApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documentation-tags'] })
       message.success('Тэг успешно обновлен')
@@ -155,12 +150,7 @@ export default function DocumentationTags() {
             okText="Да"
             cancelText="Отмена"
           >
-            <Button
-              type="text"
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-            />
+            <Button type="text" size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
       ),
@@ -181,11 +171,7 @@ export default function DocumentationTags() {
           <Title level={4} style={{ margin: 0 }}>
             Тэги документации
           </Title>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => handleOpenModal()}
-          >
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenModal()}>
             Добавить
           </Button>
         </div>
@@ -210,12 +196,7 @@ export default function DocumentationTags() {
         footer={null}
         width={500}
       >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSubmit}
-          autoComplete="off"
-        >
+        <Form form={form} layout="vertical" onFinish={handleSubmit} autoComplete="off">
           <Form.Item
             label="Номер тэга"
             name="tag_number"
@@ -224,11 +205,7 @@ export default function DocumentationTags() {
               { type: 'number', min: 1, message: 'Номер должен быть больше 0' },
             ]}
           >
-            <InputNumber
-              style={{ width: '100%' }}
-              placeholder="Введите номер тэга"
-              min={1}
-            />
+            <InputNumber style={{ width: '100%' }} placeholder="Введите номер тэга" min={1} />
           </Form.Item>
 
           <Form.Item

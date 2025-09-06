@@ -9,7 +9,7 @@ export interface StatusMapping {
   assigned_by?: string | null
   comment?: string | null
   is_current: boolean
-  metadata?: Record<string, any> | null
+  metadata?: Record<string, unknown> | null
 }
 
 export interface StatusMappingWithDetails extends StatusMapping {
@@ -26,7 +26,7 @@ export interface AddStatusMappingRequest {
   status_id: string
   assigned_by?: string | null
   comment?: string | null
-  metadata?: Record<string, any> | null
+  metadata?: Record<string, unknown> | null
 }
 
 export const statusesMappingApi = {
@@ -43,7 +43,7 @@ export const statusesMappingApi = {
         assigned_by: request.assigned_by || null,
         comment: request.comment || null,
         metadata: request.metadata || null,
-        is_current: true
+        is_current: true,
       })
       .select('id')
       .single()
@@ -57,15 +57,20 @@ export const statusesMappingApi = {
   },
 
   // Получение текущего статуса сущности
-  async getCurrentStatus(entityType: string, entityId: string): Promise<StatusMappingWithDetails | null> {
+  async getCurrentStatus(
+    entityType: string,
+    entityId: string,
+  ): Promise<StatusMappingWithDetails | null> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     const { data, error } = await supabase
       .from('statuses_mapping')
-      .select(`
+      .select(
+        `
         *,
         status:statuses(id, name, color)
-      `)
+      `,
+      )
       .eq('entity_type', entityType)
       .eq('entity_id', entityId)
       .eq('is_current', true)
@@ -83,15 +88,20 @@ export const statusesMappingApi = {
   },
 
   // Получение истории статусов сущности
-  async getStatusHistory(entityType: string, entityId: string): Promise<StatusMappingWithDetails[]> {
+  async getStatusHistory(
+    entityType: string,
+    entityId: string,
+  ): Promise<StatusMappingWithDetails[]> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     const { data, error } = await supabase
       .from('statuses_mapping')
-      .select(`
+      .select(
+        `
         *,
         status:statuses(id, name, color)
-      `)
+      `,
+      )
       .eq('entity_type', entityType)
       .eq('entity_id', entityId)
       .order('assigned_at', { ascending: false })
@@ -140,19 +150,17 @@ export const statusesMappingApi = {
   async addStatusBatch(requests: AddStatusMappingRequest[]): Promise<void> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    const mappings = requests.map(req => ({
+    const mappings = requests.map((req) => ({
       entity_type: req.entity_type,
       entity_id: req.entity_id,
       status_id: req.status_id,
       assigned_by: req.assigned_by || null,
       comment: req.comment || null,
       metadata: req.metadata || null,
-      is_current: true
+      is_current: true,
     }))
 
-    const { error } = await supabase
-      .from('statuses_mapping')
-      .insert(mappings)
+    const { error } = await supabase.from('statuses_mapping').insert(mappings)
 
     if (error) {
       console.error('Failed to add status mappings batch:', error)
@@ -161,15 +169,20 @@ export const statusesMappingApi = {
   },
 
   // Получение всех сущностей с определенным статусом
-  async getEntitiesByStatus(statusId: string, entityType?: string): Promise<StatusMappingWithDetails[]> {
+  async getEntitiesByStatus(
+    statusId: string,
+    entityType?: string,
+  ): Promise<StatusMappingWithDetails[]> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     let query = supabase
       .from('statuses_mapping')
-      .select(`
+      .select(
+        `
         *,
         status:statuses(id, name, color)
-      `)
+      `,
+      )
       .eq('status_id', statusId)
       .eq('is_current', true)
 
@@ -185,5 +198,5 @@ export const statusesMappingApi = {
     }
 
     return (data || []) as StatusMappingWithDetails[]
-  }
+  },
 }

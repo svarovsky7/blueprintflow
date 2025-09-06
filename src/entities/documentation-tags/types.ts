@@ -6,9 +6,6 @@ export interface DocumentationTag {
   updated_at: string
 }
 
-export type DocumentationTagCreateInput = Omit<
-  DocumentationTag,
-  'id' | 'created_at' | 'updated_at'
->
+export type DocumentationTagCreateInput = Omit<DocumentationTag, 'id' | 'created_at' | 'updated_at'>
 
 export type DocumentationTagUpdateInput = Partial<DocumentationTagCreateInput>

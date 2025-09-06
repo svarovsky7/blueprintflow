@@ -4,25 +4,25 @@
 // Маппинг текстовых названий цветов в HEX формат
 export const COLOR_NAME_TO_HEX: Record<string, string> = {
   // Основные цвета Ant Design
-  'green': '#52c41a',
-  'yellow': '#faad14',
-  'blue': '#1890ff',
-  'red': '#ff4d4f',
-  'gray': '#d9d9d9',
-  'grey': '#d9d9d9',
-  'orange': '#fa8c16',
-  'purple': '#722ed1',
-  'cyan': '#13c2c2',
-  'pink': '#eb2f96',
-  'lime': '#a0d911',
-  'gold': '#faad14',
-  
+  green: '#52c41a',
+  yellow: '#faad14',
+  blue: '#1890ff',
+  red: '#ff4d4f',
+  gray: '#d9d9d9',
+  grey: '#d9d9d9',
+  orange: '#fa8c16',
+  purple: '#722ed1',
+  cyan: '#13c2c2',
+  pink: '#eb2f96',
+  lime: '#a0d911',
+  gold: '#faad14',
+
   // Дополнительные цвета для статусов
-  'черновик': '#888888',
+  черновик: '#888888',
   'на проверке': '#faad14',
-  'утвержден': '#52c41a',
-  'отклонен': '#ff4d4f',
-  'архив': '#d9d9d9',
+  утвержден: '#52c41a',
+  отклонен: '#ff4d4f',
+  архив: '#d9d9d9',
 }
 
 // Маппинг HEX цветов в текстовые названия (для обратного преобразования)
@@ -43,12 +43,12 @@ export const HEX_TO_COLOR_NAME: Record<string, string> = {
 // Функция для нормализации цвета к HEX формату
 export function normalizeColorToHex(color: string | undefined | null): string {
   if (!color) return '#d9d9d9' // Цвет по умолчанию
-  
+
   // Если уже в HEX формате
   if (color.startsWith('#')) {
     return color.toLowerCase()
   }
-  
+
   // Преобразуем текстовое название в HEX
   const hex = COLOR_NAME_TO_HEX[color.toLowerCase()]
   return hex || '#d9d9d9' // Цвет по умолчанию, если не найден
@@ -57,18 +57,18 @@ export function normalizeColorToHex(color: string | undefined | null): string {
 // Функция для получения текстового названия цвета (если нужно для UI)
 export function getColorName(hexColor: string | undefined | null): string | null {
   if (!hexColor) return null
-  
+
   const normalizedHex = hexColor.toLowerCase()
   return HEX_TO_COLOR_NAME[normalizedHex] || null
 }
 
 // Стандартные цвета для статусов Шахматки
 export const CHESSBOARD_STATUS_COLORS = {
-  DRAFT: '#888888',        // Черновик
-  REVIEW: '#faad14',       // На проверке
-  APPROVED: '#52c41a',     // Утвержден
-  REJECTED: '#ff4d4f',     // Отклонен
-  ARCHIVE: '#d9d9d9',      // Архив
+  DRAFT: '#888888', // Черновик
+  REVIEW: '#faad14', // На проверке
+  APPROVED: '#52c41a', // Утвержден
+  REJECTED: '#ff4d4f', // Отклонен
+  ARCHIVE: '#d9d9d9', // Архив
 }
 
 // Формат страницы для applicable_pages

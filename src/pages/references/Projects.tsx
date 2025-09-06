@@ -1,16 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useMemo, useState } from 'react'
-import {
-  App,
-  Button,
-  Form,
-  Input,
-  InputNumber,
-  Modal,
-  Popconfirm,
-  Space,
-  Table,
-} from 'antd'
+import { App, Button, Form, Input, InputNumber, Modal, Popconfirm, Space, Table } from 'antd'
 import type { TableProps } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
@@ -28,11 +18,13 @@ interface Project {
   id: string
   name: string
   address: string | null
-  projects_blocks?: { 
-    block_id: string; 
-    blocks: BlockInfo | null;
-    v_block_floor_range?: { bottom_floor: number; top_floor: number }[] | null
-  }[] | null
+  projects_blocks?:
+    | {
+        block_id: string
+        blocks: BlockInfo | null
+        v_block_floor_range?: { bottom_floor: number; top_floor: number }[] | null
+      }[]
+    | null
 }
 
 interface ProjectRow extends Project {
@@ -52,7 +44,11 @@ export default function Projects() {
   const [existingBlockIds, setExistingBlockIds] = useState<string[]>([])
   const [form] = Form.useForm()
 
-  const { data: projects, isLoading, refetch } = useQuery({
+  const {
+    data: projects,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ['projects'],
     queryFn: async () => {
       if (!supabase) return []
@@ -71,15 +67,15 @@ export default function Projects() {
       // Если не получится, используем старую структуру
       let linkData: any = null
       let linkError: any = null
-      
+
       // Проверяем, какая структура используется - пытаемся сначала новую
       let hasNewStructure = false
       const { count: mappingCount } = await supabase
         .from('block_floor_mapping')
         .select('*', { count: 'exact', head: true })
-      
+
       hasNewStructure = mappingCount !== null && mappingCount >= 0
-      
+
       if (!hasNewStructure) {
         // Используем старую структуру
         const result = await supabase
@@ -92,52 +88,62 @@ export default function Projects() {
         // Используем новую структуру через join
         const result = await supabase
           .from('projects_blocks')
-          .select(`
+          .select(
+            `
             project_id, 
             block_id, 
             blocks(name)
-          `)
+          `,
+          )
           .in('project_id', ids)
-        
+
         if (!result.error && result.data) {
           // Получаем диапазоны этажей отдельным запросом
           const blockIds = [...new Set(result.data.map((r: any) => r.block_id))]
-          
+
           if (blockIds.length > 0) {
             const { data: floorRanges } = await supabase
               .from('block_floor_mapping')
               .select('block_id, floor_number')
               .in('block_id', blockIds)
-            
+
             // Группируем по block_id и находим min/max
             const rangeMap: Record<string, { bottom_floor: number; top_floor: number }> = {}
             if (floorRanges && floorRanges.length > 0) {
               floorRanges.forEach((r: any) => {
                 if (!rangeMap[r.block_id]) {
-                  rangeMap[r.block_id] = { 
-                    bottom_floor: r.floor_number, 
-                    top_floor: r.floor_number 
+                  rangeMap[r.block_id] = {
+                    bottom_floor: r.floor_number,
+                    top_floor: r.floor_number,
                   }
                 } else {
-                  rangeMap[r.block_id].bottom_floor = Math.min(rangeMap[r.block_id].bottom_floor, r.floor_number)
-                  rangeMap[r.block_id].top_floor = Math.max(rangeMap[r.block_id].top_floor, r.floor_number)
+                  rangeMap[r.block_id].bottom_floor = Math.min(
+                    rangeMap[r.block_id].bottom_floor,
+                    r.floor_number,
+                  )
+                  rangeMap[r.block_id].top_floor = Math.max(
+                    rangeMap[r.block_id].top_floor,
+                    r.floor_number,
+                  )
                 }
               })
             }
-            
+
             // Добавляем диапазоны к данным и к блокам
             linkData = result.data.map((r: any) => {
               const range = rangeMap[r.block_id]
-              const blockWithRange = r.blocks ? {
-                ...r.blocks,
-                bottom_floor: range?.bottom_floor,
-                top_floor: range?.top_floor
-              } : null
-              
+              const blockWithRange = r.blocks
+                ? {
+                    ...r.blocks,
+                    bottom_floor: range?.bottom_floor,
+                    top_floor: range?.top_floor,
+                  }
+                : null
+
               return {
                 ...r,
                 blocks: blockWithRange,
-                v_block_floor_range: range ? [range] : null
+                v_block_floor_range: range ? [range] : null,
               }
             })
           } else {
@@ -152,51 +158,63 @@ export default function Projects() {
         message.error('Не удалось загрузить данные')
         throw linkError
       }
-      const linkRows = (linkData as unknown as {
-        project_id: string
-        block_id: string
-        blocks: BlockInfo | null
-        v_block_floor_range?: { bottom_floor: number; top_floor: number }[] | null
-      }[] | null) ?? []
+      const linkRows =
+        (linkData as unknown as
+          | {
+              project_id: string
+              block_id: string
+              blocks: BlockInfo | null
+              v_block_floor_range?: { bottom_floor: number; top_floor: number }[] | null
+            }[]
+          | null) ?? []
       const map = linkRows.reduce(
         (acc, row) => {
           const arr = acc[row.project_id] ?? []
           let blockWithFloors = row.blocks
-          
+
           // Нормализуем данные для отображения
           if (blockWithFloors) {
             // Если поля bottom_floor/top_floor уже есть - используем их
             // Если нет - берём из старых полей или v_block_floor_range
-            if (blockWithFloors.bottom_floor === undefined || blockWithFloors.bottom_floor === null) {
-              if (blockWithFloors.bottom_underground_floor !== undefined && blockWithFloors.bottom_underground_floor !== null) {
+            if (
+              blockWithFloors.bottom_floor === undefined ||
+              blockWithFloors.bottom_floor === null
+            ) {
+              if (
+                blockWithFloors.bottom_underground_floor !== undefined &&
+                blockWithFloors.bottom_underground_floor !== null
+              ) {
                 blockWithFloors = {
                   ...blockWithFloors,
                   bottom_floor: blockWithFloors.bottom_underground_floor,
-                  top_floor: blockWithFloors.top_ground_floor
+                  top_floor: blockWithFloors.top_ground_floor,
                 }
               } else if (row.v_block_floor_range?.[0]) {
                 blockWithFloors = {
                   ...blockWithFloors,
                   bottom_floor: row.v_block_floor_range[0].bottom_floor,
-                  top_floor: row.v_block_floor_range[0].top_floor
+                  top_floor: row.v_block_floor_range[0].top_floor,
                 }
               }
             }
           }
-          
-          arr.push({ 
-            block_id: row.block_id, 
+
+          arr.push({
+            block_id: row.block_id,
             blocks: blockWithFloors,
-            v_block_floor_range: row.v_block_floor_range
+            v_block_floor_range: row.v_block_floor_range,
           })
           acc[row.project_id] = arr
           return acc
         },
-        {} as Record<string, { 
-          block_id: string; 
-          blocks: BlockInfo | null;
-          v_block_floor_range?: { bottom_floor: number; top_floor: number }[] | null
-        }[]>,
+        {} as Record<
+          string,
+          {
+            block_id: string
+            blocks: BlockInfo | null
+            v_block_floor_range?: { bottom_floor: number; top_floor: number }[] | null
+          }[]
+        >,
       )
       return projects.map((p) => ({ ...p, projects_blocks: map[p.id] ?? [] }))
     },
@@ -249,8 +267,9 @@ export default function Projects() {
   const handleBlocksCountChange = (value: number | null) => {
     const count = value ?? 0
     const current = form.getFieldValue('blocks') || []
-    const updated = Array.from({ length: count }, (_, i) =>
-      current[i] || { name: '', bottom_floor: null, top_floor: null },
+    const updated = Array.from(
+      { length: count },
+      (_, i) => current[i] || { name: '', bottom_floor: null, top_floor: null },
     )
     form.setFieldsValue({ blocks: updated })
     setBlocksCount(count)
@@ -278,18 +297,18 @@ export default function Projects() {
           const { count: mappingTableExists } = await supabase
             .from('block_floor_mapping')
             .select('*', { count: 'exact', head: true })
-          
+
           const useNewStructure = mappingTableExists !== null
-          
+
           if (useNewStructure) {
             // Новая структура - создаём блоки без полей этажей
             const { data: blocksData, error: blocksError } = await supabase
               .from('blocks')
-              .insert(blocks.map(b => ({ name: b.name })))
+              .insert(blocks.map((b) => ({ name: b.name })))
               .select('id')
             if (blocksError) throw blocksError
             const rows = blocksData as BlockRow[] | null
-            
+
             // Создаём связи проект-корпус
             const projectBlocks = (rows ?? []).map((b) => ({
               project_id: projectRow.id,
@@ -299,23 +318,27 @@ export default function Projects() {
               .from('projects_blocks')
               .insert(projectBlocks)
             if (linkError) throw linkError
-            
+
             // Создаём связи корпус-этажи напрямую в таблице маппинга
             for (let i = 0; i < rows!.length; i++) {
               const block = blocks[i]
-              if (block.bottom_floor !== null && block.bottom_floor !== undefined && 
-                  block.top_floor !== null && block.top_floor !== undefined) {
+              if (
+                block.bottom_floor !== null &&
+                block.bottom_floor !== undefined &&
+                block.top_floor !== null &&
+                block.top_floor !== undefined
+              ) {
                 const floorMappings = []
                 const minFloor = Math.min(block.bottom_floor, block.top_floor)
                 const maxFloor = Math.max(block.bottom_floor, block.top_floor)
-                
+
                 for (let floor = minFloor; floor <= maxFloor; floor++) {
                   floorMappings.push({
                     block_id: rows![i].id,
-                    floor_number: floor
+                    floor_number: floor,
                   })
                 }
-                
+
                 if (floorMappings.length > 0) {
                   const { error: mappingError } = await supabase
                     .from('block_floor_mapping')
@@ -326,19 +349,19 @@ export default function Projects() {
             }
           } else {
             // Старая структура - создаём блоки с полями этажей
-            const blocksToInsert = blocks.map(b => ({
+            const blocksToInsert = blocks.map((b) => ({
               name: b.name,
               bottom_underground_floor: b.bottom_floor ?? b.bottom_underground_floor,
-              top_ground_floor: b.top_floor ?? b.top_ground_floor
+              top_ground_floor: b.top_floor ?? b.top_ground_floor,
             }))
-            
+
             const { data: blocksData, error: blocksError } = await supabase
               .from('blocks')
               .insert(blocksToInsert)
               .select('id')
             if (blocksError) throw blocksError
             const rows = blocksData as BlockRow[] | null
-            
+
             // Создаём связи проект-корпус
             const projectBlocks = (rows ?? []).map((b) => ({
               project_id: projectRow.id,
@@ -370,18 +393,18 @@ export default function Projects() {
           const { count: mappingTableExists } = await supabase
             .from('block_floor_mapping')
             .select('*', { count: 'exact', head: true })
-          
+
           const useNewStructure = mappingTableExists !== null
-          
+
           if (useNewStructure) {
             // Новая структура - создаём блоки без полей этажей
             const { data: blocksData, error: blocksError } = await supabase
               .from('blocks')
-              .insert(blocks.map(b => ({ name: b.name })))
+              .insert(blocks.map((b) => ({ name: b.name })))
               .select('id')
             if (blocksError) throw blocksError
             const rows = blocksData as BlockRow[] | null
-            
+
             // Создаём связи проект-корпус
             const projectBlocks = (rows ?? []).map((b) => ({
               project_id: currentProject.id,
@@ -391,23 +414,27 @@ export default function Projects() {
               .from('projects_blocks')
               .insert(projectBlocks)
             if (linkError) throw linkError
-            
+
             // Создаём связи корпус-этажи напрямую в таблице маппинга
             for (let i = 0; i < rows!.length; i++) {
               const block = blocks[i]
-              if (block.bottom_floor !== null && block.bottom_floor !== undefined && 
-                  block.top_floor !== null && block.top_floor !== undefined) {
+              if (
+                block.bottom_floor !== null &&
+                block.bottom_floor !== undefined &&
+                block.top_floor !== null &&
+                block.top_floor !== undefined
+              ) {
                 const floorMappings = []
                 const minFloor = Math.min(block.bottom_floor, block.top_floor)
                 const maxFloor = Math.max(block.bottom_floor, block.top_floor)
-                
+
                 for (let floor = minFloor; floor <= maxFloor; floor++) {
                   floorMappings.push({
                     block_id: rows![i].id,
-                    floor_number: floor
+                    floor_number: floor,
                   })
                 }
-                
+
                 if (floorMappings.length > 0) {
                   const { error: mappingError } = await supabase
                     .from('block_floor_mapping')
@@ -418,19 +445,19 @@ export default function Projects() {
             }
           } else {
             // Старая структура - создаём блоки с полями этажей
-            const blocksToInsert = blocks.map(b => ({
+            const blocksToInsert = blocks.map((b) => ({
               name: b.name,
               bottom_underground_floor: b.bottom_floor ?? b.bottom_underground_floor,
-              top_ground_floor: b.top_floor ?? b.top_ground_floor
+              top_ground_floor: b.top_floor ?? b.top_ground_floor,
             }))
-            
+
             const { data: blocksData, error: blocksError } = await supabase
               .from('blocks')
               .insert(blocksToInsert)
               .select('id')
             if (blocksError) throw blocksError
             const rows = blocksData as BlockRow[] | null
-            
+
             // Создаём связи проект-корпус
             const projectBlocks = (rows ?? []).map((b) => ({
               project_id: currentProject.id,
@@ -518,8 +545,7 @@ export default function Projects() {
       {
         title: 'Адрес',
         dataIndex: 'address',
-        sorter: (a: ProjectRow, b: ProjectRow) =>
-          (a.address ?? '').localeCompare(b.address ?? ''),
+        sorter: (a: ProjectRow, b: ProjectRow) => (a.address ?? '').localeCompare(b.address ?? ''),
         filters: addressFilters,
         onFilter: (value: unknown, record: ProjectRow) => record.address === value,
       },
@@ -533,10 +559,7 @@ export default function Projects() {
           record.blockNames.includes(value as string),
         render: (_: unknown, record: ProjectRow) =>
           record.blocks
-            .map(
-              (b) =>
-                `${b.name} (${b.bottom_floor ?? ''}; ${b.top_floor ?? ''})`,
-            )
+            .map((b) => `${b.name} (${b.bottom_floor ?? ''}; ${b.top_floor ?? ''})`)
             .join('; '),
       },
       {
@@ -606,10 +629,7 @@ export default function Projects() {
             <p>
               Корпуса:{' '}
               {currentProject?.blocks
-                .map(
-                  (b) =>
-                    `${b.name} (от ${b.bottom_floor ?? ''} до ${b.top_floor ?? ''})`,
-                )
+                .map((b) => `${b.name} (от ${b.bottom_floor ?? ''} до ${b.top_floor ?? ''})`)
                 .join('; ')}
             </p>
           </div>
@@ -667,4 +687,3 @@ export default function Projects() {
     </div>
   )
 }
-

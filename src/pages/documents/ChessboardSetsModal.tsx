@@ -3,7 +3,11 @@ import { Modal, Table, Space, Button, Input, Select, Tag, message } from 'antd'
 import { DeleteOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import type { ColumnsType } from 'antd/es/table'
-import { chessboardSetsApi, type ChessboardSetTableRow, type ChessboardSetSearchFilters } from '@/entities/chessboard'
+import {
+  chessboardSetsApi,
+  type ChessboardSetTableRow,
+  type ChessboardSetSearchFilters,
+} from '@/entities/chessboard'
 
 interface ChessboardSetsModalProps {
   open: boolean
@@ -12,18 +16,22 @@ interface ChessboardSetsModalProps {
   onSelectSet?: (setId: string) => void
 }
 
-export default function ChessboardSetsModal({ 
-  open, 
-  onClose, 
-  projectId, 
-  onSelectSet 
+export default function ChessboardSetsModal({
+  open,
+  onClose,
+  projectId,
+  onSelectSet,
 }: ChessboardSetsModalProps) {
   const [searchFilters, setSearchFilters] = useState<ChessboardSetSearchFilters>({
     project_id: projectId,
   })
 
   // Загрузка комплектов
-  const { data: sets, isLoading, refetch } = useQuery({
+  const {
+    data: sets,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ['chessboard-sets', searchFilters],
     queryFn: () => chessboardSetsApi.getSets(searchFilters),
     enabled: open && !!projectId,
@@ -108,12 +116,8 @@ export default function ChessboardSetsModal({
       dataIndex: 'status_name',
       key: 'status_name',
       width: 120,
-      render: (statusName, record) => (
-        <Tag color={record.status_color}>
-          {statusName}
-        </Tag>
-      ),
-      filters: Array.from(new Set(sets?.map(s => s.status_name))).map(status => ({
+      render: (statusName, record) => <Tag color={record.status_color}>{statusName}</Tag>,
+      filters: Array.from(new Set(sets?.map((s) => s.status_name))).map((status) => ({
         text: status,
         value: status,
       })),
@@ -134,11 +138,7 @@ export default function ChessboardSetsModal({
       fixed: 'right',
       render: (_, record) => (
         <Space size="small">
-          <Button
-            size="small"
-            onClick={() => handleSelectSet(record.id)}
-            type="link"
-          >
+          <Button size="small" onClick={() => handleSelectSet(record.id)} type="link">
             Применить
           </Button>
           <Button
@@ -167,16 +167,18 @@ export default function ChessboardSetsModal({
           placeholder="Поиск по номеру или названию"
           style={{ width: 250 }}
           value={searchFilters.search}
-          onChange={(e) => setSearchFilters(prev => ({ ...prev, search: e.target.value }))}
+          onChange={(e) => setSearchFilters((prev) => ({ ...prev, search: e.target.value }))}
           allowClear
         />
         <Select
           placeholder="Статус"
           style={{ width: 150 }}
           value={searchFilters.status_id}
-          onChange={(statusId) => setSearchFilters(prev => ({ ...prev, status_id: statusId }))}
+          onChange={(statusId) => setSearchFilters((prev) => ({ ...prev, status_id: statusId }))}
           allowClear
-          options={Array.from(new Set(sets?.map(s => ({ id: s.status_name, name: s.status_name })))).map(status => ({
+          options={Array.from(
+            new Set(sets?.map((s) => ({ id: s.status_name, name: s.status_name }))),
+          ).map((status) => ({
             value: status.id,
             label: status.name,
           }))}
@@ -185,12 +187,16 @@ export default function ChessboardSetsModal({
           placeholder="Шифр проекта"
           style={{ width: 200 }}
           value={searchFilters.documentation_id}
-          onChange={(docId) => setSearchFilters(prev => ({ ...prev, documentation_id: docId }))}
+          onChange={(docId) => setSearchFilters((prev) => ({ ...prev, documentation_id: docId }))}
           allowClear
-          options={Array.from(new Set(sets?.map(s => ({ 
-            id: s.documentation_code, 
-            name: s.documentation_code 
-          })))).map(doc => ({
+          options={Array.from(
+            new Set(
+              sets?.map((s) => ({
+                id: s.documentation_code,
+                name: s.documentation_code,
+              })),
+            ),
+          ).map((doc) => ({
             value: doc.id,
             label: doc.name,
           }))}

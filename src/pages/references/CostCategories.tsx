@@ -1,14 +1,5 @@
 import { useMemo, useState } from 'react'
-import {
-  App,
-  Button,
-  Form,
-  Input,
-  Select,
-  Space,
-  Table,
-  Upload,
-} from 'antd'
+import { App, Button, Form, Input, Select, Space, Table, Upload } from 'antd'
 import {
   PlusOutlined,
   CheckOutlined,
@@ -86,9 +77,11 @@ interface DetailCategoryRowDB {
 export default function CostCategories() {
   const { message, modal } = App.useApp()
   const [addMode, setAddMode] = useState<'category' | 'detail' | null>(null)
-  const [editing, setEditing] = useState<
-    { type: 'category' | 'detail'; key: string; id: number } | null
-  >(null)
+  const [editing, setEditing] = useState<{
+    type: 'category' | 'detail'
+    key: string
+    id: number
+  } | null>(null)
   const [form] = Form.useForm()
 
   const {
@@ -163,10 +156,7 @@ export default function CostCategories() {
     queryKey: ['location'],
     queryFn: async () => {
       if (!supabase) return []
-      const { data } = await supabase
-        .from('location')
-        .select('id, name')
-        .order('name')
+      const { data } = await supabase.from('location').select('id, name').order('name')
       return (data ?? []) as LocationOption[]
     },
   })
@@ -232,49 +222,50 @@ export default function CostCategories() {
 
   const numberFilters = useMemo(
     () =>
-      Array.from(
-        new Set(rows.map((r) => r.number).filter((n): n is number => n !== null)),
-      ).map((n) => ({ text: String(n), value: n })),
+      Array.from(new Set(rows.map((r) => r.number).filter((n): n is number => n !== null))).map(
+        (n) => ({ text: String(n), value: n }),
+      ),
     [rows],
   )
 
   const categoryFilters = useMemo(
     () =>
-      Array.from(
-        new Set(rows.map((r) => r.categoryName).filter((n): n is string => !!n)),
-      ).map((n) => ({ text: n, value: n })),
+      Array.from(new Set(rows.map((r) => r.categoryName).filter((n): n is string => !!n))).map(
+        (n) => ({ text: n, value: n }),
+      ),
     [rows],
   )
 
   const categoryUnitFilters = useMemo(
     () =>
-      Array.from(
-        new Set(rows.map((r) => r.categoryUnit).filter((n): n is string => !!n)),
-      ).map((n) => ({ text: n, value: n })),
+      Array.from(new Set(rows.map((r) => r.categoryUnit).filter((n): n is string => !!n))).map(
+        (n) => ({ text: n, value: n }),
+      ),
     [rows],
   )
 
   const detailFilters = useMemo(
     () =>
-      Array.from(
-        new Set(rows.map((r) => r.detailName).filter((n): n is string => !!n)),
-      ).map((n) => ({ text: n, value: n })),
+      Array.from(new Set(rows.map((r) => r.detailName).filter((n): n is string => !!n))).map(
+        (n) => ({ text: n, value: n }),
+      ),
     [rows],
   )
 
   const detailUnitFilters = useMemo(
     () =>
-      Array.from(
-        new Set(rows.map((r) => r.detailUnit).filter((n): n is string => !!n)),
-      ).map((n) => ({ text: n, value: n })),
+      Array.from(new Set(rows.map((r) => r.detailUnit).filter((n): n is string => !!n))).map(
+        (n) => ({ text: n, value: n }),
+      ),
     [rows],
   )
 
   const locationFilters = useMemo(
     () =>
-      Array.from(
-        new Set(rows.map((r) => r.location).filter((n): n is string => !!n)),
-      ).map((n) => ({ text: n, value: n })),
+      Array.from(new Set(rows.map((r) => r.location).filter((n): n is string => !!n))).map((n) => ({
+        text: n,
+        value: n,
+      })),
     [rows],
   )
 
@@ -544,8 +535,7 @@ export default function CostCategories() {
     {
       title: '№',
       dataIndex: 'number',
-      sorter: (a: TableRow, b: TableRow) =>
-        (a.number ?? 0) - (b.number ?? 0),
+      sorter: (a: TableRow, b: TableRow) => (a.number ?? 0) - (b.number ?? 0),
       filters: numberFilters,
       onFilter: (value: unknown, record: TableRow) => record.number === value,
       render: (_: unknown, record: TableRow) => {
@@ -598,8 +588,7 @@ export default function CostCategories() {
       sorter: (a: TableRow, b: TableRow) =>
         (a.categoryName ?? '').localeCompare(b.categoryName ?? ''),
       filters: categoryFilters,
-      onFilter: (value: unknown, record: TableRow) =>
-        record.categoryName === value,
+      onFilter: (value: unknown, record: TableRow) => record.categoryName === value,
       render: (value: string | null, record: TableRow) => {
         if (record.key === 'new') {
           if (addMode === 'category') {
@@ -682,8 +671,7 @@ export default function CostCategories() {
       sorter: (a: TableRow, b: TableRow) =>
         (a.categoryUnit ?? '').localeCompare(b.categoryUnit ?? ''),
       filters: categoryUnitFilters,
-      onFilter: (value: unknown, record: TableRow) =>
-        record.categoryUnit === value,
+      onFilter: (value: unknown, record: TableRow) => record.categoryUnit === value,
       render: (value: string | null, record: TableRow) => {
         if (record.key === 'new') {
           if (addMode === 'category') {
@@ -693,9 +681,7 @@ export default function CostCategories() {
                 rules={[{ required: true, message: 'Выберите единицу' }]}
                 style={{ margin: 0 }}
               >
-                <Select
-                  options={units?.map((u) => ({ value: u.id, label: u.name })) ?? []}
-                />
+                <Select options={units?.map((u) => ({ value: u.id, label: u.name })) ?? []} />
               </Form.Item>
             )
           }
@@ -711,9 +697,7 @@ export default function CostCategories() {
                 rules={[{ required: true, message: 'Выберите единицу' }]}
                 style={{ margin: 0 }}
               >
-                <Select
-                  options={units?.map((u) => ({ value: u.id, label: u.name })) ?? []}
-                />
+                <Select options={units?.map((u) => ({ value: u.id, label: u.name })) ?? []} />
               </Form.Item>
             )
           }
@@ -736,8 +720,7 @@ export default function CostCategories() {
         </Space>
       ),
       dataIndex: 'detailName',
-      sorter: (a: TableRow, b: TableRow) =>
-        (a.detailName ?? '').localeCompare(b.detailName ?? ''),
+      sorter: (a: TableRow, b: TableRow) => (a.detailName ?? '').localeCompare(b.detailName ?? ''),
       filters: detailFilters,
       onFilter: (value: unknown, record: TableRow) => record.detailName === value,
       render: (value: string | null, record: TableRow) => {
@@ -781,11 +764,9 @@ export default function CostCategories() {
     {
       title: 'Ед.Изм.',
       dataIndex: 'detailUnit',
-      sorter: (a: TableRow, b: TableRow) =>
-        (a.detailUnit ?? '').localeCompare(b.detailUnit ?? ''),
+      sorter: (a: TableRow, b: TableRow) => (a.detailUnit ?? '').localeCompare(b.detailUnit ?? ''),
       filters: detailUnitFilters,
-      onFilter: (value: unknown, record: TableRow) =>
-        record.detailUnit === value,
+      onFilter: (value: unknown, record: TableRow) => record.detailUnit === value,
       render: (value: string | null, record: TableRow) => {
         if (record.key === 'new' && addMode === 'detail') {
           return (
@@ -794,9 +775,7 @@ export default function CostCategories() {
               rules={[{ required: true, message: 'Выберите единицу' }]}
               style={{ margin: 0 }}
             >
-              <Select
-                options={units?.map((u) => ({ value: u.id, label: u.name })) ?? []}
-              />
+              <Select options={units?.map((u) => ({ value: u.id, label: u.name })) ?? []} />
             </Form.Item>
           )
         }
@@ -807,9 +786,7 @@ export default function CostCategories() {
               rules={[{ required: true, message: 'Выберите единицу' }]}
               style={{ margin: 0 }}
             >
-              <Select
-                options={units?.map((u) => ({ value: u.id, label: u.name })) ?? []}
-              />
+              <Select options={units?.map((u) => ({ value: u.id, label: u.name })) ?? []} />
             </Form.Item>
           )
         }
@@ -819,8 +796,7 @@ export default function CostCategories() {
     {
       title: 'Локализация',
       dataIndex: 'location',
-      sorter: (a: TableRow, b: TableRow) =>
-        (a.location ?? '').localeCompare(b.location ?? ''),
+      sorter: (a: TableRow, b: TableRow) => (a.location ?? '').localeCompare(b.location ?? ''),
       filters: locationFilters,
       onFilter: (value: unknown, record: TableRow) => record.location === value,
       render: (value: string | null, record: TableRow) => {
@@ -831,11 +807,7 @@ export default function CostCategories() {
               rules={[{ required: true, message: 'Выберите локализацию' }]}
               style={{ margin: 0 }}
             >
-              <Select
-                options={
-                  locations?.map((l) => ({ value: l.id, label: l.name })) ?? []
-                }
-              />
+              <Select options={locations?.map((l) => ({ value: l.id, label: l.name })) ?? []} />
             </Form.Item>
           )
         }
@@ -846,11 +818,7 @@ export default function CostCategories() {
               rules={[{ required: true, message: 'Выберите локализацию' }]}
               style={{ margin: 0 }}
             >
-              <Select
-                options={
-                  locations?.map((l) => ({ value: l.id, label: l.name })) ?? []
-                }
-              />
+              <Select options={locations?.map((l) => ({ value: l.id, label: l.name })) ?? []} />
             </Form.Item>
           )
         }
@@ -863,11 +831,7 @@ export default function CostCategories() {
         if (record.key === 'new') {
           return (
             <Space>
-              <Button
-                icon={<CheckOutlined />}
-                onClick={handleSave}
-                aria-label="Сохранить"
-              />
+              <Button icon={<CheckOutlined />} onClick={handleSave} aria-label="Сохранить" />
               <Button
                 icon={<CloseOutlined />}
                 onClick={() => {
@@ -882,16 +846,8 @@ export default function CostCategories() {
         if (editing?.key === record.key) {
           return (
             <Space>
-              <Button
-                icon={<CheckOutlined />}
-                onClick={handleUpdate}
-                aria-label="Сохранить"
-              />
-              <Button
-                icon={<CloseOutlined />}
-                onClick={cancelEdit}
-                aria-label="Отменить"
-              />
+              <Button icon={<CheckOutlined />} onClick={handleUpdate} aria-label="Сохранить" />
+              <Button icon={<CloseOutlined />} onClick={cancelEdit} aria-label="Отменить" />
             </Space>
           )
         }
@@ -936,13 +892,7 @@ export default function CostCategories() {
           <Button icon={<UploadOutlined />}>Импорт</Button>
         </Upload>
       </Space>
-      <Table<TableRow>
-        dataSource={dataSource}
-        columns={columns}
-        rowKey="key"
-        loading={loading}
-      />
+      <Table<TableRow> dataSource={dataSource} columns={columns} rowKey="key" loading={loading} />
     </Form>
   )
 }
-

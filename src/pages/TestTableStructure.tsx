@@ -24,7 +24,7 @@ export default function TestTableStructure() {
           .from('chessboard_documentation_mapping')
           .select('*')
           .limit(1)
-        
+
         if (queryError) {
           setError(`Error querying table: ${queryError.message}`)
           console.error('Query error details:', queryError)
@@ -33,7 +33,7 @@ export default function TestTableStructure() {
             exists: true,
             sampleData: data,
             columns: data && data.length > 0 ? Object.keys(data[0]) : [],
-            recordCount: data?.length || 0
+            recordCount: data?.length || 0,
           }
           setTableInfo(info)
         }
@@ -55,37 +55,27 @@ export default function TestTableStructure() {
   const dataSource = tableInfo?.columns?.map((col: string) => ({
     key: col,
     name: col,
-    value: tableInfo.sampleData?.[0]?.[col] || 'null'
+    value: tableInfo.sampleData?.[0]?.[col] || 'null',
   }))
 
   return (
     <Card title="Проверка таблицы chessboard_documentation_mapping">
       {loading && <Text>Загрузка...</Text>}
-      
-      {error && (
-        <Alert 
-          message="Ошибка" 
-          description={error} 
-          type="error" 
-          showIcon 
-        />
-      )}
-      
+
+      {error && <Alert message="Ошибка" description={error} type="error" showIcon />}
+
       {tableInfo && !error && (
         <>
           <Title level={4}>Информация о таблице</Title>
           <Text>Таблица существует: {tableInfo.exists ? 'Да' : 'Нет'}</Text>
           <br />
           <Text>Количество колонок: {tableInfo.columns.length}</Text>
-          <br /><br />
-          
+          <br />
+          <br />
+
           <Title level={4}>Структура таблицы</Title>
-          <Table 
-            columns={columns} 
-            dataSource={dataSource} 
-            pagination={false}
-          />
-          
+          <Table columns={columns} dataSource={dataSource} pagination={false} />
+
           {tableInfo.sampleData && tableInfo.sampleData.length > 0 && (
             <>
               <Title level={4}>Пример данных (JSON)</Title>

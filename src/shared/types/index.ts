@@ -23,7 +23,7 @@ export const DOCUMENT_STAGES = {
   R: 'Р', // Рабочий
 } as const
 
-export type DocumentStage = typeof DOCUMENT_STAGES[keyof typeof DOCUMENT_STAGES]
+export type DocumentStage = (typeof DOCUMENT_STAGES)[keyof typeof DOCUMENT_STAGES]
 
 // Portal pages for status configuration
 export const PORTAL_PAGES = [
@@ -38,4 +38,4 @@ export const PORTAL_PAGES = [
   { key: 'admin/statuses', label: 'Администрирование → Статусы' },
 ] as const
 
-export type PortalPageKey = typeof PORTAL_PAGES[number]['key']
+export type PortalPageKey = (typeof PORTAL_PAGES)[number]['key']

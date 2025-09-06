@@ -30,7 +30,7 @@ export default function ConflictResolutionDialog({
   conflicts,
   onResolve,
   onCancel,
-  loading = false
+  loading = false,
 }: ConflictResolutionDialogProps) {
   const [resolutions, setResolutions] = useState<Map<number, ConflictResolution>>(new Map())
   const [acceptAll, setAcceptAll] = useState(false)
@@ -38,17 +38,16 @@ export default function ConflictResolutionDialog({
 
   // Преобразуем конфликты в строки таблицы
   const tableData: TableRow[] = useMemo(() => {
-    return conflicts.map(conflict => ({
+    return conflicts.map((conflict) => ({
       key: `${conflict.index}`,
       index: conflict.index,
       code: conflict.row.code,
       newTag: conflict.row.tag,
       existingTag: conflict.existingData.tag?.name || '',
       newVersion: conflict.row.version_number,
-      existingVersions: conflict.existingData.versions
-        ?.map(v => v.version_number)
-        .join(', ') || 'Нет версий',
-      resolution: acceptAll ? 'accept' : skipAll ? 'skip' : resolutions.get(conflict.index)
+      existingVersions:
+        conflict.existingData.versions?.map((v) => v.version_number).join(', ') || 'Нет версий',
+      resolution: acceptAll ? 'accept' : skipAll ? 'skip' : resolutions.get(conflict.index),
     }))
   }, [conflicts, resolutions, acceptAll, skipAll])
 
@@ -78,8 +77,8 @@ export default function ConflictResolutionDialog({
   // Применить решения
   const handleApply = () => {
     const finalResolutions = new Map<number, ConflictResolution>()
-    
-    conflicts.forEach(conflict => {
+
+    conflicts.forEach((conflict) => {
       if (acceptAll) {
         finalResolutions.set(conflict.index, 'accept')
       } else if (skipAll) {
@@ -98,7 +97,7 @@ export default function ConflictResolutionDialog({
   // Проверка, все ли конфликты разрешены
   const allResolved = useMemo(() => {
     if (acceptAll || skipAll) return true
-    return conflicts.every(c => resolutions.has(c.index))
+    return conflicts.every((c) => resolutions.has(c.index))
   }, [conflicts, resolutions, acceptAll, skipAll])
 
   const columns: ColumnsType<TableRow> = [
@@ -149,14 +148,14 @@ export default function ConflictResolutionDialog({
       align: 'center',
       render: (_, record) => {
         const resolution = record.resolution
-        
+
         if (resolution === 'accept') {
           return <Tag color="green">Принять</Tag>
         }
         if (resolution === 'skip') {
           return <Tag color="orange">Пропустить</Tag>
         }
-        
+
         return (
           <Space size="small">
             <Button
@@ -226,7 +225,7 @@ export default function ConflictResolutionDialog({
         showIcon
         style={{ marginBottom: 16 }}
       />
-      
+
       <Table
         columns={columns}
         dataSource={tableData}

@@ -247,7 +247,10 @@ export const documentationApi = {
   },
 
   // Получение простого списка документации для использования в других компонентах (например, Шахматке)
-  async getDocumentationList(filters?: { project_id?: string; block_id?: string }): Promise<DocumentationRecordForList[]> {
+  async getDocumentationList(filters?: {
+    project_id?: string
+    block_id?: string
+  }): Promise<DocumentationRecordForList[]> {
     if (!supabase) {
       return []
     }
@@ -277,14 +280,16 @@ export const documentationApi = {
 
     let query = supabase
       .from('documentations')
-      .select(`
+      .select(
+        `
         id,
         code,
         project_name,
         tag_id,
         stage,
         tag:documentation_tags(id, name, tag_number)
-      `)
+      `,
+      )
       .order('code', { ascending: true })
 
     // Применяем фильтры
@@ -303,11 +308,11 @@ export const documentationApi = {
       throw error
     }
 
-    return (data || []).map(doc => {
+    return (data || []).map((doc) => {
       // Обрабатываем tag - может быть объектом, массивом или null
       let tagData = null
       let tagName = null
-      
+
       if (doc.tag) {
         if (Array.isArray(doc.tag)) {
           tagData = doc.tag.length > 0 ? doc.tag[0] : null
@@ -317,14 +322,14 @@ export const documentationApi = {
           tagName = tagData.name || null
         }
       }
-      
+
       return {
         id: doc.id,
         project_code: doc.code,
         project_name: doc.project_name,
         tag_id: doc.tag_id,
         tag_name: tagName,
-        tag: tagData
+        tag: tagData,
       }
     }) as DocumentationRecordForList[]
   },

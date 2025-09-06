@@ -11,5 +11,5 @@ export type {
   CreateChessboardSetRequest,
   UpdateChessboardSetRequest,
   ChessboardSetTableRow,
-  ChessboardSetSearchFilters
+  ChessboardSetSearchFilters,
 } from './types'

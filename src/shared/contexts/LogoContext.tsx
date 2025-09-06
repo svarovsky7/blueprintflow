@@ -13,10 +13,10 @@ const LogoContext = createContext<LogoContextType | undefined>(undefined)
 
 export function LogoProvider({ children }: { children: ReactNode }) {
   const [lightLogo, setLightLogoState] = useState<string>(
-    () => localStorage.getItem('blueprintflow-logo-light') ?? logoDark
+    () => localStorage.getItem('blueprintflow-logo-light') ?? logoDark,
   )
   const [darkLogo, setDarkLogoState] = useState<string>(
-    () => localStorage.getItem('blueprintflow-logo-dark') ?? logoDark
+    () => localStorage.getItem('blueprintflow-logo-dark') ?? logoDark,
   )
 
   const setLightLogo = (logo: string) => {

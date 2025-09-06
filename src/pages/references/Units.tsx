@@ -1,13 +1,5 @@
 import { useMemo, useState } from 'react'
-import {
-  App,
-  Button,
-  Form,
-  Input,
-  Modal,
-  Space,
-  Table,
-} from 'antd'
+import { App, Button, Form, Input, Modal, Space, Table } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { EyeOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
@@ -25,7 +17,11 @@ export default function Units() {
   const [currentUnit, setCurrentUnit] = useState<Unit | null>(null)
   const [form] = Form.useForm()
 
-  const { data: units, isLoading, refetch } = useQuery({
+  const {
+    data: units,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ['units'],
     queryFn: async () => {
       if (!supabase) return []
@@ -126,8 +122,7 @@ export default function Units() {
     {
       title: 'Описание',
       dataIndex: 'description',
-      sorter: (a: Unit, b: Unit) =>
-        (a.description ?? '').localeCompare(b.description ?? ''),
+      sorter: (a: Unit, b: Unit) => (a.description ?? '').localeCompare(b.description ?? ''),
       filters: descriptionFilters,
       onFilter: (value: unknown, record: Unit) => record.description === value,
     },
@@ -171,12 +166,7 @@ export default function Units() {
           Добавить
         </Button>
       </div>
-      <Table<Unit>
-        dataSource={units ?? []}
-        columns={columns}
-        rowKey="id"
-        loading={isLoading}
-      />
+      <Table<Unit> dataSource={units ?? []} columns={columns} rowKey="id" loading={isLoading} />
 
       <Modal
         open={modalMode !== null}
@@ -218,4 +208,3 @@ export default function Units() {
     </div>
   )
 }
-
