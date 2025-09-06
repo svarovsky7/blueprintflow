@@ -99,11 +99,14 @@ export default function ProjectAnalysis() {
         return []
       }
       
-      return (data || []).map(doc => ({
+      const mappedDocs = (data || []).map(doc => ({
         documentation_id: doc.id,
         code: doc.code,
         project_name: doc.project_name
       } as DocumentInfo))
+      
+      console.log(`Loaded ${mappedDocs.length} documents for project ${selectedProjectId}`)
+      return mappedDocs
     }
   })
 
@@ -191,7 +194,22 @@ export default function ProjectAnalysis() {
 
   // Группируем документы по статусам комплектов
   useEffect(() => {
-    if (!setsWithDocuments || !statuses || !allProjectDocuments) {
+    console.log('Grouping documents. Sets:', setsWithDocuments?.length, 'Statuses:', statuses?.length, 'All docs:', allProjectDocuments?.length)
+    
+    // Проверяем, что данные загружены
+    if (!statuses || statuses.length === 0) {
+      console.log('No statuses loaded')
+      return
+    }
+    
+    if (!allProjectDocuments || allProjectDocuments.length === 0) {
+      console.log('No documents loaded for project')
+      return
+    }
+    
+    // Для комплектов допускаем пустой массив
+    if (!setsWithDocuments) {
+      console.log('Sets not loaded yet')
       return
     }
 
@@ -251,6 +269,10 @@ export default function ProjectAnalysis() {
       !usedDocumentIds.has(doc.documentation_id)
     )
 
+    console.log('Used document IDs:', Array.from(usedDocumentIds))
+    console.log('Documents not in sets:', newColumns['no-status'])
+    console.log('Final columns:', newColumns)
+    
     setColumns(newColumns)
   }, [setsWithDocuments, statuses, sortedStatuses, allProjectDocuments])
 
@@ -352,7 +374,7 @@ export default function ProjectAnalysis() {
                 <Card 
                   title={
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span>Не в комплектах</span>
+                      <span>Не анализировались</span>
                       <Badge count={columns['no-status']?.length || 0} showZero />
                     </div>
                   }
