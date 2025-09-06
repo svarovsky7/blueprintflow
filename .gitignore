@@ -26,3 +26,5 @@ dist-ssr
 /.env.local
 /.env.local
 !.env.example
+# Production database schema (too large for Git)
+supabase/schemas/prod.sql
