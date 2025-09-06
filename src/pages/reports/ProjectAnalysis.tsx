@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Card, Col, Row, Typography, Tag, Spin, Empty, Badge, Select, Space, Tooltip } from 'antd'
-import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { statusesApi, kanbanStatusOrderApi } from '@/entities/statuses'
@@ -275,56 +274,6 @@ export default function ProjectAnalysis() {
     setColumns(newColumns)
   }, [setsWithDocuments, statuses, sortedStatuses, allProjectDocuments])
 
-  const handleDragEnd = async (result: DropResult) => {
-    if (!result.destination) return
-
-    const sourceColumn = result.source.droppableId
-    const destColumn = result.destination.droppableId
-
-    if (sourceColumn === destColumn) return
-
-    // Получаем документ, который перетаскиваем
-    const doc = columns[sourceColumn][result.source.index]
-    if (!doc) return
-
-    // Обновляем локальное состояние
-    const newColumns = { ...columns }
-    newColumns[sourceColumn] = newColumns[sourceColumn].filter((_, i) => i !== result.source.index)
-    newColumns[destColumn].splice(result.destination.index, 0, doc)
-    setColumns(newColumns)
-
-    // Находим все комплекты, содержащие этот документ
-    const affectedSets = setsWithDocuments?.filter(set => 
-      set.documents.some(d => d.documentation_id === doc.documentation_id)
-    ) || []
-
-    // Обновляем статус всех затронутых комплектов
-    if (destColumn !== 'no-status' && supabase && affectedSets.length > 0) {
-      for (const set of affectedSets) {
-        try {
-          // Сначала помечаем старые статусы как не текущие
-          await supabase
-            .from('statuses_mapping')
-            .update({ is_current: false })
-            .eq('entity_type', 'chessboard_set')
-            .eq('entity_id', set.id)
-
-          // Добавляем новый статус
-          await supabase
-            .from('statuses_mapping')
-            .insert({
-              entity_type: 'chessboard_set',
-              entity_id: set.id,
-              status_id: destColumn,
-              is_current: true,
-              comment: 'Изменено через канбан-доску'
-            })
-        } catch (error) {
-          console.error('Error updating set status:', error)
-        }
-      }
-    }
-  }
 
   const isLoading = statusesLoading || setsLoading || docsLoading
 
@@ -366,165 +315,101 @@ export default function ProjectAnalysis() {
         ) : !setsWithDocuments || setsWithDocuments.length === 0 ? (
           <Empty description="Для выбранного проекта нет комплектов шахматки" />
         ) : (
-          <DragDropContext onDragEnd={handleDragEnd}>
-            <Row gutter={16} style={{ overflowX: 'auto', flexWrap: 'nowrap' }}>
-              {/* Колонка для документов без статуса */}
-              <Col style={{ minWidth: 300, marginBottom: 16 }}>
-                <Card 
+          <Row gutter={16} style={{ overflowX: 'auto', flexWrap: 'nowrap' }}>
+            {/* Колонка для документов без статуса */}
+            <Col style={{ minWidth: 300, marginBottom: 16 }}>
+              <Card 
+                title={
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>Не анализировались</span>
+                    <Badge count={columns['no-status']?.length || 0} showZero />
+                  </div>
+                }
+                style={{ height: 'calc(100vh - 250px)', overflow: 'hidden' }}
+                bodyStyle={{ height: 'calc(100% - 57px)', overflowY: 'auto' }}
+              >
+                <div style={{ minHeight: 100 }}>
+                  {columns['no-status']?.length === 0 ? (
+                    <Empty description="Нет документов" />
+                  ) : (
+                    columns['no-status']?.map((doc) => (
+                      <div key={`no-status-${doc.documentation_id}`} style={{ marginBottom: 8 }}>
+                        <Card size="small" style={{ backgroundColor: '#fff' }}>
+                          <div>
+                            <Text strong>{doc.code}</Text>
+                            {doc.project_name && (
+                              <Tooltip title={doc.project_name}>
+                                <Text 
+                                  style={{ 
+                                    display: 'block', 
+                                    fontSize: 11, 
+                                    color: '#666',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                >
+                                  {doc.project_name}
+                                </Text>
+                              </Tooltip>
+                            )}
+                          </div>
+                        </Card>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </Card>
+            </Col>
+
+            {/* Колонки для каждого статуса */}
+            {(sortedStatuses || statuses)?.map(status => (
+              <Col key={status.id} style={{ minWidth: 300, marginBottom: 16 }}>
+                <Card
                   title={
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span>Не анализировались</span>
-                      <Badge count={columns['no-status']?.length || 0} showZero />
+                      <Tag color={status.color || '#888'}>{status.name}</Tag>
+                      <Badge count={columns[status.id]?.length || 0} showZero />
                     </div>
                   }
                   style={{ height: 'calc(100vh - 250px)', overflow: 'hidden' }}
                   bodyStyle={{ height: 'calc(100% - 57px)', overflowY: 'auto' }}
                 >
-                  <Droppable droppableId="no-status">
-                    {(provided) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.droppableProps}
-                        style={{ minHeight: 100 }}
-                      >
-                        {columns['no-status']?.length === 0 ? (
-                          <Empty description="Нет документов" />
-                        ) : (
-                          columns['no-status']?.map((doc, index) => (
-                            <Draggable
-                              key={`no-status-${doc.documentation_id}`}
-                              draggableId={`no-status-${doc.documentation_id}`}
-                              index={index}
-                            >
-                              {(provided, snapshot) => (
-                                <div
-                                  ref={provided.innerRef}
-                                  {...provided.draggableProps}
-                                  {...provided.dragHandleProps}
-                                  style={{
-                                    ...provided.draggableProps.style,
-                                    marginBottom: 8,
-                                  }}
-                                >
-                                  <Card
-                                    size="small"
-                                    style={{
-                                      backgroundColor: snapshot.isDragging ? '#f0f0f0' : '#fff',
-                                      cursor: 'move',
+                  <div style={{ minHeight: 100 }}>
+                    {columns[status.id]?.length === 0 ? (
+                      <Empty description="Нет документов" />
+                    ) : (
+                      columns[status.id]?.map((doc) => (
+                        <div key={`${status.id}-${doc.documentation_id}`} style={{ marginBottom: 8 }}>
+                          <Card size="small" style={{ backgroundColor: '#fff' }}>
+                            <div>
+                              <Text strong>{doc.code}</Text>
+                              {doc.project_name && (
+                                <Tooltip title={doc.project_name}>
+                                  <Text 
+                                    style={{ 
+                                      display: 'block', 
+                                      fontSize: 11, 
+                                      color: '#666',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap'
                                     }}
                                   >
-                                    <div>
-                                      <Text strong>{doc.code}</Text>
-                                      {doc.project_name && (
-                                        <Tooltip title={doc.project_name}>
-                                          <Text 
-                                            style={{ 
-                                              display: 'block', 
-                                              fontSize: 11, 
-                                              color: '#666',
-                                              overflow: 'hidden',
-                                              textOverflow: 'ellipsis',
-                                              whiteSpace: 'nowrap'
-                                            }}
-                                          >
-                                            {doc.project_name}
-                                          </Text>
-                                        </Tooltip>
-                                      )}
-                                    </div>
-                                  </Card>
-                                </div>
+                                    {doc.project_name}
+                                  </Text>
+                                </Tooltip>
                               )}
-                            </Draggable>
-                          ))
-                        )}
-                        {provided.placeholder}
-                      </div>
+                            </div>
+                          </Card>
+                        </div>
+                      ))
                     )}
-                  </Droppable>
+                  </div>
                 </Card>
               </Col>
-
-              {/* Колонки для каждого статуса */}
-              {(sortedStatuses || statuses)?.map(status => (
-                <Col key={status.id} style={{ minWidth: 300, marginBottom: 16 }}>
-                  <Card
-                    title={
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Tag color={status.color || '#888'}>{status.name}</Tag>
-                        <Badge count={columns[status.id]?.length || 0} showZero />
-                      </div>
-                    }
-                    style={{ height: 'calc(100vh - 250px)', overflow: 'hidden' }}
-                    bodyStyle={{ height: 'calc(100% - 57px)', overflowY: 'auto' }}
-                  >
-                    <Droppable droppableId={status.id}>
-                      {(provided) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.droppableProps}
-                          style={{ minHeight: 100 }}
-                        >
-                          {columns[status.id]?.length === 0 ? (
-                            <Empty description="Нет документов" />
-                          ) : (
-                            columns[status.id]?.map((doc, index) => (
-                              <Draggable
-                                key={`${status.id}-${doc.documentation_id}`}
-                                draggableId={`${status.id}-${doc.documentation_id}`}
-                                index={index}
-                              >
-                                {(provided, snapshot) => (
-                                  <div
-                                    ref={provided.innerRef}
-                                    {...provided.draggableProps}
-                                    {...provided.dragHandleProps}
-                                    style={{
-                                      ...provided.draggableProps.style,
-                                      marginBottom: 8,
-                                    }}
-                                  >
-                                    <Card
-                                      size="small"
-                                      style={{
-                                        backgroundColor: snapshot.isDragging ? '#f0f0f0' : '#fff',
-                                        cursor: 'move',
-                                      }}
-                                    >
-                                      <div>
-                                        <Text strong>{doc.code}</Text>
-                                        {doc.project_name && (
-                                          <Tooltip title={doc.project_name}>
-                                            <Text 
-                                              style={{ 
-                                                display: 'block', 
-                                                fontSize: 11, 
-                                                color: '#666',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: 'nowrap'
-                                              }}
-                                            >
-                                              {doc.project_name}
-                                            </Text>
-                                          </Tooltip>
-                                        )}
-                                      </div>
-                                    </Card>
-                                  </div>
-                                )}
-                              </Draggable>
-                            ))
-                          )}
-                          {provided.placeholder}
-                        </div>
-                      )}
-                    </Droppable>
-                  </Card>
-                </Col>
-              ))}
-            </Row>
-          </DragDropContext>
+            ))}
+          </Row>
         )}
       </Space>
     </div>

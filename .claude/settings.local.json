@@ -17,7 +17,8 @@
       "Bash(git restore:*)",
       "Bash(npm run format:*)",
       "Bash(git rm:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npm uninstall:*)"
     ],
     "deny": [],
     "ask": []
