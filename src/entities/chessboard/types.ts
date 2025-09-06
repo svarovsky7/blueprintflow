@@ -10,13 +10,41 @@ export interface ChessboardSetStatus {
   updated_at: string
 }
 
+// Документ в комплекте
+export interface ChessboardSetDocument {
+  documentation_id: string
+  version_id: string
+  order_index?: number
+  // Дополнительные поля для отображения
+  code?: string
+  project_name?: string
+  version_number?: number
+  issue_date?: string
+}
+
 export interface ChessboardSetFilters {
   // Обязательные фильтры
   project_id: string
-  documentation_id: string
-  version_id: string
+  
+  // Новый формат - массив документов
+  documents?: ChessboardSetDocument[] // Массив документов с версиями (от 1 до 10)
+  
+  // Старый формат для обратной совместимости (deprecated)
+  documentation_id?: string
+  version_id?: string
 
   // Опциональные фильтры
+  tag_id?: number | null
+  block_ids?: string[] | null
+  cost_category_ids?: number[] | null
+  cost_type_ids?: number[] | null
+}
+
+// Старый интерфейс для обратной совместимости (deprecated)
+export interface ChessboardSetFiltersLegacy {
+  project_id: string
+  documentation_id: string
+  version_id: string
   tag_id?: number | null
   block_ids?: string[] | null
   cost_category_ids?: number[] | null
@@ -31,8 +59,12 @@ export interface ChessboardSet {
 
   // Фильтры (развернутые)
   project_id: string
-  documentation_id: string
-  version_id: string
+  documents?: ChessboardSetDocument[] // Массив документов с версиями (новая структура)
+  
+  // Старые поля для обратной совместимости (deprecated)
+  documentation_id?: string
+  version_id?: string
+  
   tag_id?: number | null
   block_ids?: string[] | null
   cost_category_ids?: number[] | null
@@ -56,6 +88,7 @@ export interface ChessboardSet {
     id: string
     name: string
   }
+  // Старые поля для обратной совместимости (deprecated)
   documentation?: {
     id: string
     code: string
@@ -89,8 +122,16 @@ export interface ChessboardSet {
 // Тип для создания нового комплекта
 export interface CreateChessboardSetRequest {
   name?: string
+  description?: string
   filters: ChessboardSetFilters
-  status_id: string // UUID из таблицы statuses
+  status_id?: string // UUID из таблицы statuses (опционально)
+}
+
+// Для обратной совместимости
+export interface CreateChessboardSetRequestLegacy {
+  name?: string
+  filters: ChessboardSetFiltersLegacy
+  status_id?: string
 }
 
 // Тип для обновления комплекта
@@ -157,6 +198,7 @@ export interface AddChessboardSetStatusRequest {
 
 // Расширенный тип комплекта с текущим статусом из маппинга
 export interface ChessboardSetWithCurrentStatus extends Omit<ChessboardSet, 'status_id'> {
+  documents?: ChessboardSetDocument[] // Убедимся, что есть поле documents
   current_status?: {
     status_id: string
     status_name: string

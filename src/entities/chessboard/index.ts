@@ -4,11 +4,15 @@ export * from './model/types'
 
 // Export Chessboard Sets API and types
 export { chessboardSetsApi } from './api/chessboard-sets-api'
+export { chessboardSetsMultiDocsApi } from './api/chessboard-sets-multi-docs-api'
 export type {
   ChessboardSet,
   ChessboardSetStatus,
+  ChessboardSetDocument,
   ChessboardSetFilters,
+  ChessboardSetFiltersLegacy,
   CreateChessboardSetRequest,
+  CreateChessboardSetRequestLegacy,
   UpdateChessboardSetRequest,
   ChessboardSetTableRow,
   ChessboardSetSearchFilters,
