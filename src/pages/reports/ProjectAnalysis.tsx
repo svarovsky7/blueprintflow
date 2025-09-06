@@ -88,24 +88,32 @@ export default function ProjectAnalysis() {
     queryFn: async () => {
       if (!supabase || !selectedProjectId) return []
       
+      // Загружаем документы через таблицу маппинга
       const { data, error } = await supabase
-        .from('documentations')
-        .select('id, code, project_name')
+        .from('documentations_projects_mapping')
+        .select(`
+          documentation:documentations(
+            id,
+            code,
+            project_name
+          )
+        `)
         .eq('project_id', selectedProjectId)
-        .order('code', { ascending: true })
       
       if (error) {
         console.error('Error loading project documents:', error)
         return []
       }
       
-      const mappedDocs = (data || []).map(doc => ({
-        documentation_id: doc.id,
-        code: doc.code,
-        project_name: doc.project_name
-      } as DocumentInfo))
+      const mappedDocs = (data || [])
+        .filter(item => item.documentation) // Фильтруем записи без документации
+        .map(item => ({
+          documentation_id: item.documentation.id,
+          code: item.documentation.code,
+          project_name: item.documentation.project_name
+        } as DocumentInfo))
+        .sort((a, b) => a.code.localeCompare(b.code)) // Сортируем по коду
       
-      console.log(`Loaded ${mappedDocs.length} documents for project ${selectedProjectId}`)
       return mappedDocs
     }
   })
@@ -194,22 +202,17 @@ export default function ProjectAnalysis() {
 
   // Группируем документы по статусам комплектов
   useEffect(() => {
-    console.log('Grouping documents. Sets:', setsWithDocuments?.length, 'Statuses:', statuses?.length, 'All docs:', allProjectDocuments?.length)
-    
     // Проверяем, что данные загружены
     if (!statuses || statuses.length === 0) {
-      console.log('No statuses loaded')
       return
     }
     
     if (!allProjectDocuments || allProjectDocuments.length === 0) {
-      console.log('No documents loaded for project')
       return
     }
     
     // Для комплектов допускаем пустой массив
     if (!setsWithDocuments) {
-      console.log('Sets not loaded yet')
       return
     }
 
@@ -268,10 +271,6 @@ export default function ProjectAnalysis() {
     newColumns['no-status'] = allProjectDocuments.filter(doc => 
       !usedDocumentIds.has(doc.documentation_id)
     )
-
-    console.log('Used document IDs:', Array.from(usedDocumentIds))
-    console.log('Documents not in sets:', newColumns['no-status'])
-    console.log('Final columns:', newColumns)
     
     setColumns(newColumns)
   }, [setsWithDocuments, statuses, sortedStatuses, allProjectDocuments])
