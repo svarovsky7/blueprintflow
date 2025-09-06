@@ -81,6 +81,32 @@ export default function ProjectAnalysis() {
     },
   })
 
+  // Загружаем все документы проекта из справочника Документация
+  const { data: allProjectDocuments, isLoading: docsLoading } = useQuery({
+    queryKey: ['project-documents', selectedProjectId],
+    enabled: !!selectedProjectId,
+    queryFn: async () => {
+      if (!supabase || !selectedProjectId) return []
+      
+      const { data, error } = await supabase
+        .from('documentations')
+        .select('id, code, project_name')
+        .eq('project_id', selectedProjectId)
+        .order('code', { ascending: true })
+      
+      if (error) {
+        console.error('Error loading project documents:', error)
+        return []
+      }
+      
+      return (data || []).map(doc => ({
+        documentation_id: doc.id,
+        code: doc.code,
+        project_name: doc.project_name
+      } as DocumentInfo))
+    }
+  })
+
   // Загружаем комплекты шахматки с документами для выбранного проекта
   const { data: setsWithDocuments, isLoading: setsLoading } = useQuery({
     queryKey: ['chessboard-sets-with-docs', selectedProjectId],
@@ -103,8 +129,6 @@ export default function ProjectAnalysis() {
       if (!sets || sets.length === 0) {
         return []
       }
-
-      console.log('Loaded sets from DB:', sets)
 
       // Для каждого комплекта загружаем документы и статус
       const setsWithFullData = await Promise.all(
@@ -167,12 +191,12 @@ export default function ProjectAnalysis() {
 
   // Группируем документы по статусам комплектов
   useEffect(() => {
-    if (!setsWithDocuments || !statuses) {
+    if (!setsWithDocuments || !statuses || !allProjectDocuments) {
       return
     }
 
     const newColumns: Record<string, DocumentInfo[]> = {
-      'no-status': [], // Колонка для документов из комплектов без статуса
+      'no-status': [], // Колонка для документов, не включенных в комплекты
     }
 
     // Создаем колонки для каждого статуса
@@ -185,34 +209,50 @@ export default function ProjectAnalysis() {
     const documentsByStatus = new Map<string, Map<string, DocumentInfo>>()
     
     // Инициализируем Map для каждого статуса
-    documentsByStatus.set('no-status', new Map())
     orderedStatuses.forEach(status => {
       documentsByStatus.set(status.id, new Map())
     })
 
+    // Собираем все документы, которые используются в комплектах
+    const usedDocumentIds = new Set<string>()
+
     // Распределяем документы по статусам комплектов
     setsWithDocuments.forEach(set => {
-      const statusId = set.status?.id || 'no-status'
-      const statusDocs = documentsByStatus.get(statusId)
+      const statusId = set.status?.id
       
-      if (statusDocs && set.documents) {
-        // Добавляем документы из комплекта в соответствующий статус
+      if (statusId && set.documents) {
+        const statusDocs = documentsByStatus.get(statusId)
+        if (statusDocs) {
+          // Добавляем документы из комплекта в соответствующий статус
+          set.documents.forEach(doc => {
+            // Используем documentation_id как ключ для уникальности
+            if (!statusDocs.has(doc.documentation_id)) {
+              statusDocs.set(doc.documentation_id, doc)
+            }
+            // Отмечаем документ как использованный
+            usedDocumentIds.add(doc.documentation_id)
+          })
+        }
+      } else if (!statusId && set.documents) {
+        // Если у комплекта нет статуса, добавляем его документы в использованные
         set.documents.forEach(doc => {
-          // Используем documentation_id как ключ для уникальности
-          if (!statusDocs.has(doc.documentation_id)) {
-            statusDocs.set(doc.documentation_id, doc)
-          }
+          usedDocumentIds.add(doc.documentation_id)
         })
       }
     })
 
-    // Преобразуем Map обратно в массивы для колонок
+    // Преобразуем Map обратно в массивы для колонок со статусами
     documentsByStatus.forEach((docsMap, statusId) => {
       newColumns[statusId] = Array.from(docsMap.values())
     })
 
+    // Добавляем в столбец "Без статуса" все документы проекта, не включенные в комплекты
+    newColumns['no-status'] = allProjectDocuments.filter(doc => 
+      !usedDocumentIds.has(doc.documentation_id)
+    )
+
     setColumns(newColumns)
-  }, [setsWithDocuments, statuses, sortedStatuses])
+  }, [setsWithDocuments, statuses, sortedStatuses, allProjectDocuments])
 
   const handleDragEnd = async (result: DropResult) => {
     if (!result.destination) return
@@ -265,7 +305,7 @@ export default function ProjectAnalysis() {
     }
   }
 
-  const isLoading = statusesLoading || setsLoading
+  const isLoading = statusesLoading || setsLoading || docsLoading
 
   return (
     <div style={{ padding: 24 }}>
@@ -312,7 +352,7 @@ export default function ProjectAnalysis() {
                 <Card 
                   title={
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span>Без статуса</span>
+                      <span>Не в комплектах</span>
                       <Badge count={columns['no-status']?.length || 0} showZero />
                     </div>
                   }
