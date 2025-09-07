@@ -606,26 +606,33 @@ export default function Documentation() {
                           if (fullSet) {
                             const filters = chessboardSetsApi.getFiltersFromSet(fullSet)
                             const searchParams = new URLSearchParams()
-                            if (filters.project_id)
-                              searchParams.set('project_id', filters.project_id)
-                            if (filters.documentation_id)
-                              searchParams.set('documentation_id', filters.documentation_id)
-                            if (filters.version_id)
-                              searchParams.set('version_id', filters.version_id)
-                            if (filters.tag_id)
-                              searchParams.set('tag_id', filters.tag_id.toString())
-                            if (filters.block_ids)
-                              searchParams.set('block_ids', JSON.stringify(filters.block_ids))
-                            if (filters.cost_category_ids)
-                              searchParams.set(
-                                'cost_category_ids',
-                                JSON.stringify(filters.cost_category_ids),
-                              )
-                            if (filters.cost_type_ids)
-                              searchParams.set(
-                                'cost_type_ids',
-                                JSON.stringify(filters.cost_type_ids),
-                              )
+                            
+                            // Обязательный параметр - проект
+                            if (filters.project_id) {
+                              searchParams.append('project_id', filters.project_id)
+                            }
+                            
+                            // Добавляем остальные фильтры
+                            if (filters.documentation_id) {
+                              searchParams.append('documentation_id', filters.documentation_id)
+                            }
+                            if (filters.version_id) {
+                              searchParams.append('version_id', filters.version_id)
+                            }
+                            if (filters.tag_id) {
+                              searchParams.append('tag_id', filters.tag_id.toString())
+                            }
+                            
+                            // Для массивов используем append для каждого элемента
+                            if (filters.block_ids && filters.block_ids.length > 0) {
+                              filters.block_ids.forEach(id => searchParams.append('block_ids', id))
+                            }
+                            if (filters.cost_category_ids && filters.cost_category_ids.length > 0) {
+                              filters.cost_category_ids.forEach(id => searchParams.append('cost_category_ids', id))
+                            }
+                            if (filters.cost_type_ids && filters.cost_type_ids.length > 0) {
+                              filters.cost_type_ids.forEach(id => searchParams.append('cost_type_ids', id))
+                            }
 
                             navigate(`/documents/chessboard?${searchParams.toString()}`)
                           }
