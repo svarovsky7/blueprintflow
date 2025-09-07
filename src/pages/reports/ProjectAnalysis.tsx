@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Card, Col, Row, Typography, Tag, Spin, Empty, Badge, Select, Space, Tooltip } from 'antd'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { statusesApi, kanbanStatusOrderApi } from '@/entities/statuses'
 
@@ -20,6 +21,10 @@ interface SetWithDocuments {
   set_number: string
   name?: string
   project_id: string
+  tag_id?: string | null
+  block_ids?: string[] | null
+  cost_category_ids?: string[] | null
+  cost_type_ids?: string[] | null
   documents: DocumentInfo[] // JSONB массив документов из view
   status?: {
     id: string
@@ -33,6 +38,7 @@ interface SetWithDocuments {
 const KANBAN_PAGE_ID = 'project-analysis'
 
 export default function ProjectAnalysis() {
+  const navigate = useNavigate()
   const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>()
   const [columns, setColumns] = useState<Record<string, DocumentInfo[]>>({})
   
@@ -275,6 +281,50 @@ export default function ProjectAnalysis() {
   }, [setsWithDocuments, statuses, sortedStatuses, allProjectDocuments])
 
 
+  // Обработка клика на документ для перехода на страницу Шахматка
+  const handleDocumentClick = (doc: DocumentInfo, statusId?: string) => {
+    // Если документ в столбце со статусом, ищем комплект с этим документом и статусом
+    if (statusId && statusId !== 'no-status' && setsWithDocuments) {
+      const set = setsWithDocuments.find(s => 
+        s.status?.id === statusId && 
+        s.documents.some(d => d.documentation_id === doc.documentation_id)
+      )
+      
+      if (set) {
+        // Формируем URL с фильтрами комплекта
+        const params = new URLSearchParams()
+        
+        // Обязательный параметр - проект
+        if (set.project_id) {
+          params.append('project_id', set.project_id)
+        }
+        
+        // Добавляем фильтры из комплекта
+        if (set.tag_id) {
+          params.append('tag_id', set.tag_id)
+        }
+        
+        if (set.block_ids && set.block_ids.length > 0) {
+          set.block_ids.forEach(id => params.append('block_ids', id))
+        }
+        
+        if (set.cost_category_ids && set.cost_category_ids.length > 0) {
+          set.cost_category_ids.forEach(id => params.append('cost_category_ids', id))
+        }
+        
+        if (set.cost_type_ids && set.cost_type_ids.length > 0) {
+          set.cost_type_ids.forEach(id => params.append('cost_type_ids', id))
+        }
+        
+        // Добавляем документ
+        params.append('documentation_id', doc.documentation_id)
+        
+        // Переходим на страницу Шахматка с фильтрами
+        navigate(`/documents/chessboard?${params.toString()}`)
+      }
+    }
+  }
+
   const isLoading = statusesLoading || setsLoading || docsLoading
 
   return (
@@ -334,7 +384,11 @@ export default function ProjectAnalysis() {
                   ) : (
                     columns['no-status']?.map((doc) => (
                       <div key={`no-status-${doc.documentation_id}`} style={{ marginBottom: 8 }}>
-                        <Card size="small" style={{ backgroundColor: '#fff' }}>
+                        <Card 
+                          size="small" 
+                          style={{ backgroundColor: '#fff', cursor: 'pointer' }}
+                          onClick={() => handleDocumentClick(doc, 'no-status')}
+                        >
                           <div>
                             <Text strong>{doc.code}</Text>
                             {doc.project_name && (
@@ -381,7 +435,11 @@ export default function ProjectAnalysis() {
                     ) : (
                       columns[status.id]?.map((doc) => (
                         <div key={`${status.id}-${doc.documentation_id}`} style={{ marginBottom: 8 }}>
-                          <Card size="small" style={{ backgroundColor: '#fff' }}>
+                          <Card 
+                            size="small" 
+                            style={{ backgroundColor: '#fff', cursor: 'pointer' }}
+                            onClick={() => handleDocumentClick(doc, status.id)}
+                          >
                             <div>
                               <Text strong>{doc.code}</Text>
                               {doc.project_name && (

@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState, useEffect, type Key } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   App,
   Badge,
@@ -394,6 +395,7 @@ export default function Chessboard() {
   const { message, modal } = App.useApp()
   const { scale } = useScale()
   const queryClient = useQueryClient()
+  const location = useLocation()
 
   const [filters, setFilters] = useState<{
     projectId?: string
@@ -531,6 +533,64 @@ export default function Chessboard() {
     },
   })
   const [nomenclatureOptions, setNomenclatureOptions] = useState<NomenclatureOption[]>([])
+  
+  // Обработка URL параметров при загрузке страницы
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search)
+    const urlFilters: any = {}
+    let hasFilters = false
+    
+    // Читаем параметры из URL
+    const projectId = searchParams.get('project_id')
+    if (projectId) {
+      urlFilters.projectId = projectId
+      hasFilters = true
+    }
+    
+    const tagId = searchParams.get('tag_id')
+    if (tagId) {
+      urlFilters.tagId = [tagId]
+      hasFilters = true
+    }
+    
+    // Обработка массивов для block_ids
+    const blockIds = searchParams.getAll('block_ids')
+    if (blockIds.length > 0) {
+      urlFilters.blockId = blockIds
+      hasFilters = true
+    }
+    
+    // Обработка массивов для cost_category_ids
+    const categoryIds = searchParams.getAll('cost_category_ids')
+    if (categoryIds.length > 0) {
+      urlFilters.categoryId = categoryIds
+      hasFilters = true
+    }
+    
+    // Обработка массивов для cost_type_ids
+    const typeIds = searchParams.getAll('cost_type_ids')
+    if (typeIds.length > 0) {
+      urlFilters.typeId = typeIds
+      hasFilters = true
+    }
+    
+    // Обработка documentation_id
+    const documentationId = searchParams.get('documentation_id')
+    if (documentationId) {
+      urlFilters.documentationId = [documentationId]
+      hasFilters = true
+    }
+    
+    // Если есть фильтры в URL, применяем их
+    if (hasFilters) {
+      setFilters(urlFilters)
+      // Если есть projectId, также устанавливаем appliedFilters
+      if (urlFilters.projectId) {
+        setAppliedFilters(urlFilters)
+      }
+    }
+  }, [location.search])
+  
   useEffect(() => {
     setNomenclatureOptions(nomenclatures ?? [])
   }, [nomenclatures])
