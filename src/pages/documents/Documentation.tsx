@@ -572,8 +572,14 @@ export default function Documentation() {
           }
 
           // Ищем комплекты для данного документа
+          // documentation_code содержит коды всех документов через запятую
           const documentSets = chessboardSets.filter(
-            (set) => set.documentation_code === record.project_code,
+            (set) => {
+              if (!set.documentation_code) return false
+              // Разбиваем строку с кодами документов и проверяем наличие текущего кода
+              const codes = set.documentation_code.split(',').map(code => code.trim())
+              return codes.includes(record.project_code)
+            }
           )
 
           return (
