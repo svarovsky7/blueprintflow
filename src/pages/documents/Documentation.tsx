@@ -628,10 +628,10 @@ export default function Documentation() {
                               filters.block_ids.forEach(id => searchParams.append('block_ids', id))
                             }
                             if (filters.cost_category_ids && filters.cost_category_ids.length > 0) {
-                              filters.cost_category_ids.forEach(id => searchParams.append('cost_category_ids', id))
+                              filters.cost_category_ids.forEach(id => searchParams.append('cost_category_ids', String(id)))
                             }
                             if (filters.cost_type_ids && filters.cost_type_ids.length > 0) {
-                              filters.cost_type_ids.forEach(id => searchParams.append('cost_type_ids', id))
+                              filters.cost_type_ids.forEach(id => searchParams.append('cost_type_ids', String(id)))
                             }
 
                             navigate(`/documents/chessboard?${searchParams.toString()}`)

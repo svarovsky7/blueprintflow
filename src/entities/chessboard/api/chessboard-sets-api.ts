@@ -194,6 +194,66 @@ export const chessboardSetsApi = {
       )
     }
 
+    // Загружаем справочники для отображения названий
+    // Собираем все уникальные ID
+    const allBlockIds = new Set<string>()
+    const allCategoryIds = new Set<string>()
+    const allTypeIds = new Set<string>()
+
+    ;(data || []).forEach((set) => {
+      if (set.block_ids) {
+        set.block_ids.forEach((id: string) => allBlockIds.add(id))
+      }
+      if (set.cost_category_ids) {
+        set.cost_category_ids.forEach((id: string) => allCategoryIds.add(id))
+      }
+      if (set.cost_type_ids) {
+        set.cost_type_ids.forEach((id: string) => allTypeIds.add(id))
+      }
+    })
+
+    // Загружаем названия блоков
+    let blocksMap: Record<string, string> = {}
+    if (allBlockIds.size > 0) {
+      const { data: blocksData } = await supabase
+        .from('blocks')
+        .select('id, name')
+        .in('id', Array.from(allBlockIds))
+      
+      blocksMap = (blocksData || []).reduce((acc, block) => {
+        acc[block.id] = block.name
+        return acc
+      }, {} as Record<string, string>)
+    }
+
+    // Загружаем названия категорий затрат
+    let categoriesMap: Record<string, string> = {}
+    if (allCategoryIds.size > 0) {
+      const { data: categoriesData } = await supabase
+        .from('cost_categories')
+        .select('id, name')
+        .in('id', Array.from(allCategoryIds))
+      
+      categoriesMap = (categoriesData || []).reduce((acc, category) => {
+        acc[category.id] = category.name
+        return acc
+      }, {} as Record<string, string>)
+    }
+
+    // Загружаем названия видов затрат
+    let typesMap: Record<string, string> = {}
+    if (allTypeIds.size > 0) {
+      const { data: typesData } = await supabase
+        .from('detail_cost_categories')
+        .select('id, name')
+        .in('id', Array.from(allTypeIds))
+      
+      typesMap = (typesData || []).reduce((acc, type) => {
+        acc[type.id] = type.name
+        return acc
+      }, {} as Record<string, string>)
+    }
+
     // Фильтр по статусу если указан
     let filteredData = data || []
     if (filters?.status_id) {
@@ -208,6 +268,17 @@ export const chessboardSetsApi = {
       const firstDoc = set.documents && set.documents.length > 0 ? set.documents[0] : null
       const docCodes = set.documents ? set.documents.map((d: any) => d.code).filter(Boolean).join(', ') : ''
       
+      // Формируем списки названий
+      const blockNames = set.block_ids 
+        ? set.block_ids.map((id: string) => blocksMap[id]).filter(Boolean).join(', ') 
+        : ''
+      const categoryNames = set.cost_category_ids
+        ? set.cost_category_ids.map((id: string) => categoriesMap[id]).filter(Boolean).join(', ')
+        : ''
+      const typeNames = set.cost_type_ids
+        ? set.cost_type_ids.map((id: string) => typesMap[id]).filter(Boolean).join(', ')
+        : ''
+      
       return {
         id: set.id,
         set_number: set.set_number,
@@ -216,9 +287,9 @@ export const chessboardSetsApi = {
         documentation_code: docCodes || firstDoc?.code || '',
         version_number: firstDoc?.version_number || 0,
         tag_name: set.tag?.name || '',
-        block_names: '', // TODO: загрузить названия блоков по ID
-        cost_category_names: '', // TODO: загрузить названия категорий по ID
-        cost_type_names: '', // TODO: загрузить названия типов по ID
+        block_names: blockNames || 'Все',
+        cost_category_names: categoryNames || 'Все',
+        cost_type_names: typeNames || 'Все',
         status_name: status?.name || '',
         status_color: status?.color || '#888888',
         created_at: set.created_at,

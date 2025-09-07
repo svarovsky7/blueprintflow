@@ -111,8 +111,8 @@ export default function ProjectAnalysis() {
       }
       
       const mappedDocs = (data || [])
-        .filter(item => item.documentation) // Фильтруем записи без документации
-        .map(item => ({
+        .filter((item: any) => item.documentation) // Фильтруем записи без документации
+        .map((item: any) => ({
           documentation_id: item.documentation.id,
           code: item.documentation.code,
           project_name: item.documentation.project_name
