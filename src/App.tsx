@@ -492,6 +492,21 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           ],
     },
     {
+      key: 'reports',
+      icon: collapsed ? (
+        <LetterIcon letter="О" isActive={location.pathname.startsWith('/reports')}>
+          {reportsSubmenu}
+        </LetterIcon>
+      ) : undefined,
+      label: collapsed ? '' : 'Отчеты',
+      title: collapsed ? '' : undefined,
+      children: collapsed
+        ? undefined
+        : [
+            { key: 'project-analysis', label: <Link to="/reports/project-analysis">Анализ проектов</Link> },
+          ],
+    },
+    {
       key: 'references',
       icon: collapsed ? (
         <LetterIcon letter="С" isActive={location.pathname.startsWith('/references')}>
@@ -512,21 +527,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             { key: 'locations', label: <Link to="/references/locations">Локализации</Link> },
             { key: 'rates', label: <Link to="/references/rates">Расценки</Link> },
             { key: 'nomenclature', label: <Link to="/references/nomenclature">Номенклатура</Link> },
-          ],
-    },
-    {
-      key: 'reports',
-      icon: collapsed ? (
-        <LetterIcon letter="О" isActive={location.pathname.startsWith('/reports')}>
-          {reportsSubmenu}
-        </LetterIcon>
-      ) : undefined,
-      label: collapsed ? '' : 'Отчеты',
-      title: collapsed ? '' : undefined,
-      children: collapsed
-        ? undefined
-        : [
-            { key: 'project-analysis', label: <Link to="/reports/project-analysis">Анализ проектов</Link> },
           ],
     },
     {

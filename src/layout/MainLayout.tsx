@@ -31,16 +31,8 @@ const items: MenuProps['items'] = [
       },
     ],
   },
-  {
-    key: 'library',
-    label: 'Библиотека',
-    children: [
-      { key: '/library/rd-codes', label: <Link to="/library/rd-codes">Шифры РД</Link> },
-      { key: '/library/pd-codes', label: <Link to="/library/pd-codes">Шифры ПД</Link> },
-    ],
-  },
-  { key: '/references', label: <Link to="/references">Справочники</Link> },
   { key: '/reports', label: <Link to="/reports">Отчёты</Link> },
+  { key: '/references', label: <Link to="/references">Справочники</Link> },
   { key: '/admin', label: <Link to="/admin">Администрирование</Link> },
 ]
 
