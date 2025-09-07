@@ -56,6 +56,8 @@ import { normalizeColorToHex } from '@/shared/constants/statusColors'
 import { useScale } from '@/shared/contexts/ScaleContext'
 import ChessboardSetsModal from './ChessboardSetsModal'
 
+const { Text } = Typography
+
 type RowColor = '' | 'green' | 'yellow' | 'blue' | 'red'
 
 const colorMap: Record<RowColor, string> = {
@@ -456,6 +458,9 @@ export default function Chessboard() {
   const [selectedSetStatus, setSelectedSetStatus] = useState<string | undefined>(undefined)
   const [setsModalOpen, setSetsModalOpen] = useState(false)
   const [matchedSet, setMatchedSet] = useState<ChessboardSet | null>(null)
+  const [setNameModalOpen, setSetNameModalOpen] = useState(false)
+  const [pendingStatusId, setPendingStatusId] = useState<string | undefined>(undefined)
+  const [setNameInput, setSetNameInput] = useState<string>('')
 
   const { data: projects } = useQuery<ProjectOption[]>({
     queryKey: ['projects'],
@@ -2046,7 +2051,7 @@ export default function Chessboard() {
 
   // Функция для создания комплекта
   const createChessboardSet = useCallback(
-    async (statusId: string) => {
+    async (statusId: string, setName?: string) => {
       if (!appliedFilters) {
         message.error('Нет примененных фильтров для создания комплекта')
         return
@@ -2109,11 +2114,13 @@ export default function Chessboard() {
                 : null,
           },
           status_id: statusId,
+          name: setName, // Добавляем название комплекта
         }
 
         await chessboardSetsMultiDocsApi.createSetWithMultipleDocs(createRequest)
         message.success('Комплект успешно создан')
         setSelectedSetStatus(undefined) // Сбрасываем выбор статуса
+        setSetNameInput('') // Очищаем введенное название
       } catch (error) {
         console.error('Ошибка создания комплекта:', error)
         const errorMessage = error instanceof Error ? error.message : 'Ошибка при создании комплекта'
@@ -2203,10 +2210,20 @@ export default function Chessboard() {
   const handleSetStatusChange = useCallback(
     (statusId: string) => {
       setSelectedSetStatus(statusId)
-      createChessboardSet(statusId)
+      setPendingStatusId(statusId)
+      setSetNameModalOpen(true) // Открываем модальное окно для ввода названия
     },
-    [createChessboardSet],
+    [],
   )
+
+  // Обработчик подтверждения создания комплекта с названием
+  const handleSetNameConfirm = useCallback(() => {
+    if (pendingStatusId) {
+      createChessboardSet(pendingStatusId, setNameInput || undefined)
+      setSetNameModalOpen(false)
+      setPendingStatusId(undefined)
+    }
+  }, [pendingStatusId, setNameInput, createChessboardSet])
 
   // Поиск комплекта по текущим фильтрам
   useEffect(() => {
@@ -5701,6 +5718,71 @@ export default function Chessboard() {
         projectId={appliedFilters?.projectId}
         onSelectSet={applySetFilters}
       />
+
+      {/* Модальное окно для ввода названия комплекта */}
+      <Modal
+        title="Название комплекта"
+        open={setNameModalOpen}
+        onOk={handleSetNameConfirm}
+        onCancel={() => {
+          setSetNameModalOpen(false)
+          setPendingStatusId(undefined)
+          setSetNameInput('')
+          setSelectedSetStatus(undefined)
+        }}
+        okText="Создать"
+        cancelText="Отмена"
+        width={600}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <div>
+            <Text>Выберите название из справочника или введите свое:</Text>
+          </div>
+          
+          {/* Выбор из существующих названий документации */}
+          <Select
+            placeholder="Выберите название из документации"
+            style={{ width: '100%' }}
+            allowClear
+            showSearch
+            value={setNameInput || undefined}
+            onChange={(value) => setSetNameInput(value || '')}
+            filterOption={(input, option) => {
+              const text = option?.label?.toString() || ''
+              return text.toLowerCase().includes(input.toLowerCase())
+            }}
+            options={
+              documentations
+                ?.filter(doc => 
+                  appliedFilters?.documentationId?.includes(doc.id) && doc.project_name
+                )
+                .map(doc => ({
+                  value: doc.project_name,
+                  label: doc.project_name,
+                }))
+                .filter((option, index, self) => 
+                  // Убираем дубликаты по названию
+                  option.value && index === self.findIndex(o => o.value === option.value)
+                )
+            }
+          />
+          
+          {/* Или ввод произвольного названия */}
+          <Input
+            placeholder="Или введите свое название"
+            value={setNameInput}
+            onChange={(e) => setSetNameInput(e.target.value)}
+            onPressEnter={handleSetNameConfirm}
+          />
+          
+          <div>
+            <Text type="secondary">
+              Название будет использоваться для идентификации комплекта. 
+              Если оставить пустым, будет использован номер комплекта.
+            </Text>
+          </div>
+        </Space>
+      </Modal>
     </div>
   )
 }
