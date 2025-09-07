@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Modal, Table, Space, Button, Input, Select, Tag, message } from 'antd'
-import { DeleteOutlined } from '@ant-design/icons'
+import { Modal, Table, Space, Button, Input, Select, Tag, message, Form } from 'antd'
+import { DeleteOutlined, EditOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import type { ColumnsType } from 'antd/es/table'
 import {
@@ -25,6 +25,9 @@ export default function ChessboardSetsModal({
   const [searchFilters, setSearchFilters] = useState<ChessboardSetSearchFilters>({
     project_id: projectId,
   })
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [editingSet, setEditingSet] = useState<ChessboardSetTableRow | null>(null)
+  const [form] = Form.useForm()
 
   // Обновляем фильтр проекта при изменении projectId
   useEffect(() => {
@@ -61,6 +64,44 @@ export default function ChessboardSetsModal({
   const handleSelectSet = (setId: string) => {
     onSelectSet?.(setId)
     onClose()
+  }
+
+  // Открытие модального окна редактирования
+  const handleEdit = (record: ChessboardSetTableRow) => {
+    setEditingSet(record)
+    form.setFieldsValue({
+      name: record.name,
+    })
+    setEditModalOpen(true)
+  }
+
+  // Сохранение изменений комплекта
+  const handleSaveEdit = async () => {
+    try {
+      const values = await form.validateFields()
+      
+      if (editingSet) {
+        await chessboardSetsApi.updateSet(editingSet.id, {
+          name: values.name,
+        })
+        
+        message.success('Комплект обновлен')
+        setEditModalOpen(false)
+        setEditingSet(null)
+        form.resetFields()
+        refetch()
+      }
+    } catch (error) {
+      console.error('Ошибка обновления комплекта:', error)
+      message.error('Ошибка при обновлении комплекта')
+    }
+  }
+
+  // Закрытие модального окна редактирования
+  const handleCancelEdit = () => {
+    setEditModalOpen(false)
+    setEditingSet(null)
+    form.resetFields()
   }
 
   const columns: ColumnsType<ChessboardSetTableRow> = [
@@ -142,13 +183,19 @@ export default function ChessboardSetsModal({
     {
       title: 'Действия',
       key: 'actions',
-      width: 120,
+      width: 150,
       fixed: 'right',
       render: (_, record) => (
         <Space size="small">
           <Button size="small" onClick={() => handleSelectSet(record.id)} type="link">
             Применить
           </Button>
+          <Button
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => handleEdit(record)}
+            title="Редактировать комплект"
+          />
           <Button
             size="small"
             danger
@@ -224,6 +271,48 @@ export default function ChessboardSetsModal({
         }}
         size="small"
       />
+
+      {/* Модальное окно редактирования комплекта */}
+      <Modal
+        title="Редактирование комплекта"
+        open={editModalOpen}
+        onOk={handleSaveEdit}
+        onCancel={handleCancelEdit}
+        okText="Сохранить"
+        cancelText="Отмена"
+        width={600}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          style={{ marginTop: 20 }}
+        >
+          <Form.Item
+            name="name"
+            label="Название комплекта"
+            rules={[{ required: false }]}
+          >
+            <Input placeholder="Введите название комплекта" />
+          </Form.Item>
+          
+          {editingSet && (
+            <div style={{ marginTop: 20 }}>
+              <h4>Информация о комплекте:</h4>
+              <p><strong>Номер:</strong> {editingSet.set_number}</p>
+              <p><strong>Проект:</strong> {editingSet.project_name}</p>
+              <p><strong>Шифр документа:</strong> {editingSet.documentation_code}</p>
+              <p><strong>Раздел:</strong> {editingSet.tag_name || 'Все'}</p>
+              <p><strong>Корпуса:</strong> {editingSet.block_names || 'Все'}</p>
+              <p><strong>Категории затрат:</strong> {editingSet.cost_category_names || 'Все'}</p>
+              <p><strong>Виды затрат:</strong> {editingSet.cost_type_names || 'Все'}</p>
+              <p style={{ marginTop: 10, fontSize: 12, color: '#888' }}>
+                Примечание: В текущей версии можно редактировать только название комплекта. 
+                Для изменения фильтров создайте новый комплект.
+              </p>
+            </div>
+          )}
+        </Form>
+      </Modal>
     </Modal>
   )
 }
