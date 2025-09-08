@@ -15,5 +15,7 @@ export type {
   ImportConflict,
   ConflictResolution,
   ConflictResolutionState,
+  ImportProgress,
+  ImportResults,
 } from './types'
 export { STATUS_COLORS, STATUS_LABELS } from './types'

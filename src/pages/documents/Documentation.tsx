@@ -18,6 +18,10 @@ import {
   App,
   Radio,
   Tooltip,
+  Progress,
+  Divider,
+  Collapse,
+  Tag,
 } from 'antd'
 import {
   UploadOutlined,
@@ -49,6 +53,8 @@ import {
   type DocumentationVersion,
   type ImportConflict,
   type ConflictResolution,
+  type ImportProgress,
+  type ImportResults,
 } from '@/entities/documentation'
 import { documentationTagsApi } from '@/entities/documentation-tags'
 import { chessboardSetsApi } from '@/entities/chessboard'
@@ -104,8 +110,119 @@ const getColumnSettings = (): DocumentationColumnSettings => {
   }
 }
 
+// Функция для создания расширенного содержимого модального окна с подробными ошибками
+const createImportResultsContent = (result: ImportResults) => (
+  <div>
+    <div style={{ marginBottom: 16 }}>
+      <p>Всего строк в файле: <strong>{result.totalRows}</strong></p>
+      <p>Обработано строк: <strong>{result.processedRows}</strong></p>
+      <p>Загружено строк: <strong>{result.importedRows}</strong></p>
+      {result.skippedRows > 0 && (
+        <p>Пропущено записей: <strong>{result.skippedRows}</strong></p>
+      )}
+      {result.errorCount > 0 && (
+        <p style={{ color: '#ff4d4f' }}>Ошибок: <strong>{result.errorCount}</strong></p>
+      )}
+    </div>
+
+    {/* Показываем подробности ошибок */}
+    {result.errors.length > 0 && (
+      <>
+        <Divider />
+        <Collapse
+          size="small"
+          ghost
+          items={[
+            {
+              key: 'errors',
+              label: (
+                <span style={{ color: '#ff4d4f' }}>
+                  <strong>Подробности ошибок ({result.errors.length})</strong>
+                </span>
+              ),
+              children: (
+                <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                  {result.errors.slice(0, 10).map((error, index) => (
+                    <div key={index} style={{ marginBottom: 12, padding: 8, backgroundColor: '#fff2f0', border: '1px solid #ffccc7', borderRadius: 4 }}>
+                      <div>
+                        <Tag color="volcano">Строка {error.index + 1}</Tag>
+                        <strong>Шифр:</strong> {error.row.code}
+                        {error.row.project_name && (
+                          <>
+                            {' | '}
+                            <strong>Проект:</strong> {error.row.project_name}
+                          </>
+                        )}
+                      </div>
+                      <div style={{ marginTop: 4, color: '#cf1322' }}>
+                        <strong>Ошибка:</strong> {error.error}
+                      </div>
+                    </div>
+                  ))}
+                  {result.errors.length > 10 && (
+                    <div style={{ textAlign: 'center', color: '#666', marginTop: 8 }}>
+                      ... и еще {result.errors.length - 10} ошибок
+                    </div>
+                  )}
+                </div>
+              ),
+            },
+          ]}
+        />
+      </>
+    )}
+
+    {/* Показываем подробности пропущенных записей */}
+    {result.skipped.length > 0 && (
+      <>
+        <Divider />
+        <Collapse
+          size="small"
+          ghost
+          items={[
+            {
+              key: 'skipped',
+              label: (
+                <span style={{ color: '#faad14' }}>
+                  <strong>Пропущенные записи ({result.skipped.length})</strong>
+                </span>
+              ),
+              children: (
+                <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                  {result.skipped.slice(0, 10).map((skipped, index) => (
+                    <div key={index} style={{ marginBottom: 12, padding: 8, backgroundColor: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 4 }}>
+                      <div>
+                        <Tag color="gold">Строка {skipped.index + 1}</Tag>
+                        <strong>Шифр:</strong> {skipped.row.code}
+                        {skipped.row.project_name && (
+                          <>
+                            {' | '}
+                            <strong>Проект:</strong> {skipped.row.project_name}
+                          </>
+                        )}
+                      </div>
+                      <div style={{ marginTop: 4, color: '#d48806' }}>
+                        <strong>Причина:</strong> {skipped.reason}
+                      </div>
+                    </div>
+                  ))}
+                  {result.skipped.length > 10 && (
+                    <div style={{ textAlign: 'center', color: '#666', marginTop: 8 }}>
+                      ... и еще {result.skipped.length - 10} записей
+                    </div>
+                  )}
+                </div>
+              ),
+            },
+          ]}
+        />
+      </>
+    )}
+  </div>
+)
+
 export default function Documentation() {
-  const { message } = App.useApp()
+  const { message, modal } = App.useApp()
   const { scale } = useScale()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -117,6 +234,7 @@ export default function Documentation() {
   const [importModalOpen, setImportModalOpen] = useState(false)
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [importLoading, setImportLoading] = useState(false)
+  const [importProgress, setImportProgress] = useState<ImportProgress | null>(null)
   const [addMode, setAddMode] = useState(false)
   const [newRows, setNewRows] = useState<DocumentationTableRow[]>([])
   const [editingKey, setEditingKey] = useState<string | null>(null)
@@ -1269,6 +1387,7 @@ export default function Documentation() {
         const processedRow = {
           tag: (row['Раздел'] || '').toString().trim(),
           code: (row['Шифр проекта'] || row['Шифр'] || '').toString().trim(),
+          project_name: (row['Название проекта'] || '').toString().trim() || undefined,
           version_number: parseInt((row['Номер версии'] || row['Версия'] || '1').toString()),
           issue_date: excelDateToISO(row['Дата выдачи версии'] || row['Дата выдачи']),
           file_url:
@@ -1336,15 +1455,21 @@ export default function Documentation() {
         setImportModalOpen(false) // Закрываем модальное окно импорта
       } else {
         // Нет конфликтов - импортируем сразу
-        const result = await documentationApi.importFromExcel(importData)
+        setImportProgress({ totalRows: importData.length, processedRows: 0, importedRows: 0, skippedRows: 0, errorRows: 0, isComplete: false })
+        
+        const result = await documentationApi.importFromExcel(importData, (progress) => {
+          setImportProgress(progress)
+        })
 
-        if (result.errors.length > 0) {
-          message.warning(
-            `Импортировано ${result.results.length} записей, ошибок: ${result.errors.length}`,
-          )
-        } else {
-          message.success(`Успешно импортировано ${result.results.length} записей`)
-        }
+        setImportProgress(null)
+        
+        // Показываем результаты в модальном окне
+        modal.success({
+          title: 'Импорт завершен успешно!',
+          content: createImportResultsContent(result),
+          okText: 'OK',
+          width: 600,
+        })
 
         // Обновляем данные
         queryClient.invalidateQueries({ queryKey: ['documentation'] })
@@ -1365,21 +1490,27 @@ export default function Documentation() {
   const handleConflictResolution = async (resolutions: Map<number, ConflictResolution>) => {
     try {
       setResolvingConflicts(true)
+      setImportProgress({ totalRows: pendingImportData.length, processedRows: 0, importedRows: 0, skippedRows: 0, errorRows: 0, isComplete: false })
 
       const result = await documentationApi.importFromExcelWithResolutions(
         pendingImportData,
         resolutions,
+        (progress) => {
+          setImportProgress(progress)
+        }
       )
 
-      let message_text = `Импортировано: ${result.results.length} записей`
-      if (result.skipped && result.skipped.length > 0) {
-        message_text += `, пропущено: ${result.skipped.length}`
-      }
-      if (result.errors.length > 0) {
-        message_text += `, ошибок: ${result.errors.length}`
-      }
+      setImportProgress(null)
+      
+      // Показываем результаты в модальном окне
+      modal.success({
+        title: 'Импорт завершен успешно!',
+        content: createImportResultsContent(result),
+        okText: 'OK',
+        width: 600,
+      })
 
-      message.success(message_text)
+      setImportProgress(null)
 
       // Обновляем данные
       queryClient.invalidateQueries({ queryKey: ['documentation'] })
@@ -1394,6 +1525,7 @@ export default function Documentation() {
     } catch (error) {
       console.error('Error resolving conflicts:', error)
       message.error('Ошибка при обработке конфликтов')
+      setImportProgress(null)
     } finally {
       setResolvingConflicts(false)
     }
@@ -1453,15 +1585,21 @@ export default function Documentation() {
         setConflictDialogVisible(true)
       } else {
         // Нет конфликтов - импортируем сразу
-        const result = await documentationApi.importFromExcel(filteredData)
+        setImportProgress({ totalRows: filteredData.length, processedRows: 0, importedRows: 0, skippedRows: 0, errorRows: 0, isComplete: false })
+        
+        const result = await documentationApi.importFromExcel(filteredData, (progress) => {
+          setImportProgress(progress)
+        })
 
-        if (result.errors.length > 0) {
-          message.warning(
-            `Импортировано ${result.results.length} записей, ошибок: ${result.errors.length}`,
-          )
-        } else {
-          message.success(`Успешно импортировано ${result.results.length} записей`)
-        }
+        setImportProgress(null)
+        
+        // Показываем результаты в модальном окне
+        modal.success({
+          title: 'Импорт завершен успешно!',
+          content: createImportResultsContent(result),
+          okText: 'OK',
+          width: 600,
+        })
 
         // Обновляем данные
         queryClient.invalidateQueries({ queryKey: ['documentation'] })
@@ -2085,11 +2223,25 @@ export default function Documentation() {
               <p className="ant-upload-hint">
                 Поддерживаются файлы Excel (.xlsx, .xls)
                 <br />
-                Файл должен содержать столбцы: Раздел, Шифр проекта, Номер версии, Дата выдачи
-                версии, Ссылка
+                Файл должен содержать столбцы: Раздел, Шифр проекта, Название проекта (необязат.), Номер версии,
+                Дата выдачи версии, Ссылка
               </p>
             </Upload.Dragger>
           </Form.Item>
+
+          {/* Прогресс импорта */}
+          {importProgress && (
+            <div style={{ marginTop: 16 }}>
+              <Progress
+                percent={importProgress.totalRows > 0 ? Math.round((importProgress.processedRows / importProgress.totalRows) * 100) : 0}
+                status={importProgress.isComplete ? 'success' : 'active'}
+                format={() => `${importProgress.importedRows} / ${importProgress.totalRows}`}
+              />
+              <div style={{ textAlign: 'center', marginTop: 8, color: '#666' }}>
+                Загружено: {importProgress.importedRows} из {importProgress.totalRows} строк
+              </div>
+            </div>
+          )}
         </Form>
       </Modal>
 
@@ -2228,6 +2380,7 @@ export default function Documentation() {
           )
         })}
       </Modal>
+
     </div>
   )
 }

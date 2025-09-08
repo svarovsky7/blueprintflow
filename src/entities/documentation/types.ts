@@ -77,6 +77,7 @@ export interface Block {
 export interface DocumentationImportRow {
   tag: string // Раздел
   code: string // Шифр проекта
+  project_name?: string // Название проекта
   version_number: number // Номер версии
   issue_date?: string // Дата выдачи версии
   file_url?: string // Ссылка на документ
@@ -157,10 +158,46 @@ export interface ImportConflict {
   index: number
 }
 
-export type ConflictResolution = 'accept' | 'skip'
+export type ConflictResolution = 'skip' | 'skip_all' | 'fill_empty' | 'overwrite' | 'overwrite_all'
 
 export interface ConflictResolutionState {
-  acceptAll: boolean
   skipAll: boolean
+  fillEmptyAll: boolean
+  overwriteAll: boolean
   resolutions: Map<number, ConflictResolution>
+}
+
+// Детальные результаты импорта
+export interface ImportProgress {
+  totalRows: number
+  processedRows: number
+  importedRows: number
+  skippedRows: number
+  errorRows: number
+  currentRow?: number
+  isComplete: boolean
+}
+
+export interface ImportResults {
+  totalRows: number
+  processedRows: number
+  importedRows: number
+  skippedRows: number
+  errorCount: number
+  errors: Array<{
+    row: DocumentationImportRow
+    error: string
+    index: number
+  }>
+  skipped: Array<{
+    row: DocumentationImportRow
+    reason: string
+    index: number
+  }>
+  results: Array<{
+    row: DocumentationImportRow
+    documentation: Documentation
+    version?: DocumentationVersion | null
+    comment?: Comment | null
+  }>
 }

@@ -18,7 +18,8 @@
       "Bash(npm run format:*)",
       "Bash(git rm:*)",
       "Bash(npm install:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []

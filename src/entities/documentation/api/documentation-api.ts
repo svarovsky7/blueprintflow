@@ -12,6 +12,8 @@ import type {
   ConflictResolution,
   Project,
   Block,
+  ImportProgress,
+  ImportResults,
 } from '../types'
 
 // Импортируем DocumentationRecord из Chessboard.tsx
@@ -343,23 +345,38 @@ export const documentationApi = {
     _color?: string,
     stage?: 'П' | 'Р',
     projectName?: string,
+    fillEmptyOnly = false,
   ) {
     if (!supabase) throw new Error('Supabase client not initialized')
+
+    // Проверяем, существует ли запись
+    const { data: existingDoc } = await supabase
+      .from('documentations')
+      .select('id, project_name, tag_id, stage')
+      .eq('code', code)
+      .single()
+
+    let updateData: any = {
+      code,
+      project_name: projectName || null,
+      tag_id: tagId || null,
+      stage: stage || 'П',
+    }
+
+    // Если режим "заполнить только пустые", оставляем существующие значения
+    if (fillEmptyOnly && existingDoc) {
+      updateData = {
+        code,
+        project_name: existingDoc.project_name || projectName || null,
+        tag_id: existingDoc.tag_id || tagId || null,
+        stage: existingDoc.stage || stage || 'П',
+      }
+    }
 
     // 1. Сохраняем документацию (только шифр проекта, тэг и стадию)
     const { data, error } = await supabase
       .from('documentations')
-      .upsert(
-        {
-          code,
-          project_name: projectName || null,
-          tag_id: tagId || null,
-          stage: stage || 'П', // По умолчанию П (проект)
-          // color: color || null, // TODO: раскомментировать после добавления колонки в БД
-          // Убираем project_id и block_id - они теперь в таблице маппинга
-        },
-        { onConflict: 'code' },
-      )
+      .upsert(updateData, { onConflict: 'code' })
       .select()
       .single()
 
@@ -428,18 +445,19 @@ export const documentationApi = {
     issueDate?: string,
     fileUrl?: string,
     status: DocumentationVersion['status'] = 'not_filled',
+    fillEmptyOnly = false,
   ) {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     // Сначала проверяем, существует ли версия
     const { data: existingVersion } = await supabase
       .from('documentation_versions')
-      .select('id')
+      .select('id, issue_date, file_url, status')
       .eq('documentation_id', documentationId)
       .eq('version_number', versionNumber)
       .single()
 
-    const versionData = {
+    const versionData: any = {
       documentation_id: documentationId,
       version_number: versionNumber,
       issue_date: issueDate || null,
@@ -448,14 +466,25 @@ export const documentationApi = {
     }
 
     if (existingVersion) {
+      // Если режим "заполнить только пустые", оставляем существующие значения
+      let updateData: any = {
+        issue_date: issueDate || null,
+        file_url: fileUrl || null,
+        status,
+      }
+
+      if (fillEmptyOnly) {
+        updateData = {
+          issue_date: existingVersion.issue_date || issueDate || null,
+          file_url: existingVersion.file_url || fileUrl || null,
+          status: existingVersion.status !== 'not_filled' ? existingVersion.status : status,
+        }
+      }
+
       // Обновляем существующую версию
       const { data, error } = await supabase
         .from('documentation_versions')
-        .update({
-          issue_date: issueDate || null,
-          file_url: fileUrl || null,
-          status,
-        })
+        .update(updateData)
         .eq('id', existingVersion.id)
         .select()
         .single()
@@ -622,22 +651,37 @@ export const documentationApi = {
   async importFromExcelWithResolutions(
     rows: DocumentationImportRow[],
     resolutions?: Map<number, ConflictResolution>,
-  ) {
+    onProgress?: (progress: ImportProgress) => void,
+  ): Promise<ImportResults> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     const results = []
     const errors = []
     const skipped = []
+    const totalRows = rows.length
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i]
+
+      // Обновляем прогресс
+      if (onProgress) {
+        onProgress({
+          totalRows,
+          processedRows: i,
+          importedRows: results.length,
+          skippedRows: skipped.length,
+          errorRows: errors.length,
+          currentRow: i + 1,
+          isComplete: false,
+        })
+      }
 
       // Проверяем, есть ли решение для этой строки
       const hasResolution = resolutions?.has(i)
       const resolution = resolutions?.get(i)
 
       if (hasResolution && resolution === 'skip') {
-        skipped.push({ row, reason: 'Пропущено пользователем' })
+        skipped.push({ row, reason: 'Пропущено пользователем', index: i })
         continue
       }
 
@@ -658,12 +702,14 @@ export const documentationApi = {
           }
         }
 
-        // Если пользователь выбрал "Принять" при конфликте, устанавливаем флаг перезаписи
-        const forceOverwrite = hasResolution && resolution === 'accept'
+        // Определяем поведение на основе выбранного разрешения конфликта
+        const forceOverwrite = hasResolution && (resolution === 'overwrite' || resolution === 'overwrite_all')
+        const fillEmptyOnly = hasResolution && (resolution === 'fill_empty')
 
         // Используем комплексный метод сохранения для Excel импорта
         const result = await this.saveDocumentationComplete({
           code: row.code,
+          projectName: row.project_name,
           tagId: tagId ?? undefined,
           projectId: row.project_id,
           blockId: row.block_id,
@@ -673,21 +719,43 @@ export const documentationApi = {
           fileUrl: row.file_url,
           status: 'not_filled',
           forceOverwrite,
+          fillEmptyOnly,
         })
 
         results.push({ row, ...result })
       } catch (error) {
         console.error(`Error importing row ${i + 1}:`, row, error)
-        errors.push({ row, error })
+        errors.push({ row, error: error instanceof Error ? error.message : String(error), index: i })
       }
     }
 
-    return { results, errors, skipped }
+    // Финальное обновление прогресса
+    if (onProgress) {
+      onProgress({
+        totalRows,
+        processedRows: totalRows,
+        importedRows: results.length,
+        skippedRows: skipped.length,
+        errorRows: errors.length,
+        isComplete: true,
+      })
+    }
+
+    return {
+      totalRows,
+      processedRows: totalRows,
+      importedRows: results.length,
+      skippedRows: skipped.length,
+      errorCount: errors.length,
+      results,
+      errors,
+      skipped,
+    }
   },
 
   // Старый метод для обратной совместимости (без проверки конфликтов)
-  async importFromExcel(rows: DocumentationImportRow[]) {
-    return this.importFromExcelWithResolutions(rows)
+  async importFromExcel(rows: DocumentationImportRow[], onProgress?: (progress: ImportProgress) => void): Promise<ImportResults> {
+    return this.importFromExcelWithResolutions(rows, undefined, onProgress)
   },
 
   // Добавление комментария
@@ -764,6 +832,7 @@ export const documentationApi = {
     status?: DocumentationVersion['status']
     comment?: string
     forceOverwrite?: boolean // Флаг для принудительной перезаписи при конфликте
+    fillEmptyOnly?: boolean // Флаг для заполнения только пустых полей
   }) {
     if (!supabase) throw new Error('Supabase client not initialized')
 
@@ -777,21 +846,25 @@ export const documentationApi = {
         data.color,
         data.stage,
         data.projectName,
+        data.fillEmptyOnly,
       )
 
       // 2. Создаем или обновляем версию документации
       let version: DocumentationVersion | null = null
       if (data.versionNumber) {
-        // Если флаг forceOverwrite установлен, используем upsertVersion для перезаписи
-        if (data.forceOverwrite) {
+        // Определяем способ создания/обновления версии
+        if (data.forceOverwrite || data.fillEmptyOnly) {
+          // Используем upsertVersion для перезаписи или заполнения пустых полей
           version = await this.upsertVersion(
             doc.id,
             data.versionNumber,
             data.issueDate,
             data.fileUrl,
             data.status || 'not_filled',
+            data.fillEmptyOnly,
           )
         } else {
+          // Обычное создание новой версии
           version = await this.createVersion(
             doc.id,
             data.versionNumber,
