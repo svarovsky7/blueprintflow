@@ -1539,11 +1539,13 @@ export default function Chessboard() {
 
   const handleEditChange = useCallback(
     (key: string, field: keyof RowData, value: string | number | null) => {
+      console.log(`🔧 EDIT CHANGE: key=${key}, field=${field}, value=${value}`)
       setEditingRows((prev) => {
         const updated = { ...prev[key], [field]: value }
         if (field === 'quantityPd' || field === 'quantitySpec' || field === 'quantityRd') {
           delete updated.floorQuantities
         }
+        console.log(`🔧 EDIT CHANGE RESULT for ${key}:`, updated)
         return { ...prev, [key]: updated }
       })
     },
@@ -2289,8 +2291,13 @@ export default function Chessboard() {
 
   const startEdit = useCallback(
     (id: string) => {
+      console.log(`✏️ НАЧАЛО РЕДАКТИРОВАНИЯ строки ${id}`)
       const dbRow = tableData?.find((r) => r.id === id)
-      if (!dbRow) return
+      if (!dbRow) {
+        console.log(`❌ Строка ${id} не найдена в tableData`)
+        return
+      }
+      console.log(`✏️ Исходные данные строки ${id}:`, dbRow)
       const mapping = getNomenclatureMapping(dbRow.chessboard_nomenclature_mapping)
       const nomenclatureId = mapping?.nomenclature_id ?? ''
       const nomenclatureName = mapping?.nomenclature?.name ?? ''
@@ -2347,59 +2354,124 @@ export default function Chessboard() {
               : '',
             floors: dbRow.floors ?? '',
             color: (dbRow.color as RowColor | null) ?? '',
-            documentationId:
-              dbRow.chessboard_documentation_mapping?.documentation_versions?.documentation_id ??
-              '',
-            tagId: dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations
-              ?.tag_id
-              ? String(
-                  dbRow.chessboard_documentation_mapping.documentation_versions.documentations
-                    .tag_id,
-                )
-              : '',
-            tagName:
-              dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.tag
-                ?.name ?? '',
-            tagNumber:
-              dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.tag
-                ?.tag_number ?? null,
-            projectCode:
-              dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations
-                ?.code ?? '',
+            documentationId: (() => {
+              // Берем из базы данных, если есть
+              const dbDocId = dbRow.chessboard_documentation_mapping?.documentation_versions?.documentation_id
+              if (dbDocId) return dbDocId
+              
+              // Если в базе нет, но применен фильтр по шифру проекта - используем из фильтра
+              if (appliedFilters?.documentationId && appliedFilters.documentationId.length === 1) {
+                return appliedFilters.documentationId[0]
+              }
+              return ''
+            })(),
+            tagId: (() => {
+              // Берем из базы данных, если есть
+              const dbTagId = dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.tag_id
+              if (dbTagId) return String(dbTagId)
+              
+              // Если в базе нет, но применен фильтр по разделу - используем из фильтра
+              if (appliedFilters?.tagId && appliedFilters.tagId.length === 1) {
+                return appliedFilters.tagId[0]
+              }
+              return ''
+            })(),
+            tagName: (() => {
+              // Берем из базы данных, если есть
+              const dbTagName = dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.tag?.name
+              if (dbTagName) return dbTagName
+              
+              // Если в базе нет, но применен фильтр по разделу - найдем название
+              if (appliedFilters?.tagId && appliedFilters.tagId.length === 1) {
+                const tagId = parseInt(appliedFilters.tagId[0])
+                const tag = sortedDocumentationTags?.find(t => t.id === tagId)
+                return tag?.name ?? ''
+              }
+              return ''
+            })(),
+            tagNumber: (() => {
+              // Берем из базы данных, если есть
+              const dbTagNumber = dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.tag?.tag_number
+              if (dbTagNumber) return dbTagNumber
+              
+              // Если в базе нет, но применен фильтр по разделу - найдем номер
+              if (appliedFilters?.tagId && appliedFilters.tagId.length === 1) {
+                const tagId = parseInt(appliedFilters.tagId[0])
+                const tag = sortedDocumentationTags?.find(t => t.id === tagId)
+                return tag?.tag_number ?? null
+              }
+              return null
+            })(),
+            projectCode: (() => {
+              // Берем из базы данных, если есть
+              const dbProjectCode = dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.code
+              if (dbProjectCode) return dbProjectCode
+              
+              // Если в базе нет, но применен фильтр по шифру проекта - используем из фильтра
+              if (appliedFilters?.documentationId && appliedFilters.documentationId.length === 1) {
+                const docId = appliedFilters.documentationId[0]
+                const doc = documentations?.find(d => d.id === docId)
+                return doc?.project_code ?? ''
+              }
+              return ''
+            })(),
             projectName: (() => {
               // Сначала пытаемся найти по коду проекта из документации
-              const projectCode =
-                dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations
-                  ?.code ?? ''
-              if (projectCode && documentations) {
-                const matchingDoc = documentations.find((d) => d.project_code === projectCode)
+              const dbProjectCode = dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.code
+              if (dbProjectCode && documentations) {
+                const matchingDoc = documentations.find((d) => d.project_code === dbProjectCode)
                 if (matchingDoc?.project_name) return matchingDoc.project_name
               }
-              // Fallback к прямому поиску по project_name
-              return (
-                (
-                  dbRow.chessboard_documentation_mapping?.documentation_versions
-                    ?.documentations as { project_name?: string }
-                )?.project_name ?? ''
-              )
+              
+              // Fallback к прямому поиску по project_name из базы
+              const dbProjectName = (dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations as { project_name?: string })?.project_name
+              if (dbProjectName) return dbProjectName
+              
+              // Если в базе нет, но применен фильтр по шифру проекта - используем из фильтра
+              if (appliedFilters?.documentationId && appliedFilters.documentationId.length === 1) {
+                const docId = appliedFilters.documentationId[0]
+                const doc = documentations?.find(d => d.id === docId)
+                return doc?.project_name ?? ''
+              }
+              return ''
             })(),
-            versionNumber:
-              dbRow.chessboard_documentation_mapping?.documentation_versions?.version_number ??
-              null,
+            versionNumber: (() => {
+              // Берем из базы данных, если есть
+              const dbVersionNumber = dbRow.chessboard_documentation_mapping?.documentation_versions?.version_number
+              if (dbVersionNumber) return dbVersionNumber
+              
+              // Если в базе нет, но применен фильтр по шифру проекта - найдем последнюю версию
+              if (appliedFilters?.documentationId && appliedFilters.documentationId.length === 1) {
+                const docId = appliedFilters.documentationId[0]
+                const versions = documentVersions?.filter(v => v.documentation_id === docId)
+                if (versions && versions.length > 0) {
+                  const latestVersion = versions.sort((a, b) => b.version_number - a.version_number)[0]
+                  return latestVersion.version_number
+                }
+              }
+              return null
+            })(),
             floorQuantities: dbRow.floorQuantities,
           },
         }
       })
       void loadSupplierOptions(nomenclatureId, id, supplierName)
     },
-    [tableData, loadSupplierOptions],
+    [tableData, loadSupplierOptions, appliedFilters, sortedDocumentationTags, documentations, documentVersions],
   )
 
   const handleUpdate = useCallback(async () => {
     if (!supabase || Object.keys(editingRows).length === 0) return
 
+    console.log(`💾 НАЧАЛО СОХРАНЕНИЯ - количество редактируемых строк: ${Object.keys(editingRows).length}`)
+    console.log(`💾 ДАННЫЕ ДЛЯ СОХРАНЕНИЯ:`, editingRows)
+
     // Параллельное выполнение всех обновлений
     const updatePromises = Object.values(editingRows).map(async (r) => {
+      console.log(`💾 ОБРАБОТКА СТРОКИ ${r.key}:`)
+      console.log(`   tagId: ${r.tagId}, projectCode: ${r.projectCode}, projectName: ${r.projectName}`)
+      console.log(`   documentationId: ${r.documentationId}, versionNumber: ${r.versionNumber}`)
+      
       let materialId = r.materialId
       if (!materialId && r.material) {
         const material = await materialsApi.ensure(r.material)
@@ -2493,16 +2565,34 @@ export default function Chessboard() {
 
       // Обновляем связь с версией документа (новая схема)
       const updateDocumentationMapping = async () => {
+        console.log(`📄 UPDATE DOCUMENTATION MAPPING для строки ${r.key}`)
+        console.log(`   Начальный docId: ${r.documentationId}`)
+        console.log(`   projectCode: ${r.projectCode}, tagId: ${r.tagId}, projectName: ${r.projectName}`)
+        
         let docId = r.documentationId
 
-        // Если документация не выбрана, но есть тэг и шифр проекта, создаём её
-        if (!docId && r.projectCode && r.tagId) {
+        // Если есть тэг и шифр проекта, создаём или обновляем документацию
+        if (r.projectCode && r.tagId) {
+          console.log(`📄 Вызываем upsertDocumentation с параметрами:`, {
+            code: r.projectCode,
+            tagId: Number(r.tagId),
+            projectId: appliedFilters?.projectId,
+            projectName: r.projectName
+          })
+          
           const doc = await documentationApi.upsertDocumentation(
             r.projectCode,
             Number(r.tagId),
             appliedFilters?.projectId,
+            undefined, // blockId
+            undefined, // color
+            undefined, // stage
+            r.projectName, // projectName - ВАЖНО: передаем название проекта!
           )
+          console.log(`📄 Результат upsertDocumentation:`, doc)
           docId = doc.id
+        } else {
+          console.log(`📄 Пропускаем upsertDocumentation - нет projectCode или tagId`)
         }
 
         if (docId && r.versionNumber) {
@@ -2529,6 +2619,7 @@ export default function Chessboard() {
           }
 
           // Сохраняем прямую ссылку на версию документа (новая схема)
+          console.log(`📄 Сохраняем связь: chessboard_id=${r.key}, version_id=${version?.id}`)
           await supabase!.from('chessboard_documentation_mapping').upsert(
             {
               chessboard_id: r.key,
@@ -2536,13 +2627,19 @@ export default function Chessboard() {
             },
             { onConflict: 'chessboard_id' },
           )
+          console.log(`📄 Связь сохранена успешно`)
+        } else if (docId && !r.versionNumber) {
+          // Если выбран документ, но не указана версия - выдаем ошибку
+          throw new Error('Сохранение шифра проекта без указания версии невозможно!')
         } else {
           // Если ни документация, ни версия не выбраны, удаляем связь
+          console.log(`📄 Удаляем связь для строки ${r.key} - нет docId или versionNumber`)
           await supabase!
             .from('chessboard_documentation_mapping')
             .delete()
             .eq('chessboard_id', r.key)
         }
+        console.log(`📄 UPDATE DOCUMENTATION MAPPING завершен для строки ${r.key}`)
       }
 
       // Обновляем связь с расценками
@@ -2570,12 +2667,22 @@ export default function Chessboard() {
     })
 
     try {
+      console.log(`💾 Выполняем все обновления...`)
       await Promise.all(updatePromises)
+      console.log(`💾 Все обновления выполнены успешно`)
+      
       await refetchMaterials()
+      console.log(`💾 Материалы обновлены`)
+      
       message.success('Изменения сохранены')
+      console.log(`💾 Очищаем editingRows`)
       setEditingRows({})
+      
+      console.log(`💾 Перезапрашиваем данные таблицы`)
       await refetch()
+      console.log(`💾 СОХРАНЕНИЕ ЗАВЕРШЕНО УСПЕШНО`)
     } catch (error: unknown) {
+      console.error(`❌ ОШИБКА ПРИ СОХРАНЕНИИ:`, error)
       message.error(`Не удалось сохранить изменения: ${(error as Error).message}`)
     }
   }, [editingRows, message, refetch, appliedFilters, refetchMaterials])
@@ -3433,10 +3540,16 @@ export default function Chessboard() {
                   value={record.projectCode}
                   onChange={(value) => {
                     const selectedDoc = documentations?.find((doc) => doc.project_code === value)
+                    // Находим максимальную версию для выбранного документа
+                    const maxVersion = selectedDoc?.id && documentVersions
+                      ? documentVersions
+                          .filter((v) => v.documentation_id === selectedDoc.id)
+                          .sort((a, b) => b.version_number - a.version_number)[0]
+                      : null
                     handleRowChange(record.key, 'projectCode', value)
                     handleRowChange(record.key, 'projectName', selectedDoc?.project_name || '')
                     handleRowChange(record.key, 'documentationId', selectedDoc?.id || null)
-                    handleRowChange(record.key, 'versionNumber', null)
+                    handleRowChange(record.key, 'versionNumber', maxVersion?.version_number || null)
                   }}
                   filterOption={(input, option) => {
                     const text = (option?.label ?? '').toString()
@@ -4005,7 +4118,7 @@ export default function Chessboard() {
             case 'tagName':
               return (
                 <Select
-                  style={{ width: 200 }}
+                  style={{ minWidth: 120, width: 'auto' }}
                   value={edit.tagId}
                   onChange={(value) => {
                     handleEditChange(record.key, 'tagId', value)
@@ -4070,10 +4183,16 @@ export default function Chessboard() {
                   value={edit.projectCode}
                   onChange={(value) => {
                     const selectedDoc = documentations?.find((doc) => doc.project_code === value)
+                    // Находим максимальную версию для выбранного документа
+                    const maxVersion = selectedDoc?.id && documentVersions
+                      ? documentVersions
+                          .filter((v) => v.documentation_id === selectedDoc.id)
+                          .sort((a, b) => b.version_number - a.version_number)[0]
+                      : null
                     handleEditChange(record.key, 'projectCode', value)
                     handleEditChange(record.key, 'projectName', selectedDoc?.project_name || '')
                     handleEditChange(record.key, 'documentationId', selectedDoc?.id || null)
-                    handleEditChange(record.key, 'versionNumber', null)
+                    handleEditChange(record.key, 'versionNumber', maxVersion?.version_number || null)
                   }}
                   filterOption={(input, option) => {
                     const text = (option?.label ?? '').toString()
@@ -4235,7 +4354,7 @@ export default function Chessboard() {
             case 'unit':
               return (
                 <Select
-                  style={{ width: 160 }}
+                  style={{ minWidth: 80, width: 'auto' }}
                   value={edit.unitId}
                   onChange={(value) => handleEditChange(record.key, 'unitId', value)}
                   options={units?.map((u) => ({ value: u.id, label: u.name })) ?? []}
@@ -4244,7 +4363,7 @@ export default function Chessboard() {
             case 'block':
               return (
                 <Select
-                  style={{ width: 120 }}
+                  style={{ minWidth: 100, width: 'auto' }}
                   value={edit.blockId}
                   onChange={(value) => {
                     handleEditChange(record.key, 'blockId', value)
@@ -4257,7 +4376,7 @@ export default function Chessboard() {
             case 'floors':
               return (
                 <Input
-                  style={{ width: 150 }}
+                  style={{ minWidth: 120, width: 'auto' }}
                   value={edit.floors}
                   onChange={(e) => handleEditChange(record.key, 'floors', e.target.value)}
                   placeholder="1,2,3 или 1-5"
@@ -4266,7 +4385,7 @@ export default function Chessboard() {
             case 'costCategory':
               return (
                 <Select
-                  style={{ width: 200 }}
+                  style={{ minWidth: 150, width: 'auto' }}
                   value={edit.costCategoryId}
                   onChange={(value) => {
                     handleEditChange(record.key, 'costCategoryId', value)
@@ -4302,7 +4421,7 @@ export default function Chessboard() {
             case 'costType':
               return (
                 <Select
-                  style={{ width: 200 }}
+                  style={{ minWidth: 150, width: 'auto' }}
                   value={edit.costTypeId}
                   onChange={(value) => {
                     handleEditChange(record.key, 'costTypeId', value)
@@ -4335,7 +4454,7 @@ export default function Chessboard() {
             case 'location':
               return (
                 <Select
-                  style={{ width: 200 }}
+                  style={{ minWidth: 130, width: 'auto' }}
                   value={edit.locationId}
                   onChange={(value) => handleEditChange(record.key, 'locationId', value)}
                   options={
