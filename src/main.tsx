@@ -2,20 +2,12 @@ import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ConfigProvider, App as AntdApp, unstableSetRender, theme } from 'antd'
+import { ConfigProvider, App as AntdApp, theme } from 'antd'
 import 'antd/dist/reset.css'
 import './index.css'
 import App from './App.tsx'
 import { LogoProvider } from './shared/contexts/LogoContext'
 import { ScaleProvider, useScale } from './shared/contexts/ScaleContext'
-
-unstableSetRender((node, container) => {
-  const root = createRoot(container)
-  root.render(node)
-  return async () => {
-    root.unmount()
-  }
-})
 
 const queryClient = new QueryClient()
 

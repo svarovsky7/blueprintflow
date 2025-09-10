@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 # Development
 npm install           # Install dependencies
-npm run dev          # Start dev server (http://192.168.8.85:5173)
+npm run dev          # Start dev server (http://localhost:5173)
 npm run preview      # Preview production build
 
 # Build & Quality
@@ -24,26 +24,32 @@ npm run lint         # ESLint check (MUST pass before commit)
 npm run format       # Prettier formatting
 npm run format:check # Check formatting without changes
 npx tsc --noEmit    # Type checking only (standalone)
+
+# Testing
+npx playwright test  # Run end-to-end tests
+npx playwright test --ui  # Run tests with UI mode
+npx playwright show-report  # Open test results in browser
 ```
 
 ## Pre-commit Checklist
 1. Run `npm run lint` and fix all warnings
 2. Run `npm run format` to ensure consistent formatting
 3. Run `npm run build` and ensure project builds successfully
-4. Follow Conventional Commits format (`feat:`, `fix:`, `chore:`, etc.)
+4. Run `npx playwright test` if changes affect UI (optional but recommended)
+5. Follow Conventional Commits format (`feat:`, `fix:`, `chore:`, etc.)
 
 ## Architecture Overview
 
 ### Tech Stack
-- **Frontend**: React 19.1, TypeScript 5.8 (strict mode), Vite 7.0
+- **Frontend**: React 18.3, TypeScript 5.8 (strict mode), Vite 7.0
 - **UI Library**: Ant Design 5.21 with Vibe design approach
 - **State Management**: TanStack Query 5.59+ (server state), Zustand 5.0+ (auth state)
 - **Backend**: Supabase 2.47+ (PostgreSQL 17, Auth, Storage, Edge Functions, Realtime WebSocket)
 - **Authentication**: Supabase Auth with OAuth 2.0 (Google, Microsoft) and MFA support
-- **Observability**: Sentry, Grafana Cloud, OpenTelemetry
 - **Excel Processing**: xlsx 0.18 library for import/export
 - **Utilities**: Day.js 1.11 for dates
 - **Routing**: React Router DOM 6.27
+- **Testing**: Playwright 1.55+ for end-to-end testing
 - **Development**: ESLint, Prettier, dotenv for environment management
 - **Editor**: WebStorm
 

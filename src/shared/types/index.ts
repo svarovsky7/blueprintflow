@@ -34,8 +34,8 @@ export const PORTAL_PAGES = [
   { key: 'references/cost-categories', label: 'Справочники → Категории затрат' },
   { key: 'references/projects', label: 'Справочники → Проекты' },
   { key: 'references/locations', label: 'Справочники → Локализации' },
-  { key: 'admin/documentation-tags', label: 'Администрирование → Тэги документации' },
-  { key: 'admin/statuses', label: 'Администрирование → Статусы' },
+  { key: 'admin/documentation-tags', label: 'Настройки → Тэги документации' },
+  { key: 'admin/statuses', label: 'Настройки → Статусы' },
 ] as const
 
 export type PortalPageKey = (typeof PORTAL_PAGES)[number]['key']

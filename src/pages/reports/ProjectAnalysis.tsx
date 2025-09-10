@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Card, Col, Row, Typography, Tag, Spin, Empty, Badge, Select, Space, Tooltip } from 'antd'
+import { Card, Col, Row, Typography, Tag, Spin, Empty, Badge, Select, Space, Tooltip, Segmented, Button, Modal, Checkbox, Input } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
@@ -41,6 +41,10 @@ export default function ProjectAnalysis() {
   const navigate = useNavigate()
   const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>()
   const [columns, setColumns] = useState<Record<string, DocumentInfo[]>>({})
+  const [viewMode, setViewMode] = useState<'projects' | 'sets'>('projects')
+  const [isCreateVorModalOpen, setIsCreateVorModalOpen] = useState(false)
+  const [selectedSets, setSelectedSets] = useState<string[]>([])
+  const [vorName, setVorName] = useState('')
   
   // Загружаем список проектов
   const { data: projects, isLoading: projectsLoading } = useQuery({
@@ -205,6 +209,11 @@ export default function ProjectAnalysis() {
     })
   }, [statuses, statusOrder])
 
+  // Мемоизированный список статусов в правильном порядке
+  const orderedStatuses = useMemo(() => {
+    return sortedStatuses || statuses
+  }, [sortedStatuses, statuses])
+
   // Группируем документы по статусам комплектов
   useEffect(() => {
     // Проверяем, что данные загружены
@@ -226,7 +235,6 @@ export default function ProjectAnalysis() {
     }
 
     // Создаем колонки для каждого статуса
-    const orderedStatuses = sortedStatuses || statuses
     orderedStatuses.forEach(status => {
       newColumns[status.id] = []
     })
@@ -278,7 +286,7 @@ export default function ProjectAnalysis() {
     )
     
     setColumns(newColumns)
-  }, [setsWithDocuments, statuses, sortedStatuses, allProjectDocuments])
+  }, [setsWithDocuments, orderedStatuses, allProjectDocuments])
 
 
   // Обработка клика на документ для перехода на страницу Шахматка
@@ -332,7 +340,28 @@ export default function ProjectAnalysis() {
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         <Row align="middle" justify="space-between">
           <Col>
-            <Title level={2}>Анализ проектов</Title>
+            <Space direction="vertical" size="small">
+              <Title level={2}>Анализ документации</Title>
+              <Space size="middle">
+                <Segmented
+                  options={[
+                    { label: 'Проекты', value: 'projects' },
+                    { label: 'Комплекты', value: 'sets' }
+                  ]}
+                  value={viewMode}
+                  onChange={setViewMode}
+                />
+                {viewMode === 'sets' && selectedProjectId && (
+                  <Button 
+                    type="primary" 
+                    onClick={() => setIsCreateVorModalOpen(true)}
+                    disabled={!setsWithDocuments || setsWithDocuments.length === 0}
+                  >
+                    Создать ВОР
+                  </Button>
+                )}
+              </Space>
+            </Space>
           </Col>
           <Col>
             <Select
@@ -364,7 +393,7 @@ export default function ProjectAnalysis() {
           </div>
         ) : !setsWithDocuments || setsWithDocuments.length === 0 ? (
           <Empty description="Для выбранного проекта нет комплектов шахматки" />
-        ) : (
+        ) : viewMode === 'projects' ? (
           <Row gutter={16} style={{ overflowX: 'auto', flexWrap: 'nowrap' }}>
             {/* Колонка для документов без статуса */}
             <Col style={{ minWidth: 300, marginBottom: 16 }}>
@@ -376,7 +405,7 @@ export default function ProjectAnalysis() {
                   </div>
                 }
                 style={{ height: 'calc(100vh - 250px)', overflow: 'hidden' }}
-                bodyStyle={{ height: 'calc(100% - 57px)', overflowY: 'auto' }}
+                styles={{ body: { height: 'calc(100% - 57px)', overflowY: 'auto' } }}
               >
                 <div style={{ minHeight: 100 }}>
                   {columns['no-status']?.length === 0 ? (
@@ -427,7 +456,7 @@ export default function ProjectAnalysis() {
                     </div>
                   }
                   style={{ height: 'calc(100vh - 250px)', overflow: 'hidden' }}
-                  bodyStyle={{ height: 'calc(100% - 57px)', overflowY: 'auto' }}
+                  styles={{ body: { height: 'calc(100% - 57px)', overflowY: 'auto' } }}
                 >
                   <div style={{ minHeight: 100 }}>
                     {columns[status.id]?.length === 0 ? (
@@ -468,8 +497,225 @@ export default function ProjectAnalysis() {
               </Col>
             ))}
           </Row>
+        ) : (
+          // Канбан для комплектов - только статусы, без колонки "Не анализировались"
+          <Row gutter={16} style={{ overflowX: 'auto', flexWrap: 'nowrap' }}>
+            {(orderedStatuses || [])?.map((status) => (
+              <Col key={status.id} style={{ minWidth: 300, marginBottom: 16 }}>
+                <Card
+                  title={
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span>{status.name}</span>
+                      <Badge 
+                        count={setsWithDocuments?.filter(set => set.status?.id === status.id).length || 0} 
+                        showZero 
+                      />
+                    </div>
+                  }
+                  style={{ height: 'calc(100vh - 250px)', overflow: 'hidden' }}
+                  styles={{ body: { height: 'calc(100% - 57px)', overflowY: 'auto' } }}
+                >
+                  <div style={{ minHeight: 100 }}>
+                    {!setsWithDocuments?.filter(set => set.status?.id === status.id).length ? (
+                      <Empty description="Нет комплектов" />
+                    ) : (
+                      setsWithDocuments
+                        ?.filter(set => set.status?.id === status.id)
+                        .map((set) => (
+                          <div key={set.id} style={{ marginBottom: 8 }}>
+                            <Card
+                              size="small"
+                              style={{ backgroundColor: '#fff', cursor: 'pointer' }}
+                              onClick={() => {
+                                // Переход на страницу Шахматка с фильтрами комплекта
+                                const params = new URLSearchParams()
+                                params.append('project_id', set.project_id)
+                                if (set.tag_id) params.append('tag_id', set.tag_id)
+                                if (set.block_ids?.length) {
+                                  set.block_ids.forEach(id => params.append('block_id', id))
+                                }
+                                if (set.cost_category_ids?.length) {
+                                  set.cost_category_ids.forEach(id => params.append('category_id', id))
+                                }
+                                if (set.cost_type_ids?.length) {
+                                  set.cost_type_ids.forEach(id => params.append('type_id', id))
+                                }
+                                
+                                navigate(`/documents/chessboard?${params.toString()}`)
+                              }}
+                            >
+                              <div>
+                                <Text strong>{set.set_number}</Text>
+                                {set.name && (
+                                  <Tooltip title={set.name}>
+                                    <Text 
+                                      style={{ 
+                                        display: 'block', 
+                                        fontSize: 11, 
+                                        color: '#666',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                        marginTop: 4
+                                      }}
+                                    >
+                                      {set.name}
+                                    </Text>
+                                  </Tooltip>
+                                )}
+                                <Text 
+                                  style={{ 
+                                    display: 'block', 
+                                    fontSize: 10, 
+                                    color: '#999',
+                                    marginTop: 4
+                                  }}
+                                >
+                                  Документов: {set.documents?.length || 0}
+                                </Text>
+                              </div>
+                            </Card>
+                          </div>
+                        ))
+                    )}
+                  </div>
+                </Card>
+              </Col>
+            ))}
+          </Row>
         )}
       </Space>
+
+      {/* Модальное окно создания ВОР */}
+      <Modal
+        title="Создать ВОР"
+        open={isCreateVorModalOpen}
+        onCancel={() => {
+          setIsCreateVorModalOpen(false)
+          setSelectedSets([])
+          setVorName('')
+        }}
+        onOk={async () => {
+          if (selectedSets.length > 0 && vorName.trim() && selectedProjectId) {
+            try {
+              // 1. Создаем ВОР в БД
+              const { data: vorData, error: vorError } = await supabase
+                .from('vor')
+                .insert({
+                  name: vorName,
+                  project_id: selectedProjectId,
+                  rate_coefficient: 1.0
+                })
+                .select('id')
+                .single()
+
+              if (vorError) throw vorError
+
+              // 2. Создаем связи с комплектами
+              const mappings = selectedSets.map(setId => ({
+                vor_id: vorData.id,
+                set_id: setId
+              }))
+
+              const { error: mappingError } = await supabase
+                .from('vor_chessboard_sets_mapping')
+                .insert(mappings)
+
+              if (mappingError) throw mappingError
+
+              // 3. Переход на страницу просмотра ВОР
+              navigate(`/documents/vor-view?vor_id=${vorData.id}`)
+              
+              // Закрыть модальное окно
+              setIsCreateVorModalOpen(false)
+              setSelectedSets([])
+              setVorName('')
+            } catch (error) {
+              console.error('Ошибка при создании ВОР:', error)
+              // TODO: Добавить уведомление об ошибке
+            }
+          }
+        }}
+        okButtonProps={{
+          disabled: selectedSets.length === 0 || !vorName.trim()
+        }}
+        okText="Создать"
+        cancelText="Отмена"
+        width={600}
+      >
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          {/* Выбор комплектов */}
+          <div>
+            <Typography.Title level={5}>Выберите комплекты:</Typography.Title>
+            <div style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid #d9d9d9', borderRadius: 6, padding: 12 }}>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Checkbox
+                  checked={selectedSets.length === (setsWithDocuments?.length || 0) && (setsWithDocuments?.length || 0) > 0}
+                  indeterminate={selectedSets.length > 0 && selectedSets.length < (setsWithDocuments?.length || 0)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedSets(setsWithDocuments?.map(set => set.id) || [])
+                    } else {
+                      setSelectedSets([])
+                    }
+                  }}
+                >
+                  Выбрать все
+                </Checkbox>
+                {setsWithDocuments?.map(set => (
+                  <Checkbox
+                    key={set.id}
+                    checked={selectedSets.includes(set.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedSets(prev => [...prev, set.id])
+                      } else {
+                        setSelectedSets(prev => prev.filter(id => id !== set.id))
+                      }
+                    }}
+                  >
+                    <div>
+                      <Text strong>{set.set_number}</Text>
+                      {set.name && <Text style={{ marginLeft: 8 }}>{set.name}</Text>}
+                      <Text type="secondary" style={{ marginLeft: 8 }}>
+                        ({set.documents.length} документов)
+                      </Text>
+                    </div>
+                  </Checkbox>
+                ))}
+              </Space>
+            </div>
+          </div>
+
+          {/* Название ВОР */}
+          <div>
+            <Typography.Title level={5}>Название ВОР:</Typography.Title>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="Введите название или выберите из комплектов"
+              value={vorName}
+              onChange={setVorName}
+              showSearch
+              allowClear
+              mode="combobox"
+              filterOption={false}
+            >
+              {/* Предложения из названий выбранных комплектов */}
+              {selectedSets.map(setId => {
+                const set = setsWithDocuments?.find(s => s.id === setId)
+                if (set?.name) {
+                  return (
+                    <Select.Option key={setId} value={set.name}>
+                      {set.name}
+                    </Select.Option>
+                  )
+                }
+                return null
+              })}
+            </Select>
+          </div>
+        </Space>
+      </Modal>
     </div>
   )
 }

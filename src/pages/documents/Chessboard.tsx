@@ -834,7 +834,13 @@ export default function Chessboard() {
       })
 
       // Добавляем отступы (padding) и место для иконок сортировки/фильтрации
-      const padding = 64 // 16px с каждой стороны + 32px для иконок сортировки и фильтрации
+      // Для компактных столбцов используем минимальные отступы
+      const compactColumns = ['tagName', 'projectCode', 'block', 'floors', 'unitId', 'unit', 'locationId', 'location']
+      const isCompactColumn = compactColumns.includes(dataIndex)
+      
+      // Компактные столбцы: 8px с каждой стороны + 24px для иконок = 40px
+      // Остальные столбцы: 16px с каждой стороны + 32px для иконок = 64px
+      const padding = isCompactColumn ? 40 : 64
       const calculatedWidth = maxContentWidth + padding
 
       // Ограничиваем максимальной шириной
@@ -3385,11 +3391,11 @@ export default function Chessboard() {
       maxWidth?: number
       align?: 'left' | 'right' | 'center'
     }> = [
-      { title: 'Раздел', dataIndex: 'tagName' },
-      { title: 'Шифр проекта', dataIndex: 'projectCode', maxWidth: 150 },
-      { title: 'Название проекта', dataIndex: 'projectName', maxWidth: 200 },
+      { title: 'Раздел', dataIndex: 'tagName', maxWidth: 120 },
+      { title: 'Шифр проекта', dataIndex: 'projectCode' },
+      { title: 'Название проекта', dataIndex: 'projectName' },
       { title: 'Вер.', dataIndex: 'versionNumber', width: 60, maxWidth: 60, align: 'center' },
-      { title: 'Материал', dataIndex: 'material', maxWidth: 300 },
+      { title: 'Материал', dataIndex: 'material' },
       { title: 'Кол-во по ПД', dataIndex: 'quantityPd', maxWidth: 120, align: 'center' },
       { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', maxWidth: 150, align: 'center' },
       {
@@ -3398,15 +3404,15 @@ export default function Chessboard() {
         maxWidth: 180,
         align: 'center',
       },
-      { title: 'Номенклатура', dataIndex: 'nomenclatureId', maxWidth: 250 },
-      { title: 'Наименование поставщика', dataIndex: 'supplier', maxWidth: 250 },
-      { title: 'Ед.изм.', dataIndex: 'unitId', maxWidth: 160 },
-      { title: 'Корпус', dataIndex: 'block', maxWidth: 120 },
-      { title: 'Этажи', dataIndex: 'floors', maxWidth: 150 },
-      { title: 'Категория затрат', dataIndex: 'costCategoryId', maxWidth: 200 },
-      { title: 'Вид затрат', dataIndex: 'costTypeId', maxWidth: 200 },
-      { title: 'Наименование работ', dataIndex: 'rateId', maxWidth: 300 },
-      { title: 'Локализация', dataIndex: 'locationId', maxWidth: 180 },
+      { title: 'Номенклатура', dataIndex: 'nomenclatureId', maxWidth: 170 },
+      { title: 'Наименование поставщика', dataIndex: 'supplier', maxWidth: 170 },
+      { title: 'Ед.изм.', dataIndex: 'unitId' },
+      { title: 'Корпус', dataIndex: 'block' },
+      { title: 'Этажи', dataIndex: 'floors' },
+      { title: 'Категория затрат', dataIndex: 'costCategoryId' },
+      { title: 'Вид затрат', dataIndex: 'costTypeId' },
+      { title: 'Наименование работ', dataIndex: 'rateId', maxWidth: 220 },
+      { title: 'Локализация', dataIndex: 'locationId', maxWidth: 120 },
     ]
 
     const dataColumns = base
@@ -3993,11 +3999,11 @@ export default function Chessboard() {
       maxWidth?: number
       align?: 'left' | 'right' | 'center'
     }> = [
-      { title: 'Раздел', dataIndex: 'tagName' },
-      { title: 'Шифр проекта', dataIndex: 'projectCode', maxWidth: 150 },
-      { title: 'Название проекта', dataIndex: 'projectName', maxWidth: 200 },
+      { title: 'Раздел', dataIndex: 'tagName', maxWidth: 120 },
+      { title: 'Шифр проекта', dataIndex: 'projectCode' },
+      { title: 'Название проекта', dataIndex: 'projectName' },
       { title: 'Вер.', dataIndex: 'versionNumber', width: 60, maxWidth: 60, align: 'center' },
-      { title: 'Материал', dataIndex: 'material', maxWidth: 300 },
+      { title: 'Материал', dataIndex: 'material' },
       { title: 'Кол-во по ПД', dataIndex: 'quantityPd', maxWidth: 120, align: 'center' },
       { title: 'Кол-во по спеке РД', dataIndex: 'quantitySpec', maxWidth: 150, align: 'center' },
       {
@@ -4006,16 +4012,16 @@ export default function Chessboard() {
         maxWidth: 180,
         align: 'center',
       },
-      { title: 'Номенклатура', dataIndex: 'nomenclature', maxWidth: 250 },
-      { title: 'Наименование поставщика', dataIndex: 'supplier', maxWidth: 250 },
-      { title: 'Ед.изм.', dataIndex: 'unit', maxWidth: 160 },
+      { title: 'Номенклатура', dataIndex: 'nomenclature', maxWidth: 170 },
+      { title: 'Наименование поставщика', dataIndex: 'supplier', maxWidth: 170 },
+      { title: 'Ед.изм.', dataIndex: 'unit' },
       { title: 'Комментарии', dataIndex: 'comments', width: 140, maxWidth: 140 },
-      { title: 'Корпус', dataIndex: 'block', maxWidth: 120 },
-      { title: 'Этажи', dataIndex: 'floors', maxWidth: 150 },
-      { title: 'Категория затрат', dataIndex: 'costCategory', maxWidth: 200 },
-      { title: 'Вид затрат', dataIndex: 'costType', maxWidth: 200 },
-      { title: 'Наименование работ', dataIndex: 'workName', maxWidth: 300 },
-      { title: 'Локализация', dataIndex: 'location', maxWidth: 180 },
+      { title: 'Корпус', dataIndex: 'block' },
+      { title: 'Этажи', dataIndex: 'floors' },
+      { title: 'Категория затрат', dataIndex: 'costCategory' },
+      { title: 'Вид затрат', dataIndex: 'costType' },
+      { title: 'Наименование работ', dataIndex: 'workName', maxWidth: 220 },
+      { title: 'Локализация', dataIndex: 'location', maxWidth: 120 },
     ]
 
     const dataColumns = base

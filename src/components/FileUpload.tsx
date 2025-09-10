@@ -236,7 +236,7 @@ export default function FileUpload({
           const updatedFiles = files.filter((f) => f.path !== path)
           updatedFiles.push(newFile)
           onChange(updatedFiles)
-          onSuccess?.(null, file as unknown as XMLHttpRequestResponseType)
+          onSuccess?.(null, file as any)
         } catch (e) {
           console.error('❌ Error uploading file:', e)
           message.error('Не удалось загрузить файл')

@@ -1,46 +1,109 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Layout, Menu } from 'antd'
-import { Link, useLocation } from 'react-router-dom'
-import type { MenuProps } from 'antd'
+import { useLocation, useNavigate } from 'react-router-dom'
+import {
+  DashboardOutlined,
+  FileTextOutlined,
+  TableOutlined,
+  BuildOutlined,
+  ToolOutlined,
+  FileDoneOutlined,
+  BookOutlined,
+  BarChartOutlined,
+  SettingOutlined,
+  DatabaseOutlined,
+} from '@ant-design/icons'
 import PortalHeader from '../components/PortalHeader'
 
 const { Sider, Content } = Layout
 
-const items: MenuProps['items'] = [
-  {
-    key: '/',
-    label: <Link to="/">Dashboard</Link>,
-  },
-  {
-    key: 'documents',
-    label: 'Документы',
-    children: [
-      { key: '/documents/estimate', label: <Link to="/documents/estimate">Шахматка</Link> },
-      {
-        key: '/documents/estimate-monolith',
-        label: <Link to="/documents/estimate-monolith">Шахматка монолит</Link>,
-      },
-      {
-        key: '/documents/work-volume',
-        label: <Link to="/documents/work-volume">ВОР для подрядчиков</Link>,
-      },
-      { key: '/documents/cost', label: <Link to="/documents/cost">Смета</Link> },
-      {
-        key: '/documents/documentation',
-        label: <Link to="/documents/documentation">Документация</Link>,
-      },
-    ],
-  },
-  { key: '/reports', label: <Link to="/reports">Отчёты</Link> },
-  { key: '/references', label: <Link to="/references">Справочники</Link> },
-  { key: '/admin', label: <Link to="/admin">Администрирование</Link> },
-]
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
+  console.log('🚀 MAIN LAYOUT COMPONENT LOADED')
+  
   const location = useLocation()
+  const navigate = useNavigate()
   const isDark = true
   const [collapsed, setCollapsed] = useState(false)
-  const siderWidth = collapsed ? 80 : 200
+  const siderWidth = collapsed ? 80 : 240
+
+  console.log('🏗️ MENU RENDER:', { collapsed, siderWidth, location: location.pathname })
+
+  // Отслеживание изменений состояния collapsed
+  useEffect(() => {
+    console.log('📐 MENU STATE CHANGED:', { 
+      collapsed, 
+      siderWidth,
+      menuMode: collapsed ? 'collapsed' : 'expanded',
+      iconsVisible: collapsed ? 'icons only' : 'icons + text'
+    })
+  }, [collapsed, siderWidth])
+
+  const handleCollapse = (collapsed: boolean) => {
+    console.log('🔄 MENU COLLAPSE:', collapsed ? 'COLLAPSED' : 'EXPANDED')
+    setCollapsed(collapsed)
+  }
+
+  const handleMenuClick = ({ key }: { key: string }) => {
+    console.log('🖱️ MENU CLICK:', key)
+    navigate(key)
+  }
+
+  // Современный items API для Menu (исправлено по рекомендации агента)
+  const menuItems = [
+    {
+      key: '/',
+      icon: <DashboardOutlined />,
+      label: 'Dashboard',
+    },
+    {
+      key: 'documents',
+      icon: <FileTextOutlined />,
+      label: 'Документы',
+      children: [
+        { 
+          key: '/documents/estimate', 
+          icon: <TableOutlined />,
+          label: 'Шахматка'
+        },
+        {
+          key: '/documents/estimate-monolith',
+          icon: <BuildOutlined />,
+          label: 'Шахматка монолит',
+        },
+        {
+          key: '/documents/work-volume',
+          icon: <ToolOutlined />,
+          label: 'ВОР для подрядчиков',
+        },
+        { 
+          key: '/documents/cost', 
+          icon: <FileDoneOutlined />,
+          label: 'Смета'
+        },
+        {
+          key: '/documents/documentation',
+          icon: <BookOutlined />,
+          label: 'Документация',
+        },
+      ],
+    },
+    { 
+      key: '/reports', 
+      icon: <BarChartOutlined />,
+      label: 'Отчёты'
+    },
+    { 
+      key: '/references', 
+      icon: <DatabaseOutlined />,
+      label: 'Справочники'
+    },
+    { 
+      key: '/admin', 
+      icon: <SettingOutlined />,
+      label: 'Настройки'
+    },
+  ]
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
@@ -56,15 +119,28 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         }}
         collapsible
         collapsed={collapsed}
-        onCollapse={setCollapsed}
+        onCollapse={(collapsed) => {
+          console.log('📐 SIDER onCollapse called with:', collapsed)
+          handleCollapse(collapsed)
+        }}
+        breakpoint="lg"
+        onBreakpoint={(broken) => {
+          console.log('📱 SIDER breakpoint:', broken)
+        }}
       >
         <div style={{ height: 64 }} />
         <Menu
           theme="dark"
           mode="inline"
           selectedKeys={[location.pathname]}
-          items={items}
-          style={{ background: '#333333' }}
+          onClick={handleMenuClick}
+          items={menuItems}
+          style={{ 
+            background: '#333333',
+            border: 'none',
+          }}
+          className="main-menu"
+          data-testid="main-menu"
         />
       </Sider>
       <Layout style={{ marginLeft: siderWidth, transition: 'margin-left 0.2s' }}>
@@ -90,7 +166,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             minHeight: 'calc(100vh - 64px)',
           }}
         >
-          {children}
+{children}
         </Content>
       </Layout>
     </Layout>

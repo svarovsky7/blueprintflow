@@ -145,3 +145,17 @@ body[data-theme='dark'] {
 .table-host > * {
   min-height: 0;
 }
+
+/* Базовые стили для меню - конкретные стили иконок настраиваются в App.tsx */
+.main-menu .ant-menu-item,
+.main-menu .ant-menu-submenu-title {
+  display: flex !important;
+  align-items: center !important;
+}
+
+.main-menu .ant-menu-item .ant-menu-title-content,
+.main-menu .ant-menu-submenu-title .ant-menu-title-content {
+  flex: 1;
+  display: flex !important;
+  align-items: center !important;
+}
