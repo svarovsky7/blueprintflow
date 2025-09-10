@@ -28,3 +28,13 @@ dist-ssr
 !.env.example
 # Production database schema (too large for Git)
 supabase/schemas/prod.sql
+
+# Testing
+/tests/
+/test-results/
+/playwright-report/
+playwright.config.js
+
+# Claude local settings
+.claude/settings.local.json
+.claude/mcp.json
