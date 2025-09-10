@@ -37,8 +37,6 @@ import Statuses from './pages/admin/Statuses'
 import Disk from './pages/admin/Disk'
 import PortalHeader from './components/PortalHeader'
 import TestTableStructure from './pages/TestTableStructure'
-import MenuIconTest from './components/MenuIconTest'
-
 import PortalSettings from './pages/admin/PortalSettings'
 import { useLogo } from './shared/contexts/LogoContext'
 import { useScale } from './shared/contexts/ScaleContext'
@@ -691,7 +689,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                   <Route path="portal-settings" element={<PortalSettings />} />
                 </Route>
                 <Route path="/test-table" element={<TestTableStructure />} />
-                <Route path="/test-icons" element={<MenuIconTest />} />
               </Routes>
             </div>
           </Content>
