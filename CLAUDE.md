@@ -26,7 +26,7 @@ npm run format:check # Check formatting without changes
 npx tsc --noEmit    # Type checking only (standalone)
 
 # Testing
-npx playwright test  # Run end-to-end tests
+npx playwright test  # Run end-to-end tests (requires playwright.config.ts setup)
 npx playwright test --ui  # Run tests with UI mode
 npx playwright show-report  # Open test results in browser
 ```
@@ -35,23 +35,22 @@ npx playwright show-report  # Open test results in browser
 1. Run `npm run lint` and fix all warnings
 2. Run `npm run format` to ensure consistent formatting
 3. Run `npm run build` and ensure project builds successfully
-4. Run `npx playwright test` if changes affect UI (optional but recommended)
+4. Run `npx playwright test` if changes affect UI (requires setup - optional but recommended)
 5. Follow Conventional Commits format (`feat:`, `fix:`, `chore:`, etc.)
 
 ## Architecture Overview
 
 ### Tech Stack
-- **Frontend**: React 18.3, TypeScript 5.8 (strict mode), Vite 7.0
-- **UI Library**: Ant Design 5.21 with Vibe design approach
+- **Frontend**: React 18.3, TypeScript 5.8+ (strict mode), Vite 7.0
+- **UI Library**: Ant Design 5.20+ with Ant Design Charts 2.6+ for visualization
 - **State Management**: TanStack Query 5.59+ (server state), Zustand 5.0+ (auth state)
-- **Backend**: Supabase 2.47+ (PostgreSQL 17, Auth, Storage, Edge Functions, Realtime WebSocket)
+- **Backend**: Supabase 2.47+ (PostgreSQL, Auth, Storage, Edge Functions, Realtime WebSocket)
 - **Authentication**: Supabase Auth with OAuth 2.0 (Google, Microsoft) and MFA support
-- **Excel Processing**: xlsx 0.18 library for import/export
-- **Utilities**: Day.js 1.11 for dates
-- **Routing**: React Router DOM 6.27
+- **Excel Processing**: xlsx 0.18+ library for import/export
+- **Utilities**: Day.js 1.11+ for dates
+- **Routing**: React Router DOM 6.27+
 - **Testing**: Playwright 1.55+ for end-to-end testing
-- **Development**: ESLint, Prettier, dotenv for environment management
-- **Editor**: WebStorm
+- **Development**: ESLint 9.30+, Prettier 3.6+, dotenv for environment management
 
 ### Feature-Sliced Design (FSD) Structure
 ```
@@ -67,7 +66,7 @@ src/
 └── components/   # Legacy UI components (ConflictResolutionDialog, DataTable, FileUpload, etc.)
 ```
 
-**Note**: The project is in transition to FSD architecture. Current entities include: chessboard, disk, documentation, documentation-tags, materials, and rates.
+**Note**: The project is in transition to FSD architecture. Current entities include: chessboard, disk, documentation, documentation-tags, materials, rates, and statuses.
 
 ### Key Patterns
 - **Public API**: Each slice exposes through `index.ts`
@@ -84,11 +83,11 @@ src/
 - **Error Handling**: All Supabase queries must include error handling
 
 ### Key Directories
-- `src/entities/` - Domain entities (chessboard, disk, documentation, documentation-tags, materials, rates)
-- `src/pages/` - Main application pages organized by sections (admin/, documents/, references/)
+- `src/entities/` - Domain entities (chessboard, disk, documentation, documentation-tags, materials, rates, statuses)
+- `src/pages/` - Main application pages organized by sections (admin/, documents/, references/, reports/)
 - `src/features/auth/` - Authentication logic using Supabase
 - `src/shared/contexts/` - React contexts for global state (LogoContext, ScaleContext)
-- `src/lib/supabase.ts` - Supabase client configuration
+- `src/lib/supabase.ts` - Supabase client configuration  
 - `src/components/` - Legacy UI components being migrated to FSD structure
 
 ## Core Features
@@ -115,13 +114,14 @@ src/
 
 ## Database Integration
 
-**CRITICAL**: Always reference `supabase/schemas/prod.sql` for current database structure.
+**CRITICAL**: Always reference `supabase/schemas/prod.sql` for current production database structure. The `supabase.sql` file contains a simplified development schema.
 
 ### Supabase Configuration
 Environment variables required:
 ```env
 VITE_SUPABASE_URL=https://hfqgcaxmufzitdfafdlp.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhmcWdjYXhtdWZ6aXRkZmFmZGxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4OTI5MjMsImV4cCI6MjA3MDQ2ODkyM30.XnOEKdwZdJM-DilhrjZ7PdzHU2rx3L72oQ1rJYo5pXc
+VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY=<fallback_key>  # Optional fallback key
 VITE_STORAGE_BUCKET=<storage_url>
 ```
 
@@ -130,21 +130,29 @@ Configuration: `src/lib/supabase.ts`
 ### Database Deployment
 Deploy database schema:
 ```bash
+# For production-like setup (full schema with all features):
+psql "$DATABASE_URL" -f supabase/schemas/prod.sql
+
+# For development (simplified schema):
 psql "$DATABASE_URL" -f supabase.sql
+
+# Note: sql/ directory contains additional migration files if present
 for file in sql/*.sql; do psql "$DATABASE_URL" -f "$file"; done
 ```
 
 ### Core Tables
 - `chessboard` - Main data table for material tracking
-- `chessboard_mapping` - Mapping relationships
-- `entity_comments_mapping` - Universal mapping table for comments to entities
+- `chessboard_mapping` - Mapping relationships between chessboard and categories/locations
+- `chessboard_sets` - Chessboard sets for documentation organization
+- `chessboard_documentation_mapping`, `chessboard_floor_mapping`, `chessboard_rates_mapping` - Additional mapping tables
 - `units` - Units of measurement
 - `cost_categories`, `detail_cost_categories` - Cost categorization
 - `location` - Location/localization data
-- `projects`, `blocks` - Project structure
-- `documentation` - Document management
+- `projects`, `blocks` - Project structure with `projects_blocks` mapping
+- `documentation` - Document management with versioning
+- `materials` - Materials catalog
 - `rates` - Rate management with cost categories
-- **Migration files**: `supabase.sql` and `sql/` directory (includes rates table creation)
+- **Schema files**: `supabase/schemas/prod.sql` (production) and `supabase.sql` (development)
 
 ### Database Rules
 - All tables MUST include `created_at` and `updated_at` fields
@@ -168,6 +176,13 @@ if (error) {
   throw error;
 }
 ```
+
+### Complex Entity Relations
+Entities may have multiple API files for different concerns:
+- `entity-api.ts` - Main CRUD operations
+- `entity-sets-api.ts` - Set/collection management  
+- `entity-mapping-api.ts` - Relationship management
+- `entity-status-api.ts` - Status-specific operations
 
 ## Performance Requirements
 
@@ -248,6 +263,14 @@ From technical specification (`tech_task.md`):
 - Data fetching via TanStack Query
 - Auth state via Zustand store
 - Follow existing patterns in codebase
+
+### Code Style Configuration
+- **Print width**: 100 characters
+- **Semicolons**: Disabled (semi: false)
+- **Trailing commas**: All (es5, es2017, es2020)
+- **Quotes**: Single quotes, double quotes for JSX
+- **Indentation**: 2 spaces, no tabs
+- **Line endings**: LF for cross-platform compatibility
 
 ## TypeScript Configuration
 - Composite project with separate `tsconfig.app.json` and `tsconfig.node.json`

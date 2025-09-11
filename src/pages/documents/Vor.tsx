@@ -221,21 +221,31 @@ const Vor = () => {
             // Получаем все необходимые связанные данные параллельно
             const [
               { data: materialsData },
+              { data: unitsData },
               { data: ratesData },
               { data: mappingData },
-              { data: floorMappingData }
+              { data: floorMappingData },
+              { data: nomenclatureMappingData }
             ] = await Promise.all([
               supabase.from('materials').select('uuid, name').in('uuid', 
                 chessboardData.map(c => c.material).filter(Boolean)),
+              supabase.from('units').select('id, name').in('id',
+                chessboardData.map(c => c.unit_id).filter(Boolean)),
               supabase.from('chessboard_rates_mapping').select(`
-                chessboard_id, rate_id, rates:rate_id(work_name, base_rate)
+                chessboard_id, rate_id, rates:rate_id(work_name, base_rate, unit_id, units:unit_id(id, name))
               `).in('chessboard_id', chessboardIds),
               supabase.from('chessboard_mapping').select(
                 'chessboard_id, block_id, cost_category_id, cost_type_id'
               ).in('chessboard_id', chessboardIds),
               supabase.from('chessboard_floor_mapping').select(
                 'chessboard_id, "quantityRd"'
-              ).in('chessboard_id', chessboardIds)
+              ).in('chessboard_id', chessboardIds),
+              supabase.from('chessboard_nomenclature_mapping').select(`
+                chessboard_id,
+                nomenclature_id,
+                supplier_name,
+                nomenclature:nomenclature_id(id, name, material_prices(price, purchase_date))
+              `).in('chessboard_id', chessboardIds)
             ])
 
             // Создаем индексы для быстрого поиска
@@ -253,6 +263,16 @@ const Vor = () => {
               const currentSum = floorQuantitiesMap.get(f.chessboard_id) || 0
               const quantityRd = f.quantityRd || 0
               floorQuantitiesMap.set(f.chessboard_id, currentSum + quantityRd)
+            })
+
+            // Создаем индексы для единиц измерения и номенклатуры
+            const unitsMap = new Map(unitsData?.map(u => [u.id, u]) || [])
+            const nomenclatureMap = new Map()
+            nomenclatureMappingData?.forEach(n => {
+              if (!nomenclatureMap.has(n.chessboard_id)) {
+                nomenclatureMap.set(n.chessboard_id, [])
+              }
+              nomenclatureMap.get(n.chessboard_id)?.push(n)
             })
 
             // Фильтруем данные chessboard по настройкам комплектов
@@ -296,26 +316,50 @@ const Vor = () => {
               workGroups.get(workName)?.push({
                 ...item,
                 rates: rates[0]?.rates,
+                units: unitsMap.get(item.unit_id),
+                nomenclatureItems: nomenclatureMap.get(item.id) || [],
                 quantityRd: floorQuantitiesMap.get(item.id) || 0
               })
             })
 
-            // Вычисляем итоговую сумму как в VorView
+            // Вычисляем итоговую сумму в соответствии с новой логикой VorView
             let totalSum = 0
 
             workGroups.forEach((materials, workName) => {
-              // Сумма за работу (базовая ставка * коэффициент)
+              // Для работ: базовая ставка * количество * коэффициент
               const firstMaterial = materials[0]
-              const baseRate = firstMaterial?.rates?.base_rate || 0
-              const workTotal = baseRate * rateCoefficient
+              const rateInfo = firstMaterial?.rates
+              const baseRate = rateInfo?.base_rate || 0
+              const rateUnitName = rateInfo?.units?.name || ''
+              
+              // Рассчитываем количество для работы
+              let workQuantity = 0
+              if (rateUnitName) {
+                workQuantity = materials
+                  .filter(material => material.units?.name === rateUnitName)
+                  .reduce((sum, material) => sum + (material.quantityRd || 0), 0)
+              }
+              if (workQuantity === 0) {
+                workQuantity = materials.reduce((sum, material) => sum + (material.quantityRd || 0), 0)
+              }
+              
+              const workTotal = (baseRate * workQuantity) * rateCoefficient
               totalSum += workTotal
 
-              // Сумма за материалы (номенклатурная цена * количество * коэффициент)
+              // Для материалов: номенклатурная цена * количество (без коэффициента для цены)
               materials.forEach(material => {
-                const nomenclaturePrice = 1000 // Заглушка, как в VorView
-                const quantity = material.quantityRd || 0
-                const materialTotal = nomenclaturePrice * quantity * rateCoefficient
-                totalSum += materialTotal
+                const nomenclatureItems = material.nomenclatureItems || []
+                nomenclatureItems.forEach(nomenclatureItem => {
+                  // Получаем последнюю цену из справочника
+                  const prices = nomenclatureItem.nomenclature?.material_prices || []
+                  const latestPrice = prices.length > 0 
+                    ? prices.sort((a, b) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime())[0].price
+                    : 0
+                  
+                  const quantity = material.quantityRd || 0
+                  const materialTotal = latestPrice * quantity
+                  totalSum += materialTotal
+                })
               })
             })
 
@@ -483,7 +527,7 @@ const Vor = () => {
       dataIndex: 'total_amount',
       key: 'total_amount',
       width: 150,
-      render: (amount: number) => `${amount.toLocaleString('ru-RU')} руб.`,
+      render: (amount: number) => `${Math.round(amount).toLocaleString('ru-RU')} руб.`,
       sorter: (a: VorRecord, b: VorRecord) => a.total_amount - b.total_amount,
     },
     {

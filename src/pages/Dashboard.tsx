@@ -8,11 +8,89 @@ interface WorkVolumeData {
   total: number
 }
 
+// Вспомогательная функция для расчета суммы ВОР
+async function calculateVorAmount(vorId: string): Promise<number> {
+  if (!supabase) return 0
+  
+  try {
+    // Получаем основные данные ВОР 
+    const { data: vorData, error: vorError } = await supabase
+      .from('vor')
+      .select('rate_coefficient')
+      .eq('id', vorId)
+      .single()
+    
+    if (vorError || !vorData) return 0
+    
+    const rateCoefficient = vorData.rate_coefficient || 1
+    
+    // Получаем связанные комплекты
+    const { data: mappingData, error: mappingError } = await supabase
+      .from('vor_chessboard_sets_mapping')
+      .select('set_id')
+      .eq('vor_id', vorId)
+    
+    if (mappingError || !mappingData?.length) return 0
+    
+    const setIds = mappingData.map(m => m.set_id)
+    
+    // Получаем данные комплектов
+    const { data: setsData, error: setsError } = await supabase
+      .from('chessboard_sets')
+      .select('id, project_id, block_ids, cost_category_ids, cost_type_ids')
+      .in('id', setIds)
+    
+    if (setsError || !setsData?.length) return 0
+    
+    // Получаем данные chessboard для расчета
+    const projectIds = [...new Set(setsData.map(set => set.project_id))]
+    const { data: chessboardData, error: chessboardError } = await supabase
+      .from('chessboard')
+      .select(`
+        id, project_id,
+        chessboard_rates_mapping!inner(
+          rates!inner(base_rate)
+        ),
+        chessboard_floor_mapping(quantityRd)
+      `)
+      .in('project_id', projectIds)
+    
+    if (chessboardError || !chessboardData?.length) return 0
+    
+    // Упрощенный расчет: берем средние значения
+    let totalSum = 0
+    
+    chessboardData.forEach(item => {
+      const rates = item.chessboard_rates_mapping || []
+      const floorData = item.chessboard_floor_mapping || []
+      
+      // Сумма за работы
+      rates.forEach((rateMapping: any) => {
+        const baseRate = rateMapping.rates?.base_rate || 0
+        totalSum += baseRate * rateCoefficient
+      })
+      
+      // Сумма за материалы (упрощенно)
+      floorData.forEach((floor: any) => {
+        const quantity = floor.quantityRd || 0
+        const nomenclaturePrice = 1000 // Как в Vor.tsx
+        totalSum += nomenclaturePrice * quantity * rateCoefficient
+      })
+    })
+    
+    return totalSum
+  } catch (error) {
+    console.warn('Ошибка расчета суммы ВОР:', error)
+    return 0
+  }
+}
+
 interface ComplectStatusData {
   status: string
   status_name: string
   month_count: number
   total_count: number
+  status_color?: string
 }
 
 const Dashboard = () => {
@@ -24,6 +102,7 @@ const Dashboard = () => {
       
       const now = new Date()
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+      const firstDayOfYear = new Date(now.getFullYear(), 0, 1)
       
       // Получаем данные ВОР
       const { data: vorData, error: vorError } = await supabase
@@ -38,14 +117,19 @@ const Dashboard = () => {
       let monthTotal = 0
       let total = 0
       
-      // Используем ту же логику заглушек, что и в Vor.tsx
+      // Вычисляем реальные суммы ВОР
       for (const vor of vorData || []) {
-        const vorAmount = 2500000 // Заглушка: каждый ВОР = 2,500,000 руб
-        total += vorAmount
+        const vorCreatedAt = new Date(vor.created_at)
         
-        // Если ВОР создан в этом месяце
-        if (new Date(vor.created_at) >= firstDayOfMonth) {
-          monthTotal += vorAmount
+        // Только ВОР, созданные в этом году
+        if (vorCreatedAt >= firstDayOfYear) {
+          const vorAmount = await calculateVorAmount(vor.id)
+          total += vorAmount
+          
+          // Если ВОР создан в этом месяце
+          if (vorCreatedAt >= firstDayOfMonth) {
+            monthTotal += vorAmount
+          }
         }
       }
       
@@ -65,13 +149,16 @@ const Dashboard = () => {
       
       const now = new Date()
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+      const firstDayOfYear = new Date(now.getFullYear(), 0, 1)
       
-      // Получаем статистику по комплектам
+      // Получаем статистику по комплектам с их статусами
       const { data, error } = await supabase
-        .from('chessboard_sets')
+        .from('chessboard_sets_with_status')
         .select(`
-          status,
-          created_at
+          id,
+          created_at,
+          status_name,
+          status_color
         `)
         
       if (error) throw error
@@ -79,26 +166,36 @@ const Dashboard = () => {
       // Группируем данные по статусам
       const statusGroups: Record<string, { 
         month_count: number, 
-        total_count: number
+        total_count: number,
+        status_color?: string
       }> = {}
       
       data?.forEach(item => {
-        const status = item.status || 'Не указан'
-        if (!statusGroups[status]) {
-          statusGroups[status] = { month_count: 0, total_count: 0 }
-        }
+        const itemCreatedAt = new Date(item.created_at)
         
-        statusGroups[status].total_count += 1
-        
-        if (new Date(item.created_at) >= firstDayOfMonth) {
-          statusGroups[status].month_count += 1
+        // Только комплекты, созданные в этом году
+        if (itemCreatedAt >= firstDayOfYear) {
+          const statusName = item.status_name || 'Без статуса'
+          if (!statusGroups[statusName]) {
+            statusGroups[statusName] = { 
+              month_count: 0, 
+              total_count: 0,
+              status_color: item.status_color 
+            }
+          }
+          
+          statusGroups[statusName].total_count += 1
+          
+          if (itemCreatedAt >= firstDayOfMonth) {
+            statusGroups[statusName].month_count += 1
+          }
         }
       })
       
       // Преобразуем в массив для таблицы
-      return Object.entries(statusGroups).map(([status, stats]) => ({
-        status,
-        status_name: status,
+      return Object.entries(statusGroups).map(([statusName, stats]) => ({
+        status: statusName.toLowerCase().replace(/\s+/g, '_'),
+        status_name: statusName,
         ...stats
       }))
     },
@@ -112,7 +209,7 @@ const Dashboard = () => {
       value: workVolumeData?.month_total || 0,
     },
     {
-      type: 'Всего',
+      type: 'За год',
       value: workVolumeData?.total || 0,
     },
   ]
@@ -123,6 +220,22 @@ const Dashboard = () => {
       title: 'Статус',
       dataIndex: 'status_name',
       key: 'status_name',
+      render: (text: string, record: ComplectStatusData) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {record.status_color && (
+            <div
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                backgroundColor: record.status_color,
+                flexShrink: 0
+              }}
+            />
+          )}
+          {text}
+        </div>
+      ),
     },
     {
       title: 'За месяц',
@@ -130,7 +243,7 @@ const Dashboard = () => {
       key: 'month_count',
     },
     {
-      title: 'Всего',
+      title: 'За год',
       dataIndex: 'total_count',
       key: 'total_count',
     },
@@ -153,7 +266,7 @@ const Dashboard = () => {
               </Col>
               <Col span={12}>
                 <Statistic
-                  title="Всего"
+                  title="За год"
                   value={workVolumeData?.total || 0}
                   precision={2}
                   suffix="₽"
