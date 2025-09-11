@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Modal, Table, Space, Button, Input, Select, Tag, message, Form } from 'antd'
-import { DeleteOutlined, EditOutlined } from '@ant-design/icons'
+import { Modal, Table, Space, Button, Input, Select, Tag, message, Form, Row, Col, Card } from 'antd'
+import { DeleteOutlined, EditOutlined, ArrowRightOutlined, CopyOutlined, PlusOutlined, MinusCircleOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import type { ColumnsType } from 'antd/es/table'
 import {
@@ -8,12 +8,14 @@ import {
   type ChessboardSetTableRow,
   type ChessboardSetSearchFilters,
 } from '@/entities/chessboard'
+import { supabase } from '@/lib/supabase'
 
 interface ChessboardSetsModalProps {
   open: boolean
   onClose: () => void
   projectId?: string
   onSelectSet?: (setId: string) => void
+  currentSetId?: string | null
 }
 
 export default function ChessboardSetsModal({
@@ -21,13 +23,17 @@ export default function ChessboardSetsModal({
   onClose,
   projectId,
   onSelectSet,
+  currentSetId,
 }: ChessboardSetsModalProps) {
   const [searchFilters, setSearchFilters] = useState<ChessboardSetSearchFilters>({
     project_id: projectId,
   })
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editingSet, setEditingSet] = useState<ChessboardSetTableRow | null>(null)
+  const [copyModalOpen, setCopyModalOpen] = useState(false)
+  const [copyingSet, setCopyingSet] = useState<ChessboardSetTableRow | null>(null)
   const [form] = Form.useForm()
+  const [copyForm] = Form.useForm()
 
   // Обновляем фильтр проекта при изменении projectId
   useEffect(() => {
@@ -46,6 +52,85 @@ export default function ChessboardSetsModal({
     queryKey: ['chessboard-sets', searchFilters],
     queryFn: () => chessboardSetsApi.getSets(searchFilters),
     enabled: open && !!projectId,
+  })
+
+  // Загрузка справочников для форм копирования
+  const { data: documentations } = useQuery({
+    queryKey: ['documentations', projectId],
+    queryFn: async () => {
+      if (!projectId) return []
+      const { data, error } = await supabase
+        .from('documentation')
+        .select('id, project_code, project_name')
+        .eq('project_id', projectId)
+        .order('project_code')
+      if (error) throw error
+      return data
+    },
+    enabled: !!projectId,
+  })
+
+  const { data: documentVersions } = useQuery({
+    queryKey: ['document-versions'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('documentation_versions')
+        .select('id, documentation_id, version_number')
+        .order('documentation_id, version_number', { ascending: false })
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: blocks } = useQuery({
+    queryKey: ['blocks', projectId],
+    queryFn: async () => {
+      if (!projectId) return []
+      const { data, error } = await supabase
+        .from('blocks')
+        .select('id, name')
+        .eq('project_id', projectId)
+        .order('name')
+      if (error) throw error
+      return data
+    },
+    enabled: !!projectId,
+  })
+
+  const { data: documentationTags } = useQuery({
+    queryKey: ['documentation-tags'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('documentation_tags')
+        .select('id, name')
+        .order('name')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: costCategories } = useQuery({
+    queryKey: ['cost-categories'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('cost_categories')
+        .select('id, name')
+        .order('name')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: costTypes } = useQuery({
+    queryKey: ['cost-types'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('detail_cost_categories')
+        .select('id, name')
+        .order('name')
+      if (error) throw error
+      return data
+    },
   })
 
   // Удаление комплекта
@@ -104,92 +189,156 @@ export default function ChessboardSetsModal({
     form.resetFields()
   }
 
+  // Открытие модального окна копирования
+  const handleCopy = (record: ChessboardSetTableRow) => {
+    setCopyingSet(record)
+    
+    // Подготавливаем данные документов с их версиями
+    const documentsData = record.documents?.map((doc) => ({
+      documentation_id: doc.documentation_id,
+      version_id: doc.version_id,
+    })) || []
+
+
+    copyForm.setFieldsValue({
+      name: `${record.name || record.set_number} (копия)`,
+      documents: documentsData,
+      tag_id: record.tag_id || undefined,
+      block_ids: record.block_ids || [],
+      cost_category_ids: record.cost_category_ids || [],
+      cost_type_ids: record.cost_type_ids || [],
+    })
+    setCopyModalOpen(true)
+  }
+
+  // Сохранение копии комплекта
+  const handleSaveCopy = async () => {
+    try {
+      const values = await copyForm.validateFields()
+      
+      if (copyingSet) {
+        // Создаем новый комплект с обновленными данными
+        await chessboardSetsApi.createSet({
+          project_id: projectId!,
+          name: values.name,
+          documents: values.documents || [],
+          tag_id: values.tag_id,
+          block_ids: values.block_ids || [],
+          cost_category_ids: values.cost_category_ids || [],
+          cost_type_ids: values.cost_type_ids || [],
+          status_id: 'in_progress', // Статус "В работе"
+        })
+        
+        message.success('Комплект скопирован')
+        setCopyModalOpen(false)
+        setCopyingSet(null)
+        copyForm.resetFields()
+        refetch()
+      }
+    } catch (error) {
+      console.error('Ошибка копирования комплекта:', error)
+      message.error('Ошибка при копировании комплекта')
+    }
+  }
+
+  // Закрытие модального окна копирования
+  const handleCancelCopy = () => {
+    setCopyModalOpen(false)
+    setCopyingSet(null)
+    copyForm.resetFields()
+  }
+
   const columns: ColumnsType<ChessboardSetTableRow> = [
     {
       title: 'Номер комплекта',
       dataIndex: 'set_number',
       key: 'set_number',
-      width: 150,
+      width: '10%',
       sorter: true,
     },
     {
       title: 'Название',
       dataIndex: 'name',
       key: 'name',
-      width: 200,
+      width: '15%',
       render: (name) => name || '-',
     },
     {
       title: 'Шифр проекта',
       dataIndex: 'documentation_code',
       key: 'documentation_code',
-      width: 150,
+      width: '12%',
     },
     {
-      title: 'Версия',
+      title: 'Вер.',
       dataIndex: 'version_number',
       key: 'version_number',
-      width: 80,
+      width: '4%',
       align: 'center',
     },
     {
       title: 'Раздел',
       dataIndex: 'tag_name',
       key: 'tag_name',
-      width: 150,
+      width: '8%',
       render: (tagName) => tagName || 'Все',
     },
     {
       title: 'Корпуса',
       dataIndex: 'block_names',
       key: 'block_names',
-      width: 120,
+      width: '8%',
       render: (blockNames) => blockNames || 'Все',
     },
     {
       title: 'Категории затрат',
       dataIndex: 'cost_category_names',
       key: 'cost_category_names',
-      width: 150,
+      width: '12%',
       render: (categoryNames) => categoryNames || 'Все',
     },
     {
       title: 'Виды затрат',
       dataIndex: 'cost_type_names',
       key: 'cost_type_names',
-      width: 150,
+      width: '12%',
       render: (typeNames) => typeNames || 'Все',
     },
     {
       title: 'Статус',
       dataIndex: 'status_name',
       key: 'status_name',
-      width: 120,
+      width: '6%',
       render: (statusName, record) => <Tag color={record.status_color}>{statusName}</Tag>,
-      filters: Array.from(new Set(sets?.map((s) => s.status_name))).map((status) => ({
-        text: status,
-        value: status,
-      })),
-      onFilter: (value, record) => record.status_name === value,
     },
     {
       title: 'Дата создания',
       dataIndex: 'created_at',
       key: 'created_at',
-      width: 120,
+      width: '8%',
       render: (date) => new Date(date).toLocaleDateString('ru'),
       sorter: (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
     },
     {
       title: 'Действия',
       key: 'actions',
-      width: 150,
+      width: '8%',
       fixed: 'right',
       render: (_, record) => (
         <Space size="small">
-          <Button size="small" onClick={() => handleSelectSet(record.id)} type="link">
-            Применить
-          </Button>
+          <Button
+            size="small"
+            icon={<ArrowRightOutlined />}
+            onClick={() => handleSelectSet(record.id)}
+            title="Применить комплект"
+            type="link"
+          />
+          <Button
+            size="small"
+            icon={<CopyOutlined />}
+            onClick={() => handleCopy(record)}
+            title="Копировать комплект"
+          />
           <Button
             size="small"
             icon={<EditOutlined />}
@@ -209,13 +358,27 @@ export default function ChessboardSetsModal({
   ]
 
   return (
-    <Modal
-      title={`Комплекты шахматок для проекта`}
-      open={open}
-      onCancel={onClose}
-      width={1400}
-      footer={null}
-    >
+    <>
+      {/* Инлайн стили для выделения текущего комплекта цветом шапки сайта */}
+      {currentSetId && (
+        <style>{`
+          .current-set-row > td {
+            background-color: #1677ff20 !important;
+            border-left: 4px solid #1677ff20 !important;
+          }
+          .current-set-row:hover > td {
+            background-color: #1677ff20 !important;
+          }
+        `}</style>
+      )}
+      <Modal
+        title={`Комплекты шахматок для проекта`}
+        open={open}
+        onCancel={onClose}
+        width="95vw"
+        footer={null}
+        style={{ top: 20 }}
+      >
       {/* Фильтры */}
       <Space style={{ marginBottom: 16 }}>
         <Input.Search
@@ -263,13 +426,19 @@ export default function ChessboardSetsModal({
         dataSource={sets}
         loading={isLoading}
         rowKey="id"
-        scroll={{ x: 1200, y: 400 }}
+        scroll={{ x: 'max-content', y: 400 }}
         pagination={{
           defaultPageSize: 10,
           showSizeChanger: true,
           showTotal: (total) => `Всего: ${total}`,
         }}
         size="small"
+        rowClassName={(record) => {
+          if (record.id === currentSetId) {
+            return 'current-set-row'
+          }
+          return ''
+        }}
       />
 
       {/* Модальное окно редактирования комплекта */}
@@ -313,6 +482,191 @@ export default function ChessboardSetsModal({
           )}
         </Form>
       </Modal>
+
+      {/* Модальное окно копирования комплекта */}
+      <Modal
+        title="Копирование комплекта"
+        open={copyModalOpen}
+        onOk={handleSaveCopy}
+        onCancel={handleCancelCopy}
+        okText="Создать копию"
+        cancelText="Отмена"
+        width={1000}
+      >
+        <Form
+          form={copyForm}
+          layout="vertical"
+          style={{ marginTop: 20 }}
+        >
+          <Form.Item
+            name="name"
+            label="Название комплекта"
+            rules={[{ required: true, message: 'Введите название комплекта' }]}
+          >
+            <Input placeholder="Введите название комплекта" />
+          </Form.Item>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Card title="Документы и версии" size="small">
+                <Form.List name="documents">
+                  {(fields, { add, remove }) => (
+                    <>
+                      {fields.map((field) => (
+                        <Row key={field.key} gutter={8} style={{ marginBottom: 8 }}>
+                          <Col span={10}>
+                            <Form.Item
+                              {...field}
+                              name={[field.name, 'documentation_id']}
+                              rules={[{ required: true, message: 'Выберите документ' }]}
+                            >
+                              <Select
+                                placeholder="Шифр документа"
+                                allowClear
+                                showSearch
+                                filterOption={(input, option) =>
+                                  (option?.children || option?.label)?.toString().toLowerCase().includes(input.toLowerCase())
+                                }
+                              >
+                                {documentations?.map(doc => (
+                                  <Select.Option key={doc.id} value={doc.id}>
+                                    {doc.project_code}
+                                  </Select.Option>
+                                ))}
+                              </Select>
+                            </Form.Item>
+                          </Col>
+                          <Col span={10}>
+                            <Form.Item
+                              {...field}
+                              name={[field.name, 'version_id']}
+                              rules={[{ required: true, message: 'Выберите версию' }]}
+                            >
+                              <Select
+                                placeholder="Версия"
+                                allowClear
+                              >
+                                {(() => {
+                                  const docId = copyForm.getFieldValue(['documents', field.name, 'documentation_id'])
+                                  return documentVersions?.filter(v => v.documentation_id === docId)
+                                    .map(version => (
+                                      <Select.Option key={version.id} value={version.id}>
+                                        {version.version_number}
+                                      </Select.Option>
+                                    ))
+                                })()}
+                              </Select>
+                            </Form.Item>
+                          </Col>
+                          <Col span={4}>
+                            <Button
+                              type="text"
+                              danger
+                              icon={<MinusCircleOutlined />}
+                              onClick={() => remove(field.name)}
+                              title="Удалить документ"
+                            />
+                          </Col>
+                        </Row>
+                      ))}
+                      <Button
+                        type="dashed"
+                        onClick={() => add()}
+                        icon={<PlusOutlined />}
+                        style={{ width: '100%' }}
+                      >
+                        Добавить документ
+                      </Button>
+                    </>
+                  )}
+                </Form.List>
+              </Card>
+            </Col>
+            
+            <Col span={12}>
+              <Card title="Фильтры" size="small">
+                <Form.Item name="tag_id" label="Раздел">
+                  <Select
+                    placeholder="Выберите раздел"
+                    allowClear
+                    showSearch
+                    filterOption={(input, option) =>
+                      (option?.children || '').toString().toLowerCase().includes(input.toLowerCase())
+                    }
+                  >
+                    {documentationTags?.map(tag => (
+                      <Select.Option key={tag.id} value={tag.id}>
+                        {tag.name}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+
+                <Form.Item name="block_ids" label="Корпуса">
+                  <Select
+                    mode="multiple"
+                    placeholder="Выберите корпуса"
+                    allowClear
+                    showSearch
+                    filterOption={(input, option) =>
+                      (option?.children || '').toString().toLowerCase().includes(input.toLowerCase())
+                    }
+                  >
+                    {blocks?.map(block => (
+                      <Select.Option key={block.id} value={block.id}>
+                        {block.name}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+
+                <Form.Item name="cost_category_ids" label="Категории затрат">
+                  <Select
+                    mode="multiple"
+                    placeholder="Выберите категории затрат"
+                    allowClear
+                    showSearch
+                    filterOption={(input, option) =>
+                      (option?.children || '').toString().toLowerCase().includes(input.toLowerCase())
+                    }
+                  >
+                    {costCategories?.map(category => (
+                      <Select.Option key={category.id} value={category.id}>
+                        {category.name}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+
+                <Form.Item name="cost_type_ids" label="Виды затрат">
+                  <Select
+                    mode="multiple"
+                    placeholder="Выберите виды затрат"
+                    allowClear
+                    showSearch
+                    filterOption={(input, option) =>
+                      (option?.children || '').toString().toLowerCase().includes(input.toLowerCase())
+                    }
+                  >
+                    {costTypes?.map(type => (
+                      <Select.Option key={type.id} value={type.id}>
+                        {type.name}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              </Card>
+            </Col>
+          </Row>
+
+          <div style={{ marginTop: 16, padding: 12, backgroundColor: '#e6f7ff', borderRadius: 6 }}>
+            <p style={{ margin: 0, fontSize: 12, color: '#666' }}>
+              💡 Новый комплект будет создан со статусом "В работе"
+            </p>
+          </div>
+        </Form>
+      </Modal>
     </Modal>
+    </>
   )
 }

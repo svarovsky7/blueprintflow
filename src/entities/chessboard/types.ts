@@ -154,6 +154,15 @@ export interface ChessboardSetTableRow {
   status_color: string
   created_at: string
   updated_at: string
+  // Дополнительные поля для копирования
+  tag_id?: string
+  block_ids?: string[]
+  cost_category_ids?: string[]
+  cost_type_ids?: string[]
+  documents?: Array<{
+    documentation_id: string
+    version_id: string
+  }>
 }
 
 // Фильтры для поиска комплектов

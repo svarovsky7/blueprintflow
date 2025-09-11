@@ -2233,6 +2233,29 @@ export default function Chessboard() {
     }
   }, [pendingStatusId, setNameInput, createChessboardSet])
 
+  // Автоматическая установка последних версий для документов при переходе со страницы Анализа
+  useEffect(() => {
+    if (appliedFilters?.documentationId && documentVersions && appliedFilters.documentationId.length > 0) {
+      const newVersions: Record<string, string> = { ...selectedVersions }
+      let hasChanges = false
+
+      appliedFilters.documentationId.forEach((docId) => {
+        if (!selectedVersions[docId]) {
+          const versions = documentVersions.filter((v) => v.documentation_id === docId)
+          if (versions.length > 0) {
+            const latestVersion = versions.sort((a, b) => b.version_number - a.version_number)[0]
+            newVersions[docId] = latestVersion.id
+            hasChanges = true
+          }
+        }
+      })
+
+      if (hasChanges) {
+        setSelectedVersions(newVersions)
+      }
+    }
+  }, [appliedFilters?.documentationId, documentVersions, selectedVersions])
+
   // Поиск комплекта по текущим фильтрам
   useEffect(() => {
     const findMatchingSet = async () => {
@@ -2254,7 +2277,19 @@ export default function Chessboard() {
       for (const docId of appliedFilters.documentationId) {
         const versionId = selectedVersions[docId]
         if (!versionId) {
-          // Если хотя бы у одного документа нет версии, не ищем комплект
+          // Если документ из фильтров и у него нет версии, попробуем взять последнюю
+          if (documentVersions) {
+            const versions = documentVersions.filter((v) => v.documentation_id === docId)
+            if (versions.length > 0) {
+              const latestVersion = versions.sort((a, b) => b.version_number - a.version_number)[0]
+              documents.push({
+                documentation_id: docId,
+                version_id: latestVersion.id,
+              })
+              continue
+            }
+          }
+          // Если версия все еще не найдена, прерываем поиск комплекта
           setMatchedSet(null)
           setSelectedSetStatus(undefined)
           return
@@ -5103,7 +5138,9 @@ export default function Chessboard() {
                     >
                       <Select
                         placeholder={
-                          matchedSet ? `Комплект №${matchedSet.set_number}` : 'Выберите статус'
+                          matchedSet 
+                            ? `Комплект №${matchedSet.set_number}${matchedSet.name ? `: ${matchedSet.name}` : ''}${matchedSet.status ? ` (${matchedSet.status.name})` : ''}`
+                            : 'Выберите статус'
                         }
                         style={{
                           width: 200,
@@ -5145,11 +5182,13 @@ export default function Chessboard() {
                           matchedSet && matchedSet.status ? (
                             <div
                               style={{
-                                width: 8,
-                                height: 8,
+                                width: 12,
+                                height: 12,
                                 backgroundColor: normalizeColorToHex(matchedSet.status.color),
-                                borderRadius: '50%',
+                                borderRadius: 2,
+                                border: '1px solid #d9d9d9',
                                 marginRight: 4,
+                                flexShrink: 0
                               }}
                             />
                           ) : undefined
@@ -5842,6 +5881,7 @@ export default function Chessboard() {
         onClose={() => setSetsModalOpen(false)}
         projectId={appliedFilters?.projectId}
         onSelectSet={applySetFilters}
+        currentSetId={matchedSet?.id || null}
       />
 
       {/* Модальное окно для ввода названия комплекта */}

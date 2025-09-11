@@ -142,7 +142,10 @@ export const chessboardSetsApi = {
     // Используем представление с документами для получения полной информации
     let query = supabase
       .from('chessboard_sets_with_documents')
-      .select('*')
+      .select(`
+        *,
+        tag:documentation_tags(id, name)
+      `)
       .order('created_at', { ascending: false })
 
     // Применяем фильтры
@@ -286,7 +289,7 @@ export const chessboardSetsApi = {
         project_name: set.project?.name || '',
         documentation_code: docCodes || firstDoc?.code || '',
         version_number: firstDoc?.version_number || 0,
-        tag_name: set.tag?.name || '',
+        tag_name: (set.tag as any)?.name || '',
         block_names: blockNames || 'Все',
         cost_category_names: categoryNames || 'Все',
         cost_type_names: typeNames || 'Все',
@@ -294,6 +297,12 @@ export const chessboardSetsApi = {
         status_color: status?.color || '#888888',
         created_at: set.created_at,
         updated_at: set.updated_at,
+        // Добавляем исходные данные для копирования
+        tag_id: set.tag_id,
+        block_ids: set.block_ids,
+        cost_category_ids: set.cost_category_ids,
+        cost_type_ids: set.cost_type_ids,
+        documents: set.documents,
       }
     })
   },
