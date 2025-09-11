@@ -579,10 +579,10 @@ export default function Chessboard() {
       hasFilters = true
     }
     
-    // Обработка documentation_id
-    const documentationId = searchParams.get('documentation_id')
-    if (documentationId) {
-      urlFilters.documentationId = [documentationId]
+    // Обработка documentation_id (поддержка множественных значений)
+    const documentationIds = searchParams.getAll('documentation_id')
+    if (documentationIds.length > 0) {
+      urlFilters.documentationId = documentationIds
       hasFilters = true
     }
     

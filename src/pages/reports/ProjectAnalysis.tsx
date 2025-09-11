@@ -532,13 +532,18 @@ export default function ProjectAnalysis() {
                                 params.append('project_id', set.project_id)
                                 if (set.tag_id) params.append('tag_id', set.tag_id)
                                 if (set.block_ids?.length) {
-                                  set.block_ids.forEach(id => params.append('block_id', id))
+                                  set.block_ids.forEach(id => params.append('block_ids', id))
                                 }
                                 if (set.cost_category_ids?.length) {
-                                  set.cost_category_ids.forEach(id => params.append('category_id', id))
+                                  set.cost_category_ids.forEach(id => params.append('cost_category_ids', id))
                                 }
                                 if (set.cost_type_ids?.length) {
-                                  set.cost_type_ids.forEach(id => params.append('type_id', id))
+                                  set.cost_type_ids.forEach(id => params.append('cost_type_ids', id))
+                                }
+                                
+                                // Добавляем документы (Шифр проекта)
+                                if (set.documents?.length) {
+                                  set.documents.forEach(doc => params.append('documentation_id', doc.documentation_id))
                                 }
                                 
                                 navigate(`/documents/chessboard?${params.toString()}`)
