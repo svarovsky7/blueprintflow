@@ -697,11 +697,8 @@ const VorView = () => {
   ]
 
   // Формирование заголовка с перечислением шифров проектов из комплектов
-  console.log('setsData:', setsData) // Отладка
   const projectCodes = setsData && setsData.length > 0 
     ? setsData.map(set => {
-        console.log('set:', set) // Отладка
-        console.log('set.set_documentations:', set.set_documentations) // Отладка
         
         // Сначала пробуем получить из связанной документации комплекта
         if (set.documentations?.code) {
@@ -726,7 +723,6 @@ const VorView = () => {
         return set.projects?.name || set.name || ''
       }).filter(Boolean).join('; ')
     : ''
-  console.log('final projectCodes:', projectCodes) // Отладка
 
   if (!vorId) {
     return (

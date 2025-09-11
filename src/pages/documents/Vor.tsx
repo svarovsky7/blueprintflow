@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Table, Typography, Space, Select, Button, Card, Row, Col, Modal, Input, message, Popconfirm, Form } from 'antd'
+import { Table, Typography, Space, Select, Button, Card, Row, Col, Modal, Input, InputNumber, message, Popconfirm, Form, Tooltip } from 'antd'
 import { EditOutlined, DeleteOutlined } from '@ant-design/icons'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 
-const { Title, Text } = Typography
+const { Text } = Typography
 
 interface VorRecord {
   id: string
@@ -22,6 +22,7 @@ interface VorRecord {
 const Vor = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const queryClient = useQueryClient()
   
   // Инициализируем фильтры из URL параметров
   const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(
@@ -33,9 +34,9 @@ const Vor = () => {
   const [selectedCostCategory, setSelectedCostCategory] = useState<string | undefined>(
     searchParams.get('cost_category') || undefined
   )
-  const [showTable] = useState(true) // Всегда показываем таблицу
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editingVor, setEditingVor] = useState<VorRecord | null>(null)
+  const [editingCoefficient, setEditingCoefficient] = useState<number>(1)
   const [form] = Form.useForm()
 
   // Загружаем проекты
@@ -151,12 +152,12 @@ const Vor = () => {
 
         // Создаем карты для быстрого поиска ПЕРЕД расчетом сумм
         const setTagsMap = new Map()
-        setsData?.forEach(set => {
+        setsData?.forEach((set: any) => {
           setTagsMap.set(set.id, set.documentation_tags?.name)
         })
 
         const setDocsMap = new Map()
-        documentsData?.forEach(doc => {
+        documentsData?.forEach((doc: any) => {
           if (!setDocsMap.has(doc.set_id)) {
             setDocsMap.set(doc.set_id, [])
           }
@@ -220,7 +221,7 @@ const Vor = () => {
 
             // Получаем все необходимые связанные данные параллельно
             const [
-              { data: materialsData },
+              ,
               { data: unitsData },
               { data: ratesData },
               { data: mappingData },
@@ -325,7 +326,7 @@ const Vor = () => {
             // Вычисляем итоговую сумму в соответствии с новой логикой VorView
             let totalSum = 0
 
-            workGroups.forEach((materials, workName) => {
+            workGroups.forEach((materials) => {
               // Для работ: базовая ставка * количество * коэффициент
               const firstMaterial = materials[0]
               const rateInfo = firstMaterial?.rates
@@ -337,23 +338,23 @@ const Vor = () => {
               if (rateUnitName) {
                 workQuantity = materials
                   .filter(material => material.units?.name === rateUnitName)
-                  .reduce((sum, material) => sum + (material.quantityRd || 0), 0)
+                  .reduce((sum: any, material: any) => sum + (material.quantityRd || 0), 0)
               }
               if (workQuantity === 0) {
-                workQuantity = materials.reduce((sum, material) => sum + (material.quantityRd || 0), 0)
+                workQuantity = materials.reduce((sum: any, material: any) => sum + (material.quantityRd || 0), 0)
               }
               
               const workTotal = (baseRate * workQuantity) * rateCoefficient
               totalSum += workTotal
 
               // Для материалов: номенклатурная цена * количество (без коэффициента для цены)
-              materials.forEach(material => {
+              materials.forEach((material: any) => {
                 const nomenclatureItems = material.nomenclatureItems || []
-                nomenclatureItems.forEach(nomenclatureItem => {
+                nomenclatureItems.forEach((nomenclatureItem: any) => {
                   // Получаем последнюю цену из справочника
                   const prices = nomenclatureItem.nomenclature?.material_prices || []
                   const latestPrice = prices.length > 0 
-                    ? prices.sort((a, b) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime())[0].price
+                    ? prices.sort((a: any, b: any) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime())[0].price
                     : 0
                   
                   const quantity = material.quantityRd || 0
@@ -376,13 +377,13 @@ const Vor = () => {
           
           // Получаем разделы из связанных комплектов
           const sections = [...new Set(relatedSetIds
-            .map(setId => setTagsMap.get(setId))
+            .map((setId: any) => setTagsMap.get(setId))
             .filter(Boolean)
           )]
 
           // Получаем шифры проектов из документации
           const projectCodes = [...new Set(relatedSetIds
-            .flatMap(setId => setDocsMap.get(setId) || [])
+            .flatMap((setId: any) => setDocsMap.get(setId) || [])
           )]
 
           // Получаем сумму из таблицы расчетов
@@ -408,6 +409,51 @@ const Vor = () => {
     enabled: !!selectedProjectId
   })
 
+  // Синхронизируем фильтры с URL параметрами после загрузки данных
+  useEffect(() => {
+    // Ждем загрузки всех данных для справочников
+    if (projects && sections && costCategories) {
+      const projectId = searchParams.get('project_id')
+      const section = searchParams.get('section')
+      const costCategory = searchParams.get('cost_category')
+      
+      
+      setSelectedProjectId(projectId || undefined)
+      setSelectedSection(section || undefined)
+      setSelectedCostCategory(costCategory || undefined)
+    }
+  }, [projects, sections, costCategories, searchParams]) // Выполняется после загрузки справочников
+
+  // Мутация для обновления коэффициента ВОР
+  const updateCoefficientMutation = useMutation({
+    mutationFn: async ({ vorId, coefficient }: { vorId: string; coefficient: number }) => {
+      if (!supabase) throw new Error('No supabase client')
+      
+      const { error } = await supabase
+        .from('vor')
+        .update({ rate_coefficient: coefficient })
+        .eq('id', vorId)
+      
+      if (error) throw error
+    },
+    onSuccess: () => {
+      // Обновляем кеш запросов
+      queryClient.invalidateQueries({ queryKey: ['vor-records'] })
+      message.success('Коэффициент успешно обновлен')
+    },
+    onError: (error) => {
+      console.error('Ошибка обновления коэффициента:', error)
+      message.error('Ошибка при обновлении коэффициента')
+    }
+  })
+
+  // Обработчик изменения коэффициента
+  const handleCoefficientChange = (vorId: string, value: number | null) => {
+    const newValue = value || 1
+    setEditingCoefficient(newValue)
+    updateCoefficientMutation.mutate({ vorId, coefficient: newValue })
+  }
+
   const handleResetFilters = () => {
     setSelectedProjectId(undefined)
     setSelectedSection(undefined)
@@ -416,6 +462,7 @@ const Vor = () => {
 
   const handleEditVor = (vor: VorRecord) => {
     setEditingVor(vor)
+    setEditingCoefficient(vor.rate_coefficient || 1)
     form.setFieldsValue({
       name: vor.name,
       rate_coefficient: vor.rate_coefficient
@@ -460,8 +507,8 @@ const Vor = () => {
       const { error } = await supabase
         .from('vor')
         .update({
-          name: values.name,
-          rate_coefficient: values.rate_coefficient
+          name: values.name
+          // rate_coefficient обновляется отдельно при изменении
         })
         .eq('id', editingVor.id)
 
@@ -576,64 +623,70 @@ const Vor = () => {
               <Text strong>Фильтры:</Text>
             </Col>
             <Col>
-              <Select
-                style={{ width: 250 }}
-                placeholder="Проект *"
-                value={selectedProjectId}
-                onChange={setSelectedProjectId}
-                allowClear
-                showSearch
-                filterOption={(input, option) => {
-                  const text = option?.children?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-              >
-                {projects?.map(project => (
-                  <Select.Option key={project.id} value={project.id}>
-                    {project.name}
-                  </Select.Option>
-                ))}
-              </Select>
+              <Tooltip title="Проект">
+                <Select
+                  style={{ width: 250 }}
+                  placeholder="Проект *"
+                  value={selectedProjectId}
+                  onChange={setSelectedProjectId}
+                  allowClear
+                  showSearch
+                  filterOption={(input, option) => {
+                    const text = option?.children?.toString() || ""
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }}
+                >
+                  {projects?.map(project => (
+                    <Select.Option key={project.id} value={project.id}>
+                      {project.name}
+                    </Select.Option>
+                  ))}
+                </Select>
+              </Tooltip>
             </Col>
             <Col>
-              <Select
-                style={{ width: 200 }}
-                placeholder="Раздел"
-                value={selectedSection}
-                onChange={setSelectedSection}
-                allowClear
-                showSearch
-                filterOption={(input, option) => {
-                  const text = option?.children?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-              >
-                {sections?.map(section => (
-                  <Select.Option key={section.id} value={section.id}>
-                    {section.name}
-                  </Select.Option>
-                ))}
-              </Select>
+              <Tooltip title="Раздел">
+                <Select
+                  style={{ width: 200 }}
+                  placeholder="Раздел"
+                  value={selectedSection}
+                  onChange={setSelectedSection}
+                  allowClear
+                  showSearch
+                  filterOption={(input, option) => {
+                    const text = option?.children?.toString() || ""
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }}
+                >
+                  {sections?.map(section => (
+                    <Select.Option key={section.id} value={section.id.toString()}>
+                      {section.name}
+                    </Select.Option>
+                  ))}
+                </Select>
+              </Tooltip>
             </Col>
             <Col>
-              <Select
-                style={{ width: 200 }}
-                placeholder="Категория затрат"
-                value={selectedCostCategory}
-                onChange={setSelectedCostCategory}
-                allowClear
-                showSearch
-                filterOption={(input, option) => {
-                  const text = option?.children?.toString() || ""
-                  return text.toLowerCase().includes(input.toLowerCase())
-                }}
-              >
-                {costCategories?.map(category => (
-                  <Select.Option key={category.id} value={category.id}>
-                    {category.name}
-                  </Select.Option>
-                ))}
-              </Select>
+              <Tooltip title="Категория затрат">
+                <Select
+                  style={{ width: 200 }}
+                  placeholder="Категория затрат"
+                  value={selectedCostCategory}
+                  onChange={setSelectedCostCategory}
+                  allowClear
+                  showSearch
+                  filterOption={(input, option) => {
+                    const text = option?.children?.toString() || ""
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }}
+                >
+                  {costCategories?.map(category => (
+                    <Select.Option key={category.id} value={category.id.toString()}>
+                      {category.name}
+                    </Select.Option>
+                  ))}
+                </Select>
+              </Tooltip>
             </Col>
             <Col>
               <Button onClick={handleResetFilters}>
@@ -706,17 +759,20 @@ const Vor = () => {
           <Form.Item
             label="Коэффициент пересчета расценок"
             name="rate_coefficient"
-            rules={[
-              { required: true, message: 'Пожалуйста, введите коэффициент' },
-              { type: 'number', min: 0.01, max: 999.99, message: 'Коэффициент должен быть от 0.01 до 999.99' }
-            ]}
           >
-            <Input
-              type="number"
-              step="0.01"
-              min="0.01"
-              max="999.99"
+            <InputNumber
+              style={{ width: '100%' }}
+              step={0.1}
+              min={0.01}
+              max={999.99}
               placeholder="1.00"
+              precision={2}
+              value={editingCoefficient}
+              onChange={(value) => {
+                if (editingVor && value !== null) {
+                  handleCoefficientChange(editingVor.id, value)
+                }
+              }}
             />
           </Form.Item>
         </Form>
