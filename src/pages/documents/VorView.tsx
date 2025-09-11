@@ -1,7 +1,8 @@
 {/* VorView component */}
 import React, { useState, useEffect } from 'react'
-import { Table, Typography, Space, Spin, Alert, Button, InputNumber } from 'antd'
-import { ArrowLeftOutlined } from '@ant-design/icons'
+import { Table, Typography, Space, Spin, Alert, Button, InputNumber, message } from 'antd'
+import { ArrowLeftOutlined, DownloadOutlined } from '@ant-design/icons'
+import * as XLSX from 'xlsx'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
@@ -112,6 +113,7 @@ const VorView = () => {
   const vorId = searchParams.get('vor_id')
   const [coefficient, setCoefficient] = useState<number>(1)
   const queryClient = useQueryClient()
+  const [messageApi, contextHolder] = message.useMessage()
 
   // Загружаем данные ВОР и связанной информации
   const { data: vorData, isLoading: vorLoading } = useQuery({
@@ -584,6 +586,137 @@ const VorView = () => {
     enabled: !!vorData?.vor
   })
 
+  // Функция экспорта в Excel
+  const handleExportToExcel = () => {
+    try {
+      if (!vorData?.vor || !vorItems?.length || !projectCodes) {
+        messageApi.error('Нет данных для экспорта')
+        return
+      }
+
+      // Подготавливаем данные для экспорта
+      const exportData = []
+
+      // Заголовок документа
+      exportData.push(['ВЕДОМОСТЬ ОБЪЕМОВ РАБОТ'])
+      exportData.push([`Выполнение комплекса строительно-монтажных работ по комплекту: ${projectCodes}`])
+      exportData.push([vorData.vor.name])
+      exportData.push(['']) // Пустая строка
+
+      // Заголовки таблицы
+      exportData.push([
+        '№',
+        'Наименование',
+        'Ед Изм',
+        'Кол-во',
+        'Номенклатура цены за ед руб вкл НДС',
+        'Работа цены за ед руб вкл НДС',
+        'Номенклатура Итого руб вкл НДС',
+        'Работа Итого руб вкл НДС',
+        'Сумма Итого руб вкл НДС'
+      ])
+
+      // Данные таблицы
+      vorItems.forEach((item) => {
+        let rowNumber = ''
+        if (item.type === 'work') {
+          const workItems = vorItems.filter(i => i.type === 'work')
+          const workIndex = workItems.findIndex(i => i.id === item.id) + 1
+          rowNumber = `${workIndex}.`
+        } else {
+          const workItems = vorItems.filter(i => i.type === 'work')
+          const parentWork = workItems.find(i => i.id === item.parent_id)
+          if (parentWork) {
+            const workIndex = workItems.findIndex(i => i.id === parentWork.id) + 1
+            const materialsInWork = vorItems.filter(i => 
+              i.type === 'material' && i.parent_id === parentWork.id
+            )
+            const materialIndex = materialsInWork.findIndex(i => i.id === item.id) + 1
+            rowNumber = `${workIndex}.${materialIndex}`
+          }
+        }
+
+        const nomenclaturePrice = item.type === 'work' ? 0 : Math.round(item.nomenclature_price)
+        const nomenclatureTotal = item.type === 'work' ? 0 : Math.round(item.nomenclature_total)
+        const total = Math.round(item.nomenclature_total + item.work_total)
+
+        exportData.push([
+          rowNumber,
+          item.name,
+          item.unit,
+          item.quantity,
+          nomenclaturePrice,
+          Math.round(item.work_price),
+          nomenclatureTotal,
+          Math.round(item.work_total),
+          total
+        ])
+      })
+
+      // Создаем workbook и worksheet
+      const ws = XLSX.utils.aoa_to_sheet(exportData)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'ВОР')
+
+      // Автоматическое определение ширины колонок
+      const colWidths = exportData[4].map((_, colIndex) => {
+        const maxLength = exportData.reduce((max, row) => {
+          const cellValue = row[colIndex] ? String(row[colIndex]) : ''
+          return Math.max(max, cellValue.length)
+        }, 0)
+        return { wch: Math.min(Math.max(maxLength + 2, 10), 50) }
+      })
+      ws['!cols'] = colWidths
+
+      // Объединяем ячейки для заголовков
+      ws['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } }, // ВЕДОМОСТЬ ОБЪЕМОВ РАБОТ
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 8 } }, // Выполнение комплекса...
+        { s: { r: 2, c: 0 }, e: { r: 2, c: 8 } }  // Название ВОР
+      ]
+
+      // Стили для заголовков
+      const headerStyle = {
+        font: { bold: true, sz: 14 },
+        alignment: { horizontal: 'center', vertical: 'center' }
+      }
+      
+      const tableHeaderStyle = {
+        font: { bold: true, sz: 10 },
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+        fill: { fgColor: { rgb: 'E6E6FA' } }
+      }
+
+      // Применяем стили к заголовкам документа
+      for (let i = 0; i <= 8; i++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: i })
+        if (ws[cellAddress]) ws[cellAddress].s = headerStyle
+
+        const cellAddress2 = XLSX.utils.encode_cell({ r: 1, c: i })
+        if (ws[cellAddress2]) ws[cellAddress2].s = headerStyle
+
+        const cellAddress3 = XLSX.utils.encode_cell({ r: 2, c: i })
+        if (ws[cellAddress3]) ws[cellAddress3].s = headerStyle
+      }
+
+      // Применяем стили к заголовкам таблицы
+      for (let i = 0; i <= 8; i++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 4, c: i })
+        if (ws[cellAddress]) ws[cellAddress].s = tableHeaderStyle
+      }
+
+      // Генерируем имя файла
+      const fileName = `ВОР_${vorData.vor.name.replace(/[^\w\s]/gi, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`
+
+      // Сохраняем файл
+      XLSX.writeFile(wb, fileName)
+      messageApi.success('Файл успешно экспортирован')
+    } catch (error) {
+      console.error('Ошибка при экспорте в Excel:', error)
+      messageApi.error('Ошибка при экспорте в Excel')
+    }
+  }
+
   const columns = [
     {
       title: '№',
@@ -757,12 +890,14 @@ const VorView = () => {
   }
 
   return (
-    <div style={{ 
-      height: 'calc(100vh - 96px)',
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden'
-    }}>
+    <>
+      {contextHolder}
+      <div style={{ 
+        height: 'calc(100vh - 96px)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      }}>
       {/* Заголовок */}
       <div style={{ 
         flexShrink: 0, 
@@ -792,6 +927,13 @@ const VorView = () => {
                 style={{ width: 80 }}
               />
             </div>
+            <Button 
+              icon={<DownloadOutlined />}
+              onClick={handleExportToExcel}
+              size="large"
+            >
+              Экспорт в Excel
+            </Button>
             <Button 
               type="primary"
               onClick={handleGoToChessboard}
@@ -873,6 +1015,7 @@ const VorView = () => {
         />
       </div>
     </div>
+    </>
   )
 }
 
