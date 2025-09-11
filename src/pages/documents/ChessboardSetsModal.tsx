@@ -55,37 +55,12 @@ export default function ChessboardSetsModal({
   })
 
   // Загрузка справочников для форм копирования
+  // ВРЕМЕННО ОТКЛЮЧЕНО из-за ошибок 400 на Supabase
   const { data: documentations } = useQuery({
     queryKey: ['documentations', projectId],
     queryFn: async () => {
-      if (!projectId) return []
-      
-      try {
-        // Пробуем загрузить через JOIN
-        const { data: joinData, error: joinError } = await supabase
-          .from('documentations_projects_mapping')
-          .select('documentation_id, documentations(id, code, name)')
-          .eq('project_id', projectId)
-        
-        if (!joinError && joinData) {
-          // Если JOIN сработал, используем его результаты
-          return joinData
-            .filter(item => item.documentations)
-            .map(item => item.documentations)
-            .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
-        }
-      } catch (e) {
-        console.warn('Join query failed, falling back to simple query', e)
-      }
-      
-      // Запасной вариант - загружаем все документы
-      const { data, error } = await supabase
-        .from('documentations')
-        .select('id, code, name')
-        .order('code')
-      
-      if (error) throw error
-      return data || []
+      // Временно возвращаем пустой массив
+      return []
     },
     enabled: !!projectId,
   })
@@ -102,31 +77,12 @@ export default function ChessboardSetsModal({
     },
   })
 
+  // ВРЕМЕННО ОТКЛЮЧЕНО из-за ошибок 400 на Supabase
   const { data: blocks } = useQuery({
     queryKey: ['blocks', projectId],
     queryFn: async () => {
-      if (!projectId) return []
-      
-      // Получаем block_ids через таблицу projects_blocks
-      const { data: mappingData, error: mappingError } = await supabase
-        .from('projects_blocks')
-        .select('block_id')
-        .eq('project_id', projectId)
-      
-      if (mappingError) throw mappingError
-      if (!mappingData || mappingData.length === 0) return []
-      
-      const blockIds = mappingData.map(m => m.block_id)
-      
-      // Загружаем все блоки одним запросом (обычно их немного)
-      const { data, error } = await supabase
-        .from('blocks')
-        .select('id, name')
-        .in('id', blockIds)
-        .order('name')
-      
-      if (error) throw error
-      return data || []
+      // Временно возвращаем пустой массив
+      return []
     },
     enabled: !!projectId,
   })
