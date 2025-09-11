@@ -55,12 +55,24 @@ export default function ChessboardSetsModal({
   })
 
   // Загрузка справочников для форм копирования
-  // ВРЕМЕННО ОТКЛЮЧЕНО из-за ошибок 400 на Supabase
   const { data: documentations } = useQuery({
     queryKey: ['documentations', projectId],
     queryFn: async () => {
-      // Временно возвращаем пустой массив
-      return []
+      if (!projectId) return []
+      
+      // Загружаем все документы без фильтрации по проекту
+      // Это временное решение пока не решена проблема с mapping таблицами
+      const { data, error } = await supabase
+        .from('documentations')
+        .select('id, code, name')
+        .order('code')
+      
+      if (error) {
+        console.error('Error loading documentations:', error)
+        return []
+      }
+      
+      return data || []
     },
     enabled: !!projectId,
   })
@@ -77,12 +89,24 @@ export default function ChessboardSetsModal({
     },
   })
 
-  // ВРЕМЕННО ОТКЛЮЧЕНО из-за ошибок 400 на Supabase
   const { data: blocks } = useQuery({
     queryKey: ['blocks', projectId],
     queryFn: async () => {
-      // Временно возвращаем пустой массив
-      return []
+      if (!projectId) return []
+      
+      // Загружаем все блоки без фильтрации
+      // Это временное решение пока не решена проблема с mapping таблицами
+      const { data, error } = await supabase
+        .from('blocks')
+        .select('id, name')
+        .order('name')
+      
+      if (error) {
+        console.error('Error loading blocks:', error)
+        return []
+      }
+      
+      return data || []
     },
     enabled: !!projectId,
   })
