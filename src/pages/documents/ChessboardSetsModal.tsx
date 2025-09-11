@@ -64,7 +64,7 @@ export default function ChessboardSetsModal({
       // Это временное решение пока не решена проблема с mapping таблицами
       const { data, error } = await supabase
         .from('documentations')
-        .select('id, code, name')
+        .select('id, code, project_name')
         .order('code')
       
       if (error) {
@@ -72,7 +72,11 @@ export default function ChessboardSetsModal({
         return []
       }
       
-      return data || []
+      // Преобразуем project_name в name для совместимости
+      return (data || []).map(doc => ({
+        ...doc,
+        name: doc.project_name || doc.code
+      }))
     },
     enabled: !!projectId,
   })
