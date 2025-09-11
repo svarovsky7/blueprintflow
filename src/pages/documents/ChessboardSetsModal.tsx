@@ -60,30 +60,38 @@ export default function ChessboardSetsModal({
     queryFn: async () => {
       if (!projectId) return []
       
-      // Получаем документы через JOIN с mapping таблицей
-      const { data, error } = await supabase
+      // Сначала получаем ID документов через маппинг
+      const { data: mappingData, error: mappingError } = await supabase
         .from('documentations_projects_mapping')
-        .select(`
-          documentation_id,
-          documentations!inner(
-            id,
-            code,
-            name
-          )
-        `)
+        .select('documentation_id')
         .eq('project_id', projectId)
       
-      if (error) throw error
-      if (!data) return []
+      if (mappingError) throw mappingError
+      if (!mappingData || mappingData.length === 0) return []
       
-      // Преобразуем данные в нужный формат и сортируем по code
-      return data
-        .map(item => ({
-          id: item.documentations.id,
-          code: item.documentations.code,
-          name: item.documentations.name
-        }))
-        .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
+      const documentationIds = mappingData.map(m => m.documentation_id)
+      
+      // Разбиваем на батчи по 30 ID чтобы избежать слишком длинных URL
+      const batchSize = 30
+      const batches = []
+      for (let i = 0; i < documentationIds.length; i += batchSize) {
+        batches.push(documentationIds.slice(i, i + batchSize))
+      }
+      
+      // Загружаем документы батчами
+      const allDocs = []
+      for (const batch of batches) {
+        const { data, error } = await supabase
+          .from('documentations')
+          .select('id, code, name')
+          .in('id', batch)
+        
+        if (error) throw error
+        if (data) allDocs.push(...data)
+      }
+      
+      // Сортируем по code
+      return allDocs.sort((a, b) => (a.code || '').localeCompare(b.code || ''))
     },
     enabled: !!projectId,
   })
@@ -105,28 +113,26 @@ export default function ChessboardSetsModal({
     queryFn: async () => {
       if (!projectId) return []
       
-      // Получаем блоки через JOIN с таблицей projects_blocks
-      const { data, error } = await supabase
+      // Получаем block_ids через таблицу projects_blocks
+      const { data: mappingData, error: mappingError } = await supabase
         .from('projects_blocks')
-        .select(`
-          block_id,
-          blocks!inner(
-            id,
-            name
-          )
-        `)
+        .select('block_id')
         .eq('project_id', projectId)
       
-      if (error) throw error
-      if (!data) return []
+      if (mappingError) throw mappingError
+      if (!mappingData || mappingData.length === 0) return []
       
-      // Преобразуем данные в нужный формат и сортируем по name
-      return data
-        .map(item => ({
-          id: item.blocks.id,
-          name: item.blocks.name
-        }))
-        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+      const blockIds = mappingData.map(m => m.block_id)
+      
+      // Загружаем все блоки одним запросом (обычно их немного)
+      const { data, error } = await supabase
+        .from('blocks')
+        .select('id, name')
+        .in('id', blockIds)
+        .order('name')
+      
+      if (error) throw error
+      return data || []
     },
     enabled: !!projectId,
   })
