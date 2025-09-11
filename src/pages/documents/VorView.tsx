@@ -266,9 +266,32 @@ const VorView = () => {
         searchParams.set('project_id', firstSet.project_id)
       }
       
-      if (firstSet.documentation_id) {
-        searchParams.set('documentation_id', firstSet.documentation_id)
-      }
+      // Собираем все уникальные документации из всех комплектов связанных с этим ВОР
+      const allDocumentationIds = new Set<string>()
+      
+      setsData.forEach(set => {
+        // Проверяем новую структуру с множественными документами
+        if (set.set_documentations && set.set_documentations.length > 0) {
+          set.set_documentations.forEach(doc => {
+            if (doc.id) {
+              allDocumentationIds.add(doc.id)
+            }
+          })
+        }
+        // Обратная совместимость со старой структурой
+        else if (set.documentation_id) {
+          allDocumentationIds.add(set.documentation_id)
+        }
+        // Альтернативный способ через связанную документацию
+        else if (set.documentations?.id) {
+          allDocumentationIds.add(set.documentations.id)
+        }
+      })
+      
+      // Добавляем все найденные документации как отдельные параметры
+      Array.from(allDocumentationIds).forEach(docId => {
+        searchParams.append('documentation_id', docId)
+      })
       
       if (firstSet.version_id) {
         searchParams.set('version_id', firstSet.version_id)

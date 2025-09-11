@@ -98,19 +98,25 @@ export default function ChessboardSetsModal({
     queryFn: async () => {
       if (!projectId) return []
       
-      // Загружаем все блоки без фильтрации
-      // Это временное решение пока не решена проблема с mapping таблицами
+      // Загружаем корпуса, связанные с проектом через projects_blocks
       const { data, error } = await supabase
-        .from('blocks')
-        .select('id, name')
-        .order('name')
+        .from('projects_blocks')
+        .select(`
+          block_id,
+          blocks:block_id(id, name)
+        `)
+        .eq('project_id', projectId)
+        .order('blocks(name)')
       
       if (error) {
         console.error('Error loading blocks:', error)
         return []
       }
       
-      return data || []
+      // Извлекаем данные блоков из связанных записей
+      return (data || [])
+        .map(item => item.blocks)
+        .filter(block => block !== null)
     },
     enabled: !!projectId,
   })
@@ -139,15 +145,26 @@ export default function ChessboardSetsModal({
     },
   })
 
+  // Отслеживание выбранных категорий затрат для фильтрации видов затрат
+  const [selectedCostCategories, setSelectedCostCategories] = useState<number[]>([])
+
   const { data: costTypes } = useQuery({
-    queryKey: ['cost-types'],
+    queryKey: ['cost-types', selectedCostCategories],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('detail_cost_categories')
-        .select('id, name')
+        .select('id, name, cost_category_id')
         .order('name')
       if (error) throw error
-      return data
+      
+      // Если выбраны категории затрат, фильтруем виды затрат
+      if (selectedCostCategories.length > 0) {
+        return (data || []).filter(type => 
+          selectedCostCategories.includes(type.cost_category_id)
+        )
+      }
+      
+      return data || []
     },
   })
 
@@ -217,6 +234,8 @@ export default function ChessboardSetsModal({
       version_id: doc.version_id,
     })) || []
 
+    // Устанавливаем выбранные категории затрат для фильтрации видов затрат
+    setSelectedCostCategories(record.cost_category_ids || [])
 
     copyForm.setFieldsValue({
       name: `${record.name || record.set_number} (копия)`,
@@ -264,6 +283,25 @@ export default function ChessboardSetsModal({
     setCopyModalOpen(false)
     setCopyingSet(null)
     copyForm.resetFields()
+    setSelectedCostCategories([])
+  }
+
+  // Обработчик изменения категорий затрат
+  const handleCostCategoriesChange = (categoryIds: number[]) => {
+    setSelectedCostCategories(categoryIds)
+    
+    // Сбрасываем выбранные виды затрат, так как они теперь не соответствуют новым категориям
+    const currentCostTypes = copyForm.getFieldValue('cost_type_ids') || []
+    const validCostTypes = costTypes?.filter(type => 
+      categoryIds.includes(type.cost_category_id)
+    ).map(type => type.id) || []
+    
+    // Оставляем только те виды затрат, которые соответствуют выбранным категориям
+    const filteredCostTypes = currentCostTypes.filter((typeId: number) => 
+      validCostTypes.includes(typeId)
+    )
+    
+    copyForm.setFieldValue('cost_type_ids', filteredCostTypes)
   }
 
   const columns: ColumnsType<ChessboardSetTableRow> = [
@@ -645,6 +683,7 @@ export default function ChessboardSetsModal({
                     filterOption={(input, option) =>
                       (option?.children || '').toString().toLowerCase().includes(input.toLowerCase())
                     }
+                    onChange={handleCostCategoriesChange}
                   >
                     {costCategories?.map(category => (
                       <Select.Option key={category.id} value={category.id}>
