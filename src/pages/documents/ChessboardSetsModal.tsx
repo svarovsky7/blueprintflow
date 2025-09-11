@@ -506,7 +506,6 @@ export default function ChessboardSetsModal({
                         <Row key={field.key} gutter={8} style={{ marginBottom: 8 }}>
                           <Col span={10}>
                             <Form.Item
-                              {...field}
                               name={[field.name, 'documentation_id']}
                               rules={[{ required: true, message: 'Выберите документ' }]}
                             >
@@ -528,7 +527,6 @@ export default function ChessboardSetsModal({
                           </Col>
                           <Col span={10}>
                             <Form.Item
-                              {...field}
                               name={[field.name, 'version_id']}
                               rules={[{ required: true, message: 'Выберите версию' }]}
                             >
