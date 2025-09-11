@@ -60,38 +60,32 @@ export default function ChessboardSetsModal({
     queryFn: async () => {
       if (!projectId) return []
       
-      // Сначала получаем ID документов через маппинг
-      const { data: mappingData, error: mappingError } = await supabase
-        .from('documentations_projects_mapping')
-        .select('documentation_id')
-        .eq('project_id', projectId)
-      
-      if (mappingError) throw mappingError
-      if (!mappingData || mappingData.length === 0) return []
-      
-      const documentationIds = mappingData.map(m => m.documentation_id)
-      
-      // Разбиваем на батчи по 10 ID чтобы избежать слишком длинных URL (UUID длинные)
-      const batchSize = 10
-      const batches = []
-      for (let i = 0; i < documentationIds.length; i += batchSize) {
-        batches.push(documentationIds.slice(i, i + batchSize))
-      }
-      
-      // Загружаем документы батчами
-      const allDocs = []
-      for (const batch of batches) {
-        const { data, error } = await supabase
-          .from('documentations')
-          .select('id, code, name')
-          .in('id', batch)
+      try {
+        // Пробуем загрузить через JOIN
+        const { data: joinData, error: joinError } = await supabase
+          .from('documentations_projects_mapping')
+          .select('documentation_id, documentations(id, code, name)')
+          .eq('project_id', projectId)
         
-        if (error) throw error
-        if (data) allDocs.push(...data)
+        if (!joinError && joinData) {
+          // Если JOIN сработал, используем его результаты
+          return joinData
+            .filter(item => item.documentations)
+            .map(item => item.documentations)
+            .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
+        }
+      } catch (e) {
+        console.warn('Join query failed, falling back to simple query', e)
       }
       
-      // Сортируем по code
-      return allDocs.sort((a, b) => (a.code || '').localeCompare(b.code || ''))
+      // Запасной вариант - загружаем все документы
+      const { data, error } = await supabase
+        .from('documentations')
+        .select('id, code, name')
+        .order('code')
+      
+      if (error) throw error
+      return data || []
     },
     enabled: !!projectId,
   })
