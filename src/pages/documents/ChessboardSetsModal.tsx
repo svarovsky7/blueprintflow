@@ -60,26 +60,30 @@ export default function ChessboardSetsModal({
     queryFn: async () => {
       if (!projectId) return []
       
-      // Сначала получаем ID документов через маппинг
-      const { data: mappingData, error: mappingError } = await supabase
+      // Получаем документы через JOIN с mapping таблицей
+      const { data, error } = await supabase
         .from('documentations_projects_mapping')
-        .select('documentation_id')
+        .select(`
+          documentation_id,
+          documentations!inner(
+            id,
+            code,
+            name
+          )
+        `)
         .eq('project_id', projectId)
       
-      if (mappingError) throw mappingError
-      if (!mappingData || mappingData.length === 0) return []
-      
-      const documentationIds = mappingData.map(m => m.documentation_id)
-      
-      // Затем получаем сами документы
-      const { data, error } = await supabase
-        .from('documentations')
-        .select('id, code, name')
-        .in('id', documentationIds)
-        .order('code')
-      
       if (error) throw error
+      if (!data) return []
+      
+      // Преобразуем данные в нужный формат и сортируем по code
       return data
+        .map(item => ({
+          id: item.documentations.id,
+          code: item.documentations.code,
+          name: item.documentations.name
+        }))
+        .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
     },
     enabled: !!projectId,
   })
@@ -101,26 +105,28 @@ export default function ChessboardSetsModal({
     queryFn: async () => {
       if (!projectId) return []
       
-      // Сначала получаем block_ids через таблицу projects_blocks
-      const { data: mappingData, error: mappingError } = await supabase
+      // Получаем блоки через JOIN с таблицей projects_blocks
+      const { data, error } = await supabase
         .from('projects_blocks')
-        .select('block_id')
+        .select(`
+          block_id,
+          blocks!inner(
+            id,
+            name
+          )
+        `)
         .eq('project_id', projectId)
       
-      if (mappingError) throw mappingError
-      if (!mappingData || mappingData.length === 0) return []
-      
-      const blockIds = mappingData.map(m => m.block_id)
-      
-      // Затем получаем сами блоки
-      const { data, error } = await supabase
-        .from('blocks')
-        .select('id, name')
-        .in('id', blockIds)
-        .order('name')
-      
       if (error) throw error
+      if (!data) return []
+      
+      // Преобразуем данные в нужный формат и сортируем по name
       return data
+        .map(item => ({
+          id: item.blocks.id,
+          name: item.blocks.name
+        }))
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
     },
     enabled: !!projectId,
   })
