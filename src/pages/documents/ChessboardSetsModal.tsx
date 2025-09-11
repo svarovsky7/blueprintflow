@@ -101,9 +101,9 @@ export default function ChessboardSetsModal({
     queryFn: async () => {
       if (!projectId) return []
       
-      // Сначала получаем block_ids через mapping таблицу
+      // Сначала получаем block_ids через таблицу projects_blocks
       const { data: mappingData, error: mappingError } = await supabase
-        .from('projects_blocks_mapping')
+        .from('projects_blocks')
         .select('block_id')
         .eq('project_id', projectId)
       
