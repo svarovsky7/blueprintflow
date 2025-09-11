@@ -59,11 +59,25 @@ export default function ChessboardSetsModal({
     queryKey: ['documentations', projectId],
     queryFn: async () => {
       if (!projectId) return []
-      const { data, error } = await supabase
-        .from('documentation')
-        .select('id, project_code, project_name')
+      
+      // Сначала получаем ID документов через маппинг
+      const { data: mappingData, error: mappingError } = await supabase
+        .from('documentations_projects_mapping')
+        .select('documentation_id')
         .eq('project_id', projectId)
-        .order('project_code')
+      
+      if (mappingError) throw mappingError
+      if (!mappingData || mappingData.length === 0) return []
+      
+      const documentationIds = mappingData.map(m => m.documentation_id)
+      
+      // Затем получаем сами документы
+      const { data, error } = await supabase
+        .from('documentations')
+        .select('id, code, name')
+        .in('id', documentationIds)
+        .order('code')
+      
       if (error) throw error
       return data
     },
@@ -86,11 +100,25 @@ export default function ChessboardSetsModal({
     queryKey: ['blocks', projectId],
     queryFn: async () => {
       if (!projectId) return []
+      
+      // Сначала получаем block_ids через mapping таблицу
+      const { data: mappingData, error: mappingError } = await supabase
+        .from('projects_blocks_mapping')
+        .select('block_id')
+        .eq('project_id', projectId)
+      
+      if (mappingError) throw mappingError
+      if (!mappingData || mappingData.length === 0) return []
+      
+      const blockIds = mappingData.map(m => m.block_id)
+      
+      // Затем получаем сами блоки
       const { data, error } = await supabase
         .from('blocks')
         .select('id, name')
-        .eq('project_id', projectId)
+        .in('id', blockIds)
         .order('name')
+      
       if (error) throw error
       return data
     },
@@ -530,7 +558,7 @@ export default function ChessboardSetsModal({
                               >
                                 {documentations?.map(doc => (
                                   <Select.Option key={doc.id} value={doc.id}>
-                                    {doc.project_code}
+                                    {doc.code}
                                   </Select.Option>
                                 ))}
                               </Select>

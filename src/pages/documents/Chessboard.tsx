@@ -939,11 +939,9 @@ export default function Chessboard() {
   // Автоматическая инициализация статусов при первой загрузке, если их нет
   useEffect(() => {
     if (!isLoadingStatuses && setStatuses !== undefined && setStatuses.length === 0) {
-      console.log('No statuses found, initializing...')
       statusesApi
         .initializeChessboardStatuses()
         .then(() => {
-          console.log('Statuses initialized successfully')
           queryClient.invalidateQueries({ queryKey: ['chessboard-set-statuses'] })
         })
         .catch((error) => {
@@ -1007,16 +1005,6 @@ export default function Chessboard() {
         console.error('Ошибка загрузки версий документов:', error)
         return []
       }
-
-      console.log('Loaded document versions:', {
-        projectId: appliedFilters.projectId,
-        totalVersions: data?.length || 0,
-        versions: data?.map((v) => ({
-          id: v.id,
-          documentation_id: v.documentation_id,
-          version_number: v.version_number,
-        })),
-      })
 
       return data || []
     },
@@ -1545,13 +1533,11 @@ export default function Chessboard() {
 
   const handleEditChange = useCallback(
     (key: string, field: keyof RowData, value: string | number | null) => {
-      console.log(`🔧 EDIT CHANGE: key=${key}, field=${field}, value=${value}`)
       setEditingRows((prev) => {
         const updated = { ...prev[key], [field]: value }
         if (field === 'quantityPd' || field === 'quantitySpec' || field === 'quantityRd') {
           delete updated.floorQuantities
         }
-        console.log(`🔧 EDIT CHANGE RESULT for ${key}:`, updated)
         return { ...prev, [key]: updated }
       })
     },
@@ -2332,13 +2318,10 @@ export default function Chessboard() {
 
   const startEdit = useCallback(
     (id: string) => {
-      console.log(`✏️ НАЧАЛО РЕДАКТИРОВАНИЯ строки ${id}`)
       const dbRow = tableData?.find((r) => r.id === id)
       if (!dbRow) {
-        console.log(`❌ Строка ${id} не найдена в tableData`)
         return
       }
-      console.log(`✏️ Исходные данные строки ${id}:`, dbRow)
       const mapping = getNomenclatureMapping(dbRow.chessboard_nomenclature_mapping)
       const nomenclatureId = mapping?.nomenclature_id ?? ''
       const nomenclatureName = mapping?.nomenclature?.name ?? ''
@@ -2504,14 +2487,9 @@ export default function Chessboard() {
   const handleUpdate = useCallback(async () => {
     if (!supabase || Object.keys(editingRows).length === 0) return
 
-    console.log(`💾 НАЧАЛО СОХРАНЕНИЯ - количество редактируемых строк: ${Object.keys(editingRows).length}`)
-    console.log(`💾 ДАННЫЕ ДЛЯ СОХРАНЕНИЯ:`, editingRows)
 
     // Параллельное выполнение всех обновлений
     const updatePromises = Object.values(editingRows).map(async (r) => {
-      console.log(`💾 ОБРАБОТКА СТРОКИ ${r.key}:`)
-      console.log(`   tagId: ${r.tagId}, projectCode: ${r.projectCode}, projectName: ${r.projectName}`)
-      console.log(`   documentationId: ${r.documentationId}, versionNumber: ${r.versionNumber}`)
       
       let materialId = r.materialId
       if (!materialId && r.material) {
@@ -2606,20 +2584,11 @@ export default function Chessboard() {
 
       // Обновляем связь с версией документа (новая схема)
       const updateDocumentationMapping = async () => {
-        console.log(`📄 UPDATE DOCUMENTATION MAPPING для строки ${r.key}`)
-        console.log(`   Начальный docId: ${r.documentationId}`)
-        console.log(`   projectCode: ${r.projectCode}, tagId: ${r.tagId}, projectName: ${r.projectName}`)
         
         let docId = r.documentationId
 
         // Если есть тэг и шифр проекта, создаём или обновляем документацию
         if (r.projectCode && r.tagId) {
-          console.log(`📄 Вызываем upsertDocumentation с параметрами:`, {
-            code: r.projectCode,
-            tagId: Number(r.tagId),
-            projectId: appliedFilters?.projectId,
-            projectName: r.projectName
-          })
           
           const doc = await documentationApi.upsertDocumentation(
             r.projectCode,
@@ -2630,10 +2599,8 @@ export default function Chessboard() {
             undefined, // stage
             r.projectName, // projectName - ВАЖНО: передаем название проекта!
           )
-          console.log(`📄 Результат upsertDocumentation:`, doc)
           docId = doc.id
         } else {
-          console.log(`📄 Пропускаем upsertDocumentation - нет projectCode или tagId`)
         }
 
         if (docId && r.versionNumber) {
@@ -2660,7 +2627,6 @@ export default function Chessboard() {
           }
 
           // Сохраняем прямую ссылку на версию документа (новая схема)
-          console.log(`📄 Сохраняем связь: chessboard_id=${r.key}, version_id=${version?.id}`)
           await supabase!.from('chessboard_documentation_mapping').upsert(
             {
               chessboard_id: r.key,
@@ -2668,19 +2634,16 @@ export default function Chessboard() {
             },
             { onConflict: 'chessboard_id' },
           )
-          console.log(`📄 Связь сохранена успешно`)
         } else if (docId && !r.versionNumber) {
           // Если выбран документ, но не указана версия - выдаем ошибку
           throw new Error('Сохранение шифра проекта без указания версии невозможно!')
         } else {
           // Если ни документация, ни версия не выбраны, удаляем связь
-          console.log(`📄 Удаляем связь для строки ${r.key} - нет docId или versionNumber`)
           await supabase!
             .from('chessboard_documentation_mapping')
             .delete()
             .eq('chessboard_id', r.key)
         }
-        console.log(`📄 UPDATE DOCUMENTATION MAPPING завершен для строки ${r.key}`)
       }
 
       // Обновляем связь с расценками
@@ -2708,20 +2671,14 @@ export default function Chessboard() {
     })
 
     try {
-      console.log(`💾 Выполняем все обновления...`)
       await Promise.all(updatePromises)
-      console.log(`💾 Все обновления выполнены успешно`)
       
       await refetchMaterials()
-      console.log(`💾 Материалы обновлены`)
       
       message.success('Изменения сохранены')
-      console.log(`💾 Очищаем editingRows`)
       setEditingRows({})
       
-      console.log(`💾 Перезапрашиваем данные таблицы`)
       await refetch()
-      console.log(`💾 СОХРАНЕНИЕ ЗАВЕРШЕНО УСПЕШНО`)
     } catch (error: unknown) {
       console.error(`❌ ОШИБКА ПРИ СОХРАНЕНИИ:`, error)
       message.error(`Не удалось сохранить изменения: ${(error as Error).message}`)

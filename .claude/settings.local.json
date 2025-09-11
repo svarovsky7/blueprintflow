@@ -20,7 +20,8 @@
       "Bash(npm install:*)",
       "Bash(npm uninstall:*)",
       "WebSearch",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "Bash(sed:*)"
     ],
     "deny": [],
     "ask": []

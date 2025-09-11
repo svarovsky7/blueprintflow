@@ -17,7 +17,6 @@ export const chessboardSetsApi = {
   async getStatuses(): Promise<ChessboardSetStatus[]> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    console.log('Fetching statuses for Chessboard page from statuses table...')
 
     // Получаем все активные статусы
     const { data, error } = await supabase
@@ -26,7 +25,6 @@ export const chessboardSetsApi = {
       .eq('is_active', true)
       .order('name', { ascending: true })
 
-    console.log('Statuses query result:', { data, error })
 
     if (error) {
       console.error('Failed to fetch statuses:', error)
@@ -35,14 +33,6 @@ export const chessboardSetsApi = {
 
     // Фильтруем статусы, у которых applicable_pages содержит "Шахматка" или "documents/chessboard"
     const filtered = (data || []).filter((status) => {
-      console.log(`Checking status "${status.name}":`, {
-        applicable_pages: status.applicable_pages,
-        isArray: Array.isArray(status.applicable_pages),
-        includesChessboard:
-          Array.isArray(status.applicable_pages) &&
-          (status.applicable_pages.includes('Шахматка') ||
-            status.applicable_pages.includes('documents/chessboard')),
-      })
 
       if (!status.applicable_pages) return false
       if (Array.isArray(status.applicable_pages)) {
@@ -55,9 +45,6 @@ export const chessboardSetsApi = {
       return false
     })
 
-    console.log(
-      `Found ${filtered.length} statuses for Chessboard page out of ${data?.length || 0} total active statuses`,
-    )
 
     return filtered
   },
