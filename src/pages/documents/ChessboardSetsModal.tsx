@@ -71,8 +71,8 @@ export default function ChessboardSetsModal({
       
       const documentationIds = mappingData.map(m => m.documentation_id)
       
-      // Разбиваем на батчи по 30 ID чтобы избежать слишком длинных URL
-      const batchSize = 30
+      // Разбиваем на батчи по 10 ID чтобы избежать слишком длинных URL (UUID длинные)
+      const batchSize = 10
       const batches = []
       for (let i = 0; i < documentationIds.length; i += batchSize) {
         batches.push(documentationIds.slice(i, i + batchSize))
