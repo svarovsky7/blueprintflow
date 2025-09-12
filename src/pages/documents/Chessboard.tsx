@@ -1032,48 +1032,46 @@ export default function Chessboard() {
           ? 'chessboard_mapping!inner'
           : 'chessboard_mapping'
 
-      const docRelation =
-        (appliedFilters.documentationId && appliedFilters.documentationId.length > 0) ||
-        (appliedFilters.tagId && appliedFilters.tagId.length > 0)
-          ? 'chessboard_documentation_mapping!inner'
-          : 'chessboard_documentation_mapping'
+      // Всегда используем left join для документации, чтобы получать все записи
+      // Фильтрацию по документам делаем отдельными условиями where
+      const docRelation = 'chessboard_documentation_mapping!left'
           
       console.log('📊 Relations:', { relation, docRelation })
+      // Поэтапно восстанавливаем полный запрос
+      console.log('🔧 Using step-by-step query restoration')
       const query = supabase
         .from('chessboard')
-        .select(
-          `id, material, materials(name), unit_id, color, units(name),
+        .select(`
+          id, material, materials(name), unit_id, color, units(name),
           chessboard_nomenclature_mapping!left(nomenclature_id, supplier_name, nomenclature(name)),
-          ${relation}(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name)),
-          chessboard_rates_mapping(rate_id, rates(work_name)),
-          ${docRelation}(version_id, documentation_versions(id, version_number, documentation_id, documentations(id, code, tag_id, stage, tag:documentation_tags(id, name, tag_number))))`,
-        )
+          chessboard_mapping!left(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name)),
+          chessboard_rates_mapping!left(rate_id, rates(work_name)),
+          chessboard_documentation_mapping!left(version_id, documentation_versions(id, version_number, documentation_id, documentations(id, code, tag_id, stage, project_name, tag:documentation_tags(id, name, tag_number))))
+        `)
         .eq('project_id', appliedFilters.projectId)
+      // Восстанавливаем фильтры с учетом left join
       if (appliedFilters.blockId && appliedFilters.blockId.length > 0)
         query.in('chessboard_mapping.block_id', appliedFilters.blockId)
       if (appliedFilters.categoryId && appliedFilters.categoryId.length > 0)
         query.in('chessboard_mapping.cost_category_id', appliedFilters.categoryId.map(Number))
       if (appliedFilters.typeId && appliedFilters.typeId.length > 0)
         query.in('chessboard_mapping.cost_type_id', appliedFilters.typeId.map(Number))
-      // Фильтрация по документации через версии
-      if (appliedFilters.documentationId && appliedFilters.documentationId.length > 0) {
-        query.in(
-          'chessboard_documentation_mapping.documentation_versions.documentation_id',
-          appliedFilters.documentationId,
-        )
-      } else if (appliedFilters.tagId && appliedFilters.tagId.length > 0) {
-        query.in(
-          'chessboard_documentation_mapping.documentation_versions.documentations.tag_id',
-          appliedFilters.tagId.map(Number),
-        )
-      }
+      // НЕ фильтруем по документации в запросе - делаем это на уровне данных
+      // Это позволяет получить все записи проекта, а потом отфильтровать по документам
+      console.log('📋 Document filters will be applied at data level:', {
+        documentationId: appliedFilters.documentationId,
+        tagId: appliedFilters.tagId
+      })
       // НЕ фильтруем по версиям в запросе - делаем это на уровне данных
       // Это позволяет получить все записи и правильно выбрать нужную версию документа
       if (Object.keys(selectedVersions).length > 0 && documentVersions) {
         console.log('🔢 Selected Versions (not filtering in query):', selectedVersions)
         console.log('📋 Will filter versions at data level instead of query level')
       }
+      
+      console.log('🚀 Executing query...', { projectId: appliedFilters.projectId })
       const { data, error } = await query.order('created_at', { ascending: false })
+      console.log('🏁 Query completed:', { hasData: !!data, hasError: !!error })
       if (error) {
         console.error('❌ Query Error:', error)
         message.error('Не удалось загрузить данные')
@@ -1082,15 +1080,13 @@ export default function Chessboard() {
       
       console.log('✅ Query Result:', {
         totalRows: data?.length || 0,
-        sampleRows: data?.slice(0, 2).map(row => ({
-          id: row.id,
-          material: row.material,
-          documentation: row.chessboard_documentation_mapping?.map(dm => ({
-            versionNumber: dm.documentation_versions?.version_number,
-            documentCode: dm.documentation_versions?.documentations?.code
-          }))
-        }))
+        appliedFilters,
+        hasDocumentationFilter: !!appliedFilters.documentationId?.length,
+        firstRowKeys: data?.[0] ? Object.keys(data[0]) : [],
+        firstRow: data?.[0]
       })
+      
+      console.log('🔍 Processing floors data...')
 
       // Загружаем этажи для всех записей
       const chessboardIds = ((data as unknown as DbRow[] | null | undefined) ?? []).map(
@@ -1177,6 +1173,13 @@ export default function Chessboard() {
           floorQuantities: floorsMap[item.id]?.quantities,
         }
       })
+      
+      console.log('🏆 Final tableData:', {
+        totalRows: result.length,
+        sampleRow: result[0]
+      })
+      
+      return result
     },
   })
 
@@ -1207,6 +1210,12 @@ export default function Chessboard() {
   })
 
   const viewRows = useMemo<ViewRow[]>(() => {
+    console.log('🔄 Processing viewRows:', {
+      tableDataLength: tableData?.length || 0,
+      commentsDataLength: commentsData?.length || 0,
+      appliedFilters
+    })
+    
     const commentsMap = new Map<string, Comment[]>()
 
     // Группируем комментарии по entity_id
@@ -1332,20 +1341,24 @@ export default function Chessboard() {
         location: item.chessboard_mapping?.location?.name ?? '',
         floors: item.floors ?? '',
         color: (item.color as RowColor | null) ?? '',
-        documentationId: documentation?.id || fallbackDoc?.id,
+        documentationId: documentation?.id, // НЕ используем fallbackDoc для documentationId
         tagName: tag?.name || fallbackTag?.name || '',
         tagNumber: tag?.tag_number ?? fallbackTag?.tag_number ?? null,
-        projectCode: documentation?.code || fallbackDoc?.project_code || '',
-        projectName: (() => {
-          // Сначала пытаемся найти по коду проекта из документации
-          const projectCode = documentation?.code || fallbackDoc?.project_code || ''
-          if (projectCode && documentations) {
-            const matchingDoc = documentations.find((d) => d.project_code === projectCode)
-            if (matchingDoc?.project_name) return matchingDoc.project_name
+        projectCode: (() => {
+          // Получаем код только из реальной связи документации
+          let code = documentation?.code || ''
+          
+          // Если код пустой, пробуем найти в documentations по documentationId  
+          if (!code && documentation?.id && documentations) {
+            const foundInDocumentations = documentations.find(doc => doc.id === documentation.id)
+            if (foundInDocumentations) {
+              code = foundInDocumentations.project_code || ''
+            }
           }
-          // Fallback к прямому поиску по project_name
-          return (documentation as { project_name?: string })?.project_name || fallbackDoc?.project_name || ''
+          
+          return code
         })(),
+        projectName: (documentation as { project_name?: string })?.project_name || '',
         versionNumber:
           version?.version_number ??
           autoVersion?.version_number ??
@@ -1355,9 +1368,31 @@ export default function Chessboard() {
       }
     })
     .filter((row) => {
-      // Фильтруем по выбранным версиям на уровне данных
+      // Сначала фильтруем по документам/тегам
+      if (appliedFilters?.documentationId?.length) {
+        // Если есть фильтр по документам, показываем только строки с этими документами
+        if (!row.documentationId || !appliedFilters.documentationId.includes(row.documentationId)) {
+          return false
+        }
+      } else if (appliedFilters?.tagId?.length) {
+        // Если есть фильтр по тегам, показываем только строки с этими тегами
+        console.log('🏷️ Tag filter check:', {
+          rowTagId: row.tagId,
+          rowTagNumber: row.tagNumber,
+          appliedTagIds: appliedFilters.tagId,
+          rowKeys: Object.keys(row),
+          hasTagNumberMatch: row.tagNumber !== null && appliedFilters.tagId.includes(String(row.tagNumber))
+        })
+        
+        // Используем tagNumber для фильтрации, так как tagId undefined
+        if (row.tagNumber === null || !appliedFilters.tagId.includes(String(row.tagNumber))) {
+          return false
+        }
+      }
+      
+      // Затем фильтруем по выбранным версиям (только если есть выбранные версии)
       if (Object.keys(selectedVersions).length > 0 && appliedFilters?.documentationId?.length) {
-        // Проверяем, соответствует ли строка выбранным версиям
+        // Если документ из фильтра, проверяем версию
         if (row.documentationId && selectedVersions[row.documentationId]) {
           const selectedVersionId = selectedVersions[row.documentationId]
           const version = documentVersions?.find(v => v.id === selectedVersionId)
@@ -1373,10 +1408,8 @@ export default function Chessboard() {
           
           return row.versionNumber === expectedVersionNumber
         }
-        // Если документ не найден в выбранных версиях, исключаем строку
-        return false
       }
-      // Если версии не выбраны, показываем все строки
+      
       return true
     })
   }, [
@@ -4310,18 +4343,15 @@ export default function Chessboard() {
                           return appliedFilters.documentationId.includes(doc.id)
                         }
                         // Иначе фильтруем по тегу строки
-                        if (!edit.tagName) return true
-                        return (
-                          doc.tag_name === edit.tagName ||
-                          (doc.tag && doc.tag.name === edit.tagName)
-                        )
+                        if (!edit.tagId) return true
+                        return doc.tag_id === Number(edit.tagId)
                       })
                       .map((doc) => ({
                         value: doc.project_code,
                         label: doc.project_code,
                       })) ?? []
                   }
-                  disabled={!edit.tagName}
+                  disabled={!edit.tagId}
                 />
               )
             case 'projectName':
