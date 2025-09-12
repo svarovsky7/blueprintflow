@@ -1019,11 +1019,6 @@ export default function Chessboard() {
     queryFn: async () => {
       if (!supabase || !appliedFilters) return []
       
-      console.log('🔍 Chessboard Query Debug:', {
-        appliedFilters,
-        selectedVersions,
-        documentVersionsCount: documentVersions?.length || 0
-      })
       
       const relation =
         (appliedFilters.blockId && appliedFilters.blockId.length > 0) ||
@@ -1036,9 +1031,6 @@ export default function Chessboard() {
       // Фильтрацию по документам делаем отдельными условиями where
       const docRelation = 'chessboard_documentation_mapping!left'
           
-      console.log('📊 Relations:', { relation, docRelation })
-      // Поэтапно восстанавливаем полный запрос
-      console.log('🔧 Using step-by-step query restoration')
       const query = supabase
         .from('chessboard')
         .select(`
@@ -1058,35 +1050,15 @@ export default function Chessboard() {
         query.in('chessboard_mapping.cost_type_id', appliedFilters.typeId.map(Number))
       // НЕ фильтруем по документации в запросе - делаем это на уровне данных
       // Это позволяет получить все записи проекта, а потом отфильтровать по документам
-      console.log('📋 Document filters will be applied at data level:', {
-        documentationId: appliedFilters.documentationId,
-        tagId: appliedFilters.tagId
-      })
       // НЕ фильтруем по версиям в запросе - делаем это на уровне данных
       // Это позволяет получить все записи и правильно выбрать нужную версию документа
-      if (Object.keys(selectedVersions).length > 0 && documentVersions) {
-        console.log('🔢 Selected Versions (not filtering in query):', selectedVersions)
-        console.log('📋 Will filter versions at data level instead of query level')
-      }
       
-      console.log('🚀 Executing query...', { projectId: appliedFilters.projectId })
       const { data, error } = await query.order('created_at', { ascending: false })
-      console.log('🏁 Query completed:', { hasData: !!data, hasError: !!error })
       if (error) {
         console.error('❌ Query Error:', error)
         message.error('Не удалось загрузить данные')
         throw error
       }
-      
-      console.log('✅ Query Result:', {
-        totalRows: data?.length || 0,
-        appliedFilters,
-        hasDocumentationFilter: !!appliedFilters.documentationId?.length,
-        firstRowKeys: data?.[0] ? Object.keys(data[0]) : [],
-        firstRow: data?.[0]
-      })
-      
-      console.log('🔍 Processing floors data...')
 
       // Загружаем этажи для всех записей
       const chessboardIds = ((data as unknown as DbRow[] | null | undefined) ?? []).map(
@@ -1174,11 +1146,6 @@ export default function Chessboard() {
         }
       })
       
-      console.log('🏆 Final tableData:', {
-        totalRows: result.length,
-        sampleRow: result[0]
-      })
-      
       return result
     },
   })
@@ -1210,12 +1177,6 @@ export default function Chessboard() {
   })
 
   const viewRows = useMemo<ViewRow[]>(() => {
-    console.log('🔄 Processing viewRows:', {
-      tableDataLength: tableData?.length || 0,
-      commentsDataLength: commentsData?.length || 0,
-      appliedFilters
-    })
-    
     const commentsMap = new Map<string, Comment[]>()
 
     // Группируем комментарии по entity_id
@@ -1267,13 +1228,6 @@ export default function Chessboard() {
         version = bestMapping?.documentation_versions
         documentation = version?.documentations
         
-        console.log('🔍 Version mapping for item:', item.id, {
-          totalMappings: mappings.length,
-          selectedDoc: documentation?.id,
-          selectedVersion: version?.version_number,
-          selectedVersions,
-          appliedDocIds: appliedFilters?.documentationId
-        })
       }
       
       const tag = documentation?.tag
@@ -1376,13 +1330,6 @@ export default function Chessboard() {
         }
       } else if (appliedFilters?.tagId?.length) {
         // Если есть фильтр по тегам, показываем только строки с этими тегами
-        console.log('🏷️ Tag filter check:', {
-          rowTagId: row.tagId,
-          rowTagNumber: row.tagNumber,
-          appliedTagIds: appliedFilters.tagId,
-          rowKeys: Object.keys(row),
-          hasTagNumberMatch: row.tagNumber !== null && appliedFilters.tagId.includes(String(row.tagNumber))
-        })
         
         // Используем tagNumber для фильтрации, так как tagId undefined
         if (row.tagNumber === null || !appliedFilters.tagId.includes(String(row.tagNumber))) {
@@ -1398,13 +1345,6 @@ export default function Chessboard() {
           const version = documentVersions?.find(v => v.id === selectedVersionId)
           const expectedVersionNumber = version?.version_number
           
-          console.log('🔍 Row filter check:', {
-            rowId: row.key,
-            documentationId: row.documentationId,
-            rowVersionNumber: row.versionNumber,
-            expectedVersionNumber,
-            matches: row.versionNumber === expectedVersionNumber
-          })
           
           return row.versionNumber === expectedVersionNumber
         }
@@ -2069,11 +2009,6 @@ export default function Chessboard() {
   }, [])
 
   const applyVersions = useCallback(() => {
-    console.log('🎯 Apply Versions Called:', {
-      selectedVersions,
-      appliedFilters: appliedFilters?.documentationId,
-      documentVersions: documentVersions?.map(v => ({ id: v.id, version_number: v.version_number, documentation_id: v.documentation_id }))
-    })
     
     // Проверяем, что для всех документов выбрана версия
     const requiredDocIds = appliedFilters?.documentationId || []
@@ -2089,7 +2024,6 @@ export default function Chessboard() {
     message.success(`Выбрано версий документов: ${Object.keys(selectedVersions).length}`)
 
     // Обновляем данные таблицы с учетом выбранных версий
-    console.log('🔄 Triggering refetch with new versions')
     refetch()
   }, [selectedVersions, appliedFilters, refetch, documentVersions])
 
