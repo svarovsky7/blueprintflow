@@ -13,7 +13,6 @@ import {
   InputNumber,
   List,
   Modal,
-  Popconfirm,
   Select,
   Space,
   Table,
@@ -52,6 +51,7 @@ import {
   type ChessboardSet,
 } from '@/entities/chessboard'
 import { statusesApi } from '@/entities/statuses/api/statuses-api'
+import SimpleDeleteConfirm from '../../components/SimpleDeleteConfirm'
 import { normalizeColorToHex } from '@/shared/constants/statusColors'
 import { useScale } from '@/shared/contexts/ScaleContext'
 import ChessboardSetsModal from './ChessboardSetsModal'
@@ -958,7 +958,24 @@ export default function Chessboard() {
     queryFn: async () => {
       if (!appliedFilters?.projectId) return []
       const fetchFilters = { project_id: appliedFilters.projectId }
-      return documentationApi.getDocumentationList(fetchFilters)
+      const docs = await documentationApi.getDocumentationList(fetchFilters)
+      console.log('🔍 Loaded documentations:', {
+        count: docs.length,
+        firstDoc: docs[0] ? {
+          id: docs[0].id,
+          code: docs[0].project_code,
+          name: docs[0].project_name,
+          tag_id: docs[0].tag_id,
+          tag_name: docs[0].tag_name,
+          tag: docs[0].tag
+        } : null,
+        sample: docs.slice(0, 3).map(doc => ({ 
+          code: doc.project_code, 
+          tag_id: doc.tag_id, 
+          tag_name: doc.tag_name 
+        }))
+      })
+      return docs
     },
     enabled: !!appliedFilters?.projectId,
   })
@@ -3600,13 +3617,28 @@ export default function Chessboard() {
                 />
               )
             case 'projectCode':
+              // Отладка для режима добавления
+              if (record.tagName && documentations?.length > 0) {
+                console.log('🔧 ADD mode - ProjectCode dropdown:', {
+                  tagName: record.tagName,
+                  totalDocs: documentations.length,
+                  sampleDoc: documentations[0] ? {
+                    id: documentations[0].id,
+                    code: documentations[0].project_code,
+                    tag_id: documentations[0].tag_id,
+                    tag_name: documentations[0].tag_name
+                  } : null
+                })
+              }
               return (
                 <Select
-                  style={{ width: 150 }}
+                  style={{ width: '100%' }}
                   placeholder="Шифр проекта"
                   allowClear
                   showSearch
                   value={record.projectCode}
+                  popupMatchSelectWidth={false}
+                  dropdownStyle={{ maxWidth: 500 }}
                   onChange={(value) => {
                     const selectedDoc = documentations?.find((doc) => doc.project_code === value)
                     // Находим максимальную версию для выбранного документа
@@ -3624,26 +3656,20 @@ export default function Chessboard() {
                     const text = (option?.label ?? '').toString()
                     return text.toLowerCase().includes(input.toLowerCase())
                   }}
+                  optionLabelProp="value"
                   options={
                     documentations
                       ?.filter((doc) => {
-                        // Фильтруем по выбранным документам в фильтрах, если они есть
-                        if (
-                          appliedFilters?.documentationId &&
-                          appliedFilters.documentationId.length > 0
-                        ) {
-                          return appliedFilters.documentationId.includes(doc.id)
-                        }
-                        // Иначе фильтруем по тегу строки
+                        // Если нет выбранного раздела - показываем все документы
                         if (!record.tagName) return true
-                        return (
-                          doc.tag_name === record.tagName ||
-                          (doc.tag && doc.tag.name === record.tagName)
-                        )
+                        
+                        // Проверяем соответствие по имени тега
+                        const docTagName = doc.tag_name || (doc.tag ? doc.tag.name : null)
+                        return docTagName === record.tagName
                       })
                       .map((doc) => ({
                         value: doc.project_code,
-                        label: doc.project_code,
+                        label: `${doc.project_code} - ${doc.project_name || 'Без названия'}`,
                       })) ?? []
                   }
                   disabled={!record.tagName}
@@ -3992,9 +4018,12 @@ export default function Chessboard() {
           record.isExisting ? (
             <Space>
               <Button type="text" icon={<EditOutlined />} onClick={() => startEdit(record.key)} />
-              <Popconfirm title="Удалить строку?" onConfirm={() => handleDelete(record.key)}>
+              <SimpleDeleteConfirm
+                content={`Вы уверены, что хотите удалить строку "${record.material}"?`}
+                onConfirm={() => handleDelete(record.key)}
+              >
                 <Button type="text" icon={<DeleteOutlined />} />
-              </Popconfirm>
+              </SimpleDeleteConfirm>
             </Space>
           ) : null,
       },
@@ -4243,13 +4272,41 @@ export default function Chessboard() {
                 />
               )
             case 'projectCode':
+              // Отладка для режима редактирования
+              if (edit.tagId && documentations?.length > 0) {
+                const tagIds = documentations.slice(0, 5).map(doc => ({
+                  tag_id: doc.tag_id,
+                  tag: doc.tag ? doc.tag.id : null,
+                  actualTagId: doc.tag_id || (doc.tag ? doc.tag.id : null)
+                }))
+                const filteredDocs = documentations.filter((doc) => {
+                  const docTagId = doc.tag_id
+                  const selectedTagId = Number(edit.tagId)
+                  const actualTagId = docTagId || (doc.tag ? doc.tag.id : null)
+                  return actualTagId === selectedTagId
+                })
+                console.log('🔧 EDIT mode - ProjectCode dropdown:', {
+                  searchingForTagId: edit.tagId,
+                  searchingForTagIdNum: Number(edit.tagId),
+                  totalDocs: documentations.length,
+                  first5DocsTagInfo: tagIds,
+                  filteredDocsCount: filteredDocs.length,
+                  firstFilteredDoc: filteredDocs[0] ? {
+                    code: filteredDocs[0].project_code,
+                    tag_id: filteredDocs[0].tag_id,
+                    tag: filteredDocs[0].tag
+                  } : null
+                })
+              }
               return (
                 <Select
-                  style={{ width: 150 }}
+                  style={{ width: '100%' }}
                   placeholder="Шифр проекта"
                   allowClear
                   showSearch
                   value={edit.projectCode}
+                  popupMatchSelectWidth={false}
+                  dropdownStyle={{ maxWidth: 500 }}
                   onChange={(value) => {
                     const selectedDoc = documentations?.find((doc) => doc.project_code === value)
                     // Находим максимальную версию для выбранного документа
@@ -4267,23 +4324,25 @@ export default function Chessboard() {
                     const text = (option?.label ?? '').toString()
                     return text.toLowerCase().includes(input.toLowerCase())
                   }}
+                  optionLabelProp="value"
                   options={
                     documentations
                       ?.filter((doc) => {
-                        // Фильтруем по выбранным документам в фильтрах, если они есть
-                        if (
-                          appliedFilters?.documentationId &&
-                          appliedFilters.documentationId.length > 0
-                        ) {
-                          return appliedFilters.documentationId.includes(doc.id)
-                        }
-                        // Иначе фильтруем по тегу строки
+                        // Если нет выбранного тега - показываем все документы
                         if (!edit.tagId) return true
-                        return doc.tag_id === Number(edit.tagId)
+                        
+                        // Проверяем соответствие tag_id
+                        const docTagId = doc.tag_id
+                        const selectedTagId = Number(edit.tagId)
+                        
+                        // Если у документа нет tag_id, но есть tag.id - используем его
+                        const actualTagId = docTagId || (doc.tag ? doc.tag.id : null)
+                        
+                        return actualTagId === selectedTagId
                       })
                       .map((doc) => ({
                         value: doc.project_code,
-                        label: doc.project_code,
+                        label: `${doc.project_code} - ${doc.project_name || 'Без названия'}`,
                       })) ?? []
                   }
                   disabled={!edit.tagId}
@@ -4627,9 +4686,12 @@ export default function Chessboard() {
               {!isEditing && (
                 <Button type="text" icon={<EditOutlined />} onClick={() => startEdit(record.key)} />
               )}
-              <Popconfirm title="Удалить строку?" onConfirm={() => handleDelete(record.key)}>
+              <SimpleDeleteConfirm
+                content={`Вы уверены, что хотите удалить строку "${record.material}"?`}
+                onConfirm={() => handleDelete(record.key)}
+              >
                 <Button type="text" icon={<DeleteOutlined />} />
-              </Popconfirm>
+              </SimpleDeleteConfirm>
             </Space>
           )
         },
@@ -5262,7 +5324,7 @@ export default function Chessboard() {
                     : 'Удалить'}
               </Button>
             )}
-            {deleteMode && selectedRows.size === 0 && (
+            {deleteMode && (
               <Button
                 onClick={() => {
                   setDeleteMode(false)
@@ -5745,12 +5807,13 @@ export default function Chessboard() {
                       icon={<EditOutlined />}
                       onClick={() => startEditComment(comment)}
                     />
-                    <Popconfirm
+                    <SimpleDeleteConfirm
                       title="Удалить комментарий?"
+                      content="Вы уверены, что хотите удалить этот комментарий?"
                       onConfirm={() => deleteComment(comment.id)}
                     >
                       <Button type="text" size="small" icon={<DeleteOutlined />} danger />
-                    </Popconfirm>
+                    </SimpleDeleteConfirm>
                   </div>
                 </div>
               </Card>
