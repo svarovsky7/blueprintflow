@@ -1019,13 +1019,13 @@ export default function Chessboard() {
     queryFn: async () => {
       if (!supabase || !appliedFilters) return []
       
-      
-      const relation =
+      // Определяем тип join для chessboard_mapping
+      const hasFilters = 
         (appliedFilters.blockId && appliedFilters.blockId.length > 0) ||
         (appliedFilters.categoryId && appliedFilters.categoryId.length > 0) ||
         (appliedFilters.typeId && appliedFilters.typeId.length > 0)
-          ? 'chessboard_mapping!inner'
-          : 'chessboard_mapping'
+      
+      const mappingJoin = hasFilters ? 'chessboard_mapping!inner' : 'chessboard_mapping!left'
 
       // Всегда используем left join для документации, чтобы получать все записи
       // Фильтрацию по документам делаем отдельными условиями where
@@ -1036,12 +1036,12 @@ export default function Chessboard() {
         .select(`
           id, material, materials(name), unit_id, color, units(name),
           chessboard_nomenclature_mapping!left(nomenclature_id, supplier_name, nomenclature(name)),
-          chessboard_mapping!left(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name)),
+          ${mappingJoin}(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name)),
           chessboard_rates_mapping!left(rate_id, rates(work_name)),
           chessboard_documentation_mapping!left(version_id, documentation_versions(id, version_number, documentation_id, documentations(id, code, tag_id, stage, project_name, tag:documentation_tags(id, name, tag_number))))
         `)
         .eq('project_id', appliedFilters.projectId)
-      // Восстанавливаем фильтры с учетом left join
+      // Восстанавливаем фильтры с учетом типа join
       if (appliedFilters.blockId && appliedFilters.blockId.length > 0)
         query.in('chessboard_mapping.block_id', appliedFilters.blockId)
       if (appliedFilters.categoryId && appliedFilters.categoryId.length > 0)
@@ -1059,6 +1059,7 @@ export default function Chessboard() {
         message.error('Не удалось загрузить данные')
         throw error
       }
+
 
       // Загружаем этажи для всех записей
       const chessboardIds = ((data as unknown as DbRow[] | null | undefined) ?? []).map(
@@ -5360,8 +5361,8 @@ export default function Chessboard() {
                   style={{ width: 200 }}
                   value={filters.typeId}
                   onChange={(value) => setFilters((f) => ({ ...f, typeId: value }))}
-                  options={
-                    costTypes
+                  options={(() => {
+                    const availableTypes = costTypes
                       ?.filter(
                         (t) =>
                           !filters.categoryId ||
@@ -5369,7 +5370,9 @@ export default function Chessboard() {
                           filters.categoryId.includes(String(t.cost_category_id)),
                       )
                       .map((t) => ({ value: String(t.id), label: t.name })) ?? []
-                  }
+                    
+                    return availableTypes
+                  })()}
                   disabled={!filters.categoryId || filters.categoryId.length === 0}
                   allowClear
                   showSearch

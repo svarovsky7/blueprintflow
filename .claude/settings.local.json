@@ -21,7 +21,8 @@
       "Bash(npm uninstall:*)",
       "WebSearch",
       "Bash(npx eslint:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(npm run lint:*)"
     ],
     "deny": [],
     "ask": []
