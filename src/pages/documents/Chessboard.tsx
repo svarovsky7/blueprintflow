@@ -406,6 +406,7 @@ export default function Chessboard() {
     typeId?: string[]
     tagId?: string[]
     documentationId?: string[]
+    versionNumber?: number[]
   }>({})
   const [appliedFilters, setAppliedFilters] = useState<{
     projectId: string
@@ -414,6 +415,7 @@ export default function Chessboard() {
     typeId?: string[]
     tagId?: string[]
     documentationId?: string[]
+    versionNumber?: number[]
   } | null>(null)
   const [mode, setMode] = useState<'view' | 'add'>('view')
   const [rows, setRows] = useState<RowData[]>([])
@@ -542,7 +544,7 @@ export default function Chessboard() {
   // Обработка URL параметров при загрузке страницы
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search)
-    const urlFilters: any = {}
+    const urlFilters: Record<string, string | string[]> = {}
     let hasFilters = false
     
     // Читаем параметры из URL
@@ -1012,10 +1014,17 @@ export default function Chessboard() {
   })
 
   const { data: tableData, refetch } = useQuery<DbRow[]>({
-    queryKey: ['chessboard', appliedFilters],
+    queryKey: ['chessboard', appliedFilters, selectedVersions],
     enabled: !!appliedFilters?.projectId,
     queryFn: async () => {
       if (!supabase || !appliedFilters) return []
+      
+      console.log('🔍 Chessboard Query Debug:', {
+        appliedFilters,
+        selectedVersions,
+        documentVersionsCount: documentVersions?.length || 0
+      })
+      
       const relation =
         (appliedFilters.blockId && appliedFilters.blockId.length > 0) ||
         (appliedFilters.categoryId && appliedFilters.categoryId.length > 0) ||
@@ -1028,6 +1037,8 @@ export default function Chessboard() {
         (appliedFilters.tagId && appliedFilters.tagId.length > 0)
           ? 'chessboard_documentation_mapping!inner'
           : 'chessboard_documentation_mapping'
+          
+      console.log('📊 Relations:', { relation, docRelation })
       const query = supabase
         .from('chessboard')
         .select(
@@ -1056,11 +1067,30 @@ export default function Chessboard() {
           appliedFilters.tagId.map(Number),
         )
       }
+      // НЕ фильтруем по версиям в запросе - делаем это на уровне данных
+      // Это позволяет получить все записи и правильно выбрать нужную версию документа
+      if (Object.keys(selectedVersions).length > 0 && documentVersions) {
+        console.log('🔢 Selected Versions (not filtering in query):', selectedVersions)
+        console.log('📋 Will filter versions at data level instead of query level')
+      }
       const { data, error } = await query.order('created_at', { ascending: false })
       if (error) {
+        console.error('❌ Query Error:', error)
         message.error('Не удалось загрузить данные')
         throw error
       }
+      
+      console.log('✅ Query Result:', {
+        totalRows: data?.length || 0,
+        sampleRows: data?.slice(0, 2).map(row => ({
+          id: row.id,
+          material: row.material,
+          documentation: row.chessboard_documentation_mapping?.map(dm => ({
+            versionNumber: dm.documentation_versions?.version_number,
+            documentCode: dm.documentation_versions?.documentations?.code
+          }))
+        }))
+      })
 
       // Загружаем этажи для всех записей
       const chessboardIds = ((data as unknown as DbRow[] | null | undefined) ?? []).map(
@@ -1197,8 +1227,46 @@ export default function Chessboard() {
     }
 
     return (tableData ?? []).map((item) => {
-      const version = item.chessboard_documentation_mapping?.documentation_versions
-      const documentation = version?.documentations
+      // Если есть выбранные версии из модального окна, нужно найти правильную версию
+      let version = item.chessboard_documentation_mapping?.documentation_versions
+      let documentation = version?.documentations
+      
+      // Если это массив, нужно найти правильную версию
+      if (Array.isArray(item.chessboard_documentation_mapping)) {
+        // Ищем версию, которая соответствует выбранным версиям или документу из фильтров
+        const mappings = item.chessboard_documentation_mapping
+        let bestMapping = mappings[0] // fallback
+        
+        for (const mapping of mappings) {
+          const mapVersion = mapping.documentation_versions
+          const mapDoc = mapVersion?.documentations
+          
+          if (mapDoc && appliedFilters?.documentationId?.includes(mapDoc.id)) {
+            // Если есть выбранные версии для этого документа
+            if (Object.keys(selectedVersions).length > 0 && selectedVersions[mapDoc.id]) {
+              const selectedVersionId = selectedVersions[mapDoc.id]
+              if (mapVersion?.id === selectedVersionId) {
+                bestMapping = mapping // Точное совпадение по выбранной версии
+                break
+              }
+            } else {
+              bestMapping = mapping // Документ из фильтров
+            }
+          }
+        }
+        
+        version = bestMapping?.documentation_versions
+        documentation = version?.documentations
+        
+        console.log('🔍 Version mapping for item:', item.id, {
+          totalMappings: mappings.length,
+          selectedDoc: documentation?.id,
+          selectedVersion: version?.version_number,
+          selectedVersions,
+          appliedDocIds: appliedFilters?.documentationId
+        })
+      }
+      
       const tag = documentation?.tag
 
       // Заполняем данные из фильтров, если они отсутствуют в записи
@@ -1286,6 +1354,31 @@ export default function Chessboard() {
         comments: commentsMap.get(item.id) || [],
       }
     })
+    .filter((row) => {
+      // Фильтруем по выбранным версиям на уровне данных
+      if (Object.keys(selectedVersions).length > 0 && appliedFilters?.documentationId?.length) {
+        // Проверяем, соответствует ли строка выбранным версиям
+        if (row.documentationId && selectedVersions[row.documentationId]) {
+          const selectedVersionId = selectedVersions[row.documentationId]
+          const version = documentVersions?.find(v => v.id === selectedVersionId)
+          const expectedVersionNumber = version?.version_number
+          
+          console.log('🔍 Row filter check:', {
+            rowId: row.key,
+            documentationId: row.documentationId,
+            rowVersionNumber: row.versionNumber,
+            expectedVersionNumber,
+            matches: row.versionNumber === expectedVersionNumber
+          })
+          
+          return row.versionNumber === expectedVersionNumber
+        }
+        // Если документ не найден в выбранных версиях, исключаем строку
+        return false
+      }
+      // Если версии не выбраны, показываем все строки
+      return true
+    })
   }, [
     tableData,
     commentsData,
@@ -1293,6 +1386,7 @@ export default function Chessboard() {
     sortedDocumentationTags,
     documentations,
     documentVersions,
+    selectedVersions,
   ])
 
   const tableRows = useMemo<TableRow[]>(
@@ -1347,6 +1441,7 @@ export default function Chessboard() {
       typeId?: string[]
       tagId?: string[]
       documentationId?: string[]
+      versionNumber?: number[]
     })
 
     // Автоматически устанавливаем последние версии для выбранных документов
@@ -1941,6 +2036,12 @@ export default function Chessboard() {
   }, [])
 
   const applyVersions = useCallback(() => {
+    console.log('🎯 Apply Versions Called:', {
+      selectedVersions,
+      appliedFilters: appliedFilters?.documentationId,
+      documentVersions: documentVersions?.map(v => ({ id: v.id, version_number: v.version_number, documentation_id: v.documentation_id }))
+    })
+    
     // Проверяем, что для всех документов выбрана версия
     const requiredDocIds = appliedFilters?.documentationId || []
     const missingVersions = requiredDocIds.filter((docId) => !selectedVersions[docId])
@@ -1955,8 +2056,9 @@ export default function Chessboard() {
     message.success(`Выбрано версий документов: ${Object.keys(selectedVersions).length}`)
 
     // Обновляем данные таблицы с учетом выбранных версий
+    console.log('🔄 Triggering refetch with new versions')
     refetch()
-  }, [selectedVersions, appliedFilters, refetch])
+  }, [selectedVersions, appliedFilters, refetch, documentVersions])
 
   const startAdd = useCallback(() => {
     if (!appliedFilters) return
@@ -2149,9 +2251,9 @@ export default function Chessboard() {
 
       // Проверяем наличие множественных документов (новая структура)
       if (setData.documents && Array.isArray(setData.documents) && setData.documents.length > 0) {
-        documentationIds = setData.documents.map((doc: any) => doc.documentation_id)
+        documentationIds = setData.documents.map((doc: { documentation_id: string }) => doc.documentation_id)
         // Устанавливаем версии для каждого документа
-        setData.documents.forEach((doc: any) => {
+        setData.documents.forEach((doc: { documentation_id: string; version_id: string }) => {
           if (doc.documentation_id && doc.version_id) {
             newVersions[doc.documentation_id] = doc.version_id
           }
@@ -2601,6 +2703,7 @@ export default function Chessboard() {
           )
           docId = doc.id
         } else {
+          // Документ не найден - это нормально для некоторых строк
         }
 
         if (docId && r.versionNumber) {
