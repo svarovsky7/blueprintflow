@@ -62,13 +62,19 @@ export const chessboardSetsApi = {
     // Генерируем уникальный номер комплекта
     const setNumber = await this.generateSetNumber()
 
+    // Определяем первичный документ из массива documents для обратной совместимости
+    const primaryDocument = request.filters.documents && request.filters.documents.length > 0 
+      ? request.filters.documents[0] 
+      : null
+
     // Создаем комплект без поля status_id (теперь статус хранится в таблице маппинга)
     const newSet = {
       set_number: setNumber,
       name: request.name || null,
       project_id: request.filters.project_id,
-      documentation_id: request.filters.documentation_id,
-      version_id: request.filters.version_id,
+      // Используем первичный документ для обратной совместимости 
+      documentation_id: primaryDocument?.documentation_id || request.filters.documentation_id || null,
+      version_id: primaryDocument?.version_id || request.filters.version_id || null,
       tag_id: request.filters.tag_id || null,
       block_ids: request.filters.block_ids || null,
       cost_category_ids: request.filters.cost_category_ids || null,
@@ -92,6 +98,29 @@ export const chessboardSetsApi = {
     if (error) {
       console.error('Failed to create chessboard set:', error)
       throw error
+    }
+
+    // Если передан массив документов, создаем записи в таблице маппинга
+    if (request.filters.documents && request.filters.documents.length > 0 && data) {
+      try {
+        const documentsMapping = request.filters.documents.map((doc, index) => ({
+          set_id: data.id,
+          documentation_id: doc.documentation_id,
+          version_id: doc.version_id,
+          order_index: index,
+        }))
+
+        const { error: mappingError } = await supabase
+          .from('chessboard_sets_documents_mapping')
+          .insert(documentsMapping)
+
+        if (mappingError) {
+          console.error('Failed to create documents mapping:', mappingError)
+          // Не прерываем создание комплекта, если не удалось создать маппинг
+        }
+      } catch (mappingError) {
+        console.error('Error creating documents mapping:', mappingError)
+      }
     }
 
     // Если указан статус, добавляем его в таблицу маппинга

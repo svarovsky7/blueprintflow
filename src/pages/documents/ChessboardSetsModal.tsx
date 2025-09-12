@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Modal, Table, Space, Button, Input, Select, Tag, message, Form, Row, Col, Card } from 'antd'
+import { Modal, Table, Space, Button, Input, Select, Tag, Form, Row, Col, Card, App } from 'antd'
 import { DeleteOutlined, EditOutlined, ArrowRightOutlined, CopyOutlined, PlusOutlined, MinusCircleOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import type { ColumnsType } from 'antd/es/table'
@@ -25,6 +25,7 @@ export default function ChessboardSetsModal({
   onSelectSet,
   currentSetId,
 }: ChessboardSetsModalProps) {
+  const { message } = App.useApp()
   const [searchFilters, setSearchFilters] = useState<ChessboardSetSearchFilters>({
     project_id: projectId,
   })
@@ -115,8 +116,8 @@ export default function ChessboardSetsModal({
       
       // Извлекаем данные блоков из связанных записей
       return (data || [])
-        .map(item => item.blocks)
-        .filter(block => block !== null)
+        .map((item: any) => item.blocks)
+        .filter((block: any) => block !== null)
     },
     enabled: !!projectId,
   })
@@ -235,7 +236,7 @@ export default function ChessboardSetsModal({
     })) || []
 
     // Устанавливаем выбранные категории затрат для фильтрации видов затрат
-    setSelectedCostCategories(record.cost_category_ids || [])
+    setSelectedCostCategories((record.cost_category_ids || []).map(id => Number(id)))
 
     copyForm.setFieldsValue({
       name: `${record.name || record.set_number} (копия)`,
@@ -254,16 +255,49 @@ export default function ChessboardSetsModal({
       const values = await copyForm.validateFields()
       
       if (copyingSet) {
-        // Создаем новый комплект с обновленными данными
+        // Найдем статус "В работе" динамически
+        let inProgressStatusId: string | undefined
+        try {
+          // Упростим запрос - ищем только по имени и активности, без фильтрации по applicable_pages
+          const { data: statuses, error: statusError } = await supabase
+            .from('statuses')
+            .select('id, applicable_pages')
+            .eq('name', 'В работе')
+            .eq('is_active', true)
+          
+          if (statusError) {
+            console.error('Error finding status:', statusError)
+          } else if (statuses && statuses.length > 0) {
+            // Фильтруем вручную, чтобы найти статус с нужной applicable_page
+            const relevantStatus = statuses.find(status => 
+              status.applicable_pages && 
+              Array.isArray(status.applicable_pages) &&
+              status.applicable_pages.includes('documents/chessboard')
+            )
+            inProgressStatusId = relevantStatus?.id
+          }
+        } catch (statusError) {
+          console.error('Error searching for status:', statusError)
+        }
+
+        // Если не удалось найти статус динамически, используем известный UUID
+        if (!inProgressStatusId) {
+          inProgressStatusId = '4c76a4aa-5efd-4fe4-b68c-f5dc094dc25a' // UUID статуса "В работе"
+          console.warn('Using fallback status ID for "В работе"')
+        }
+
+        // Создаем новый комплект с правильной структурой данных
         await chessboardSetsApi.createSet({
-          project_id: projectId!,
           name: values.name,
-          documents: values.documents || [],
-          tag_id: values.tag_id,
-          block_ids: values.block_ids || [],
-          cost_category_ids: values.cost_category_ids || [],
-          cost_type_ids: values.cost_type_ids || [],
-          status_id: 'in_progress', // Статус "В работе"
+          filters: {
+            project_id: projectId!,
+            documents: values.documents || [],
+            tag_id: values.tag_id,
+            block_ids: values.block_ids || [],
+            cost_category_ids: values.cost_category_ids || [],
+            cost_type_ids: values.cost_type_ids || [],
+          },
+          status_id: inProgressStatusId, // Статус "В работе" найден динамически
         })
         
         message.success('Комплект скопирован')
@@ -579,9 +613,10 @@ export default function ChessboardSetsModal({
                                 placeholder="Шифр документа"
                                 allowClear
                                 showSearch
-                                filterOption={(input, option) =>
-                                  (option?.children || option?.label)?.toString().toLowerCase().includes(input.toLowerCase())
-                                }
+                                filterOption={(input, option) => {
+                                  const text = (option?.children || option?.label)?.toString() || ""
+                                  return text.toLowerCase().includes(input.toLowerCase())
+                                }}
                               >
                                 {documentations?.map(doc => (
                                   <Select.Option key={doc.id} value={doc.id}>
