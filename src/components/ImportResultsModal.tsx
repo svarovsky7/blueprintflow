@@ -1,5 +1,10 @@
 import { Modal, Statistic, Row, Col, Alert, Typography, List, Tag } from 'antd'
-import { CheckCircleOutlined, CloseCircleOutlined, ExclamationCircleOutlined, InfoCircleOutlined } from '@ant-design/icons'
+import {
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  ExclamationCircleOutlined,
+  InfoCircleOutlined,
+} from '@ant-design/icons'
 import type { ImportResults } from '@/entities/documentation/types'
 
 const { Text } = Typography
@@ -10,11 +15,7 @@ interface ImportResultsModalProps {
   results: ImportResults | null
 }
 
-export default function ImportResultsModal({
-  open,
-  onClose,
-  results,
-}: ImportResultsModalProps) {
+export default function ImportResultsModal({ open, onClose, results }: ImportResultsModalProps) {
   if (!results) return null
 
   const hasErrors = results.errorCount > 0
@@ -36,8 +37,8 @@ export default function ImportResultsModal({
             isSuccess && !hasSkipped
               ? 'Импорт выполнен успешно'
               : hasErrors
-              ? 'Импорт завершен с ошибками'
-              : 'Импорт завершен'
+                ? 'Импорт завершен с ошибками'
+                : 'Импорт завершен'
           }
           type={isSuccess && !hasSkipped ? 'success' : hasErrors ? 'error' : 'warning'}
           showIcon

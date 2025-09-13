@@ -25,10 +25,10 @@ export interface ChessboardSetDocument {
 export interface ChessboardSetFilters {
   // Обязательные фильтры
   project_id: string
-  
+
   // Новый формат - массив документов
   documents?: ChessboardSetDocument[] // Массив документов с версиями (неограниченное количество)
-  
+
   // Старый формат для обратной совместимости (deprecated)
   documentation_id?: string
   version_id?: string
@@ -59,11 +59,11 @@ export interface ChessboardSet {
   // Фильтры (развернутые)
   project_id: string
   documents?: ChessboardSetDocument[] // Массив документов с версиями (новая структура)
-  
+
   // Старые поля для обратной совместимости (deprecated)
   documentation_id?: string
   version_id?: string
-  
+
   tag_id?: number | null
   block_ids?: string[] | null
   cost_category_ids?: number[] | null
@@ -71,7 +71,8 @@ export interface ChessboardSet {
 
   // Статус
   status_id?: string // UUID из таблицы statuses (может быть не назначен)
-  status?: { // упрощенное представление статуса для отображения
+  status?: {
+    // упрощенное представление статуса для отображения
     id: string
     name: string
     color?: string

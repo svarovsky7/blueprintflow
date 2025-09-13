@@ -1,12 +1,23 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useMemo, useState } from 'react'
-import { App, Button, Form, Input, InputNumber, Modal, Space, Table, Checkbox, Row, Col } from 'antd'
+import {
+  App,
+  Button,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Space,
+  Table,
+  Checkbox,
+  Row,
+  Col,
+} from 'antd'
 import type { TableProps } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { EyeOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import ProjectCardModal from '../../components/ProjectCardModal'
-import CustomPopconfirm from '../../components/CustomPopconfirm'
 import CascadeDeleteProject from '../../components/CascadeDeleteProject'
 import styles from './Projects.module.css'
 
@@ -283,7 +294,7 @@ export default function Projects() {
     )
     form.setFieldsValue({ blocks: updated })
     setBlocksCount(count)
-    
+
     // Если включена опция "для всех корпусов" и есть количество ПЧ этажей
     if (useUndergroundForAll && undergroundFloorsCount !== null) {
       applyUndergroundFloorsToAll(count)
@@ -292,7 +303,7 @@ export default function Projects() {
 
   const handleUndergroundFloorsChange = (value: number | null) => {
     setUndergroundFloorsCount(value)
-    
+
     if (useUndergroundForAll && value !== null) {
       applyUndergroundFloorsToAll(blocksCount)
     }
@@ -300,7 +311,7 @@ export default function Projects() {
 
   const handleUseUndergroundForAllChange = (checked: boolean) => {
     setUseUndergroundForAll(checked)
-    
+
     if (checked && undergroundFloorsCount !== null) {
       applyUndergroundFloorsToAll(blocksCount)
     } else if (!checked) {
@@ -316,7 +327,7 @@ export default function Projects() {
 
   const applyUndergroundFloorsToAll = (count: number) => {
     if (undergroundFloorsCount === null) return
-    
+
     const current = form.getFieldValue('blocks') || []
     const updated = Array.from({ length: count }, (_, i) => ({
       ...current[i],
@@ -324,14 +335,14 @@ export default function Projects() {
       top_floor: current[i]?.top_floor || null,
       bottom_floor: -Math.abs(undergroundFloorsCount),
     }))
-    
+
     form.setFieldsValue({ blocks: updated })
   }
 
   const [projectCardData, setProjectCardData] = useState({
     name: '',
     address: '',
-    blocks: [] as Array<{ name: string; bottomFloor: number; topFloor: number }>
+    blocks: [] as Array<{ name: string; bottomFloor: number; topFloor: number }>,
   })
 
   const handleShowProjectCard = () => {
@@ -340,7 +351,7 @@ export default function Projects() {
       message.warning('Заполните все обязательные поля перед открытием карточки')
       return
     }
-    
+
     setProjectCardData({
       name: values.name || '',
       address: values.address || '',
@@ -348,7 +359,7 @@ export default function Projects() {
         name: block.name || '',
         bottomFloor: block.bottom_floor || 0,
         topFloor: block.top_floor || 0,
-      }))
+      })),
     })
     setShowProjectCard(true)
   }
@@ -360,7 +371,7 @@ export default function Projects() {
   }) => {
     try {
       if (!supabase) return
-      
+
       // Получаем основные данные проекта
       const values = await form.validateFields()
       const projectData = {
@@ -387,7 +398,7 @@ export default function Projects() {
           .eq('id', currentProject.id)
         if (projectError) throw projectError
         projectId = currentProject.id
-        
+
         // Удаляем существующие блоки
         if (existingBlockIds.length) {
           const { error: delError } = await supabase
@@ -405,12 +416,12 @@ export default function Projects() {
       const allBlocksToCreate = [...regularBlocks]
 
       // Добавляем стилобаты как блоки
-      cardData.stylobates.forEach(stylobate => {
+      cardData.stylobates.forEach((stylobate) => {
         allBlocksToCreate.push({
           name: stylobate.name,
           bottomFloor: 1,
           topFloor: stylobate.floors,
-          isStylebat: true
+          isStylebat: true,
         })
       })
 
@@ -418,23 +429,21 @@ export default function Projects() {
         // Создаём все блоки
         const { data: blocksData, error: blocksError } = await supabase
           .from('blocks')
-          .insert(allBlocksToCreate.map(b => ({ name: b.name })))
+          .insert(allBlocksToCreate.map((b) => ({ name: b.name })))
           .select('id, name')
         if (blocksError) throw blocksError
 
         // Создаём связи проект-блок
-        const projectBlocks = blocksData.map(b => ({
+        const projectBlocks = blocksData.map((b) => ({
           project_id: projectId,
           block_id: b.id,
         }))
-        const { error: linkError } = await supabase
-          .from('projects_blocks')
-          .insert(projectBlocks)
+        const { error: linkError } = await supabase.from('projects_blocks').insert(projectBlocks)
         if (linkError) throw linkError
 
         // Создаём маппинг этажей для всех блоков
         const floorMappings = []
-        
+
         blocksData.forEach((dbBlock, index) => {
           const sourceBlock = allBlocksToCreate[index]
           const minFloor = Math.min(sourceBlock.bottomFloor, sourceBlock.topFloor)
@@ -442,7 +451,7 @@ export default function Projects() {
 
           for (let floor = minFloor; floor <= maxFloor; floor++) {
             let blockType: 'Типовой корпус' | 'Стилобат' | 'Подземная парковка' = 'Типовой корпус'
-            
+
             if (sourceBlock.isStylebat) {
               blockType = 'Стилобат'
             } else if (floor < 0) {
@@ -452,7 +461,7 @@ export default function Projects() {
             floorMappings.push({
               block_id: dbBlock.id,
               floor_number: floor,
-              type_blocks: blockType
+              type_blocks: blockType,
             })
           }
         })
@@ -684,7 +693,6 @@ export default function Projects() {
     }
   }
 
-
   const nameFilters = useMemo(
     () =>
       Array.from(new Set((projects ?? []).map((p) => p.name))).map((n) => ({
@@ -758,7 +766,7 @@ export default function Projects() {
               onClick={() => openEditModal(record)}
               aria-label="Редактировать"
             />
-            <CascadeDeleteProject 
+            <CascadeDeleteProject
               projectId={record.id}
               projectName={record.name}
               onSuccess={() => {
@@ -858,11 +866,11 @@ export default function Projects() {
                   name="undergroundFloorsCount"
                   tooltip="Подземные этажи (техэтажи)"
                 >
-                  <InputNumber 
-                    min={1} 
+                  <InputNumber
+                    min={1}
                     onChange={handleUndergroundFloorsChange}
                     addonAfter={
-                      <Checkbox 
+                      <Checkbox
                         checked={useUndergroundForAll}
                         onChange={(e) => handleUseUndergroundForAllChange(e.target.checked)}
                       >
@@ -898,7 +906,7 @@ export default function Projects() {
                 </Form.Item>
               </Space>
             ))}
-            
+
             {modalMode !== 'view' && (
               <div style={{ marginTop: 24, textAlign: 'left' }}>
                 <Button type="default" onClick={handleShowProjectCard}>

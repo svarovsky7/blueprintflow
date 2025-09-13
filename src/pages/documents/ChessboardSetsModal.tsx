@@ -1,6 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Modal, Table, Space, Button, Input, Select, Tag, Form, Row, Col, Card, App } from 'antd'
-import { DeleteOutlined, EditOutlined, ArrowRightOutlined, CopyOutlined, PlusOutlined, MinusCircleOutlined } from '@ant-design/icons'
+import {
+  DeleteOutlined,
+  EditOutlined,
+  ArrowRightOutlined,
+  CopyOutlined,
+  PlusOutlined,
+  MinusCircleOutlined,
+} from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import type { ColumnsType } from 'antd/es/table'
 import {
@@ -38,7 +45,7 @@ export default function ChessboardSetsModal({
 
   // Обновляем фильтр проекта при изменении projectId
   useEffect(() => {
-    setSearchFilters(prev => ({
+    setSearchFilters((prev) => ({
       ...prev,
       project_id: projectId,
     }))
@@ -60,23 +67,23 @@ export default function ChessboardSetsModal({
     queryKey: ['documentations', projectId],
     queryFn: async () => {
       if (!projectId) return []
-      
+
       // Загружаем все документы без фильтрации по проекту
       // Это временное решение пока не решена проблема с mapping таблицами
       const { data, error } = await supabase
         .from('documentations')
         .select('id, code, project_name')
         .order('code')
-      
+
       if (error) {
         console.error('Error loading documentations:', error)
         return []
       }
-      
+
       // Преобразуем project_name в name для совместимости
-      return (data || []).map(doc => ({
+      return (data || []).map((doc) => ({
         ...doc,
-        name: doc.project_name || doc.code
+        name: doc.project_name || doc.code,
       }))
     },
     enabled: !!projectId,
@@ -98,26 +105,26 @@ export default function ChessboardSetsModal({
     queryKey: ['blocks', projectId],
     queryFn: async () => {
       if (!projectId) return []
-      
+
       // Загружаем корпуса, связанные с проектом через projects_blocks
       const { data, error } = await supabase
         .from('projects_blocks')
-        .select(`
+        .select(
+          `
           block_id,
           blocks:block_id(id, name)
-        `)
+        `,
+        )
         .eq('project_id', projectId)
         .order('blocks(name)')
-      
+
       if (error) {
         console.error('Error loading blocks:', error)
         return []
       }
-      
+
       // Извлекаем данные блоков из связанных записей
-      return (data || [])
-        .map((item: any) => item.blocks)
-        .filter((block: any) => block !== null)
+      return (data || []).map((item: any) => item.blocks).filter((block: any) => block !== null)
     },
     enabled: !!projectId,
   })
@@ -157,14 +164,12 @@ export default function ChessboardSetsModal({
         .select('id, name, cost_category_id')
         .order('name')
       if (error) throw error
-      
+
       // Если выбраны категории затрат, фильтруем виды затрат
       if (selectedCostCategories.length > 0) {
-        return (data || []).filter(type => 
-          selectedCostCategories.includes(type.cost_category_id)
-        )
+        return (data || []).filter((type) => selectedCostCategories.includes(type.cost_category_id))
       }
-      
+
       return data || []
     },
   })
@@ -200,12 +205,12 @@ export default function ChessboardSetsModal({
   const handleSaveEdit = async () => {
     try {
       const values = await form.validateFields()
-      
+
       if (editingSet) {
         await chessboardSetsApi.updateSet(editingSet.id, {
           name: values.name,
         })
-        
+
         message.success('Комплект обновлен')
         setEditModalOpen(false)
         setEditingSet(null)
@@ -228,15 +233,16 @@ export default function ChessboardSetsModal({
   // Открытие модального окна копирования
   const handleCopy = (record: ChessboardSetTableRow) => {
     setCopyingSet(record)
-    
+
     // Подготавливаем данные документов с их версиями
-    const documentsData = record.documents?.map((doc) => ({
-      documentation_id: doc.documentation_id,
-      version_id: doc.version_id,
-    })) || []
+    const documentsData =
+      record.documents?.map((doc) => ({
+        documentation_id: doc.documentation_id,
+        version_id: doc.version_id,
+      })) || []
 
     // Устанавливаем выбранные категории затрат для фильтрации видов затрат
-    setSelectedCostCategories((record.cost_category_ids || []).map(id => Number(id)))
+    setSelectedCostCategories((record.cost_category_ids || []).map((id) => Number(id)))
 
     copyForm.setFieldsValue({
       name: `${record.name || record.set_number} (копия)`,
@@ -253,7 +259,7 @@ export default function ChessboardSetsModal({
   const handleSaveCopy = async () => {
     try {
       const values = await copyForm.validateFields()
-      
+
       if (copyingSet) {
         // Найдем статус "В работе" динамически
         let inProgressStatusId: string | undefined
@@ -264,15 +270,16 @@ export default function ChessboardSetsModal({
             .select('id, applicable_pages')
             .eq('name', 'В работе')
             .eq('is_active', true)
-          
+
           if (statusError) {
             console.error('Error finding status:', statusError)
           } else if (statuses && statuses.length > 0) {
             // Фильтруем вручную, чтобы найти статус с нужной applicable_page
-            const relevantStatus = statuses.find(status => 
-              status.applicable_pages && 
-              Array.isArray(status.applicable_pages) &&
-              status.applicable_pages.includes('documents/chessboard')
+            const relevantStatus = statuses.find(
+              (status) =>
+                status.applicable_pages &&
+                Array.isArray(status.applicable_pages) &&
+                status.applicable_pages.includes('documents/chessboard'),
             )
             inProgressStatusId = relevantStatus?.id
           }
@@ -299,7 +306,7 @@ export default function ChessboardSetsModal({
           },
           status_id: inProgressStatusId, // Статус "В работе" найден динамически
         })
-        
+
         message.success('Комплект скопирован')
         setCopyModalOpen(false)
         setCopyingSet(null)
@@ -323,18 +330,19 @@ export default function ChessboardSetsModal({
   // Обработчик изменения категорий затрат
   const handleCostCategoriesChange = (categoryIds: number[]) => {
     setSelectedCostCategories(categoryIds)
-    
+
     // Сбрасываем выбранные виды затрат, так как они теперь не соответствуют новым категориям
     const currentCostTypes = copyForm.getFieldValue('cost_type_ids') || []
-    const validCostTypes = costTypes?.filter(type => 
-      categoryIds.includes(type.cost_category_id)
-    ).map(type => type.id) || []
-    
+    const validCostTypes =
+      costTypes
+        ?.filter((type) => categoryIds.includes(type.cost_category_id))
+        .map((type) => type.id) || []
+
     // Оставляем только те виды затрат, которые соответствуют выбранным категориям
-    const filteredCostTypes = currentCostTypes.filter((typeId: number) => 
-      validCostTypes.includes(typeId)
+    const filteredCostTypes = currentCostTypes.filter((typeId: number) =>
+      validCostTypes.includes(typeId),
     )
-    
+
     copyForm.setFieldValue('cost_type_ids', filteredCostTypes)
   }
 
@@ -469,294 +477,313 @@ export default function ChessboardSetsModal({
         footer={null}
         style={{ top: 20 }}
       >
-      {/* Фильтры */}
-      <Space style={{ marginBottom: 16 }}>
-        <Input.Search
-          placeholder="Поиск по номеру или названию"
-          style={{ width: 250 }}
-          value={searchFilters.search}
-          onChange={(e) => setSearchFilters((prev) => ({ ...prev, search: e.target.value }))}
-          allowClear
-        />
-        <Select
-          placeholder="Статус"
-          style={{ width: 150 }}
-          value={searchFilters.status_id}
-          onChange={(statusId) => setSearchFilters((prev) => ({ ...prev, status_id: statusId }))}
-          allowClear
-          options={Array.from(
-            new Set(sets?.map((s) => ({ id: s.status_name, name: s.status_name }))),
-          ).map((status) => ({
-            value: status.id,
-            label: status.name,
-          }))}
-        />
-        <Select
-          placeholder="Шифр проекта"
-          style={{ width: 200 }}
-          value={searchFilters.documentation_id}
-          onChange={(docId) => setSearchFilters((prev) => ({ ...prev, documentation_id: docId }))}
-          allowClear
-          options={Array.from(
-            new Set(
-              sets?.map((s) => ({
-                id: s.documentation_code,
-                name: s.documentation_code,
-              })),
-            ),
-          ).map((doc) => ({
-            value: doc.id,
-            label: doc.name,
-          }))}
-        />
-      </Space>
+        {/* Фильтры */}
+        <Space style={{ marginBottom: 16 }}>
+          <Input.Search
+            placeholder="Поиск по номеру или названию"
+            style={{ width: 250 }}
+            value={searchFilters.search}
+            onChange={(e) => setSearchFilters((prev) => ({ ...prev, search: e.target.value }))}
+            allowClear
+          />
+          <Select
+            placeholder="Статус"
+            style={{ width: 150 }}
+            value={searchFilters.status_id}
+            onChange={(statusId) => setSearchFilters((prev) => ({ ...prev, status_id: statusId }))}
+            allowClear
+            options={Array.from(
+              new Set(sets?.map((s) => ({ id: s.status_name, name: s.status_name }))),
+            ).map((status) => ({
+              value: status.id,
+              label: status.name,
+            }))}
+          />
+          <Select
+            placeholder="Шифр проекта"
+            style={{ width: 200 }}
+            value={searchFilters.documentation_id}
+            onChange={(docId) => setSearchFilters((prev) => ({ ...prev, documentation_id: docId }))}
+            allowClear
+            options={Array.from(
+              new Set(
+                sets?.map((s) => ({
+                  id: s.documentation_code,
+                  name: s.documentation_code,
+                })),
+              ),
+            ).map((doc) => ({
+              value: doc.id,
+              label: doc.name,
+            }))}
+          />
+        </Space>
 
-      <Table
-        columns={columns}
-        dataSource={sets}
-        loading={isLoading}
-        rowKey="id"
-        scroll={{ x: 'max-content', y: 400 }}
-        pagination={{
-          defaultPageSize: 10,
-          showSizeChanger: true,
-          showTotal: (total) => `Всего: ${total}`,
-        }}
-        size="small"
-        rowClassName={(record) => {
-          if (record.id === currentSetId) {
-            return 'current-set-row'
-          }
-          return ''
-        }}
-      />
+        <Table
+          columns={columns}
+          dataSource={sets}
+          loading={isLoading}
+          rowKey="id"
+          scroll={{ x: 'max-content', y: 400 }}
+          pagination={{
+            defaultPageSize: 10,
+            showSizeChanger: true,
+            showTotal: (total) => `Всего: ${total}`,
+          }}
+          size="small"
+          rowClassName={(record) => {
+            if (record.id === currentSetId) {
+              return 'current-set-row'
+            }
+            return ''
+          }}
+        />
 
-      {/* Модальное окно редактирования комплекта */}
-      <Modal
-        title="Редактирование комплекта"
-        open={editModalOpen}
-        onOk={handleSaveEdit}
-        onCancel={handleCancelEdit}
-        okText="Сохранить"
-        cancelText="Отмена"
-        width={600}
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          style={{ marginTop: 20 }}
+        {/* Модальное окно редактирования комплекта */}
+        <Modal
+          title="Редактирование комплекта"
+          open={editModalOpen}
+          onOk={handleSaveEdit}
+          onCancel={handleCancelEdit}
+          okText="Сохранить"
+          cancelText="Отмена"
+          width={600}
         >
-          <Form.Item
-            name="name"
-            label="Название комплекта"
-            rules={[{ required: false }]}
-          >
-            <Input placeholder="Введите название комплекта" />
-          </Form.Item>
-          
-          {editingSet && (
-            <div style={{ marginTop: 20 }}>
-              <h4>Информация о комплекте:</h4>
-              <p><strong>Номер:</strong> {editingSet.set_number}</p>
-              <p><strong>Проект:</strong> {editingSet.project_name}</p>
-              <p><strong>Шифр документа:</strong> {editingSet.documentation_code}</p>
-              <p><strong>Раздел:</strong> {editingSet.tag_name || 'Все'}</p>
-              <p><strong>Корпуса:</strong> {editingSet.block_names || 'Все'}</p>
-              <p><strong>Категории затрат:</strong> {editingSet.cost_category_names || 'Все'}</p>
-              <p><strong>Виды затрат:</strong> {editingSet.cost_type_names || 'Все'}</p>
-              <p style={{ marginTop: 10, fontSize: 12, color: '#888' }}>
-                Примечание: В текущей версии можно редактировать только название комплекта. 
-                Для изменения фильтров создайте новый комплект.
+          <Form form={form} layout="vertical" style={{ marginTop: 20 }}>
+            <Form.Item name="name" label="Название комплекта" rules={[{ required: false }]}>
+              <Input placeholder="Введите название комплекта" />
+            </Form.Item>
+
+            {editingSet && (
+              <div style={{ marginTop: 20 }}>
+                <h4>Информация о комплекте:</h4>
+                <p>
+                  <strong>Номер:</strong> {editingSet.set_number}
+                </p>
+                <p>
+                  <strong>Проект:</strong> {editingSet.project_name}
+                </p>
+                <p>
+                  <strong>Шифр документа:</strong> {editingSet.documentation_code}
+                </p>
+                <p>
+                  <strong>Раздел:</strong> {editingSet.tag_name || 'Все'}
+                </p>
+                <p>
+                  <strong>Корпуса:</strong> {editingSet.block_names || 'Все'}
+                </p>
+                <p>
+                  <strong>Категории затрат:</strong> {editingSet.cost_category_names || 'Все'}
+                </p>
+                <p>
+                  <strong>Виды затрат:</strong> {editingSet.cost_type_names || 'Все'}
+                </p>
+                <p style={{ marginTop: 10, fontSize: 12, color: '#888' }}>
+                  Примечание: В текущей версии можно редактировать только название комплекта. Для
+                  изменения фильтров создайте новый комплект.
+                </p>
+              </div>
+            )}
+          </Form>
+        </Modal>
+
+        {/* Модальное окно копирования комплекта */}
+        <Modal
+          title="Копирование комплекта"
+          open={copyModalOpen}
+          onOk={handleSaveCopy}
+          onCancel={handleCancelCopy}
+          okText="Создать копию"
+          cancelText="Отмена"
+          width={1000}
+        >
+          <Form form={copyForm} layout="vertical" style={{ marginTop: 20 }}>
+            <Form.Item
+              name="name"
+              label="Название комплекта"
+              rules={[{ required: true, message: 'Введите название комплекта' }]}
+            >
+              <Input placeholder="Введите название комплекта" />
+            </Form.Item>
+
+            <Row gutter={16}>
+              <Col span={12}>
+                <Card title="Документы и версии" size="small">
+                  <Form.List name="documents">
+                    {(fields, { add, remove }) => (
+                      <>
+                        {fields.map((field) => (
+                          <Row key={field.key} gutter={8} style={{ marginBottom: 8 }}>
+                            <Col span={10}>
+                              <Form.Item
+                                name={[field.name, 'documentation_id']}
+                                rules={[{ required: true, message: 'Выберите документ' }]}
+                              >
+                                <Select
+                                  placeholder="Шифр документа"
+                                  allowClear
+                                  showSearch
+                                  filterOption={(input, option) => {
+                                    const text =
+                                      (option?.children || option?.label)?.toString() || ''
+                                    return text.toLowerCase().includes(input.toLowerCase())
+                                  }}
+                                >
+                                  {documentations?.map((doc) => (
+                                    <Select.Option key={doc.id} value={doc.id}>
+                                      {doc.code}
+                                    </Select.Option>
+                                  ))}
+                                </Select>
+                              </Form.Item>
+                            </Col>
+                            <Col span={10}>
+                              <Form.Item
+                                name={[field.name, 'version_id']}
+                                rules={[{ required: true, message: 'Выберите версию' }]}
+                              >
+                                <Select placeholder="Версия" allowClear>
+                                  {(() => {
+                                    const docId = copyForm.getFieldValue([
+                                      'documents',
+                                      field.name,
+                                      'documentation_id',
+                                    ])
+                                    return documentVersions
+                                      ?.filter((v) => v.documentation_id === docId)
+                                      .map((version) => (
+                                        <Select.Option key={version.id} value={version.id}>
+                                          {version.version_number}
+                                        </Select.Option>
+                                      ))
+                                  })()}
+                                </Select>
+                              </Form.Item>
+                            </Col>
+                            <Col span={4}>
+                              <Button
+                                type="text"
+                                danger
+                                icon={<MinusCircleOutlined />}
+                                onClick={() => remove(field.name)}
+                                title="Удалить документ"
+                              />
+                            </Col>
+                          </Row>
+                        ))}
+                        <Button
+                          type="dashed"
+                          onClick={() => add()}
+                          icon={<PlusOutlined />}
+                          style={{ width: '100%' }}
+                        >
+                          Добавить документ
+                        </Button>
+                      </>
+                    )}
+                  </Form.List>
+                </Card>
+              </Col>
+
+              <Col span={12}>
+                <Card title="Фильтры" size="small">
+                  <Form.Item name="tag_id" label="Раздел">
+                    <Select
+                      placeholder="Выберите раздел"
+                      allowClear
+                      showSearch
+                      filterOption={(input, option) =>
+                        (option?.children || '')
+                          .toString()
+                          .toLowerCase()
+                          .includes(input.toLowerCase())
+                      }
+                    >
+                      {documentationTags?.map((tag) => (
+                        <Select.Option key={tag.id} value={tag.id}>
+                          {tag.name}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+
+                  <Form.Item name="block_ids" label="Корпуса">
+                    <Select
+                      mode="multiple"
+                      placeholder="Выберите корпуса"
+                      allowClear
+                      showSearch
+                      filterOption={(input, option) =>
+                        (option?.children || '')
+                          .toString()
+                          .toLowerCase()
+                          .includes(input.toLowerCase())
+                      }
+                    >
+                      {blocks?.map((block) => (
+                        <Select.Option key={block.id} value={block.id}>
+                          {block.name}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+
+                  <Form.Item name="cost_category_ids" label="Категории затрат">
+                    <Select
+                      mode="multiple"
+                      placeholder="Выберите категории затрат"
+                      allowClear
+                      showSearch
+                      filterOption={(input, option) =>
+                        (option?.children || '')
+                          .toString()
+                          .toLowerCase()
+                          .includes(input.toLowerCase())
+                      }
+                      onChange={handleCostCategoriesChange}
+                    >
+                      {costCategories?.map((category) => (
+                        <Select.Option key={category.id} value={category.id}>
+                          {category.name}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+
+                  <Form.Item name="cost_type_ids" label="Виды затрат">
+                    <Select
+                      mode="multiple"
+                      placeholder="Выберите виды затрат"
+                      allowClear
+                      showSearch
+                      filterOption={(input, option) =>
+                        (option?.children || '')
+                          .toString()
+                          .toLowerCase()
+                          .includes(input.toLowerCase())
+                      }
+                    >
+                      {costTypes?.map((type) => (
+                        <Select.Option key={type.id} value={type.id}>
+                          {type.name}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                </Card>
+              </Col>
+            </Row>
+
+            <div
+              style={{ marginTop: 16, padding: 12, backgroundColor: '#e6f7ff', borderRadius: 6 }}
+            >
+              <p style={{ margin: 0, fontSize: 12, color: '#666' }}>
+                💡 Новый комплект будет создан со статусом "В работе"
               </p>
             </div>
-          )}
-        </Form>
+          </Form>
+        </Modal>
       </Modal>
-
-      {/* Модальное окно копирования комплекта */}
-      <Modal
-        title="Копирование комплекта"
-        open={copyModalOpen}
-        onOk={handleSaveCopy}
-        onCancel={handleCancelCopy}
-        okText="Создать копию"
-        cancelText="Отмена"
-        width={1000}
-      >
-        <Form
-          form={copyForm}
-          layout="vertical"
-          style={{ marginTop: 20 }}
-        >
-          <Form.Item
-            name="name"
-            label="Название комплекта"
-            rules={[{ required: true, message: 'Введите название комплекта' }]}
-          >
-            <Input placeholder="Введите название комплекта" />
-          </Form.Item>
-
-          <Row gutter={16}>
-            <Col span={12}>
-              <Card title="Документы и версии" size="small">
-                <Form.List name="documents">
-                  {(fields, { add, remove }) => (
-                    <>
-                      {fields.map((field) => (
-                        <Row key={field.key} gutter={8} style={{ marginBottom: 8 }}>
-                          <Col span={10}>
-                            <Form.Item
-                              name={[field.name, 'documentation_id']}
-                              rules={[{ required: true, message: 'Выберите документ' }]}
-                            >
-                              <Select
-                                placeholder="Шифр документа"
-                                allowClear
-                                showSearch
-                                filterOption={(input, option) => {
-                                  const text = (option?.children || option?.label)?.toString() || ""
-                                  return text.toLowerCase().includes(input.toLowerCase())
-                                }}
-                              >
-                                {documentations?.map(doc => (
-                                  <Select.Option key={doc.id} value={doc.id}>
-                                    {doc.code}
-                                  </Select.Option>
-                                ))}
-                              </Select>
-                            </Form.Item>
-                          </Col>
-                          <Col span={10}>
-                            <Form.Item
-                              name={[field.name, 'version_id']}
-                              rules={[{ required: true, message: 'Выберите версию' }]}
-                            >
-                              <Select
-                                placeholder="Версия"
-                                allowClear
-                              >
-                                {(() => {
-                                  const docId = copyForm.getFieldValue(['documents', field.name, 'documentation_id'])
-                                  return documentVersions?.filter(v => v.documentation_id === docId)
-                                    .map(version => (
-                                      <Select.Option key={version.id} value={version.id}>
-                                        {version.version_number}
-                                      </Select.Option>
-                                    ))
-                                })()}
-                              </Select>
-                            </Form.Item>
-                          </Col>
-                          <Col span={4}>
-                            <Button
-                              type="text"
-                              danger
-                              icon={<MinusCircleOutlined />}
-                              onClick={() => remove(field.name)}
-                              title="Удалить документ"
-                            />
-                          </Col>
-                        </Row>
-                      ))}
-                      <Button
-                        type="dashed"
-                        onClick={() => add()}
-                        icon={<PlusOutlined />}
-                        style={{ width: '100%' }}
-                      >
-                        Добавить документ
-                      </Button>
-                    </>
-                  )}
-                </Form.List>
-              </Card>
-            </Col>
-            
-            <Col span={12}>
-              <Card title="Фильтры" size="small">
-                <Form.Item name="tag_id" label="Раздел">
-                  <Select
-                    placeholder="Выберите раздел"
-                    allowClear
-                    showSearch
-                    filterOption={(input, option) =>
-                      (option?.children || '').toString().toLowerCase().includes(input.toLowerCase())
-                    }
-                  >
-                    {documentationTags?.map(tag => (
-                      <Select.Option key={tag.id} value={tag.id}>
-                        {tag.name}
-                      </Select.Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-
-                <Form.Item name="block_ids" label="Корпуса">
-                  <Select
-                    mode="multiple"
-                    placeholder="Выберите корпуса"
-                    allowClear
-                    showSearch
-                    filterOption={(input, option) =>
-                      (option?.children || '').toString().toLowerCase().includes(input.toLowerCase())
-                    }
-                  >
-                    {blocks?.map(block => (
-                      <Select.Option key={block.id} value={block.id}>
-                        {block.name}
-                      </Select.Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-
-                <Form.Item name="cost_category_ids" label="Категории затрат">
-                  <Select
-                    mode="multiple"
-                    placeholder="Выберите категории затрат"
-                    allowClear
-                    showSearch
-                    filterOption={(input, option) =>
-                      (option?.children || '').toString().toLowerCase().includes(input.toLowerCase())
-                    }
-                    onChange={handleCostCategoriesChange}
-                  >
-                    {costCategories?.map(category => (
-                      <Select.Option key={category.id} value={category.id}>
-                        {category.name}
-                      </Select.Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-
-                <Form.Item name="cost_type_ids" label="Виды затрат">
-                  <Select
-                    mode="multiple"
-                    placeholder="Выберите виды затрат"
-                    allowClear
-                    showSearch
-                    filterOption={(input, option) =>
-                      (option?.children || '').toString().toLowerCase().includes(input.toLowerCase())
-                    }
-                  >
-                    {costTypes?.map(type => (
-                      <Select.Option key={type.id} value={type.id}>
-                        {type.name}
-                      </Select.Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-              </Card>
-            </Col>
-          </Row>
-
-          <div style={{ marginTop: 16, padding: 12, backgroundColor: '#e6f7ff', borderRadius: 6 }}>
-            <p style={{ margin: 0, fontSize: 12, color: '#666' }}>
-              💡 Новый комплект будет создан со статусом "В работе"
-            </p>
-          </div>
-        </Form>
-      </Modal>
-    </Modal>
     </>
   )
 }

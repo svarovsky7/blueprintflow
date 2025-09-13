@@ -17,10 +17,9 @@ import PortalHeader from '../components/PortalHeader'
 
 const { Sider, Content } = Layout
 
-
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   console.log('🚀 MAIN LAYOUT COMPONENT LOADED')
-  
+
   const location = useLocation()
   const navigate = useNavigate()
   const isDark = true
@@ -31,11 +30,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
   // Отслеживание изменений состояния collapsed
   useEffect(() => {
-    console.log('📐 MENU STATE CHANGED:', { 
-      collapsed, 
+    console.log('📐 MENU STATE CHANGED:', {
+      collapsed,
       siderWidth,
       menuMode: collapsed ? 'collapsed' : 'expanded',
-      iconsVisible: collapsed ? 'icons only' : 'icons + text'
+      iconsVisible: collapsed ? 'icons only' : 'icons + text',
     })
   }, [collapsed, siderWidth])
 
@@ -61,10 +60,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       icon: <FileTextOutlined />,
       label: 'Документы',
       children: [
-        { 
-          key: '/documents/estimate', 
+        {
+          key: '/documents/estimate',
           icon: <TableOutlined />,
-          label: 'Шахматка'
+          label: 'Шахматка',
         },
         {
           key: '/documents/estimate-monolith',
@@ -76,10 +75,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           icon: <ToolOutlined />,
           label: 'ВОР для подрядчиков',
         },
-        { 
-          key: '/documents/cost', 
+        {
+          key: '/documents/cost',
           icon: <FileDoneOutlined />,
-          label: 'Смета'
+          label: 'Смета',
         },
         {
           key: '/documents/documentation',
@@ -88,20 +87,20 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         },
       ],
     },
-    { 
-      key: '/reports', 
+    {
+      key: '/reports',
       icon: <BarChartOutlined />,
-      label: 'Отчёты'
+      label: 'Отчёты',
     },
-    { 
-      key: '/references', 
+    {
+      key: '/references',
       icon: <DatabaseOutlined />,
-      label: 'Справочники'
+      label: 'Справочники',
     },
-    { 
-      key: '/admin', 
+    {
+      key: '/admin',
       icon: <SettingOutlined />,
-      label: 'Настройки'
+      label: 'Настройки',
     },
   ]
   return (
@@ -135,7 +134,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           selectedKeys={[location.pathname]}
           onClick={handleMenuClick}
           items={menuItems}
-          style={{ 
+          style={{
             background: '#333333',
             border: 'none',
           }}
@@ -166,7 +165,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             minHeight: 'calc(100vh - 64px)',
           }}
         >
-{children}
+          {children}
         </Content>
       </Layout>
     </Layout>

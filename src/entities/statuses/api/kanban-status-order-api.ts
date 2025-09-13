@@ -51,9 +51,7 @@ export const kanbanStatusOrderApi = {
         order_position: index,
       }))
 
-      const { error: insertError } = await supabase
-        .from('kanban_status_order')
-        .insert(orderRecords)
+      const { error: insertError } = await supabase.from('kanban_status_order').insert(orderRecords)
 
       if (insertError) {
         console.error('Failed to insert new status order:', insertError)
@@ -66,31 +64,29 @@ export const kanbanStatusOrderApi = {
   async updateStatusPosition(
     kanbanPage: string,
     statusId: string,
-    newPosition: number
+    newPosition: number,
   ): Promise<void> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     // Получаем текущий порядок
     const currentOrder = await this.getStatusOrder(kanbanPage)
-    
+
     // Находим текущую позицию статуса
-    const currentIndex = currentOrder.findIndex(item => item.status_id === statusId)
+    const currentIndex = currentOrder.findIndex((item) => item.status_id === statusId)
     if (currentIndex === -1) {
       // Если статуса нет, добавляем его
-      const { error } = await supabase
-        .from('kanban_status_order')
-        .insert({
-          kanban_page: kanbanPage,
-          status_id: statusId,
-          order_position: newPosition,
-        })
-      
+      const { error } = await supabase.from('kanban_status_order').insert({
+        kanban_page: kanbanPage,
+        status_id: statusId,
+        order_position: newPosition,
+      })
+
       if (error) throw error
       return
     }
 
     // Перестраиваем порядок
-    const statusIds = currentOrder.map(item => item.status_id)
+    const statusIds = currentOrder.map((item) => item.status_id)
     statusIds.splice(currentIndex, 1)
     statusIds.splice(newPosition, 0, statusId)
 

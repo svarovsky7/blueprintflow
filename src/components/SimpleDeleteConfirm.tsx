@@ -13,7 +13,7 @@ const SimpleDeleteConfirm: React.FC<SimpleDeleteConfirmProps> = ({
   title = 'Удалить запись?',
   content = 'Вы уверены, что хотите удалить эту запись?',
   onConfirm,
-  children
+  children,
 }) => {
   const showDeleteConfirm = () => {
     Modal.confirm({
@@ -41,7 +41,7 @@ const SimpleDeleteConfirm: React.FC<SimpleDeleteConfirmProps> = ({
       e.stopPropagation()
       showDeleteConfirm()
       children.props.onClick?.(e)
-    }
+    },
   })
 }
 

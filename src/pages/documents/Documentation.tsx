@@ -114,14 +114,24 @@ const getColumnSettings = (): DocumentationColumnSettings => {
 const createImportResultsContent = (result: ImportResults) => (
   <div>
     <div style={{ marginBottom: 16 }}>
-      <p>Всего строк в файле: <strong>{result.totalRows}</strong></p>
-      <p>Обработано строк: <strong>{result.processedRows}</strong></p>
-      <p>Загружено строк: <strong>{result.importedRows}</strong></p>
+      <p>
+        Всего строк в файле: <strong>{result.totalRows}</strong>
+      </p>
+      <p>
+        Обработано строк: <strong>{result.processedRows}</strong>
+      </p>
+      <p>
+        Загружено строк: <strong>{result.importedRows}</strong>
+      </p>
       {result.skippedRows > 0 && (
-        <p>Пропущено записей: <strong>{result.skippedRows}</strong></p>
+        <p>
+          Пропущено записей: <strong>{result.skippedRows}</strong>
+        </p>
       )}
       {result.errorCount > 0 && (
-        <p style={{ color: '#ff4d4f' }}>Ошибок: <strong>{result.errorCount}</strong></p>
+        <p style={{ color: '#ff4d4f' }}>
+          Ошибок: <strong>{result.errorCount}</strong>
+        </p>
       )}
     </div>
 
@@ -143,7 +153,16 @@ const createImportResultsContent = (result: ImportResults) => (
               children: (
                 <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
                   {result.errors.slice(0, 10).map((error, index) => (
-                    <div key={index} style={{ marginBottom: 12, padding: 8, backgroundColor: '#fff2f0', border: '1px solid #ffccc7', borderRadius: 4 }}>
+                    <div
+                      key={index}
+                      style={{
+                        marginBottom: 12,
+                        padding: 8,
+                        backgroundColor: '#fff2f0',
+                        border: '1px solid #ffccc7',
+                        borderRadius: 4,
+                      }}
+                    >
                       <div>
                         <Tag color="volcano">Строка {error.index + 1}</Tag>
                         <strong>Шифр:</strong> {error.row.code}
@@ -190,7 +209,16 @@ const createImportResultsContent = (result: ImportResults) => (
               children: (
                 <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
                   {result.skipped.slice(0, 10).map((skipped, index) => (
-                    <div key={index} style={{ marginBottom: 12, padding: 8, backgroundColor: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 4 }}>
+                    <div
+                      key={index}
+                      style={{
+                        marginBottom: 12,
+                        padding: 8,
+                        backgroundColor: '#fffbe6',
+                        border: '1px solid #ffe58f',
+                        borderRadius: 4,
+                      }}
+                    >
                       <div>
                         <Tag color="gold">Строка {skipped.index + 1}</Tag>
                         <strong>Шифр:</strong> {skipped.row.code}
@@ -691,14 +719,12 @@ export default function Documentation() {
 
           // Ищем комплекты для данного документа
           // documentation_code содержит коды всех документов через запятую
-          const documentSets = chessboardSets.filter(
-            (set) => {
-              if (!set.documentation_code) return false
-              // Разбиваем строку с кодами документов и проверяем наличие текущего кода
-              const codes = set.documentation_code.split(',').map(code => code.trim())
-              return codes.includes(record.project_code)
-            }
-          )
+          const documentSets = chessboardSets.filter((set) => {
+            if (!set.documentation_code) return false
+            // Разбиваем строку с кодами документов и проверяем наличие текущего кода
+            const codes = set.documentation_code.split(',').map((code) => code.trim())
+            return codes.includes(record.project_code)
+          })
 
           return (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -724,12 +750,12 @@ export default function Documentation() {
                           if (fullSet) {
                             const filters = chessboardSetsApi.getFiltersFromSet(fullSet)
                             const searchParams = new URLSearchParams()
-                            
+
                             // Обязательный параметр - проект
                             if (filters.project_id) {
                               searchParams.append('project_id', filters.project_id)
                             }
-                            
+
                             // Добавляем остальные фильтры
                             if (filters.documentation_id) {
                               searchParams.append('documentation_id', filters.documentation_id)
@@ -740,16 +766,22 @@ export default function Documentation() {
                             if (filters.tag_id) {
                               searchParams.append('tag_id', filters.tag_id.toString())
                             }
-                            
+
                             // Для массивов используем append для каждого элемента
                             if (filters.block_ids && filters.block_ids.length > 0) {
-                              filters.block_ids.forEach(id => searchParams.append('block_ids', id))
+                              filters.block_ids.forEach((id) =>
+                                searchParams.append('block_ids', id),
+                              )
                             }
                             if (filters.cost_category_ids && filters.cost_category_ids.length > 0) {
-                              filters.cost_category_ids.forEach(id => searchParams.append('cost_category_ids', String(id)))
+                              filters.cost_category_ids.forEach((id) =>
+                                searchParams.append('cost_category_ids', String(id)),
+                              )
                             }
                             if (filters.cost_type_ids && filters.cost_type_ids.length > 0) {
-                              filters.cost_type_ids.forEach(id => searchParams.append('cost_type_ids', String(id)))
+                              filters.cost_type_ids.forEach((id) =>
+                                searchParams.append('cost_type_ids', String(id)),
+                              )
                             }
 
                             navigate(`/documents/chessboard?${searchParams.toString()}`)
@@ -1455,14 +1487,21 @@ export default function Documentation() {
         setImportModalOpen(false) // Закрываем модальное окно импорта
       } else {
         // Нет конфликтов - импортируем сразу
-        setImportProgress({ totalRows: importData.length, processedRows: 0, importedRows: 0, skippedRows: 0, errorRows: 0, isComplete: false })
-        
+        setImportProgress({
+          totalRows: importData.length,
+          processedRows: 0,
+          importedRows: 0,
+          skippedRows: 0,
+          errorRows: 0,
+          isComplete: false,
+        })
+
         const result = await documentationApi.importFromExcel(importData, (progress) => {
           setImportProgress(progress)
         })
 
         setImportProgress(null)
-        
+
         // Показываем результаты в модальном окне
         modal.success({
           title: 'Импорт завершен успешно!',
@@ -1490,18 +1529,25 @@ export default function Documentation() {
   const handleConflictResolution = async (resolutions: Map<number, ConflictResolution>) => {
     try {
       setResolvingConflicts(true)
-      setImportProgress({ totalRows: pendingImportData.length, processedRows: 0, importedRows: 0, skippedRows: 0, errorRows: 0, isComplete: false })
+      setImportProgress({
+        totalRows: pendingImportData.length,
+        processedRows: 0,
+        importedRows: 0,
+        skippedRows: 0,
+        errorRows: 0,
+        isComplete: false,
+      })
 
       const result = await documentationApi.importFromExcelWithResolutions(
         pendingImportData,
         resolutions,
         (progress) => {
           setImportProgress(progress)
-        }
+        },
       )
 
       setImportProgress(null)
-      
+
       // Показываем результаты в модальном окне
       modal.success({
         title: 'Импорт завершен успешно!',
@@ -1585,14 +1631,21 @@ export default function Documentation() {
         setConflictDialogVisible(true)
       } else {
         // Нет конфликтов - импортируем сразу
-        setImportProgress({ totalRows: filteredData.length, processedRows: 0, importedRows: 0, skippedRows: 0, errorRows: 0, isComplete: false })
-        
+        setImportProgress({
+          totalRows: filteredData.length,
+          processedRows: 0,
+          importedRows: 0,
+          skippedRows: 0,
+          errorRows: 0,
+          isComplete: false,
+        })
+
         const result = await documentationApi.importFromExcel(filteredData, (progress) => {
           setImportProgress(progress)
         })
 
         setImportProgress(null)
-        
+
         // Показываем результаты в модальном окне
         modal.success({
           title: 'Импорт завершен успешно!',
@@ -2223,8 +2276,8 @@ export default function Documentation() {
               <p className="ant-upload-hint">
                 Поддерживаются файлы Excel (.xlsx, .xls)
                 <br />
-                Файл должен содержать столбцы: Раздел, Шифр проекта, Название проекта (необязат.), Номер версии,
-                Дата выдачи версии, Ссылка
+                Файл должен содержать столбцы: Раздел, Шифр проекта, Название проекта (необязат.),
+                Номер версии, Дата выдачи версии, Ссылка
               </p>
             </Upload.Dragger>
           </Form.Item>
@@ -2233,7 +2286,11 @@ export default function Documentation() {
           {importProgress && (
             <div style={{ marginTop: 16 }}>
               <Progress
-                percent={importProgress.totalRows > 0 ? Math.round((importProgress.processedRows / importProgress.totalRows) * 100) : 0}
+                percent={
+                  importProgress.totalRows > 0
+                    ? Math.round((importProgress.processedRows / importProgress.totalRows) * 100)
+                    : 0
+                }
                 status={importProgress.isComplete ? 'success' : 'active'}
                 format={() => `${importProgress.importedRows} / ${importProgress.totalRows}`}
               />
@@ -2380,7 +2437,6 @@ export default function Documentation() {
           )
         })}
       </Modal>
-
     </div>
   )
 }

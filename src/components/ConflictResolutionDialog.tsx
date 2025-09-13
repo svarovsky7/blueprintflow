@@ -55,10 +55,10 @@ export default function ConflictResolutionDialog({
       resolution: skipAll
         ? 'skip'
         : fillEmptyAll
-        ? 'fill_empty'
-        : overwriteAll
-        ? 'overwrite'
-        : resolutions.get(conflict.index),
+          ? 'fill_empty'
+          : overwriteAll
+            ? 'overwrite'
+            : resolutions.get(conflict.index),
     }))
   }, [conflicts, resolutions, skipAll, fillEmptyAll, overwriteAll])
 
@@ -296,9 +296,17 @@ export default function ConflictResolutionDialog({
           <div>
             <p>Выберите действие для каждой записи:</p>
             <ul>
-              <li><strong>Пропустить</strong> - не импортировать эту запись</li>
-              <li><strong>Заполнить пустые</strong> - заполнить только пустые поля, не трогая существующие данные</li>
-              <li><strong>Перезаписать</strong> - полностью заменить существующую запись (сохраняя UUID)</li>
+              <li>
+                <strong>Пропустить</strong> - не импортировать эту запись
+              </li>
+              <li>
+                <strong>Заполнить пустые</strong> - заполнить только пустые поля, не трогая
+                существующие данные
+              </li>
+              <li>
+                <strong>Перезаписать</strong> - полностью заменить существующую запись (сохраняя
+                UUID)
+              </li>
             </ul>
           </div>
         }
@@ -321,8 +329,8 @@ export default function ConflictResolutionDialog({
             skipAll
               ? 'Все конфликтные записи будут пропущены'
               : fillEmptyAll
-              ? 'Для всех записей будут заполнены только пустые поля, существующие данные останутся неизменными'
-              : 'Все существующие записи будут полностью перезаписаны (с сохранением UUID)'
+                ? 'Для всех записей будут заполнены только пустые поля, существующие данные останутся неизменными'
+                : 'Все существующие записи будут полностью перезаписаны (с сохранением UUID)'
           }
           type={skipAll ? 'warning' : fillEmptyAll ? 'info' : 'success'}
           style={{ marginTop: 16 }}

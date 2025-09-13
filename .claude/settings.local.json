@@ -22,7 +22,10 @@
       "WebSearch",
       "Bash(npx eslint:*)",
       "Bash(sed:*)",
-      "Bash(npm run lint:*)"
+      "Bash(npm run lint:*)",
+      "Bash(dir:*)",
+      "Bash(pkill:*)",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": []

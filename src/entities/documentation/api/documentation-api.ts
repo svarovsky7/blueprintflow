@@ -257,11 +257,24 @@ export const documentationApi = {
       return []
     }
 
-    // Если есть фильтр по проекту или блоку, сначала получаем документы через маппинг
-    let documentationIds: string[] | null = null
-
+    // Если есть фильтр по проекту или блоку, получаем документы через маппинг
     if (filters?.project_id || filters?.block_id) {
-      let mappingQuery = supabase.from('documentations_projects_mapping').select('documentation_id')
+      let mappingQuery = supabase
+        .from('documentations_projects_mapping')
+        .select(
+          `
+          documentation_id,
+          tag_id,
+          documentations(
+            id,
+            code,
+            project_name,
+            stage,
+            tag_id
+          )
+        `,
+        )
+        .order('documentations(code)', { ascending: true })
 
       if (filters.project_id) {
         mappingQuery = mappingQuery.eq('project_id', filters.project_id)
@@ -277,9 +290,69 @@ export const documentationApi = {
         throw mappingError
       }
 
-      documentationIds = mappingData?.map((m) => m.documentation_id) || []
+
+      // Получаем ID всех документов для загрузки информации о тегах
+      const documentationIds = mappingData?.map((m) => m.documentation_id).filter(Boolean) || []
+
+      // Загружаем информацию о тегах для всех документов одним запросом
+      const { data: tagsData } =
+        documentationIds.length > 0
+          ? await supabase
+              .from('documentations')
+              .select('id, tag:documentation_tags(id, name, tag_number)')
+              .in('id', documentationIds)
+          : { data: [] }
+
+      // Создаем карту тегов для быстрого поиска
+      const tagsMap = new Map()
+      tagsData?.forEach((doc) => {
+        if (doc.tag) {
+          tagsMap.set(doc.id, doc.tag)
+        }
+      })
+
+      return (mappingData || [])
+        .map((mapping) => {
+          // mapping.documentations может быть массивом или объектом, берем первый элемент если массив
+          const doc = Array.isArray(mapping.documentations)
+            ? mapping.documentations[0]
+            : mapping.documentations
+
+          if (!doc) {
+            return null
+          }
+
+          // Используем tag_id из маппинга (приоритет) или fallback из документации
+          const tagId = mapping.tag_id || doc.tag_id
+
+          // Получаем информацию о теге
+          const tagData = tagsMap.get(doc.id)
+          let tagName = null
+
+          if (tagData) {
+            if (Array.isArray(tagData)) {
+              tagName = tagData.length > 0 ? tagData[0]?.name || null : null
+            } else {
+              tagName = tagData.name || null
+            }
+          }
+
+          const result = {
+            id: doc.id,
+            project_code: doc.code,
+            project_name: doc.project_name,
+            tag_id: tagId, // Используем tag_id из маппинга или fallback из основной таблицы
+            tag_name: tagName,
+            tag: tagData,
+          }
+
+
+          return result
+        })
+        .filter(Boolean) as DocumentationRecordForList[]
     }
 
+    // Если нет фильтров по проекту/блоку, возвращаем все документы (fallback)
     let query = supabase
       .from('documentations')
       .select(
@@ -293,15 +366,6 @@ export const documentationApi = {
       `,
       )
       .order('code', { ascending: true })
-
-    // Применяем фильтры
-    if (documentationIds !== null) {
-      if (documentationIds.length === 0) {
-        // Если нет документов для данного проекта/блока, возвращаем пустой результат
-        return []
-      }
-      query = query.in('id', documentationIds)
-    }
 
     const { data, error } = await query
 
@@ -703,8 +767,9 @@ export const documentationApi = {
         }
 
         // Определяем поведение на основе выбранного разрешения конфликта
-        const forceOverwrite = hasResolution && (resolution === 'overwrite' || resolution === 'overwrite_all')
-        const fillEmptyOnly = hasResolution && (resolution === 'fill_empty')
+        const forceOverwrite =
+          hasResolution && (resolution === 'overwrite' || resolution === 'overwrite_all')
+        const fillEmptyOnly = hasResolution && resolution === 'fill_empty'
 
         // Используем комплексный метод сохранения для Excel импорта
         const result = await this.saveDocumentationComplete({
@@ -725,7 +790,11 @@ export const documentationApi = {
         results.push({ row, ...result })
       } catch (error) {
         console.error(`Error importing row ${i + 1}:`, row, error)
-        errors.push({ row, error: error instanceof Error ? error.message : String(error), index: i })
+        errors.push({
+          row,
+          error: error instanceof Error ? error.message : String(error),
+          index: i,
+        })
       }
     }
 
@@ -754,7 +823,10 @@ export const documentationApi = {
   },
 
   // Старый метод для обратной совместимости (без проверки конфликтов)
-  async importFromExcel(rows: DocumentationImportRow[], onProgress?: (progress: ImportProgress) => void): Promise<ImportResults> {
+  async importFromExcel(
+    rows: DocumentationImportRow[],
+    onProgress?: (progress: ImportProgress) => void,
+  ): Promise<ImportResults> {
     return this.importFromExcelWithResolutions(rows, undefined, onProgress)
   },
 

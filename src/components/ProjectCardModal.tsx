@@ -64,24 +64,24 @@ export default function ProjectCardModal({
   React.useEffect(() => {
     if (visible && projectData.blocks.length > 0) {
       // Находим максимальный верхний этаж и минимальный нижний этаж
-      const maxTopFloor = Math.max(...projectData.blocks.map(block => block.topFloor))
-      const minBottomFloor = Math.min(...projectData.blocks.map(block => block.bottomFloor))
-      
+      const maxTopFloor = Math.max(...projectData.blocks.map((block) => block.topFloor))
+      const minBottomFloor = Math.min(...projectData.blocks.map((block) => block.bottomFloor))
+
       // Общая высота от самого нижнего до самого верхнего этажа
       const totalFloorsHeight = (maxTopFloor - minBottomFloor + 1) * 15
-      
+
       // Центрируем все корпуса в доступном пространстве (700px высота контейнера)
       // Оставляем место сверху и снизу для элементов управления
       const availableHeight = 700 - 100 // 100px для отступов и элементов управления
       const startY = Math.max(50, (availableHeight - totalFloorsHeight) / 2 + 50)
-      
+
       // Базовая линия нулевого этажа
-      const groundLineY = startY + (maxTopFloor * 15)
-      
+      const groundLineY = startY + maxTopFloor * 15
+
       const generatedBlocks: Block[] = projectData.blocks.map((block, index) => {
         // Вычисляем Y позицию так, чтобы нулевой этаж был на одной линии
         const blockY = groundLineY - block.topFloor * 15
-        
+
         return {
           id: index + 1,
           name: block.name,
@@ -107,16 +107,16 @@ export default function ProjectCardModal({
 
     const fromName = getShortName(fromBlock.name)
     const toName = getShortName(toBlock.name)
-    
+
     return `Стилобат ${fromName}-${toName}`
   }
 
   const handleStylobateChange = useCallback(
     (fromBlockId: number, toBlockId: number, checked: boolean) => {
       if (checked) {
-        const fromBlock = blocks.find(b => b.id === fromBlockId)!
-        const toBlock = blocks.find(b => b.id === toBlockId)!
-        
+        const fromBlock = blocks.find((b) => b.id === fromBlockId)!
+        const toBlock = blocks.find((b) => b.id === toBlockId)!
+
         const newStylobate: Stylobate = {
           id: `stylobate-${fromBlockId}-${toBlockId}`,
           name: generateStylobateName(fromBlock, toBlock),
@@ -128,24 +128,29 @@ export default function ProjectCardModal({
         }
         setStylobates((prev) => [...prev, newStylobate])
       } else {
-        setStylobates((prev) => prev.filter((s) => s.fromBlockId !== fromBlockId || s.toBlockId !== toBlockId))
+        setStylobates((prev) =>
+          prev.filter((s) => s.fromBlockId !== fromBlockId || s.toBlockId !== toBlockId),
+        )
       }
     },
     [blocks],
   )
 
-  const handleStylobateFloorsChange = useCallback((stylobateId: string, floors: number) => {
-    setStylobates((prev) =>
-      prev.map((s) => {
-        if (s.id === stylobateId) {
-          const fromBlock = blocks.find(b => b.id === s.fromBlockId)!
-          const toBlock = blocks.find(b => b.id === s.toBlockId)!
-          return { ...s, floors, name: generateStylobateName(fromBlock, toBlock) }
-        }
-        return s
-      }),
-    )
-  }, [blocks])
+  const handleStylobateFloorsChange = useCallback(
+    (stylobateId: string, floors: number) => {
+      setStylobates((prev) =>
+        prev.map((s) => {
+          if (s.id === stylobateId) {
+            const fromBlock = blocks.find((b) => b.id === s.fromBlockId)!
+            const toBlock = blocks.find((b) => b.id === s.toBlockId)!
+            return { ...s, floors, name: generateStylobateName(fromBlock, toBlock) }
+          }
+          return s
+        }),
+      )
+    },
+    [blocks],
+  )
 
   const handleUndergroundParkingBlockChange = useCallback((blockId: number, checked: boolean) => {
     setUndergroundParking((prev) => ({
@@ -191,7 +196,7 @@ export default function ProjectCardModal({
         // Подземные этажи
         backgroundColor = hasUndergroundParking ? '#e6f7ff' : '#f6ffed' // Подземная парковка (голубой) или типовой корпус
       }
-      
+
       floors.push(
         <div
           key={floor}
@@ -236,15 +241,15 @@ export default function ProjectCardModal({
 
   const renderGroundLine = () => {
     const maxX = Math.max(...blocks.map((b) => b.x + 120))
-    
+
     // Вычисляем позицию линии земли на основе текущего позиционирования корпусов
-    const maxTopFloor = Math.max(...blocks.map(block => block.topFloor))
-    const minBottomFloor = Math.min(...blocks.map(block => block.bottomFloor))
+    const maxTopFloor = Math.max(...blocks.map((block) => block.topFloor))
+    const minBottomFloor = Math.min(...blocks.map((block) => block.bottomFloor))
     const totalFloorsHeight = (maxTopFloor - minBottomFloor + 1) * 15
     const availableHeight = 700 - 100
     const startY = Math.max(50, (availableHeight - totalFloorsHeight) / 2 + 50)
-    const groundLineY = startY + (maxTopFloor * 15)
-    
+    const groundLineY = startY + maxTopFloor * 15
+
     return (
       <div
         style={{
@@ -265,7 +270,9 @@ export default function ProjectCardModal({
     for (let i = 0; i < blocks.length - 1; i++) {
       const fromBlock = blocks[i]
       const toBlock = blocks[i + 1]
-      const stylobate = stylobates.find((s) => s.fromBlockId === fromBlock.id && s.toBlockId === toBlock.id)
+      const stylobate = stylobates.find(
+        (s) => s.fromBlockId === fromBlock.id && s.toBlockId === toBlock.id,
+      )
       const isChecked = !!stylobate
 
       controls.push(
@@ -301,12 +308,12 @@ export default function ProjectCardModal({
 
   const renderUndergroundControls = () => {
     // Вычисляем позицию ниже границ корпусов
-    const maxTopFloor = Math.max(...blocks.map(block => block.topFloor))
-    const minBottomFloor = Math.min(...blocks.map(block => block.bottomFloor))
+    const maxTopFloor = Math.max(...blocks.map((block) => block.topFloor))
+    const minBottomFloor = Math.min(...blocks.map((block) => block.bottomFloor))
     const totalFloorsHeight = (maxTopFloor - minBottomFloor + 1) * 15
     const availableHeight = 700 - 100
     const startY = Math.max(50, (availableHeight - totalFloorsHeight) / 2 + 50)
-    
+
     // Позиция ниже самого нижнего этажа корпусов + отступ
     const checkboxesY = startY + totalFloorsHeight + 30
     const controls = []
@@ -353,7 +360,9 @@ export default function ProjectCardModal({
         >
           <Checkbox
             checked={isChecked}
-            onChange={(e) => handleUndergroundConnectionChange(fromBlock.id, toBlock.id, e.target.checked)}
+            onChange={(e) =>
+              handleUndergroundConnectionChange(fromBlock.id, toBlock.id, e.target.checked)
+            }
           />
         </div>,
       )
@@ -364,30 +373,30 @@ export default function ProjectCardModal({
 
   const renderUndergroundConnections = () => {
     const connections = []
-    
+
     undergroundParking.connections.forEach((connection) => {
-      const fromBlock = blocks.find(b => b.id === connection.fromBlockId)
-      const toBlock = blocks.find(b => b.id === connection.toBlockId)
-      
+      const fromBlock = blocks.find((b) => b.id === connection.fromBlockId)
+      const toBlock = blocks.find((b) => b.id === connection.toBlockId)
+
       if (!fromBlock || !toBlock) return
-      
+
       // Вычисляем позицию и размеры соединения
       const startX = fromBlock.x + 120 // Правый край первого корпуса
       const endX = toBlock.x // Левый край второго корпуса
       const connectionWidth = endX - startX
-      
+
       // Используем ту же логику позиционирования, что и в renderBlock
-      const maxTopFloor = Math.max(...blocks.map(block => block.topFloor))
-      const minBottomFloor = Math.min(...blocks.map(block => block.bottomFloor))
+      const maxTopFloor = Math.max(...blocks.map((block) => block.topFloor))
+      const minBottomFloor = Math.min(...blocks.map((block) => block.bottomFloor))
       const totalFloorsHeight = (maxTopFloor - minBottomFloor + 1) * 15
       const availableHeight = 700 - 100
       const startY = Math.max(50, (availableHeight - totalFloorsHeight) / 2 + 50)
-      const groundLineY = startY + (maxTopFloor * 15)
-      
+      const groundLineY = startY + maxTopFloor * 15
+
       // Находим общие подземные этажи между корпусами (самый верхний из нижних этажей)
       const connectionMinBottomFloor = Math.max(fromBlock.bottomFloor, toBlock.bottomFloor)
       const connectionFloors = []
-      
+
       // Создаем этажи соединения от -1 до минимального нижнего этажа
       for (let floor = -1; floor >= connectionMinBottomFloor; floor--) {
         // Для расчета используем логику из renderBlock:
@@ -398,7 +407,7 @@ export default function ProjectCardModal({
         const headerHeight = 18 // Заголовок корпуса (fontSize: 12) + marginBottom: 4 + line-height
         const floorOffsetInBlock = (fromBlock.topFloor - floor) * 15
         const floorY = blockY + headerHeight + floorOffsetInBlock
-        
+
         connectionFloors.push(
           <div
             key={`connection-${connection.fromBlockId}-${connection.toBlockId}-floor-${floor}`}
@@ -419,13 +428,13 @@ export default function ProjectCardModal({
             }}
           >
             {floor}
-          </div>
+          </div>,
         )
       }
-      
+
       connections.push(...connectionFloors)
     })
-    
+
     return connections
   }
 
@@ -441,7 +450,14 @@ export default function ProjectCardModal({
       okText="Сохранить"
       cancelText="Отмена"
     >
-      <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div
+        style={{
+          marginBottom: 20,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+        }}
+      >
         <div>
           <Title level={3}>{projectData.name}</Title>
           <Text>{projectData.address}</Text>
@@ -451,65 +467,79 @@ export default function ProjectCardModal({
             {blocks.map((b) => `${b.bottomFloor}; ${b.topFloor}`).join(', ')})
           </Text>
         </div>
-        
+
         {/* Цветовая легенда */}
-        <div style={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          gap: 8, 
-          minWidth: 300,
-          maxWidth: '30%',
-          flexShrink: 0
-        }}>
-          <Text strong style={{ fontSize: '1em', marginBottom: 4 }}>Легенда:</Text>
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: '1fr 1fr', 
-            gridTemplateRows: '1fr 1fr',
-            gap: 8
-          }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            minWidth: 300,
+            maxWidth: '30%',
+            flexShrink: 0,
+          }}
+        >
+          <Text strong style={{ fontSize: '1em', marginBottom: 4 }}>
+            Легенда:
+          </Text>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gridTemplateRows: '1fr 1fr',
+              gap: 8,
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ 
-                width: '1em', 
-                height: '1em', 
-                backgroundColor: '#e6f7ff', 
-                border: '1px solid #91d5ff',
-                borderRadius: 2,
-                flexShrink: 0
-              }} />
+              <div
+                style={{
+                  width: '1em',
+                  height: '1em',
+                  backgroundColor: '#e6f7ff',
+                  border: '1px solid #91d5ff',
+                  borderRadius: 2,
+                  flexShrink: 0,
+                }}
+              />
               <Text style={{ fontSize: '0.75em', lineHeight: 1.2 }}>Подземная парковка</Text>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ 
-                width: '1em', 
-                height: '1em', 
-                backgroundColor: '#f6ffed', 
-                border: '1px solid #b7eb8f',
-                borderRadius: 2,
-                flexShrink: 0
-              }} />
+              <div
+                style={{
+                  width: '1em',
+                  height: '1em',
+                  backgroundColor: '#f6ffed',
+                  border: '1px solid #b7eb8f',
+                  borderRadius: 2,
+                  flexShrink: 0,
+                }}
+              />
               <Text style={{ fontSize: '0.75em', lineHeight: 1.2 }}>Типовой корпус</Text>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ 
-                width: '1em', 
-                height: '1em', 
-                backgroundColor: '#fffbe6', 
-                border: '1px solid #ffe58f',
-                borderRadius: 2,
-                flexShrink: 0
-              }} />
+              <div
+                style={{
+                  width: '1em',
+                  height: '1em',
+                  backgroundColor: '#fffbe6',
+                  border: '1px solid #ffe58f',
+                  borderRadius: 2,
+                  flexShrink: 0,
+                }}
+              />
               <Text style={{ fontSize: '0.75em', lineHeight: 1.2 }}>Стилобат</Text>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ 
-                width: '1em', 
-                height: '1em', 
-                backgroundColor: '#fff2e8', 
-                border: '1px solid #ffbb96',
-                borderRadius: 2,
-                flexShrink: 0
-              }} />
+              <div
+                style={{
+                  width: '1em',
+                  height: '1em',
+                  backgroundColor: '#fff2e8',
+                  border: '1px solid #ffbb96',
+                  borderRadius: 2,
+                  flexShrink: 0,
+                }}
+              />
               <Text style={{ fontSize: '0.75em', lineHeight: 1.2 }}>Кровля</Text>
             </div>
           </div>
@@ -537,13 +567,13 @@ export default function ProjectCardModal({
               position: 'absolute',
               left: 10,
               top: (() => {
-                const maxTopFloor = Math.max(...blocks.map(block => block.topFloor))
-                const minBottomFloor = Math.min(...blocks.map(block => block.bottomFloor))
+                const maxTopFloor = Math.max(...blocks.map((block) => block.topFloor))
+                const minBottomFloor = Math.min(...blocks.map((block) => block.bottomFloor))
                 const totalFloorsHeight = (maxTopFloor - minBottomFloor + 1) * 15
                 const availableHeight = 700 - 100
                 const startY = Math.max(50, (availableHeight - totalFloorsHeight) / 2 + 50)
                 // Позиционируем напротив -1 этажа (на 15px ниже нулевого этажа)
-                return startY + (maxTopFloor * 15) + 15 - 7 // -7 для центрирования по высоте этажа
+                return startY + maxTopFloor * 15 + 15 - 7 // -7 для центрирования по высоте этажа
               })(),
               fontSize: 12,
               fontWeight: 'bold',
@@ -551,7 +581,9 @@ export default function ProjectCardModal({
               lineHeight: '14px',
             }}
           >
-            Подземный<br/>паркинг
+            Подземный
+            <br />
+            паркинг
           </div>
         )}
       </div>

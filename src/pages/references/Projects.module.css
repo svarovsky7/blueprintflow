@@ -1,0 +1,25 @@
+.projectsPage {
+  padding: 24px;
+  height: calc(100vh - 96px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.projectsTableContainer {
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.projectsTable {
+  height: 100%;
+}
+
+.projectsTable .ant-table-container {
+  height: calc(100vh - 200px);
+}
+
+.projectsTable .ant-table-body {
+  overflow-y: auto !important;
+}

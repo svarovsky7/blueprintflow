@@ -427,6 +427,9 @@ export default function Chessboard() {
     location: false,
   })
   const [filtersExpanded, setFiltersExpanded] = useState(true)
+  // Ключ для принудительного обновления данных документации при смене проекта
+  // Решает проблему кэширования TanStack Query - см. TROUBLESHOOTING.md
+  const [documentationRefreshKey, setDocumentationRefreshKey] = useState(0)
   const [columnsSettingsOpen, setColumnsSettingsOpen] = useState(false)
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({})
   const [columnOrder, setColumnOrder] = useState<string[]>([])
@@ -540,54 +543,54 @@ export default function Chessboard() {
     },
   })
   const [nomenclatureOptions, setNomenclatureOptions] = useState<NomenclatureOption[]>([])
-  
+
   // Обработка URL параметров при загрузке страницы
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search)
     const urlFilters: Record<string, string | string[]> = {}
     let hasFilters = false
-    
+
     // Читаем параметры из URL
     const projectId = searchParams.get('project_id')
     if (projectId) {
       urlFilters.projectId = projectId
       hasFilters = true
     }
-    
+
     const tagId = searchParams.get('tag_id')
     if (tagId) {
       urlFilters.tagId = [tagId]
       hasFilters = true
     }
-    
+
     // Обработка массивов для block_ids
     const blockIds = searchParams.getAll('block_ids')
     if (blockIds.length > 0) {
       urlFilters.blockId = blockIds
       hasFilters = true
     }
-    
+
     // Обработка массивов для cost_category_ids
     const categoryIds = searchParams.getAll('cost_category_ids')
     if (categoryIds.length > 0) {
       urlFilters.categoryId = categoryIds
       hasFilters = true
     }
-    
+
     // Обработка массивов для cost_type_ids
     const typeIds = searchParams.getAll('cost_type_ids')
     if (typeIds.length > 0) {
       urlFilters.typeId = typeIds
       hasFilters = true
     }
-    
+
     // Обработка documentation_id (поддержка множественных значений)
     const documentationIds = searchParams.getAll('documentation_id')
     if (documentationIds.length > 0) {
       urlFilters.documentationId = documentationIds
       hasFilters = true
     }
-    
+
     // Если есть фильтры в URL, применяем их
     if (hasFilters) {
       setFilters(urlFilters)
@@ -597,7 +600,7 @@ export default function Chessboard() {
       }
     }
   }, [location.search])
-  
+
   useEffect(() => {
     setNomenclatureOptions(nomenclatures ?? [])
   }, [nomenclatures])
@@ -837,9 +840,18 @@ export default function Chessboard() {
 
       // Добавляем отступы (padding) и место для иконок сортировки/фильтрации
       // Для компактных столбцов используем минимальные отступы
-      const compactColumns = ['tagName', 'projectCode', 'block', 'floors', 'unitId', 'unit', 'locationId', 'location']
+      const compactColumns = [
+        'tagName',
+        'projectCode',
+        'block',
+        'floors',
+        'unitId',
+        'unit',
+        'locationId',
+        'location',
+      ]
       const isCompactColumn = compactColumns.includes(dataIndex)
-      
+
       // Компактные столбцы: 8px с каждой стороны + 24px для иконок = 40px
       // Остальные столбцы: 16px с каждой стороны + 32px для иконок = 64px
       const padding = isCompactColumn ? 40 : 64
@@ -952,43 +964,37 @@ export default function Chessboard() {
     }
   }, [isLoadingStatuses, setStatuses, queryClient])
 
+  // Принудительно обновляем документацию при смене проекта
+  useEffect(() => {
+    if (appliedFilters?.projectId) {
+      setDocumentationRefreshKey(prev => prev + 1)
+    }
+  }, [appliedFilters?.projectId])
+
   // Загрузка документации для выбранного проекта
   const { data: documentations } = useQuery<DocumentationRecordForList[]>({
-    queryKey: ['documentations', appliedFilters?.projectId],
+    queryKey: ['documentations-v2', appliedFilters?.projectId, documentationRefreshKey],
     queryFn: async () => {
       if (!appliedFilters?.projectId) return []
       const fetchFilters = { project_id: appliedFilters.projectId }
-      const docs = await documentationApi.getDocumentationList(fetchFilters)
-      console.log('🔍 Loaded documentations:', {
-        count: docs.length,
-        firstDoc: docs[0] ? {
-          id: docs[0].id,
-          code: docs[0].project_code,
-          name: docs[0].project_name,
-          tag_id: docs[0].tag_id,
-          tag_name: docs[0].tag_name,
-          tag: docs[0].tag
-        } : null,
-        sample: docs.slice(0, 3).map(doc => ({ 
-          code: doc.project_code, 
-          tag_id: doc.tag_id, 
-          tag_name: doc.tag_name 
-        }))
-      })
-      return docs
+      return await documentationApi.getDocumentationList(fetchFilters)
     },
     enabled: !!appliedFilters?.projectId,
+    staleTime: 0, // Всегда считать данные устаревшими
+    cacheTime: 0, // Не кэшировать
   })
 
   // Загрузка документации для фильтров (до применения)
   const { data: filterDocumentations } = useQuery<DocumentationRecordForList[]>({
-    queryKey: ['filter-documentations', filters.projectId],
+    queryKey: ['filter-documentations-v2', filters.projectId, documentationRefreshKey],
     queryFn: async () => {
       if (!filters.projectId) return []
       const fetchFilters = { project_id: filters.projectId }
       return documentationApi.getDocumentationList(fetchFilters)
     },
     enabled: !!filters.projectId,
+    staleTime: 0,
+    cacheTime: 0,
   })
 
   // Загрузка версий для документов проекта
@@ -1035,28 +1041,30 @@ export default function Chessboard() {
     enabled: !!appliedFilters?.projectId,
     queryFn: async () => {
       if (!supabase || !appliedFilters) return []
-      
+
       // Определяем тип join для chessboard_mapping
-      const hasFilters = 
+      const hasFilters =
         (appliedFilters.blockId && appliedFilters.blockId.length > 0) ||
         (appliedFilters.categoryId && appliedFilters.categoryId.length > 0) ||
         (appliedFilters.typeId && appliedFilters.typeId.length > 0)
-      
+
       const mappingJoin = hasFilters ? 'chessboard_mapping!inner' : 'chessboard_mapping!left'
 
       // Всегда используем left join для документации, чтобы получать все записи
       // Фильтрацию по документам делаем отдельными условиями where
       const docRelation = 'chessboard_documentation_mapping!left'
-          
+
       const query = supabase
         .from('chessboard')
-        .select(`
+        .select(
+          `
           id, material, materials(name), unit_id, color, units(name),
           chessboard_nomenclature_mapping!left(nomenclature_id, supplier_name, nomenclature(name)),
           ${mappingJoin}(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name)),
           chessboard_rates_mapping!left(rate_id, rates(work_name)),
           chessboard_documentation_mapping!left(version_id, documentation_versions(id, version_number, documentation_id, documentations(id, code, tag_id, stage, project_name, tag:documentation_tags(id, name, tag_number))))
-        `)
+        `,
+        )
         .eq('project_id', appliedFilters.projectId)
       // Восстанавливаем фильтры с учетом типа join
       if (appliedFilters.blockId && appliedFilters.blockId.length > 0)
@@ -1069,14 +1077,13 @@ export default function Chessboard() {
       // Это позволяет получить все записи проекта, а потом отфильтровать по документам
       // НЕ фильтруем по версиям в запросе - делаем это на уровне данных
       // Это позволяет получить все записи и правильно выбрать нужную версию документа
-      
+
       const { data, error } = await query.order('created_at', { ascending: false })
       if (error) {
         console.error('❌ Query Error:', error)
         message.error('Не удалось загрузить данные')
         throw error
       }
-
 
       // Загружаем этажи для всех записей
       const chessboardIds = ((data as unknown as DbRow[] | null | undefined) ?? []).map(
@@ -1163,7 +1170,7 @@ export default function Chessboard() {
           floorQuantities: floorsMap[item.id]?.quantities,
         }
       })
-      
+
       return result
     },
   })
@@ -1214,162 +1221,167 @@ export default function Chessboard() {
       })
     }
 
-    return (tableData ?? []).map((item) => {
-      // Если есть выбранные версии из модального окна, нужно найти правильную версию
-      let version = item.chessboard_documentation_mapping?.documentation_versions
-      let documentation = version?.documentations
-      
-      // Если это массив, нужно найти правильную версию
-      if (Array.isArray(item.chessboard_documentation_mapping)) {
-        // Ищем версию, которая соответствует выбранным версиям или документу из фильтров
-        const mappings = item.chessboard_documentation_mapping
-        let bestMapping = mappings[0] // fallback
-        
-        for (const mapping of mappings) {
-          const mapVersion = mapping.documentation_versions
-          const mapDoc = mapVersion?.documentations
-          
-          if (mapDoc && appliedFilters?.documentationId?.includes(mapDoc.id)) {
-            // Если есть выбранные версии для этого документа
-            if (Object.keys(selectedVersions).length > 0 && selectedVersions[mapDoc.id]) {
-              const selectedVersionId = selectedVersions[mapDoc.id]
-              if (mapVersion?.id === selectedVersionId) {
-                bestMapping = mapping // Точное совпадение по выбранной версии
-                break
+    return (tableData ?? [])
+      .map((item) => {
+        // Если есть выбранные версии из модального окна, нужно найти правильную версию
+        let version = item.chessboard_documentation_mapping?.documentation_versions
+        let documentation = version?.documentations
+
+        // Если это массив, нужно найти правильную версию
+        if (Array.isArray(item.chessboard_documentation_mapping)) {
+          // Ищем версию, которая соответствует выбранным версиям или документу из фильтров
+          const mappings = item.chessboard_documentation_mapping
+          let bestMapping = mappings[0] // fallback
+
+          for (const mapping of mappings) {
+            const mapVersion = mapping.documentation_versions
+            const mapDoc = mapVersion?.documentations
+
+            if (mapDoc && appliedFilters?.documentationId?.includes(mapDoc.id)) {
+              // Если есть выбранные версии для этого документа
+              if (Object.keys(selectedVersions).length > 0 && selectedVersions[mapDoc.id]) {
+                const selectedVersionId = selectedVersions[mapDoc.id]
+                if (mapVersion?.id === selectedVersionId) {
+                  bestMapping = mapping // Точное совпадение по выбранной версии
+                  break
+                }
+              } else {
+                bestMapping = mapping // Документ из фильтров
               }
-            } else {
-              bestMapping = mapping // Документ из фильтров
             }
           }
+
+          version = bestMapping?.documentation_versions
+          documentation = version?.documentations
         }
-        
-        version = bestMapping?.documentation_versions
-        documentation = version?.documentations
-        
-      }
-      
-      const tag = documentation?.tag
 
-      // Заполняем данные из фильтров, если они отсутствуют в записи
-      const fallbackTag =
-        appliedFilters?.tagId?.length === 1
-          ? sortedDocumentationTags.find((t) => String(t.id) === appliedFilters.tagId![0])
-          : null
-      const fallbackDoc =
-        appliedFilters?.documentationId?.length === 1
-          ? documentations?.find((d) => d.id === appliedFilters.documentationId![0])
-          : null
-      const fallbackVersion =
-        fallbackDoc && documentVersions
-          ? documentVersions
-              .filter((v) => v.documentation_id === fallbackDoc.id)
-              .sort((a, b) => b.version_number - a.version_number)[0]
-          : null
+        const tag = documentation?.tag
 
-      // Для существующих записей без версии, но с документом, найдем последнюю версию
-      const documentIdForVersion = documentation?.id || fallbackDoc?.id
-      const autoVersion =
-        !version && documentIdForVersion && documentVersions
-          ? documentVersions
-              .filter((v) => v.documentation_id === documentIdForVersion)
-              .sort((a, b) => b.version_number - a.version_number)[0]
+        // Заполняем данные из фильтров, если они отсутствуют в записи
+        const fallbackTag =
+          appliedFilters?.tagId?.length === 1
+            ? sortedDocumentationTags.find((t) => String(t.id) === appliedFilters.tagId![0])
+            : null
+        const fallbackDoc =
+          appliedFilters?.documentationId?.length === 1
+            ? documentations?.find((d) => d.id === appliedFilters.documentationId![0])
+            : null
+        const fallbackVersion =
+          fallbackDoc && documentVersions
+            ? documentVersions
+                .filter((v) => v.documentation_id === fallbackDoc.id)
+                .sort((a, b) => b.version_number - a.version_number)[0]
+            : null
+
+        // Для существующих записей без версии, но с документом, найдем последнюю версию
+        const documentIdForVersion = documentation?.id || fallbackDoc?.id
+        const autoVersion =
+          !version && documentIdForVersion && documentVersions
+            ? documentVersions
+                .filter((v) => v.documentation_id === documentIdForVersion)
+                .sort((a, b) => b.version_number - a.version_number)[0]
+            : null
+        const sumPd = item.floorQuantities
+          ? Object.values(item.floorQuantities).reduce(
+              (s, q) => s + (parseFloat(q.quantityPd) || 0),
+              0,
+            )
           : null
-      const sumPd = item.floorQuantities
-        ? Object.values(item.floorQuantities).reduce(
-            (s, q) => s + (parseFloat(q.quantityPd) || 0),
-            0,
-          )
-        : null
-      const sumSpec = item.floorQuantities
-        ? Object.values(item.floorQuantities).reduce(
-            (s, q) => s + (parseFloat(q.quantitySpec) || 0),
-            0,
-          )
-        : null
-      const sumRd = item.floorQuantities
-        ? Object.values(item.floorQuantities).reduce(
-            (s, q) => s + (parseFloat(q.quantityRd) || 0),
-            0,
-          )
-        : null
-      return {
-        key: item.id,
-        materialId: item.material ?? '',
-        material: item.materials?.name ?? '',
-        quantityPd: sumPd !== null ? String(sumPd) : '',
-        quantitySpec: sumSpec !== null ? String(sumSpec) : '',
-        quantityRd: sumRd !== null ? String(sumRd) : '',
-        nomenclatureId:
-          getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature_id ?? '',
-        nomenclature:
-          getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature?.name ?? '',
-        supplier: getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.supplier_name ?? '',
-        unit: item.units?.name ?? '',
-        blockId: item.chessboard_mapping?.block_id ?? '',
-        block: item.chessboard_mapping?.blocks?.name ?? '',
-        costCategory: item.chessboard_mapping?.cost_categories?.name ?? '',
-        costType: item.chessboard_mapping?.detail_cost_categories?.name ?? '',
-        workName: item.chessboard_rates_mapping?.[0]?.rates?.work_name ?? '',
-        location: item.chessboard_mapping?.location?.name ?? '',
-        floors: item.floors ?? '',
-        color: (item.color as RowColor | null) ?? '',
-        documentationId: documentation?.id, // НЕ используем fallbackDoc для documentationId
-        tagName: tag?.name || fallbackTag?.name || '',
-        tagNumber: tag?.tag_number ?? fallbackTag?.tag_number ?? null,
-        projectCode: (() => {
-          // Получаем код только из реальной связи документации
-          let code = documentation?.code || ''
-          
-          // Если код пустой, пробуем найти в documentations по documentationId  
-          if (!code && documentation?.id && documentations) {
-            const foundInDocumentations = documentations.find(doc => doc.id === documentation.id)
-            if (foundInDocumentations) {
-              code = foundInDocumentations.project_code || ''
+        const sumSpec = item.floorQuantities
+          ? Object.values(item.floorQuantities).reduce(
+              (s, q) => s + (parseFloat(q.quantitySpec) || 0),
+              0,
+            )
+          : null
+        const sumRd = item.floorQuantities
+          ? Object.values(item.floorQuantities).reduce(
+              (s, q) => s + (parseFloat(q.quantityRd) || 0),
+              0,
+            )
+          : null
+        return {
+          key: item.id,
+          materialId: item.material ?? '',
+          material: item.materials?.name ?? '',
+          quantityPd: sumPd !== null ? String(sumPd) : '',
+          quantitySpec: sumSpec !== null ? String(sumSpec) : '',
+          quantityRd: sumRd !== null ? String(sumRd) : '',
+          nomenclatureId:
+            getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature_id ?? '',
+          nomenclature:
+            getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature?.name ?? '',
+          supplier:
+            getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.supplier_name ?? '',
+          unit: item.units?.name ?? '',
+          blockId: item.chessboard_mapping?.block_id ?? '',
+          block: item.chessboard_mapping?.blocks?.name ?? '',
+          costCategory: item.chessboard_mapping?.cost_categories?.name ?? '',
+          costType: item.chessboard_mapping?.detail_cost_categories?.name ?? '',
+          workName: item.chessboard_rates_mapping?.[0]?.rates?.work_name ?? '',
+          location: item.chessboard_mapping?.location?.name ?? '',
+          floors: item.floors ?? '',
+          color: (item.color as RowColor | null) ?? '',
+          documentationId: documentation?.id, // НЕ используем fallbackDoc для documentationId
+          tagName: tag?.name || fallbackTag?.name || '',
+          tagNumber: tag?.tag_number ?? fallbackTag?.tag_number ?? null,
+          projectCode: (() => {
+            // Получаем код только из реальной связи документации
+            let code = documentation?.code || ''
+
+            // Если код пустой, пробуем найти в documentations по documentationId
+            if (!code && documentation?.id && documentations) {
+              const foundInDocumentations = documentations.find(
+                (doc) => doc.id === documentation.id,
+              )
+              if (foundInDocumentations) {
+                code = foundInDocumentations.project_code || ''
+              }
             }
+
+            return code
+          })(),
+          projectName: (documentation as { project_name?: string })?.project_name || '',
+          versionNumber:
+            version?.version_number ??
+            autoVersion?.version_number ??
+            fallbackVersion?.version_number ??
+            undefined,
+          comments: commentsMap.get(item.id) || [],
+        }
+      })
+      .filter((row) => {
+        // Сначала фильтруем по документам/тегам
+        if (appliedFilters?.documentationId?.length) {
+          // Если есть фильтр по документам, показываем только строки с этими документами
+          if (
+            !row.documentationId ||
+            !appliedFilters.documentationId.includes(row.documentationId)
+          ) {
+            return false
           }
-          
-          return code
-        })(),
-        projectName: (documentation as { project_name?: string })?.project_name || '',
-        versionNumber:
-          version?.version_number ??
-          autoVersion?.version_number ??
-          fallbackVersion?.version_number ??
-          undefined,
-        comments: commentsMap.get(item.id) || [],
-      }
-    })
-    .filter((row) => {
-      // Сначала фильтруем по документам/тегам
-      if (appliedFilters?.documentationId?.length) {
-        // Если есть фильтр по документам, показываем только строки с этими документами
-        if (!row.documentationId || !appliedFilters.documentationId.includes(row.documentationId)) {
-          return false
+        } else if (appliedFilters?.tagId?.length) {
+          // Если есть фильтр по тегам, показываем только строки с этими тегами
+
+          // Используем tagNumber для фильтрации, так как tagId undefined
+          if (row.tagNumber === null || !appliedFilters.tagId.includes(String(row.tagNumber))) {
+            return false
+          }
         }
-      } else if (appliedFilters?.tagId?.length) {
-        // Если есть фильтр по тегам, показываем только строки с этими тегами
-        
-        // Используем tagNumber для фильтрации, так как tagId undefined
-        if (row.tagNumber === null || !appliedFilters.tagId.includes(String(row.tagNumber))) {
-          return false
+
+        // Затем фильтруем по выбранным версиям (только если есть выбранные версии)
+        if (Object.keys(selectedVersions).length > 0 && appliedFilters?.documentationId?.length) {
+          // Если документ из фильтра, проверяем версию
+          if (row.documentationId && selectedVersions[row.documentationId]) {
+            const selectedVersionId = selectedVersions[row.documentationId]
+            const version = documentVersions?.find((v) => v.id === selectedVersionId)
+            const expectedVersionNumber = version?.version_number
+
+            return row.versionNumber === expectedVersionNumber
+          }
         }
-      }
-      
-      // Затем фильтруем по выбранным версиям (только если есть выбранные версии)
-      if (Object.keys(selectedVersions).length > 0 && appliedFilters?.documentationId?.length) {
-        // Если документ из фильтра, проверяем версию
-        if (row.documentationId && selectedVersions[row.documentationId]) {
-          const selectedVersionId = selectedVersions[row.documentationId]
-          const version = documentVersions?.find(v => v.id === selectedVersionId)
-          const expectedVersionNumber = version?.version_number
-          
-          
-          return row.versionNumber === expectedVersionNumber
-        }
-      }
-      
-      return true
-    })
+
+        return true
+      })
   }, [
     tableData,
     commentsData,
@@ -1425,6 +1437,12 @@ export default function Chessboard() {
       message.warning('Выберите проект')
       return
     }
+
+    // Принудительно обновляем документацию при смене проекта
+    if (appliedFilters?.projectId !== filters.projectId) {
+      setDocumentationRefreshKey(prev => prev + 1)
+    }
+
     setAppliedFilters({ ...filters } as {
       projectId: string
       blockId?: string[]
@@ -2027,7 +2045,6 @@ export default function Chessboard() {
   }, [])
 
   const applyVersions = useCallback(() => {
-    
     // Проверяем, что для всех документов выбрана версия
     const requiredDocIds = appliedFilters?.documentationId || []
     const missingVersions = requiredDocIds.filter((docId) => !selectedVersions[docId])
@@ -2154,14 +2171,16 @@ export default function Chessboard() {
       for (const docId of appliedFilters.documentationId) {
         const versionId = selectedVersions[docId]
         if (!versionId) {
-          const doc = documentations?.find(d => d.id === docId)
+          const doc = documentations?.find((d) => d.id === docId)
           console.error('Версия не найдена для документа:', {
             docId,
             selectedVersions,
             appliedFilters,
-            doc
+            doc,
           })
-          message.error(`Версия для шифра проекта "${doc?.project_code || 'неизвестный'}" обязательна для создания комплекта. Пожалуйста, выберите версию.`)
+          message.error(
+            `Версия для шифра проекта "${doc?.project_code || 'неизвестный'}" обязательна для создания комплекта. Пожалуйста, выберите версию.`,
+          )
           // Открываем модальное окно выбора версий
           openVersionsModal()
           return
@@ -2204,7 +2223,8 @@ export default function Chessboard() {
         setSetNameInput('') // Очищаем введенное название
       } catch (error) {
         console.error('Ошибка создания комплекта:', error)
-        const errorMessage = error instanceof Error ? error.message : 'Ошибка при создании комплекта'
+        const errorMessage =
+          error instanceof Error ? error.message : 'Ошибка при создании комплекта'
         message.error(errorMessage)
       }
     },
@@ -2236,14 +2256,16 @@ export default function Chessboard() {
 
       // Проверяем наличие множественных документов (новая структура)
       if (setData.documents && Array.isArray(setData.documents) && setData.documents.length > 0) {
-        documentationIds = setData.documents.map((doc: { documentation_id: string }) => doc.documentation_id)
+        documentationIds = setData.documents.map(
+          (doc: { documentation_id: string }) => doc.documentation_id,
+        )
         // Устанавливаем версии для каждого документа
         setData.documents.forEach((doc: { documentation_id: string; version_id: string }) => {
           if (doc.documentation_id && doc.version_id) {
             newVersions[doc.documentation_id] = doc.version_id
           }
         })
-      } 
+      }
       // Обратная совместимость со старой структурой
       else if (setData.documentation_id) {
         documentationIds = [setData.documentation_id]
@@ -2288,14 +2310,11 @@ export default function Chessboard() {
   }, [])
 
   // Обработчик изменения статуса комплекта
-  const handleSetStatusChange = useCallback(
-    (statusId: string) => {
-      setSelectedSetStatus(statusId)
-      setPendingStatusId(statusId)
-      setSetNameModalOpen(true) // Открываем модальное окно для ввода названия
-    },
-    [],
-  )
+  const handleSetStatusChange = useCallback((statusId: string) => {
+    setSelectedSetStatus(statusId)
+    setPendingStatusId(statusId)
+    setSetNameModalOpen(true) // Открываем модальное окно для ввода названия
+  }, [])
 
   // Обработчик подтверждения создания комплекта с названием
   const handleSetNameConfirm = useCallback(() => {
@@ -2308,7 +2327,11 @@ export default function Chessboard() {
 
   // Автоматическая установка последних версий для документов при переходе со страницы Анализа
   useEffect(() => {
-    if (appliedFilters?.documentationId && documentVersions && appliedFilters.documentationId.length > 0) {
+    if (
+      appliedFilters?.documentationId &&
+      documentVersions &&
+      appliedFilters.documentationId.length > 0
+    ) {
       const newVersions: Record<string, string> = { ...selectedVersions }
       let hasChanges = false
 
@@ -2467,9 +2490,10 @@ export default function Chessboard() {
             color: (dbRow.color as RowColor | null) ?? '',
             documentationId: (() => {
               // Берем из базы данных, если есть
-              const dbDocId = dbRow.chessboard_documentation_mapping?.documentation_versions?.documentation_id
+              const dbDocId =
+                dbRow.chessboard_documentation_mapping?.documentation_versions?.documentation_id
               if (dbDocId) return dbDocId
-              
+
               // Если в базе нет, но применен фильтр по шифру проекта - используем из фильтра
               if (appliedFilters?.documentationId && appliedFilters.documentationId.length === 1) {
                 return appliedFilters.documentationId[0]
@@ -2477,86 +2501,123 @@ export default function Chessboard() {
               return ''
             })(),
             tagId: (() => {
-              // Берем из базы данных, если есть
-              const dbTagId = dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.tag_id
-              if (dbTagId) return String(dbTagId)
-              
+              // Сначала пробуем из маппинга (будет работать после миграции)
+              const mappingTagId = dbRow.chessboard_documentation_mapping?.tag_id
+              if (mappingTagId) {
+                console.log('🔧 EDIT INIT - Found mapping tagId:', mappingTagId, 'for row:', id)
+                return String(mappingTagId)
+              }
+
+              // Fallback: берем из документации через версию (текущая схема)
+              const docTagId =
+                dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations
+                  ?.tag_id
+              if (docTagId) {
+                console.log('🔧 EDIT INIT - Found doc tagId:', docTagId, 'for row:', id)
+                return String(docTagId)
+              }
+
               // Если в базе нет, но применен фильтр по разделу - используем из фильтра
               if (appliedFilters?.tagId && appliedFilters.tagId.length === 1) {
+                console.log(
+                  '🔧 EDIT INIT - Using filter tagId:',
+                  appliedFilters.tagId[0],
+                  'for row:',
+                  id,
+                )
                 return appliedFilters.tagId[0]
               }
+              console.log('🔧 EDIT INIT - No tagId found for row:', id, {
+                mappingTagId,
+                docTagId,
+                appliedFiltersTagId: appliedFilters?.tagId,
+                appliedFiltersTagIdLength: appliedFilters?.tagId?.length,
+              })
               return ''
             })(),
             tagName: (() => {
               // Берем из базы данных, если есть
-              const dbTagName = dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.tag?.name
+              const dbTagName =
+                dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.tag
+                  ?.name
               if (dbTagName) return dbTagName
-              
+
               // Если в базе нет, но применен фильтр по разделу - найдем название
               if (appliedFilters?.tagId && appliedFilters.tagId.length === 1) {
                 const tagId = parseInt(appliedFilters.tagId[0])
-                const tag = sortedDocumentationTags?.find(t => t.id === tagId)
+                const tag = sortedDocumentationTags?.find((t) => t.id === tagId)
                 return tag?.name ?? ''
               }
               return ''
             })(),
             tagNumber: (() => {
               // Берем из базы данных, если есть
-              const dbTagNumber = dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.tag?.tag_number
+              const dbTagNumber =
+                dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.tag
+                  ?.tag_number
               if (dbTagNumber) return dbTagNumber
-              
+
               // Если в базе нет, но применен фильтр по разделу - найдем номер
               if (appliedFilters?.tagId && appliedFilters.tagId.length === 1) {
                 const tagId = parseInt(appliedFilters.tagId[0])
-                const tag = sortedDocumentationTags?.find(t => t.id === tagId)
+                const tag = sortedDocumentationTags?.find((t) => t.id === tagId)
                 return tag?.tag_number ?? null
               }
               return null
             })(),
             projectCode: (() => {
               // Берем из базы данных, если есть
-              const dbProjectCode = dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.code
+              const dbProjectCode =
+                dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.code
               if (dbProjectCode) return dbProjectCode
-              
+
               // Если в базе нет, но применен фильтр по шифру проекта - используем из фильтра
               if (appliedFilters?.documentationId && appliedFilters.documentationId.length === 1) {
                 const docId = appliedFilters.documentationId[0]
-                const doc = documentations?.find(d => d.id === docId)
+                const doc = documentations?.find((d) => d.id === docId)
                 return doc?.project_code ?? ''
               }
               return ''
             })(),
             projectName: (() => {
               // Сначала пытаемся найти по коду проекта из документации
-              const dbProjectCode = dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.code
+              const dbProjectCode =
+                dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations?.code
               if (dbProjectCode && documentations) {
                 const matchingDoc = documentations.find((d) => d.project_code === dbProjectCode)
                 if (matchingDoc?.project_name) return matchingDoc.project_name
               }
-              
+
               // Fallback к прямому поиску по project_name из базы
-              const dbProjectName = (dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations as { project_name?: string })?.project_name
+              const dbProjectName = (
+                dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations as {
+                  project_name?: string
+                }
+              )?.project_name
               if (dbProjectName) return dbProjectName
-              
+
               // Если в базе нет, но применен фильтр по шифру проекта - используем из фильтра
               if (appliedFilters?.documentationId && appliedFilters.documentationId.length === 1) {
                 const docId = appliedFilters.documentationId[0]
-                const doc = documentations?.find(d => d.id === docId)
+                const doc = documentations?.find((d) => d.id === docId)
                 return doc?.project_name ?? ''
               }
               return ''
             })(),
             versionNumber: (() => {
               // Берем из базы данных, если есть
-              const dbVersionNumber = dbRow.chessboard_documentation_mapping?.documentation_versions?.version_number
+              const dbVersionNumber =
+                dbRow.chessboard_documentation_mapping?.documentation_versions?.version_number
               if (dbVersionNumber) return dbVersionNumber
-              
+
               // Если в базе нет, но применен фильтр по шифру проекта - найдем последнюю версию
               if (appliedFilters?.documentationId && appliedFilters.documentationId.length === 1) {
                 const docId = appliedFilters.documentationId[0]
-                const versions = documentVersions?.filter(v => v.documentation_id === docId)
+                const versions = documentVersions?.filter((v) => v.documentation_id === docId)
                 if (versions && versions.length > 0) {
-                  const latestVersion = versions.sort((a, b) => b.version_number - a.version_number)[0]
+                  const latestVersion = versions.sort(
+                    (a, b) => b.version_number - a.version_number,
+                  )[0]
                   return latestVersion.version_number
                 }
               }
@@ -2568,16 +2629,21 @@ export default function Chessboard() {
       })
       void loadSupplierOptions(nomenclatureId, id, supplierName)
     },
-    [tableData, loadSupplierOptions, appliedFilters, sortedDocumentationTags, documentations, documentVersions],
+    [
+      tableData,
+      loadSupplierOptions,
+      appliedFilters,
+      sortedDocumentationTags,
+      documentations,
+      documentVersions,
+    ],
   )
 
   const handleUpdate = useCallback(async () => {
     if (!supabase || Object.keys(editingRows).length === 0) return
 
-
     // Параллельное выполнение всех обновлений
     const updatePromises = Object.values(editingRows).map(async (r) => {
-      
       let materialId = r.materialId
       if (!materialId && r.material) {
         const material = await materialsApi.ensure(r.material)
@@ -2671,12 +2737,10 @@ export default function Chessboard() {
 
       // Обновляем связь с версией документа (новая схема)
       const updateDocumentationMapping = async () => {
-        
         let docId = r.documentationId
 
         // Если есть тэг и шифр проекта, создаём или обновляем документацию
         if (r.projectCode && r.tagId) {
-          
           const doc = await documentationApi.upsertDocumentation(
             r.projectCode,
             Number(r.tagId),
@@ -2719,6 +2783,8 @@ export default function Chessboard() {
             {
               chessboard_id: r.key,
               version_id: version?.id || '',
+              // TODO: добавить tag_id после применения миграции
+              // tag_id: r.tagId ? Number(r.tagId) : null,
             },
             { onConflict: 'chessboard_id' },
           )
@@ -2760,12 +2826,12 @@ export default function Chessboard() {
 
     try {
       await Promise.all(updatePromises)
-      
+
       await refetchMaterials()
-      
+
       message.success('Изменения сохранены')
       setEditingRows({})
-      
+
       await refetch()
     } catch (error: unknown) {
       console.error(`❌ ОШИБКА ПРИ СОХРАНЕНИИ:`, error)
@@ -3126,6 +3192,8 @@ export default function Chessboard() {
             const docMappings = inserted.map((d) => ({
               chessboard_id: d.id,
               version_id: versionId,
+              // TODO: добавить tag_id после применения миграции
+              // tag_id: importState.tagId ? Number(importState.tagId) : null,
             }))
 
             const { error: docError } = await supabase!
@@ -3430,6 +3498,8 @@ export default function Chessboard() {
         const { error: docError } = await supabase.from('chessboard_documentation_mapping').insert({
           chessboard_id: data[idx].id,
           version_id: versionId,
+          // TODO: добавить tag_id после применения миграции
+          // tag_id: rows[idx].tagId ? Number(rows[idx].tagId) : null,
         })
         if (docError) {
           console.error(`Не удалось сохранить связь с версией документа: ${docError.message}`)
@@ -3618,16 +3688,62 @@ export default function Chessboard() {
               )
             case 'projectCode':
               // Отладка для режима добавления
-              if (record.tagName && documentations?.length > 0) {
+              if (record.tagId && documentations?.length > 0) {
+                console.log('🔧 ADD mode - Component documentations sample:', {
+                  totalCount: documentations.length,
+                  first3Detailed: documentations.slice(0, 3).map(doc => {
+                    console.log('🔧 Whole doc object:', doc)
+                    return {
+                      id: doc.id,
+                      project_code: doc.project_code,
+                      tag_id: doc.tag_id,
+                      keys: Object.keys(doc),
+                      wholeDoc: doc
+                    }
+                  })
+                })
+
+                const tagIds = documentations.slice(0, 5).map((doc) => ({
+                  id: doc.id,
+                  code: doc.project_code,
+                  tag_id: doc.tag_id,
+                  tag_name: doc.tag_name,
+                  tag: doc.tag ? doc.tag.id : null,
+                  actualTagId: doc.tag_id || (doc.tag ? doc.tag.id : null),
+                }))
+                const filteredDocs = documentations.filter((doc) => {
+                  const docTagId = doc.tag_id
+                  const selectedTagId = Number(record.tagId)
+                  const actualTagId = docTagId || (doc.tag ? doc.tag.id : null)
+                  return actualTagId === selectedTagId
+                })
                 console.log('🔧 ADD mode - ProjectCode dropdown:', {
-                  tagName: record.tagName,
+                  searchingForTagId: record.tagId,
+                  searchingForTagIdNum: Number(record.tagId),
                   totalDocs: documentations.length,
-                  sampleDoc: documentations[0] ? {
-                    id: documentations[0].id,
-                    code: documentations[0].project_code,
-                    tag_id: documentations[0].tag_id,
-                    tag_name: documentations[0].tag_name
-                  } : null
+                  first5DocsTagInfo: tagIds,
+                  filteredDocsCount: filteredDocs.length,
+                  firstFilteredDoc: filteredDocs[0]
+                    ? {
+                        id: filteredDocs[0].id,
+                        code: filteredDocs[0].project_code,
+                        tag_id: filteredDocs[0].tag_id,
+                        tag_name: filteredDocs[0].tag_name,
+                        tag: filteredDocs[0].tag,
+                      }
+                    : null,
+                  // Дополнительная отладка
+                  allTagIds: [...new Set(documentations.map((doc) => doc.tag_id).filter(Boolean))],
+                  allTagNames: [
+                    ...new Set(documentations.map((doc) => doc.tag_name).filter(Boolean)),
+                  ],
+                  docsWithTag3: documentations
+                    .filter((doc) => doc.tag_id === 3)
+                    .map((doc) => ({
+                      code: doc.project_code,
+                      tag_id: doc.tag_id,
+                      tag_name: doc.tag_name,
+                    })),
                 })
               }
               return (
@@ -3642,11 +3758,12 @@ export default function Chessboard() {
                   onChange={(value) => {
                     const selectedDoc = documentations?.find((doc) => doc.project_code === value)
                     // Находим максимальную версию для выбранного документа
-                    const maxVersion = selectedDoc?.id && documentVersions
-                      ? documentVersions
-                          .filter((v) => v.documentation_id === selectedDoc.id)
-                          .sort((a, b) => b.version_number - a.version_number)[0]
-                      : null
+                    const maxVersion =
+                      selectedDoc?.id && documentVersions
+                        ? documentVersions
+                            .filter((v) => v.documentation_id === selectedDoc.id)
+                            .sort((a, b) => b.version_number - a.version_number)[0]
+                        : null
                     handleRowChange(record.key, 'projectCode', value)
                     handleRowChange(record.key, 'projectName', selectedDoc?.project_name || '')
                     handleRowChange(record.key, 'documentationId', selectedDoc?.id || null)
@@ -3661,18 +3778,38 @@ export default function Chessboard() {
                     documentations
                       ?.filter((doc) => {
                         // Если нет выбранного раздела - показываем все документы
-                        if (!record.tagName) return true
-                        
-                        // Проверяем соответствие по имени тега
-                        const docTagName = doc.tag_name || (doc.tag ? doc.tag.name : null)
-                        return docTagName === record.tagName
+                        if (!record.tagId) {
+                          console.log('🔧 ADD filter - No tagId selected, showing all docs')
+                          return true
+                        }
+
+                        // Проверяем соответствие по ID тега (с fallback)
+                        const docTagId = doc.tag_id
+                        const selectedTagId = Number(record.tagId)
+
+                        // Fallback: если у документа нет tag_id, но есть tag.id - используем его
+                        const actualTagId = docTagId || (doc.tag ? doc.tag.id : null)
+                        const matches = actualTagId === selectedTagId
+
+                        if (!matches) {
+                          console.log('🔧 ADD filter - Doc does not match:', {
+                            docId: doc.id,
+                            docCode: doc.project_code,
+                            docTagId,
+                            actualTagId,
+                            selectedTagId,
+                            matches,
+                          })
+                        }
+
+                        return matches
                       })
                       .map((doc) => ({
                         value: doc.project_code,
                         label: `${doc.project_code} - ${doc.project_name || 'Без названия'}`,
                       })) ?? []
                   }
-                  disabled={!record.tagName}
+                  disabled={!record.tagId}
                 />
               )
             case 'projectName':
@@ -4274,10 +4411,10 @@ export default function Chessboard() {
             case 'projectCode':
               // Отладка для режима редактирования
               if (edit.tagId && documentations?.length > 0) {
-                const tagIds = documentations.slice(0, 5).map(doc => ({
+                const tagIds = documentations.slice(0, 5).map((doc) => ({
                   tag_id: doc.tag_id,
                   tag: doc.tag ? doc.tag.id : null,
-                  actualTagId: doc.tag_id || (doc.tag ? doc.tag.id : null)
+                  actualTagId: doc.tag_id || (doc.tag ? doc.tag.id : null),
                 }))
                 const filteredDocs = documentations.filter((doc) => {
                   const docTagId = doc.tag_id
@@ -4291,11 +4428,13 @@ export default function Chessboard() {
                   totalDocs: documentations.length,
                   first5DocsTagInfo: tagIds,
                   filteredDocsCount: filteredDocs.length,
-                  firstFilteredDoc: filteredDocs[0] ? {
-                    code: filteredDocs[0].project_code,
-                    tag_id: filteredDocs[0].tag_id,
-                    tag: filteredDocs[0].tag
-                  } : null
+                  firstFilteredDoc: filteredDocs[0]
+                    ? {
+                        code: filteredDocs[0].project_code,
+                        tag_id: filteredDocs[0].tag_id,
+                        tag: filteredDocs[0].tag,
+                      }
+                    : null,
                 })
               }
               return (
@@ -4310,15 +4449,20 @@ export default function Chessboard() {
                   onChange={(value) => {
                     const selectedDoc = documentations?.find((doc) => doc.project_code === value)
                     // Находим максимальную версию для выбранного документа
-                    const maxVersion = selectedDoc?.id && documentVersions
-                      ? documentVersions
-                          .filter((v) => v.documentation_id === selectedDoc.id)
-                          .sort((a, b) => b.version_number - a.version_number)[0]
-                      : null
+                    const maxVersion =
+                      selectedDoc?.id && documentVersions
+                        ? documentVersions
+                            .filter((v) => v.documentation_id === selectedDoc.id)
+                            .sort((a, b) => b.version_number - a.version_number)[0]
+                        : null
                     handleEditChange(record.key, 'projectCode', value)
                     handleEditChange(record.key, 'projectName', selectedDoc?.project_name || '')
                     handleEditChange(record.key, 'documentationId', selectedDoc?.id || null)
-                    handleEditChange(record.key, 'versionNumber', maxVersion?.version_number || null)
+                    handleEditChange(
+                      record.key,
+                      'versionNumber',
+                      maxVersion?.version_number || null,
+                    )
                   }}
                   filterOption={(input, option) => {
                     const text = (option?.label ?? '').toString()
@@ -4329,16 +4473,32 @@ export default function Chessboard() {
                     documentations
                       ?.filter((doc) => {
                         // Если нет выбранного тега - показываем все документы
-                        if (!edit.tagId) return true
-                        
-                        // Проверяем соответствие tag_id
+                        if (!edit.tagId) {
+                          console.log('🔧 EDIT filter - No edit.tagId, showing all docs')
+                          return true
+                        }
+
+                        // Проверяем соответствие tag_id (с fallback)
                         const docTagId = doc.tag_id
                         const selectedTagId = Number(edit.tagId)
-                        
-                        // Если у документа нет tag_id, но есть tag.id - используем его
+
+                        // Fallback: если у документа нет tag_id, но есть tag.id - используем его
                         const actualTagId = docTagId || (doc.tag ? doc.tag.id : null)
-                        
-                        return actualTagId === selectedTagId
+                        const matches = actualTagId === selectedTagId
+
+                        if (!matches) {
+                          console.log('🔧 EDIT filter - Doc does not match:', {
+                            docId: doc.id,
+                            docCode: doc.project_code,
+                            docTagId,
+                            actualTagId,
+                            selectedTagId,
+                            editTagId: edit.tagId,
+                            matches,
+                          })
+                        }
+
+                        return matches
                       })
                       .map((doc) => ({
                         value: doc.project_code,
@@ -5225,7 +5385,7 @@ export default function Chessboard() {
                     >
                       <Select
                         placeholder={
-                          matchedSet 
+                          matchedSet
                             ? `Комплект №${matchedSet.set_number}${matchedSet.name ? `: ${matchedSet.name}` : ''}${matchedSet.status ? ` (${matchedSet.status.name})` : ''}`
                             : 'Выберите статус'
                         }
@@ -5275,7 +5435,7 @@ export default function Chessboard() {
                                 borderRadius: 2,
                                 border: '1px solid #d9d9d9',
                                 marginRight: 4,
-                                flexShrink: 0
+                                flexShrink: 0,
                               }}
                             />
                           ) : undefined
@@ -5424,15 +5584,16 @@ export default function Chessboard() {
                   value={filters.typeId}
                   onChange={(value) => setFilters((f) => ({ ...f, typeId: value }))}
                   options={(() => {
-                    const availableTypes = costTypes
-                      ?.filter(
-                        (t) =>
-                          !filters.categoryId ||
-                          filters.categoryId.length === 0 ||
-                          filters.categoryId.includes(String(t.cost_category_id)),
-                      )
-                      .map((t) => ({ value: String(t.id), label: t.name })) ?? []
-                    
+                    const availableTypes =
+                      costTypes
+                        ?.filter(
+                          (t) =>
+                            !filters.categoryId ||
+                            filters.categoryId.length === 0 ||
+                            filters.categoryId.includes(String(t.cost_category_id)),
+                        )
+                        .map((t) => ({ value: String(t.id), label: t.name })) ?? []
+
                     return availableTypes
                   })()}
                   disabled={!filters.categoryId || filters.categoryId.length === 0}
@@ -5993,7 +6154,7 @@ export default function Chessboard() {
           <div>
             <Text>Выберите название из справочника или введите свое:</Text>
           </div>
-          
+
           {/* Выбор из существующих названий документации */}
           <Select
             placeholder="Выберите название из документации"
@@ -6006,22 +6167,21 @@ export default function Chessboard() {
               const text = option?.label?.toString() || ''
               return text.toLowerCase().includes(input.toLowerCase())
             }}
-            options={
-              documentations
-                ?.filter(doc => 
-                  appliedFilters?.documentationId?.includes(doc.id) && doc.project_name
-                )
-                .map(doc => ({
-                  value: doc.project_name,
-                  label: doc.project_name,
-                }))
-                .filter((option, index, self) => 
+            options={documentations
+              ?.filter(
+                (doc) => appliedFilters?.documentationId?.includes(doc.id) && doc.project_name,
+              )
+              .map((doc) => ({
+                value: doc.project_name,
+                label: doc.project_name,
+              }))
+              .filter(
+                (option, index, self) =>
                   // Убираем дубликаты по названию
-                  option.value && index === self.findIndex(o => o.value === option.value)
-                )
-            }
+                  option.value && index === self.findIndex((o) => o.value === option.value),
+              )}
           />
-          
+
           {/* Или ввод произвольного названия */}
           <Input
             placeholder="Или введите свое название"
@@ -6029,11 +6189,11 @@ export default function Chessboard() {
             onChange={(e) => setSetNameInput(e.target.value)}
             onPressEnter={handleSetNameConfirm}
           />
-          
+
           <div>
             <Text type="secondary">
-              Название будет использоваться для идентификации комплекта. 
-              Если оставить пустым, будет использован номер комплекта.
+              Название будет использоваться для идентификации комплекта. Если оставить пустым, будет
+              использован номер комплекта.
             </Text>
           </div>
         </Space>

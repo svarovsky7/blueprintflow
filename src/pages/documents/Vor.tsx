@@ -1,5 +1,21 @@
 import { useState, useEffect } from 'react'
-import { Table, Typography, Space, Select, Button, Card, Row, Col, Modal, Input, InputNumber, message, Popconfirm, Form, Tooltip } from 'antd'
+import {
+  Table,
+  Typography,
+  Space,
+  Select,
+  Button,
+  Card,
+  Row,
+  Col,
+  Modal,
+  Input,
+  InputNumber,
+  message,
+  Popconfirm,
+  Form,
+  Tooltip,
+} from 'antd'
 import { EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -23,16 +39,16 @@ const Vor = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
-  
+
   // Инициализируем фильтры из URL параметров
   const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(
-    searchParams.get('project_id') || undefined
+    searchParams.get('project_id') || undefined,
   )
   const [selectedSection, setSelectedSection] = useState<string | undefined>(
-    searchParams.get('section') || undefined
+    searchParams.get('section') || undefined,
   )
   const [selectedCostCategory, setSelectedCostCategory] = useState<string | undefined>(
-    searchParams.get('cost_category') || undefined
+    searchParams.get('cost_category') || undefined,
   )
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editingVor, setEditingVor] = useState<VorRecord | null>(null)
@@ -44,15 +60,12 @@ const Vor = () => {
     queryKey: ['projects-for-vor'],
     queryFn: async () => {
       if (!supabase) return []
-      
-      const { data, error } = await supabase
-        .from('projects')
-        .select('id, name')
-        .order('name')
-        
+
+      const { data, error } = await supabase.from('projects').select('id, name').order('name')
+
       if (error) throw error
       return data
-    }
+    },
   })
 
   // Загружаем разделы
@@ -60,15 +73,15 @@ const Vor = () => {
     queryKey: ['documentation-tags'],
     queryFn: async () => {
       if (!supabase) return []
-      
+
       const { data, error } = await supabase
         .from('documentation_tags')
         .select('id, name')
         .order('name')
-        
+
       if (error) throw error
       return data
-    }
+    },
   })
 
   // Загружаем категории затрат
@@ -76,19 +89,23 @@ const Vor = () => {
     queryKey: ['cost-categories'],
     queryFn: async () => {
       if (!supabase) return []
-      
+
       const { data, error } = await supabase
         .from('cost_categories')
         .select('id, name')
         .order('name')
-        
+
       if (error) throw error
       return data
-    }
+    },
   })
 
   // Загружаем ВОР из БД с реальными данными
-  const { data: vorRecords, isLoading: vorLoading, refetch: refetchVorRecords } = useQuery({
+  const {
+    data: vorRecords,
+    isLoading: vorLoading,
+    refetch: refetchVorRecords,
+  } = useQuery({
     queryKey: ['vor-records', selectedProjectId, selectedSection, selectedCostCategory],
     queryFn: async () => {
       if (!supabase || !selectedProjectId) return []
@@ -97,20 +114,22 @@ const Vor = () => {
         // Шаг 1: Получаем основные данные ВОР
         const { data: vorData, error: vorError } = await supabase
           .from('vor')
-          .select(`
+          .select(
+            `
             id,
             name,
             project_id,
             rate_coefficient,
             created_at,
             updated_at
-          `)
+          `,
+          )
           .eq('project_id', selectedProjectId)
 
         if (vorError) throw vorError
         if (!vorData || vorData.length === 0) return []
 
-        const vorIds = vorData.map(vor => vor.id)
+        const vorIds = vorData.map((vor) => vor.id)
 
         // Шаг 2: Получаем связи ВОР с комплектами
         const { data: mappingData, error: mappingError } = await supabase
@@ -120,18 +139,20 @@ const Vor = () => {
 
         if (mappingError) console.warn('Ошибка получения связей ВОР:', mappingError)
 
-        const setIds = [...new Set(mappingData?.map(m => m.set_id) || [])]
+        const setIds = [...new Set(mappingData?.map((m) => m.set_id) || [])]
 
         // Шаг 3: Получаем данные комплектов с тегами
         const { data: setsData, error: setsError } = await supabase
           .from('chessboard_sets')
-          .select(`
+          .select(
+            `
             id,
             tag_id,
             documentation_tags (
               name
             )
-          `)
+          `,
+          )
           .in('id', setIds)
 
         if (setsError) console.warn('Ошибка получения комплектов:', setsError)
@@ -139,13 +160,15 @@ const Vor = () => {
         // Шаг 4: Получаем документы из комплектов
         const { data: documentsData, error: docsError } = await supabase
           .from('chessboard_sets_documents_mapping')
-          .select(`
+          .select(
+            `
             set_id,
             documentation_id,
             documentations (
               code
             )
-          `)
+          `,
+          )
           .in('set_id', setIds)
 
         if (docsError) console.warn('Ошибка получения документов:', docsError)
@@ -167,7 +190,7 @@ const Vor = () => {
         })
 
         const vorSetMap = new Map()
-        mappingData?.forEach(mapping => {
+        mappingData?.forEach((mapping) => {
           if (!vorSetMap.has(mapping.vor_id)) {
             vorSetMap.set(mapping.vor_id, [])
           }
@@ -176,16 +199,16 @@ const Vor = () => {
 
         // Шаг 5: Вычисляем реальные суммы для каждого ВОР
         const calculationMap = new Map()
-        
+
         for (const vorId of vorIds) {
           try {
             // Получаем основные данные ВОР для коэффициента пересчета
-            const currentVor = vorData.find(v => v.id === vorId)
+            const currentVor = vorData.find((v) => v.id === vorId)
             const rateCoefficient = currentVor?.rate_coefficient || 1
-            
+
             // Получаем комплекты для этого ВОР
             const vorSetIds = vorSetMap.get(vorId) || []
-            
+
             if (vorSetIds.length === 0) {
               calculationMap.set(vorId, 0)
               continue
@@ -194,10 +217,12 @@ const Vor = () => {
             // Получаем подробные данные комплектов
             const { data: detailedSetsData } = await supabase
               .from('chessboard_sets')
-              .select(`
+              .select(
+                `
                 id, project_id, documentation_id, block_ids, 
                 cost_category_ids, cost_type_ids
-              `)
+              `,
+              )
               .in('id', vorSetIds)
 
             if (!detailedSetsData || detailedSetsData.length === 0) {
@@ -206,7 +231,7 @@ const Vor = () => {
             }
 
             // Получаем данные chessboard по проектам комплектов
-            const projectIds = [...new Set(detailedSetsData.map(set => set.project_id))]
+            const projectIds = [...new Set(detailedSetsData.map((set) => set.project_id))]
             const { data: chessboardData } = await supabase
               .from('chessboard')
               .select('id, project_id, material, unit_id')
@@ -217,7 +242,7 @@ const Vor = () => {
               continue
             }
 
-            const chessboardIds = chessboardData.map(c => c.id)
+            const chessboardIds = chessboardData.map((c) => c.id)
 
             // Получаем все необходимые связанные данные параллельно
             const [
@@ -226,50 +251,66 @@ const Vor = () => {
               { data: ratesData },
               { data: mappingData },
               { data: floorMappingData },
-              { data: nomenclatureMappingData }
+              { data: nomenclatureMappingData },
             ] = await Promise.all([
-              supabase.from('materials').select('uuid, name').in('uuid', 
-                chessboardData.map(c => c.material).filter(Boolean)),
-              supabase.from('units').select('id, name').in('id',
-                chessboardData.map(c => c.unit_id).filter(Boolean)),
-              supabase.from('chessboard_rates_mapping').select(`
+              supabase
+                .from('materials')
+                .select('uuid, name')
+                .in('uuid', chessboardData.map((c) => c.material).filter(Boolean)),
+              supabase
+                .from('units')
+                .select('id, name')
+                .in('id', chessboardData.map((c) => c.unit_id).filter(Boolean)),
+              supabase
+                .from('chessboard_rates_mapping')
+                .select(
+                  `
                 chessboard_id, rate_id, rates:rate_id(work_name, base_rate, unit_id, units:unit_id(id, name))
-              `).in('chessboard_id', chessboardIds),
-              supabase.from('chessboard_mapping').select(
-                'chessboard_id, block_id, cost_category_id, cost_type_id'
-              ).in('chessboard_id', chessboardIds),
-              supabase.from('chessboard_floor_mapping').select(
-                'chessboard_id, "quantityRd"'
-              ).in('chessboard_id', chessboardIds),
-              supabase.from('chessboard_nomenclature_mapping').select(`
+              `,
+                )
+                .in('chessboard_id', chessboardIds),
+              supabase
+                .from('chessboard_mapping')
+                .select('chessboard_id, block_id, cost_category_id, cost_type_id')
+                .in('chessboard_id', chessboardIds),
+              supabase
+                .from('chessboard_floor_mapping')
+                .select('chessboard_id, "quantityRd"')
+                .in('chessboard_id', chessboardIds),
+              supabase
+                .from('chessboard_nomenclature_mapping')
+                .select(
+                  `
                 chessboard_id,
                 nomenclature_id,
                 supplier_name,
                 nomenclature:nomenclature_id(id, name, material_prices(price, purchase_date))
-              `).in('chessboard_id', chessboardIds)
+              `,
+                )
+                .in('chessboard_id', chessboardIds),
             ])
 
             // Создаем индексы для быстрого поиска
             const ratesMap = new Map()
-            ratesData?.forEach(r => {
+            ratesData?.forEach((r) => {
               if (!ratesMap.has(r.chessboard_id)) {
                 ratesMap.set(r.chessboard_id, [])
               }
               ratesMap.get(r.chessboard_id)?.push(r)
             })
 
-            const mappingMap = new Map(mappingData?.map(m => [m.chessboard_id, m]) || [])
+            const mappingMap = new Map(mappingData?.map((m) => [m.chessboard_id, m]) || [])
             const floorQuantitiesMap = new Map()
-            floorMappingData?.forEach(f => {
+            floorMappingData?.forEach((f) => {
               const currentSum = floorQuantitiesMap.get(f.chessboard_id) || 0
               const quantityRd = f.quantityRd || 0
               floorQuantitiesMap.set(f.chessboard_id, currentSum + quantityRd)
             })
 
             // Создаем индексы для единиц измерения и номенклатуры
-            const unitsMap = new Map(unitsData?.map(u => [u.id, u]) || [])
+            const unitsMap = new Map(unitsData?.map((u) => [u.id, u]) || [])
             const nomenclatureMap = new Map()
-            nomenclatureMappingData?.forEach(n => {
+            nomenclatureMappingData?.forEach((n) => {
               if (!nomenclatureMap.has(n.chessboard_id)) {
                 nomenclatureMap.set(n.chessboard_id, [])
               }
@@ -277,40 +318,43 @@ const Vor = () => {
             })
 
             // Фильтруем данные chessboard по настройкам комплектов
-            const filteredChessboardData = chessboardData.filter(item => {
-              return detailedSetsData.some(set => {
+            const filteredChessboardData = chessboardData.filter((item) => {
+              return detailedSetsData.some((set) => {
                 if (set.project_id !== item.project_id) return false
-                
+
                 const mapping = mappingMap.get(item.id)
-                
+
                 if (set.block_ids?.length > 0) {
                   if (!mapping?.block_id || !set.block_ids.includes(mapping.block_id)) {
                     return false
                   }
                 }
-                
+
                 if (set.cost_category_ids?.length > 0) {
-                  if (!mapping?.cost_category_id || !set.cost_category_ids.includes(mapping.cost_category_id)) {
+                  if (
+                    !mapping?.cost_category_id ||
+                    !set.cost_category_ids.includes(mapping.cost_category_id)
+                  ) {
                     return false
                   }
                 }
-                
+
                 if (set.cost_type_ids?.length > 0) {
                   if (!mapping?.cost_type_id || !set.cost_type_ids.includes(mapping.cost_type_id)) {
                     return false
                   }
                 }
-                
+
                 return true
               })
             })
 
             // Группируем по работам и вычисляем суммы
             const workGroups = new Map()
-            filteredChessboardData.forEach(item => {
+            filteredChessboardData.forEach((item) => {
               const rates = ratesMap.get(item.id) || []
               const workName = rates[0]?.rates?.work_name || 'Работа не указана'
-              
+
               if (!workGroups.has(workName)) {
                 workGroups.set(workName, [])
               }
@@ -319,7 +363,7 @@ const Vor = () => {
                 rates: rates[0]?.rates,
                 units: unitsMap.get(item.unit_id),
                 nomenclatureItems: nomenclatureMap.get(item.id) || [],
-                quantityRd: floorQuantitiesMap.get(item.id) || 0
+                quantityRd: floorQuantitiesMap.get(item.id) || 0,
               })
             })
 
@@ -332,19 +376,22 @@ const Vor = () => {
               const rateInfo = firstMaterial?.rates
               const baseRate = rateInfo?.base_rate || 0
               const rateUnitName = rateInfo?.units?.name || ''
-              
+
               // Рассчитываем количество для работы
               let workQuantity = 0
               if (rateUnitName) {
                 workQuantity = materials
-                  .filter(material => material.units?.name === rateUnitName)
+                  .filter((material) => material.units?.name === rateUnitName)
                   .reduce((sum: any, material: any) => sum + (material.quantityRd || 0), 0)
               }
               if (workQuantity === 0) {
-                workQuantity = materials.reduce((sum: any, material: any) => sum + (material.quantityRd || 0), 0)
+                workQuantity = materials.reduce(
+                  (sum: any, material: any) => sum + (material.quantityRd || 0),
+                  0,
+                )
               }
-              
-              const workTotal = (baseRate * workQuantity) * rateCoefficient
+
+              const workTotal = baseRate * workQuantity * rateCoefficient
               totalSum += workTotal
 
               // Для материалов: номенклатурная цена * количество (без коэффициента для цены)
@@ -353,10 +400,15 @@ const Vor = () => {
                 nomenclatureItems.forEach((nomenclatureItem: any) => {
                   // Получаем последнюю цену из справочника
                   const prices = nomenclatureItem.nomenclature?.material_prices || []
-                  const latestPrice = prices.length > 0 
-                    ? prices.sort((a: any, b: any) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime())[0].price
-                    : 0
-                  
+                  const latestPrice =
+                    prices.length > 0
+                      ? prices.sort(
+                          (a: any, b: any) =>
+                            new Date(b.purchase_date).getTime() -
+                            new Date(a.purchase_date).getTime(),
+                        )[0].price
+                      : 0
+
                   const quantity = material.quantityRd || 0
                   const materialTotal = latestPrice * quantity
                   totalSum += materialTotal
@@ -372,19 +424,18 @@ const Vor = () => {
         }
 
         // Шаг 6: Собираем финальные данные
-        return vorData.map(vor => {
+        return vorData.map((vor) => {
           const relatedSetIds = vorSetMap.get(vor.id) || []
-          
+
           // Получаем разделы из связанных комплектов
-          const sections = [...new Set(relatedSetIds
-            .map((setId: any) => setTagsMap.get(setId))
-            .filter(Boolean)
-          )]
+          const sections = [
+            ...new Set(relatedSetIds.map((setId: any) => setTagsMap.get(setId)).filter(Boolean)),
+          ]
 
           // Получаем шифры проектов из документации
-          const projectCodes = [...new Set(relatedSetIds
-            .flatMap((setId: any) => setDocsMap.get(setId) || [])
-          )]
+          const projectCodes = [
+            ...new Set(relatedSetIds.flatMap((setId: any) => setDocsMap.get(setId) || [])),
+          ]
 
           // Получаем сумму из таблицы расчетов
           const totalAmount = calculationMap.get(vor.id) || 0
@@ -398,7 +449,7 @@ const Vor = () => {
             project_codes: projectCodes,
             total_amount: totalAmount,
             project_id: vor.project_id,
-            rate_coefficient: vor.rate_coefficient
+            rate_coefficient: vor.rate_coefficient,
           } as VorRecord
         })
       } catch (error) {
@@ -406,7 +457,7 @@ const Vor = () => {
         throw error
       }
     },
-    enabled: !!selectedProjectId
+    enabled: !!selectedProjectId,
   })
 
   // Синхронизируем фильтры с URL параметрами после загрузки данных
@@ -416,8 +467,7 @@ const Vor = () => {
       const projectId = searchParams.get('project_id')
       const section = searchParams.get('section')
       const costCategory = searchParams.get('cost_category')
-      
-      
+
       setSelectedProjectId(projectId || undefined)
       setSelectedSection(section || undefined)
       setSelectedCostCategory(costCategory || undefined)
@@ -428,12 +478,12 @@ const Vor = () => {
   const updateCoefficientMutation = useMutation({
     mutationFn: async ({ vorId, coefficient }: { vorId: string; coefficient: number }) => {
       if (!supabase) throw new Error('No supabase client')
-      
+
       const { error } = await supabase
         .from('vor')
         .update({ rate_coefficient: coefficient })
         .eq('id', vorId)
-      
+
       if (error) throw error
     },
     onSuccess: () => {
@@ -444,7 +494,7 @@ const Vor = () => {
     onError: (error) => {
       console.error('Ошибка обновления коэффициента:', error)
       message.error('Ошибка при обновлении коэффициента')
-    }
+    },
   })
 
   // Обработчик изменения коэффициента
@@ -465,7 +515,7 @@ const Vor = () => {
     setEditingCoefficient(vor.rate_coefficient || 1)
     form.setFieldsValue({
       name: vor.name,
-      rate_coefficient: vor.rate_coefficient
+      rate_coefficient: vor.rate_coefficient,
     })
     setIsEditModalOpen(true)
   }
@@ -473,7 +523,7 @@ const Vor = () => {
   const handleDeleteVor = async (vor: VorRecord) => {
     try {
       if (!supabase) return
-      
+
       // Сначала удаляем связи с комплектами
       const { error: mappingError } = await supabase
         .from('vor_chessboard_sets_mapping')
@@ -483,10 +533,7 @@ const Vor = () => {
       if (mappingError) throw mappingError
 
       // Затем удаляем сам ВОР
-      const { error: vorError } = await supabase
-        .from('vor')
-        .delete()
-        .eq('id', vor.id)
+      const { error: vorError } = await supabase.from('vor').delete().eq('id', vor.id)
 
       if (vorError) throw vorError
 
@@ -503,11 +550,11 @@ const Vor = () => {
       if (!editingVor || !supabase) return
 
       const values = await form.validateFields()
-      
+
       const { error } = await supabase
         .from('vor')
         .update({
-          name: values.name
+          name: values.name,
           // rate_coefficient обновляется отдельно при изменении
         })
         .eq('id', editingVor.id)
@@ -539,8 +586,8 @@ const Vor = () => {
       key: 'name',
       width: 300,
       render: (text: string, record: VorRecord) => (
-        <Button 
-          type="link" 
+        <Button
+          type="link"
           onClick={() => navigate(`/documents/vor-view?vor_id=${record.id}`)}
           style={{ padding: 0, height: 'auto' }}
         >
@@ -551,10 +598,11 @@ const Vor = () => {
     {
       title: 'Дата',
       dataIndex: 'updated_at',
-      key: 'updated_at', 
+      key: 'updated_at',
       width: 150,
       render: (date: string) => new Date(date).toLocaleDateString('ru-RU'),
-      sorter: (a: VorRecord, b: VorRecord) => new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime(),
+      sorter: (a: VorRecord, b: VorRecord) =>
+        new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime(),
     },
     {
       title: 'Шифр проектов',
@@ -596,12 +644,7 @@ const Vor = () => {
             okText="Да"
             cancelText="Нет"
           >
-            <Button
-              type="text"
-              icon={<DeleteOutlined />}
-              danger
-              title="Удалить"
-            />
+            <Button type="text" icon={<DeleteOutlined />} danger title="Удалить" />
           </Popconfirm>
         </Space>
       ),
@@ -609,12 +652,14 @@ const Vor = () => {
   ]
 
   return (
-    <div style={{ 
-      height: 'calc(100vh - 96px)',
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden'
-    }}>
+    <div
+      style={{
+        height: 'calc(100vh - 96px)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
+    >
       {/* Фильтры */}
       <div style={{ flexShrink: 0, paddingBottom: 16 }}>
         <Card style={{ margin: 24, marginBottom: 0 }}>
@@ -632,11 +677,11 @@ const Vor = () => {
                   allowClear
                   showSearch
                   filterOption={(input, option) => {
-                    const text = option?.children?.toString() || ""
+                    const text = option?.children?.toString() || ''
                     return text.toLowerCase().includes(input.toLowerCase())
                   }}
                 >
-                  {projects?.map(project => (
+                  {projects?.map((project) => (
                     <Select.Option key={project.id} value={project.id}>
                       {project.name}
                     </Select.Option>
@@ -654,11 +699,11 @@ const Vor = () => {
                   allowClear
                   showSearch
                   filterOption={(input, option) => {
-                    const text = option?.children?.toString() || ""
+                    const text = option?.children?.toString() || ''
                     return text.toLowerCase().includes(input.toLowerCase())
                   }}
                 >
-                  {sections?.map(section => (
+                  {sections?.map((section) => (
                     <Select.Option key={section.id} value={section.id.toString()}>
                       {section.name}
                     </Select.Option>
@@ -676,11 +721,11 @@ const Vor = () => {
                   allowClear
                   showSearch
                   filterOption={(input, option) => {
-                    const text = option?.children?.toString() || ""
+                    const text = option?.children?.toString() || ''
                     return text.toLowerCase().includes(input.toLowerCase())
                   }}
                 >
-                  {costCategories?.map(category => (
+                  {costCategories?.map((category) => (
                     <Select.Option key={category.id} value={category.id.toString()}>
                       {category.name}
                     </Select.Option>
@@ -689,9 +734,7 @@ const Vor = () => {
               </Tooltip>
             </Col>
             <Col>
-              <Button onClick={handleResetFilters}>
-                Сбросить
-              </Button>
+              <Button onClick={handleResetFilters}>Сбросить</Button>
             </Col>
           </Row>
         </Card>
@@ -699,12 +742,14 @@ const Vor = () => {
 
       {/* Таблица ВОР */}
       {selectedProjectId && (
-        <div style={{ 
-          flex: 1, 
-          overflow: 'hidden',
-          minHeight: 0,
-          padding: '0 24px 24px 24px'
-        }}>
+        <div
+          style={{
+            flex: 1,
+            overflow: 'hidden',
+            minHeight: 0,
+            padding: '0 24px 24px 24px',
+          }}
+        >
           <Table
             columns={columns}
             dataSource={vorRecords || []}
@@ -714,11 +759,11 @@ const Vor = () => {
               defaultPageSize: 50,
               showSizeChanger: true,
               showQuickJumper: true,
-              showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`
+              showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
             }}
-            scroll={{ 
+            scroll={{
               x: 'max-content',
-              y: 'calc(100vh - 350px)'
+              y: 'calc(100vh - 350px)',
             }}
             sticky
             size="middle"
@@ -740,26 +785,19 @@ const Vor = () => {
         cancelText="Отмена"
         width={500}
       >
-        <Form
-          form={form}
-          layout="vertical"
-          requiredMark={false}
-        >
+        <Form form={form} layout="vertical" requiredMark={false}>
           <Form.Item
             label="Название ВОР"
             name="name"
             rules={[
               { required: true, message: 'Пожалуйста, введите название ВОР' },
-              { min: 1, max: 255, message: 'Название должно содержать от 1 до 255 символов' }
+              { min: 1, max: 255, message: 'Название должно содержать от 1 до 255 символов' },
             ]}
           >
             <Input placeholder="Введите название ВОР" />
           </Form.Item>
 
-          <Form.Item
-            label="Коэффициент пересчета расценок"
-            name="rate_coefficient"
-          >
+          <Form.Item label="Коэффициент пересчета расценок" name="rate_coefficient">
             <InputNumber
               style={{ width: '100%' }}
               step={0.1}

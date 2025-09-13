@@ -14,7 +14,13 @@ import {
   Tag,
   List,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
+import {
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  ArrowUpOutlined,
+  ArrowDownOutlined,
+} from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { ColumnsType } from 'antd/es/table'
 import { supabase } from '@/lib/supabase'
@@ -82,23 +88,23 @@ export default function Statuses() {
     if (kanbanModalOpen) {
       // Фильтруем только статусы для Шахматки
       const chessboardStatuses = statuses.filter(
-        s => s.applicable_pages?.includes('documents/chessboard') && s.is_active
+        (s) => s.applicable_pages?.includes('documents/chessboard') && s.is_active,
       )
-      
+
       if (kanbanOrder && kanbanOrder.length > 0) {
         // Используем сохраненный порядок
-        const orderMap = new Map(kanbanOrder.map(item => [item.status_id, item.order_position]))
+        const orderMap = new Map(kanbanOrder.map((item) => [item.status_id, item.order_position]))
         const sortedIds = chessboardStatuses
           .sort((a, b) => {
             const orderA = orderMap.get(a.id) ?? Number.MAX_VALUE
             const orderB = orderMap.get(b.id) ?? Number.MAX_VALUE
             return orderA - orderB
           })
-          .map(s => s.id)
+          .map((s) => s.id)
         setStatusOrder(sortedIds)
       } else {
         // Используем порядок по умолчанию
-        setStatusOrder(chessboardStatuses.map(s => s.id))
+        setStatusOrder(chessboardStatuses.map((s) => s.id))
       }
     }
   }, [kanbanModalOpen, statuses, kanbanOrder])
@@ -312,9 +318,7 @@ export default function Statuses() {
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
         <h2>Справочник статусов</h2>
         <Space>
-          <Button onClick={() => setKanbanModalOpen(true)}>
-            КАНБАН
-          </Button>
+          <Button onClick={() => setKanbanModalOpen(true)}>КАНБАН</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
             Добавить статус
           </Button>
@@ -429,29 +433,27 @@ export default function Statuses() {
         cancelText="Отмена"
         width={900}
       >
-        <Form
-          form={kanbanForm}
-          layout="vertical"
-        >
+        <Form form={kanbanForm} layout="vertical">
           <Form.Item label="Выберите страницы, где будут использоваться КАНБАН доски:">
             <div style={{ marginBottom: 16 }}>
               <h4>Доступные КАНБАН представления:</h4>
               <ul>
                 <li>
-                  <strong>Анализ проектов</strong> - Канбан-доска для отслеживания статусов проектов по комплектам шахматки
+                  <strong>Анализ проектов</strong> - Канбан-доска для отслеживания статусов проектов
+                  по комплектам шахматки
                   <br />
                   <small>Путь: Отчеты → Анализ проектов</small>
                 </li>
               </ul>
             </div>
-            
+
             <div style={{ marginTop: 24 }}>
               <h4>Порядок статусов для канбан-доски "Анализ проектов":</h4>
               <List
                 dataSource={statusOrder}
                 style={{ marginBottom: 24, maxHeight: 300, overflowY: 'auto' }}
                 renderItem={(statusId, index) => {
-                  const status = statuses.find(s => s.id === statusId)
+                  const status = statuses.find((s) => s.id === statusId)
                   if (!status) return null
                   return (
                     <List.Item
@@ -472,15 +474,17 @@ export default function Statuses() {
                         />,
                       ]}
                     >
-                      <Tag color={status.color}>{index + 1}. {status.name}</Tag>
+                      <Tag color={status.color}>
+                        {index + 1}. {status.name}
+                      </Tag>
                     </List.Item>
                   )
                 }}
               />
-              
+
               <h4>Настройка статусов для страниц:</h4>
               <Table
-                dataSource={PORTAL_PAGES.filter(page => page.key === 'documents/chessboard')}
+                dataSource={PORTAL_PAGES.filter((page) => page.key === 'documents/chessboard')}
                 columns={[
                   {
                     title: 'Страница',
@@ -492,11 +496,11 @@ export default function Statuses() {
                     key: 'statuses',
                     render: () => {
                       const pageStatuses = statuses.filter(
-                        s => s.applicable_pages?.includes('documents/chessboard') && s.is_active
+                        (s) => s.applicable_pages?.includes('documents/chessboard') && s.is_active,
                       )
                       return (
                         <Space size={4} wrap>
-                          {pageStatuses.map(status => (
+                          {pageStatuses.map((status) => (
                             <Tag key={status.id} color={status.color}>
                               {status.name}
                             </Tag>

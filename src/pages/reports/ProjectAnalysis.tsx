@@ -1,5 +1,22 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Card, Col, Row, Typography, Tag, Spin, Empty, Badge, Select, Space, Tooltip, Segmented, Button, Modal, Checkbox, Input } from 'antd'
+import {
+  Card,
+  Col,
+  Row,
+  Typography,
+  Tag,
+  Spin,
+  Empty,
+  Badge,
+  Select,
+  Space,
+  Tooltip,
+  Segmented,
+  Button,
+  Modal,
+  Checkbox,
+  Input,
+} from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
@@ -45,23 +62,23 @@ export default function ProjectAnalysis() {
   const [isCreateVorModalOpen, setIsCreateVorModalOpen] = useState(false)
   const [selectedSets, setSelectedSets] = useState<string[]>([])
   const [vorName, setVorName] = useState('')
-  
+
   // Загружаем список проектов
   const { data: projects, isLoading: projectsLoading } = useQuery({
     queryKey: ['projects-for-kanban'],
     queryFn: async () => {
       if (!supabase) return []
-      
+
       const { data, error } = await supabase
         .from('projects')
         .select('id, name')
         .order('name', { ascending: true })
-      
+
       if (error) {
         console.error('Error loading projects:', error)
         return []
       }
-      
+
       return data || []
     },
   })
@@ -72,11 +89,12 @@ export default function ProjectAnalysis() {
     queryFn: async () => {
       const allStatuses = await statusesApi.getStatuses()
       // Фильтруем статусы для Шахматки - проверяем оба возможных ключа
-      const filtered = allStatuses.filter(s => 
-        s.is_active && s.applicable_pages && (
-          s.applicable_pages.includes('documents/chessboard') || 
-          s.applicable_pages.includes('chessboard')
-        )
+      const filtered = allStatuses.filter(
+        (s) =>
+          s.is_active &&
+          s.applicable_pages &&
+          (s.applicable_pages.includes('documents/chessboard') ||
+            s.applicable_pages.includes('chessboard')),
       )
       return filtered
     },
@@ -96,35 +114,40 @@ export default function ProjectAnalysis() {
     enabled: !!selectedProjectId,
     queryFn: async () => {
       if (!supabase || !selectedProjectId) return []
-      
+
       // Загружаем документы через таблицу маппинга
       const { data, error } = await supabase
         .from('documentations_projects_mapping')
-        .select(`
+        .select(
+          `
           documentation:documentations(
             id,
             code,
             project_name
           )
-        `)
+        `,
+        )
         .eq('project_id', selectedProjectId)
-      
+
       if (error) {
         console.error('Error loading project documents:', error)
         return []
       }
-      
+
       const mappedDocs = (data || [])
         .filter((item: any) => item.documentation) // Фильтруем записи без документации
-        .map((item: any) => ({
-          documentation_id: item.documentation.id,
-          code: item.documentation.code,
-          project_name: item.documentation.project_name
-        } as DocumentInfo))
+        .map(
+          (item: any) =>
+            ({
+              documentation_id: item.documentation.id,
+              code: item.documentation.code,
+              project_name: item.documentation.project_name,
+            }) as DocumentInfo,
+        )
         .sort((a, b) => a.code.localeCompare(b.code)) // Сортируем по коду
-      
+
       return mappedDocs
-    }
+    },
   })
 
   // Загружаем комплекты шахматки с документами для выбранного проекта
@@ -133,7 +156,7 @@ export default function ProjectAnalysis() {
     enabled: !!selectedProjectId,
     queryFn: async () => {
       if (!supabase || !selectedProjectId) return []
-      
+
       // Получаем комплекты для выбранного проекта
       const { data: sets, error: setsError } = await supabase
         .from('chessboard_sets_with_documents')
@@ -161,7 +184,7 @@ export default function ProjectAnalysis() {
             .eq('entity_id', set.id)
             .eq('is_current', true)
             .single()
-          
+
           if (statusError && statusError.code !== 'PGRST116') {
             console.error('Error loading status for set:', set.id, statusError)
           }
@@ -169,25 +192,27 @@ export default function ProjectAnalysis() {
           // Извлекаем документы из JSONB поля
           // documents уже содержит всю нужную информацию (code, project_name и т.д.)
           const documents: DocumentInfo[] = []
-          
+
           if (set.documents && Array.isArray(set.documents)) {
             // Добавляем документы из JSONB напрямую
-            documents.push(...(set.documents as DocumentInfo[]).map((d) => ({
-              documentation_id: d.documentation_id,
-              code: d.code,
-              project_name: d.project_name,
-              version_id: d.version_id,
-              version_number: d.version_number,
-              issue_date: d.issue_date
-            })))
+            documents.push(
+              ...(set.documents as DocumentInfo[]).map((d) => ({
+                documentation_id: d.documentation_id,
+                code: d.code,
+                project_name: d.project_name,
+                version_id: d.version_id,
+                version_number: d.version_number,
+                issue_date: d.issue_date,
+              })),
+            )
           }
-          
+
           return {
             ...set,
             documents,
-            status: statusMapping?.status || null
+            status: statusMapping?.status || null,
           } as SetWithDocuments
-        })
+        }),
       )
 
       return setsWithFullData
@@ -199,8 +224,8 @@ export default function ProjectAnalysis() {
     if (!statuses || !statusOrder) return statuses
 
     // Создаем мапу порядка
-    const orderMap = new Map(statusOrder.map(item => [item.status_id, item.order_position]))
-    
+    const orderMap = new Map(statusOrder.map((item) => [item.status_id, item.order_position]))
+
     // Сортируем статусы согласно порядку
     return [...statuses].sort((a, b) => {
       const orderA = orderMap.get(a.id) ?? Number.MAX_VALUE
@@ -220,11 +245,11 @@ export default function ProjectAnalysis() {
     if (!statuses || statuses.length === 0) {
       return
     }
-    
+
     if (!allProjectDocuments || allProjectDocuments.length === 0) {
       return
     }
-    
+
     // Для комплектов допускаем пустой массив
     if (!setsWithDocuments) {
       return
@@ -235,15 +260,15 @@ export default function ProjectAnalysis() {
     }
 
     // Создаем колонки для каждого статуса
-    orderedStatuses.forEach(status => {
+    orderedStatuses.forEach((status) => {
       newColumns[status.id] = []
     })
 
     // Создаем Map для уникальных документов по статусам
     const documentsByStatus = new Map<string, Map<string, DocumentInfo>>()
-    
+
     // Инициализируем Map для каждого статуса
-    orderedStatuses.forEach(status => {
+    orderedStatuses.forEach((status) => {
       documentsByStatus.set(status.id, new Map())
     })
 
@@ -251,14 +276,14 @@ export default function ProjectAnalysis() {
     const usedDocumentIds = new Set<string>()
 
     // Распределяем документы по статусам комплектов
-    setsWithDocuments.forEach(set => {
+    setsWithDocuments.forEach((set) => {
       const statusId = set.status?.id
-      
+
       if (statusId && set.documents) {
         const statusDocs = documentsByStatus.get(statusId)
         if (statusDocs) {
           // Добавляем документы из комплекта в соответствующий статус
-          set.documents.forEach(doc => {
+          set.documents.forEach((doc) => {
             // Используем documentation_id как ключ для уникальности
             if (!statusDocs.has(doc.documentation_id)) {
               statusDocs.set(doc.documentation_id, doc)
@@ -269,7 +294,7 @@ export default function ProjectAnalysis() {
         }
       } else if (!statusId && set.documents) {
         // Если у комплекта нет статуса, добавляем его документы в использованные
-        set.documents.forEach(doc => {
+        set.documents.forEach((doc) => {
           usedDocumentIds.add(doc.documentation_id)
         })
       }
@@ -281,52 +306,52 @@ export default function ProjectAnalysis() {
     })
 
     // Добавляем в столбец "Без статуса" все документы проекта, не включенные в комплекты
-    newColumns['no-status'] = allProjectDocuments.filter(doc => 
-      !usedDocumentIds.has(doc.documentation_id)
+    newColumns['no-status'] = allProjectDocuments.filter(
+      (doc) => !usedDocumentIds.has(doc.documentation_id),
     )
-    
+
     setColumns(newColumns)
   }, [setsWithDocuments, orderedStatuses, allProjectDocuments])
-
 
   // Обработка клика на документ для перехода на страницу Шахматка
   const handleDocumentClick = (doc: DocumentInfo, statusId?: string) => {
     // Если документ в столбце со статусом, ищем комплект с этим документом и статусом
     if (statusId && statusId !== 'no-status' && setsWithDocuments) {
-      const set = setsWithDocuments.find(s => 
-        s.status?.id === statusId && 
-        s.documents.some(d => d.documentation_id === doc.documentation_id)
+      const set = setsWithDocuments.find(
+        (s) =>
+          s.status?.id === statusId &&
+          s.documents.some((d) => d.documentation_id === doc.documentation_id),
       )
-      
+
       if (set) {
         // Формируем URL с фильтрами комплекта
         const params = new URLSearchParams()
-        
+
         // Обязательный параметр - проект
         if (set.project_id) {
           params.append('project_id', set.project_id)
         }
-        
+
         // Добавляем фильтры из комплекта
         if (set.tag_id) {
           params.append('tag_id', set.tag_id)
         }
-        
+
         if (set.block_ids && set.block_ids.length > 0) {
-          set.block_ids.forEach(id => params.append('block_ids', id))
+          set.block_ids.forEach((id) => params.append('block_ids', id))
         }
-        
+
         if (set.cost_category_ids && set.cost_category_ids.length > 0) {
-          set.cost_category_ids.forEach(id => params.append('cost_category_ids', id))
+          set.cost_category_ids.forEach((id) => params.append('cost_category_ids', id))
         }
-        
+
         if (set.cost_type_ids && set.cost_type_ids.length > 0) {
-          set.cost_type_ids.forEach(id => params.append('cost_type_ids', id))
+          set.cost_type_ids.forEach((id) => params.append('cost_type_ids', id))
         }
-        
+
         // Добавляем документ
         params.append('documentation_id', doc.documentation_id)
-        
+
         // Переходим на страницу Шахматка с фильтрами
         navigate(`/documents/chessboard?${params.toString()}`)
       }
@@ -346,14 +371,14 @@ export default function ProjectAnalysis() {
                 <Segmented
                   options={[
                     { label: 'Проекты', value: 'projects' },
-                    { label: 'Комплекты', value: 'sets' }
+                    { label: 'Комплекты', value: 'sets' },
                   ]}
                   value={viewMode}
                   onChange={setViewMode}
                 />
                 {viewMode === 'sets' && selectedProjectId && (
-                  <Button 
-                    type="primary" 
+                  <Button
+                    type="primary"
                     onClick={() => setIsCreateVorModalOpen(true)}
                     disabled={!setsWithDocuments || setsWithDocuments.length === 0}
                   >
@@ -377,9 +402,9 @@ export default function ProjectAnalysis() {
                 const text = option?.label?.toString() || ''
                 return text.toLowerCase().includes(input.toLowerCase())
               }}
-              options={projects?.map(project => ({
+              options={projects?.map((project) => ({
                 value: project.id,
-                label: project.name
+                label: project.name,
               }))}
             />
           </Col>
@@ -397,9 +422,15 @@ export default function ProjectAnalysis() {
           <Row gutter={16} style={{ overflowX: 'auto', flexWrap: 'nowrap' }}>
             {/* Колонка для документов без статуса */}
             <Col style={{ minWidth: 300, marginBottom: 16 }}>
-              <Card 
+              <Card
                 title={
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
                     <span>Не анализировались</span>
                     <Badge count={columns['no-status']?.length || 0} showZero />
                   </div>
@@ -413,8 +444,8 @@ export default function ProjectAnalysis() {
                   ) : (
                     columns['no-status']?.map((doc) => (
                       <div key={`no-status-${doc.documentation_id}`} style={{ marginBottom: 8 }}>
-                        <Card 
-                          size="small" 
+                        <Card
+                          size="small"
                           style={{ backgroundColor: '#fff', cursor: 'pointer' }}
                           onClick={() => handleDocumentClick(doc, 'no-status')}
                         >
@@ -422,14 +453,14 @@ export default function ProjectAnalysis() {
                             <Text strong>{doc.code}</Text>
                             {doc.project_name && (
                               <Tooltip title={doc.project_name}>
-                                <Text 
-                                  style={{ 
-                                    display: 'block', 
-                                    fontSize: 11, 
+                                <Text
+                                  style={{
+                                    display: 'block',
+                                    fontSize: 11,
                                     color: '#666',
                                     overflow: 'hidden',
                                     textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap'
+                                    whiteSpace: 'nowrap',
                                   }}
                                 >
                                   {doc.project_name}
@@ -446,11 +477,17 @@ export default function ProjectAnalysis() {
             </Col>
 
             {/* Колонки для каждого статуса */}
-            {(sortedStatuses || statuses)?.map(status => (
+            {(sortedStatuses || statuses)?.map((status) => (
               <Col key={status.id} style={{ minWidth: 300, marginBottom: 16 }}>
                 <Card
                   title={
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
                       <Tag color={status.color || '#888'}>{status.name}</Tag>
                       <Badge count={columns[status.id]?.length || 0} showZero />
                     </div>
@@ -463,9 +500,12 @@ export default function ProjectAnalysis() {
                       <Empty description="Нет документов" />
                     ) : (
                       columns[status.id]?.map((doc) => (
-                        <div key={`${status.id}-${doc.documentation_id}`} style={{ marginBottom: 8 }}>
-                          <Card 
-                            size="small" 
+                        <div
+                          key={`${status.id}-${doc.documentation_id}`}
+                          style={{ marginBottom: 8 }}
+                        >
+                          <Card
+                            size="small"
                             style={{ backgroundColor: '#fff', cursor: 'pointer' }}
                             onClick={() => handleDocumentClick(doc, status.id)}
                           >
@@ -473,14 +513,14 @@ export default function ProjectAnalysis() {
                               <Text strong>{doc.code}</Text>
                               {doc.project_name && (
                                 <Tooltip title={doc.project_name}>
-                                  <Text 
-                                    style={{ 
-                                      display: 'block', 
-                                      fontSize: 11, 
+                                  <Text
+                                    style={{
+                                      display: 'block',
+                                      fontSize: 11,
                                       color: '#666',
                                       overflow: 'hidden',
                                       textOverflow: 'ellipsis',
-                                      whiteSpace: 'nowrap'
+                                      whiteSpace: 'nowrap',
                                     }}
                                   >
                                     {doc.project_name}
@@ -504,11 +544,20 @@ export default function ProjectAnalysis() {
               <Col key={status.id} style={{ minWidth: 300, marginBottom: 16 }}>
                 <Card
                   title={
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
                       <span>{status.name}</span>
-                      <Badge 
-                        count={setsWithDocuments?.filter(set => set.status?.id === status.id).length || 0} 
-                        showZero 
+                      <Badge
+                        count={
+                          setsWithDocuments?.filter((set) => set.status?.id === status.id).length ||
+                          0
+                        }
+                        showZero
                       />
                     </div>
                   }
@@ -516,11 +565,11 @@ export default function ProjectAnalysis() {
                   styles={{ body: { height: 'calc(100% - 57px)', overflowY: 'auto' } }}
                 >
                   <div style={{ minHeight: 100 }}>
-                    {!setsWithDocuments?.filter(set => set.status?.id === status.id).length ? (
+                    {!setsWithDocuments?.filter((set) => set.status?.id === status.id).length ? (
                       <Empty description="Нет комплектов" />
                     ) : (
                       setsWithDocuments
-                        ?.filter(set => set.status?.id === status.id)
+                        ?.filter((set) => set.status?.id === status.id)
                         .map((set) => (
                           <div key={set.id} style={{ marginBottom: 8 }}>
                             <Card
@@ -532,20 +581,26 @@ export default function ProjectAnalysis() {
                                 params.append('project_id', set.project_id)
                                 if (set.tag_id) params.append('tag_id', set.tag_id)
                                 if (set.block_ids?.length) {
-                                  set.block_ids.forEach(id => params.append('block_ids', id))
+                                  set.block_ids.forEach((id) => params.append('block_ids', id))
                                 }
                                 if (set.cost_category_ids?.length) {
-                                  set.cost_category_ids.forEach(id => params.append('cost_category_ids', id))
+                                  set.cost_category_ids.forEach((id) =>
+                                    params.append('cost_category_ids', id),
+                                  )
                                 }
                                 if (set.cost_type_ids?.length) {
-                                  set.cost_type_ids.forEach(id => params.append('cost_type_ids', id))
+                                  set.cost_type_ids.forEach((id) =>
+                                    params.append('cost_type_ids', id),
+                                  )
                                 }
-                                
+
                                 // Добавляем документы (Шифр проекта)
                                 if (set.documents?.length) {
-                                  set.documents.forEach(doc => params.append('documentation_id', doc.documentation_id))
+                                  set.documents.forEach((doc) =>
+                                    params.append('documentation_id', doc.documentation_id),
+                                  )
                                 }
-                                
+
                                 navigate(`/documents/chessboard?${params.toString()}`)
                               }}
                             >
@@ -553,27 +608,27 @@ export default function ProjectAnalysis() {
                                 <Text strong>{set.set_number}</Text>
                                 {set.name && (
                                   <Tooltip title={set.name}>
-                                    <Text 
-                                      style={{ 
-                                        display: 'block', 
-                                        fontSize: 11, 
+                                    <Text
+                                      style={{
+                                        display: 'block',
+                                        fontSize: 11,
                                         color: '#666',
                                         overflow: 'hidden',
                                         textOverflow: 'ellipsis',
                                         whiteSpace: 'nowrap',
-                                        marginTop: 4
+                                        marginTop: 4,
                                       }}
                                     >
                                       {set.name}
                                     </Text>
                                   </Tooltip>
                                 )}
-                                <Text 
-                                  style={{ 
-                                    display: 'block', 
-                                    fontSize: 10, 
+                                <Text
+                                  style={{
+                                    display: 'block',
+                                    fontSize: 10,
                                     color: '#999',
-                                    marginTop: 4
+                                    marginTop: 4,
                                   }}
                                 >
                                   Документов: {set.documents?.length || 0}
@@ -609,7 +664,7 @@ export default function ProjectAnalysis() {
                 .insert({
                   name: vorName,
                   project_id: selectedProjectId,
-                  rate_coefficient: 1.0
+                  rate_coefficient: 1.0,
                 })
                 .select('id')
                 .single()
@@ -617,9 +672,9 @@ export default function ProjectAnalysis() {
               if (vorError) throw vorError
 
               // 2. Создаем связи с комплектами
-              const mappings = selectedSets.map(setId => ({
+              const mappings = selectedSets.map((setId) => ({
                 vor_id: vorData.id,
-                set_id: setId
+                set_id: setId,
               }))
 
               const { error: mappingError } = await supabase
@@ -630,7 +685,7 @@ export default function ProjectAnalysis() {
 
               // 3. Переход на страницу просмотра ВОР
               navigate(`/documents/vor-view?vor_id=${vorData.id}`)
-              
+
               // Закрыть модальное окно
               setIsCreateVorModalOpen(false)
               setSelectedSets([])
@@ -642,7 +697,7 @@ export default function ProjectAnalysis() {
           }
         }}
         okButtonProps={{
-          disabled: selectedSets.length === 0 || !vorName.trim()
+          disabled: selectedSets.length === 0 || !vorName.trim(),
         }}
         okText="Создать"
         cancelText="Отмена"
@@ -652,14 +707,28 @@ export default function ProjectAnalysis() {
           {/* Выбор комплектов */}
           <div>
             <Typography.Title level={5}>Выберите комплекты:</Typography.Title>
-            <div style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid #d9d9d9', borderRadius: 6, padding: 12 }}>
+            <div
+              style={{
+                maxHeight: 300,
+                overflowY: 'auto',
+                border: '1px solid #d9d9d9',
+                borderRadius: 6,
+                padding: 12,
+              }}
+            >
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Checkbox
-                  checked={selectedSets.length === (setsWithDocuments?.length || 0) && (setsWithDocuments?.length || 0) > 0}
-                  indeterminate={selectedSets.length > 0 && selectedSets.length < (setsWithDocuments?.length || 0)}
+                  checked={
+                    selectedSets.length === (setsWithDocuments?.length || 0) &&
+                    (setsWithDocuments?.length || 0) > 0
+                  }
+                  indeterminate={
+                    selectedSets.length > 0 &&
+                    selectedSets.length < (setsWithDocuments?.length || 0)
+                  }
                   onChange={(e) => {
                     if (e.target.checked) {
-                      setSelectedSets(setsWithDocuments?.map(set => set.id) || [])
+                      setSelectedSets(setsWithDocuments?.map((set) => set.id) || [])
                     } else {
                       setSelectedSets([])
                     }
@@ -667,15 +736,15 @@ export default function ProjectAnalysis() {
                 >
                   Выбрать все
                 </Checkbox>
-                {setsWithDocuments?.map(set => (
+                {setsWithDocuments?.map((set) => (
                   <Checkbox
                     key={set.id}
                     checked={selectedSets.includes(set.id)}
                     onChange={(e) => {
                       if (e.target.checked) {
-                        setSelectedSets(prev => [...prev, set.id])
+                        setSelectedSets((prev) => [...prev, set.id])
                       } else {
-                        setSelectedSets(prev => prev.filter(id => id !== set.id))
+                        setSelectedSets((prev) => prev.filter((id) => id !== set.id))
                       }
                     }}
                   >
@@ -706,8 +775,8 @@ export default function ProjectAnalysis() {
               filterOption={false}
             >
               {/* Предложения из названий выбранных комплектов */}
-              {selectedSets.map(setId => {
-                const set = setsWithDocuments?.find(s => s.id === setId)
+              {selectedSets.map((setId) => {
+                const set = setsWithDocuments?.find((s) => s.id === setId)
                 if (set?.name) {
                   return (
                     <Select.Option key={setId} value={set.name}>

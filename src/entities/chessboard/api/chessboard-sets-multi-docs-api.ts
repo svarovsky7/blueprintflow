@@ -21,7 +21,9 @@ export const chessboardSetsMultiDocsApi = {
     // Проверяем уникальность набора документов и фильтров
     const existingSet = await this.findSetByMultiDocFilters(request.filters)
     if (existingSet) {
-      throw new Error(`Комплект с таким набором документов и фильтров уже существует (№${existingSet.set_number})`)
+      throw new Error(
+        `Комплект с таким набором документов и фильтров уже существует (№${existingSet.set_number})`,
+      )
     }
 
     // Генерируем уникальный номер комплекта
@@ -100,7 +102,7 @@ export const chessboardSetsMultiDocsApi = {
 
     // Преобразуем JSONB поле documents в массив
     const documents = data.documents as ChessboardSetDocument[]
-    
+
     return {
       ...data,
       documents: documents || [],
@@ -130,7 +132,7 @@ export const chessboardSetsMultiDocsApi = {
 
       // Ищем точное совпадение
       for (const set of sets || []) {
-        const setDocs = (set.documents as ChessboardSetDocument[] || []).sort((a, b) => {
+        const setDocs = ((set.documents as ChessboardSetDocument[]) || []).sort((a, b) => {
           if (a.documentation_id !== b.documentation_id) {
             return a.documentation_id.localeCompare(b.documentation_id)
           }
@@ -139,19 +141,24 @@ export const chessboardSetsMultiDocsApi = {
 
         // Проверяем совпадение документов
         if (setDocs.length !== sortedDocs.length) continue
-        
-        const docsMatch = sortedDocs.every((doc, index) => 
-          doc.documentation_id === setDocs[index].documentation_id &&
-          doc.version_id === setDocs[index].version_id
+
+        const docsMatch = sortedDocs.every(
+          (doc, index) =>
+            doc.documentation_id === setDocs[index].documentation_id &&
+            doc.version_id === setDocs[index].version_id,
         )
 
         if (!docsMatch) continue
 
         // Проверяем остальные фильтры
         const tagMatch = (set.tag_id ?? null) === (filters.tag_id ?? null)
-        const blockIdsMatch = JSON.stringify(set.block_ids || []) === JSON.stringify(filters.block_ids || [])
-        const categoryIdsMatch = JSON.stringify(set.cost_category_ids || []) === JSON.stringify(filters.cost_category_ids || [])
-        const typeIdsMatch = JSON.stringify(set.cost_type_ids || []) === JSON.stringify(filters.cost_type_ids || [])
+        const blockIdsMatch =
+          JSON.stringify(set.block_ids || []) === JSON.stringify(filters.block_ids || [])
+        const categoryIdsMatch =
+          JSON.stringify(set.cost_category_ids || []) ===
+          JSON.stringify(filters.cost_category_ids || [])
+        const typeIdsMatch =
+          JSON.stringify(set.cost_type_ids || []) === JSON.stringify(filters.cost_type_ids || [])
 
         if (tagMatch && blockIdsMatch && categoryIdsMatch && typeIdsMatch) {
           // Загружаем статус комплекта
@@ -162,11 +169,11 @@ export const chessboardSetsMultiDocsApi = {
             .eq('entity_id', set.id)
             .eq('is_current', true)
             .single()
-          
+
           if (statusMapping?.status) {
             set.status = statusMapping.status
           }
-          
+
           return set as ChessboardSet
         }
       }
@@ -215,7 +222,6 @@ export const chessboardSetsMultiDocsApi = {
         .from('chessboard_sets')
         .update({ updated_at: new Date().toISOString() })
         .eq('id', setId)
-
     } catch (error) {
       console.error('Failed to update set documents:', error)
       throw error
@@ -235,20 +241,22 @@ export const chessboardSetsMultiDocsApi = {
     if (countError) throw countError
 
     // Добавляем документ
-    const { error } = await supabase
-      .from('chessboard_sets_documents_mapping')
-      .insert({
-        set_id: setId,
-        documentation_id: document.documentation_id,
-        version_id: document.version_id,
-        order_index: document.order_index ?? count ?? 0,
-      })
+    const { error } = await supabase.from('chessboard_sets_documents_mapping').insert({
+      set_id: setId,
+      documentation_id: document.documentation_id,
+      version_id: document.version_id,
+      order_index: document.order_index ?? count ?? 0,
+    })
 
     if (error) throw error
   },
 
   // Удаление документа из комплекта
-  async removeDocumentFromSet(setId: string, documentationId: string, versionId: string): Promise<void> {
+  async removeDocumentFromSet(
+    setId: string,
+    documentationId: string,
+    versionId: string,
+  ): Promise<void> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     // Проверяем, что останется хотя бы один документ
@@ -328,7 +336,7 @@ export const chessboardSetsMultiDocsApi = {
       throw error
     }
 
-    return (data || []).map(set => ({
+    return (data || []).map((set) => ({
       ...set,
       documents: set.documents || [],
     })) as ChessboardSet[]

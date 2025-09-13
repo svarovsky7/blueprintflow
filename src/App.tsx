@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Layout, Menu, Switch, Select } from 'antd'
 import { Link, Route, Routes, useNavigate, useLocation } from 'react-router-dom'
-import { 
+import {
   MoonOutlined,
   DashboardOutlined,
   FileTextOutlined,
@@ -14,7 +14,7 @@ import {
   ControlOutlined,
   FundOutlined,
   PieChartOutlined,
-  MonitorOutlined
+  MonitorOutlined,
 } from '@ant-design/icons'
 import Dashboard from './pages/Dashboard'
 import Documents from './pages/Documents'
@@ -66,7 +66,10 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
 
   // Состояние для управления всплывающим меню
   const [hoveredMenu, setHoveredMenu] = useState<string | null>(null)
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number }>({
+    top: 0,
+    left: 0,
+  })
   const [hideMenuTimer, setHideMenuTimer] = useState<NodeJS.Timeout | null>(null)
 
   // АГРЕССИВНО убираем все title атрибуты после рендера
@@ -82,7 +85,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           // Также убираем aria-label который может вызвать tooltip
           element.removeAttribute('aria-label')
         })
-        
+
         // Специально убираем title из иконок Ant Design
         const icons = menuElement.querySelectorAll('.anticon, .ant-menu-item-icon, [class*="icon"]')
         icons.forEach((icon) => {
@@ -92,7 +95,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           icon.setAttribute('title', '')
         })
       }
-      
+
       // Глобальный поиск всех tooltip элементов для скрытия
       const tooltips = document.querySelectorAll('[role="tooltip"], .ant-tooltip, .tooltip')
       tooltips.forEach((tooltip) => {
@@ -101,20 +104,20 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         tooltip.style.visibility = 'hidden'
       })
     }
-    
+
     removeAllTitles()
-    
+
     // Повторяем несколько раз для гарантии
     const timers = [
       setTimeout(removeAllTitles, 50),
       setTimeout(removeAllTitles, 200),
       setTimeout(removeAllTitles, 500),
-      setTimeout(removeAllTitles, 1000)
+      setTimeout(removeAllTitles, 1000),
     ]
-    
+
     return () => timers.forEach(clearTimeout)
   }, [collapsed])
-  
+
   // Дополнительный useEffect для отслеживания изменений DOM
   useEffect(() => {
     const observer = new MutationObserver((mutations) => {
@@ -127,16 +130,16 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         }
       })
     })
-    
+
     const menuElement = document.querySelector('.main-menu')
     if (menuElement) {
       observer.observe(menuElement, {
         attributes: true,
         attributeFilter: ['title', 'aria-label'],
-        subtree: true
+        subtree: true,
       })
     }
-    
+
     return () => observer.disconnect()
   }, [])
 
@@ -173,8 +176,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     }
   }, [])
 
-
-
   const TeletubbySun = () => (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
       <circle cx="12" cy="12" r="6" fill="#ffeb3b" />
@@ -190,22 +191,22 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     </svg>
   )
 
-
-
-
   // Создаем простое всплывающее меню без Popover
-  const createHoverMenu = (menuKey: string, menuItems: Array<{ key: string; label: React.ReactNode; path: string }>) => {
+  const createHoverMenu = (
+    menuKey: string,
+    menuItems: Array<{ key: string; label: React.ReactNode; path: string }>,
+  ) => {
     const handleMouseEnter = (e: React.MouseEvent) => {
       // Отменяем предыдущий таймер сокрытия
       if (hideMenuTimer) {
         clearTimeout(hideMenuTimer)
         setHideMenuTimer(null)
       }
-      
+
       const rect = e.currentTarget.getBoundingClientRect()
       setMenuPosition({
         top: rect.top,
-        left: rect.right + 8
+        left: rect.right + 8,
       })
       setHoveredMenu(menuKey)
     }
@@ -221,7 +222,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
 
     return {
       onMouseEnter: handleMouseEnter,
-      onMouseLeave: handleMouseLeave
+      onMouseLeave: handleMouseLeave,
     }
   }
 
@@ -235,14 +236,18 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     {
       key: 'documents',
       icon: collapsed ? (
-        <div {...createHoverMenu('documents', [
-          { key: 'chessboard', label: 'Шахматка', path: '/documents/chessboard' },
-          { key: 'vor', label: 'ВОР', path: '/documents/vor' },
-          { key: 'docs', label: 'Документация', path: '/documents/documentation' },
-        ])}>
+        <div
+          {...createHoverMenu('documents', [
+            { key: 'chessboard', label: 'Шахматка', path: '/documents/chessboard' },
+            { key: 'vor', label: 'ВОР', path: '/documents/vor' },
+            { key: 'docs', label: 'Документация', path: '/documents/documentation' },
+          ])}
+        >
           <FileTextOutlined />
         </div>
-      ) : <FileTextOutlined />,
+      ) : (
+        <FileTextOutlined />
+      ),
       label: collapsed ? '' : 'Документы',
       children: collapsed
         ? undefined
@@ -255,33 +260,52 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     {
       key: 'reports',
       icon: collapsed ? (
-        <div {...createHoverMenu('reports', [
-          { key: 'project-analysis', label: 'Анализ документации', path: '/reports/project-analysis' },
-        ])}>
+        <div
+          {...createHoverMenu('reports', [
+            {
+              key: 'project-analysis',
+              label: 'Анализ документации',
+              path: '/reports/project-analysis',
+            },
+          ])}
+        >
           <BarChartOutlined />
         </div>
-      ) : <BarChartOutlined />,
+      ) : (
+        <BarChartOutlined />
+      ),
       label: collapsed ? '' : 'Отчеты',
       children: collapsed
         ? undefined
         : [
-            { key: 'project-analysis', label: <Link to="/reports/project-analysis">Анализ доков</Link> },
+            {
+              key: 'project-analysis',
+              label: <Link to="/reports/project-analysis">Анализ доков</Link>,
+            },
           ],
     },
     {
       key: 'references',
       icon: collapsed ? (
-        <div {...createHoverMenu('references', [
-          { key: 'units', label: 'Единицы измерения', path: '/references' },
-          { key: 'cost-categories', label: 'Категории затрат', path: '/references/cost-categories' },
-          { key: 'projects', label: 'Проекты', path: '/references/projects' },
-          { key: 'locations', label: 'Локализации', path: '/references/locations' },
-          { key: 'rates', label: 'Расценки', path: '/references/rates' },
-          { key: 'nomenclature', label: 'Номенклатура', path: '/references/nomenclature' },
-        ])}>
+        <div
+          {...createHoverMenu('references', [
+            { key: 'units', label: 'Единицы измерения', path: '/references' },
+            {
+              key: 'cost-categories',
+              label: 'Категории затрат',
+              path: '/references/cost-categories',
+            },
+            { key: 'projects', label: 'Проекты', path: '/references/projects' },
+            { key: 'locations', label: 'Локализации', path: '/references/locations' },
+            { key: 'rates', label: 'Расценки', path: '/references/rates' },
+            { key: 'nomenclature', label: 'Номенклатура', path: '/references/nomenclature' },
+          ])}
+        >
           <DatabaseOutlined />
         </div>
-      ) : <DatabaseOutlined />,
+      ) : (
+        <DatabaseOutlined />
+      ),
       label: collapsed ? '' : 'Справочники',
       children: collapsed
         ? undefined
@@ -300,15 +324,23 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     {
       key: 'admin',
       icon: collapsed ? (
-        <div {...createHoverMenu('admin', [
-          { key: 'documentation-tags', label: 'Тэги документации', path: '/admin/documentation-tags' },
-          { key: 'statuses', label: 'Статусы', path: '/admin/statuses' },
-          { key: 'disk', label: 'Диск', path: '/admin/disk' },
-          { key: 'portal-settings', label: 'Настройка портала', path: '/admin/portal-settings' },
-        ])}>
+        <div
+          {...createHoverMenu('admin', [
+            {
+              key: 'documentation-tags',
+              label: 'Тэги документации',
+              path: '/admin/documentation-tags',
+            },
+            { key: 'statuses', label: 'Статусы', path: '/admin/statuses' },
+            { key: 'disk', label: 'Диск', path: '/admin/disk' },
+            { key: 'portal-settings', label: 'Настройка портала', path: '/admin/portal-settings' },
+          ])}
+        >
           <SettingOutlined />
         </div>
-      ) : <SettingOutlined />,
+      ) : (
+        <SettingOutlined />
+      ),
       label: collapsed ? '' : 'Настройки',
       children: collapsed
         ? undefined
@@ -706,7 +738,8 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             backgroundColor: 'white',
             border: '1px solid #d9d9d9',
             borderRadius: '6px',
-            boxShadow: '0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 9px 28px 8px rgba(0, 0, 0, 0.05)',
+            boxShadow:
+              '0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 9px 28px 8px rgba(0, 0, 0, 0.05)',
             zIndex: 1050,
             minWidth: '220px',
             padding: '4px 0',
@@ -732,99 +765,110 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             setHideMenuTimer(timer)
           }}
         >
-          {hoveredMenu === 'documents' && [
-            { key: 'chessboard', label: 'Шахматка', path: '/documents/chessboard' },
-            { key: 'vor', label: 'ВОР', path: '/documents/vor' },
-            { key: 'docs', label: 'Документация', path: '/documents/documentation' },
-          ].map((item) => (
-            <div
-              key={item.key}
-              style={{
-                padding: '8px 12px',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#f0f0f0'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent'
-              }}
-              onClick={() => {
-                navigate(item.path)
-                if (hideMenuTimer) {
-                  clearTimeout(hideMenuTimer)
-                  setHideMenuTimer(null)
-                }
-                setHoveredMenu(null)
-              }}
-            >
-              {item.label}
-            </div>
-          ))}
-          
-          {hoveredMenu === 'reports' && [
-            { key: 'project-analysis', label: 'Анализ документации', path: '/reports/project-analysis' },
-          ].map((item) => (
-            <div
-              key={item.key}
-              style={{
-                padding: '8px 12px',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#f0f0f0'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent'
-              }}
-              onClick={() => {
-                navigate(item.path)
-                if (hideMenuTimer) {
-                  clearTimeout(hideMenuTimer)
-                  setHideMenuTimer(null)
-                }
-                setHoveredMenu(null)
-              }}
-            >
-              {item.label}
-            </div>
-          ))}
+          {hoveredMenu === 'documents' &&
+            [
+              { key: 'chessboard', label: 'Шахматка', path: '/documents/chessboard' },
+              { key: 'vor', label: 'ВОР', path: '/documents/vor' },
+              { key: 'docs', label: 'Документация', path: '/documents/documentation' },
+            ].map((item) => (
+              <div
+                key={item.key}
+                style={{
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f0f0f0'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent'
+                }}
+                onClick={() => {
+                  navigate(item.path)
+                  if (hideMenuTimer) {
+                    clearTimeout(hideMenuTimer)
+                    setHideMenuTimer(null)
+                  }
+                  setHoveredMenu(null)
+                }}
+              >
+                {item.label}
+              </div>
+            ))}
 
-          {hoveredMenu === 'references' && [
-            { key: 'units', label: 'Единицы измерения', path: '/references' },
-            { key: 'cost-categories', label: 'Категории затрат', path: '/references/cost-categories' },
-            { key: 'projects', label: 'Проекты', path: '/references/projects' },
-            { key: 'locations', label: 'Локализации', path: '/references/locations' },
-            { key: 'rates', label: 'Расценки', path: '/references/rates' },
-            { key: 'nomenclature', label: 'Номенклатура', path: '/references/nomenclature' },
-          ].map((item) => (
-            <div
-              key={item.key}
-              style={{
-                padding: '8px 12px',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#f0f0f0'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent'
-              }}
-              onClick={() => {
-                navigate(item.path)
-                if (hideMenuTimer) {
-                  clearTimeout(hideMenuTimer)
-                  setHideMenuTimer(null)
-                }
-                setHoveredMenu(null)
-              }}
-            >
-              {item.label}
-            </div>
-          ))}
+          {hoveredMenu === 'reports' &&
+            [
+              {
+                key: 'project-analysis',
+                label: 'Анализ документации',
+                path: '/reports/project-analysis',
+              },
+            ].map((item) => (
+              <div
+                key={item.key}
+                style={{
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f0f0f0'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent'
+                }}
+                onClick={() => {
+                  navigate(item.path)
+                  if (hideMenuTimer) {
+                    clearTimeout(hideMenuTimer)
+                    setHideMenuTimer(null)
+                  }
+                  setHoveredMenu(null)
+                }}
+              >
+                {item.label}
+              </div>
+            ))}
+
+          {hoveredMenu === 'references' &&
+            [
+              { key: 'units', label: 'Единицы измерения', path: '/references' },
+              {
+                key: 'cost-categories',
+                label: 'Категории затрат',
+                path: '/references/cost-categories',
+              },
+              { key: 'projects', label: 'Проекты', path: '/references/projects' },
+              { key: 'locations', label: 'Локализации', path: '/references/locations' },
+              { key: 'rates', label: 'Расценки', path: '/references/rates' },
+              { key: 'nomenclature', label: 'Номенклатура', path: '/references/nomenclature' },
+            ].map((item) => (
+              <div
+                key={item.key}
+                style={{
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f0f0f0'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent'
+                }}
+                onClick={() => {
+                  navigate(item.path)
+                  if (hideMenuTimer) {
+                    clearTimeout(hideMenuTimer)
+                    setHideMenuTimer(null)
+                  }
+                  setHoveredMenu(null)
+                }}
+              >
+                {item.label}
+              </div>
+            ))}
 
           {hoveredMenu === 'admin' && (
             <>
@@ -867,10 +911,18 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
 
               {/* Обычные пункты меню */}
               {[
-                { key: 'documentation-tags', label: 'Тэги документации', path: '/admin/documentation-tags' },
+                {
+                  key: 'documentation-tags',
+                  label: 'Тэги документации',
+                  path: '/admin/documentation-tags',
+                },
                 { key: 'statuses', label: 'Статусы', path: '/admin/statuses' },
                 { key: 'disk', label: 'Диск', path: '/admin/disk' },
-                { key: 'portal-settings', label: 'Настройка портала', path: '/admin/portal-settings' },
+                {
+                  key: 'portal-settings',
+                  label: 'Настройка портала',
+                  path: '/admin/portal-settings',
+                },
               ].map((item) => (
                 <div
                   key={item.key}

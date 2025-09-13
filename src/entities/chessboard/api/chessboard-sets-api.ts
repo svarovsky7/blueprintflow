@@ -17,14 +17,12 @@ export const chessboardSetsApi = {
   async getStatuses(): Promise<ChessboardSetStatus[]> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-
     // Получаем все активные статусы
     const { data, error } = await supabase
       .from('statuses')
       .select('*')
       .eq('is_active', true)
       .order('name', { ascending: true })
-
 
     if (error) {
       console.error('Failed to fetch statuses:', error)
@@ -33,7 +31,6 @@ export const chessboardSetsApi = {
 
     // Фильтруем статусы, у которых applicable_pages содержит "Шахматка" или "documents/chessboard"
     const filtered = (data || []).filter((status) => {
-
       if (!status.applicable_pages) return false
       if (Array.isArray(status.applicable_pages)) {
         // Поддерживаем оба формата: "Шахматка" и "documents/chessboard"
@@ -45,7 +42,6 @@ export const chessboardSetsApi = {
       return false
     })
 
-
     return filtered
   },
 
@@ -56,24 +52,28 @@ export const chessboardSetsApi = {
     // Проверяем, существует ли уже комплект с такими же фильтрами
     const existingSet = await this.findSetByFilters(request.filters)
     if (existingSet) {
-      throw new Error(`Комплект с таким набором фильтров уже существует (№${existingSet.set_number})`)
+      throw new Error(
+        `Комплект с таким набором фильтров уже существует (№${existingSet.set_number})`,
+      )
     }
 
     // Генерируем уникальный номер комплекта
     const setNumber = await this.generateSetNumber()
 
     // Определяем первичный документ из массива documents для обратной совместимости
-    const primaryDocument = request.filters.documents && request.filters.documents.length > 0 
-      ? request.filters.documents[0] 
-      : null
+    const primaryDocument =
+      request.filters.documents && request.filters.documents.length > 0
+        ? request.filters.documents[0]
+        : null
 
     // Создаем комплект без поля status_id (теперь статус хранится в таблице маппинга)
     const newSet = {
       set_number: setNumber,
       name: request.name || null,
       project_id: request.filters.project_id,
-      // Используем первичный документ для обратной совместимости 
-      documentation_id: primaryDocument?.documentation_id || request.filters.documentation_id || null,
+      // Используем первичный документ для обратной совместимости
+      documentation_id:
+        primaryDocument?.documentation_id || request.filters.documentation_id || null,
       version_id: primaryDocument?.version_id || request.filters.version_id || null,
       tag_id: request.filters.tag_id || null,
       block_ids: request.filters.block_ids || null,
@@ -158,10 +158,12 @@ export const chessboardSetsApi = {
     // Используем представление с документами для получения полной информации
     let query = supabase
       .from('chessboard_sets_with_documents')
-      .select(`
+      .select(
+        `
         *,
         tag:documentation_tags(id, name)
-      `)
+      `,
+      )
       .order('created_at', { ascending: false })
 
     // Применяем фильтры
@@ -238,11 +240,14 @@ export const chessboardSetsApi = {
         .from('blocks')
         .select('id, name')
         .in('id', Array.from(allBlockIds))
-      
-      blocksMap = (blocksData || []).reduce((acc, block) => {
-        acc[block.id] = block.name
-        return acc
-      }, {} as Record<string, string>)
+
+      blocksMap = (blocksData || []).reduce(
+        (acc, block) => {
+          acc[block.id] = block.name
+          return acc
+        },
+        {} as Record<string, string>,
+      )
     }
 
     // Загружаем названия категорий затрат
@@ -252,11 +257,14 @@ export const chessboardSetsApi = {
         .from('cost_categories')
         .select('id, name')
         .in('id', Array.from(allCategoryIds))
-      
-      categoriesMap = (categoriesData || []).reduce((acc, category) => {
-        acc[category.id] = category.name
-        return acc
-      }, {} as Record<string, string>)
+
+      categoriesMap = (categoriesData || []).reduce(
+        (acc, category) => {
+          acc[category.id] = category.name
+          return acc
+        },
+        {} as Record<string, string>,
+      )
     }
 
     // Загружаем названия видов затрат
@@ -266,11 +274,14 @@ export const chessboardSetsApi = {
         .from('detail_cost_categories')
         .select('id, name')
         .in('id', Array.from(allTypeIds))
-      
-      typesMap = (typesData || []).reduce((acc, type) => {
-        acc[type.id] = type.name
-        return acc
-      }, {} as Record<string, string>)
+
+      typesMap = (typesData || []).reduce(
+        (acc, type) => {
+          acc[type.id] = type.name
+          return acc
+        },
+        {} as Record<string, string>,
+      )
     }
 
     // Фильтр по статусу если указан
@@ -282,22 +293,36 @@ export const chessboardSetsApi = {
     // Преобразуем в формат для таблицы
     return filteredData.map((set) => {
       const status = statusesMap[set.id]
-      
+
       // Обработка документов - берем первый для обратной совместимости отображения
       const firstDoc = set.documents && set.documents.length > 0 ? set.documents[0] : null
-      const docCodes = set.documents ? set.documents.map((d: any) => d.code).filter(Boolean).join(', ') : ''
-      
+      const docCodes = set.documents
+        ? set.documents
+            .map((d: any) => d.code)
+            .filter(Boolean)
+            .join(', ')
+        : ''
+
       // Формируем списки названий
-      const blockNames = set.block_ids 
-        ? set.block_ids.map((id: string) => blocksMap[id]).filter(Boolean).join(', ') 
+      const blockNames = set.block_ids
+        ? set.block_ids
+            .map((id: string) => blocksMap[id])
+            .filter(Boolean)
+            .join(', ')
         : ''
       const categoryNames = set.cost_category_ids
-        ? set.cost_category_ids.map((id: string) => categoriesMap[id]).filter(Boolean).join(', ')
+        ? set.cost_category_ids
+            .map((id: string) => categoriesMap[id])
+            .filter(Boolean)
+            .join(', ')
         : ''
       const typeNames = set.cost_type_ids
-        ? set.cost_type_ids.map((id: string) => typesMap[id]).filter(Boolean).join(', ')
+        ? set.cost_type_ids
+            .map((id: string) => typesMap[id])
+            .filter(Boolean)
+            .join(', ')
         : ''
-      
+
       return {
         id: set.id,
         set_number: set.set_number,
