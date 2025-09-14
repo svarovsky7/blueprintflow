@@ -3,6 +3,51 @@ import { Modal, Checkbox, InputNumber, Typography, Table } from 'antd'
 
 const { Title, Text } = Typography
 
+// CSS стили для правильного отображения таблицы на полную высоту
+const tableStyles = `
+.building-table .ant-table {
+  height: 100% !important;
+  margin: 0 !important;
+}
+.building-table .ant-table-container {
+  height: 100% !important;
+  padding: 0 !important;
+}
+.building-table .ant-table-content {
+  height: 100% !important;
+  overflow: visible !important;
+}
+.building-table .ant-table-body {
+  height: 100% !important;
+  overflow: visible !important;
+  padding: 0 !important;
+}
+.building-table .ant-table-thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 !important;
+}
+.building-table .ant-table-thead th {
+  padding: 2px 4px !important;
+  height: 20px !important;
+  background: #fafafa !important;
+  border-bottom: 1px solid #d9d9d9 !important;
+  vertical-align: middle !important;
+  line-height: 1 !important;
+  font-size: 10px !important;
+}
+.building-table .ant-table-tbody td {
+  padding: 0 !important;
+  border: 1px solid #d9d9d9 !important;
+  vertical-align: middle !important;
+  line-height: 1 !important;
+}
+.building-table .ant-table-tbody {
+  height: calc(100% - 20px) !important;
+}
+`
+
 export type BlockType = 'Подземная парковка' | 'Типовой корпус' | 'Стилобат' | 'Кровля'
 
 interface Block {
@@ -76,19 +121,7 @@ export default function ProjectCardModal({
   }, [visible, projectData.blocks])
 
   const generateStylobateName = (fromBlock: Block, toBlock: Block) => {
-    const getShortName = (blockName: string) => {
-      // Если имя корпуса - это число, используем номер
-      if (/^\d+$/.test(blockName)) {
-        return blockName
-      }
-      // Иначе берём первые 3 буквы
-      return blockName.substring(0, 3)
-    }
-
-    const fromName = getShortName(fromBlock.name)
-    const toName = getShortName(toBlock.name)
-
-    return `Стилобат ${fromName}-${toName}`
+    return `Стилобат (${fromBlock.name}-${toBlock.name})`
   }
 
   const handleStylobateChange = useCallback(
@@ -260,10 +293,21 @@ export default function ProjectCardModal({
       dataIndex: string
       key: string
       width: number
-      render: (cell: { floor: number; backgroundColor: string; blockName?: string; type?: string; name?: string } | null) => React.ReactNode
+      render: (
+        cell: {
+          floor: number
+          backgroundColor: string
+          blockName?: string
+          type?: string
+          name?: string
+        } | null,
+      ) => React.ReactNode
     }> = []
 
     console.log('🏗️ Creating table columns for blocks:', blocks.length)
+
+    // Используем длину tableData для расчётов размера шрифта
+    const totalRows = tableData.length
 
     // Добавляем левый отступ 50px
     columns.push({
@@ -277,25 +321,24 @@ export default function ProjectCardModal({
 
     // Добавляем колонки для каждого корпуса и промежутки между ними
     blocks.forEach((block, index) => {
-      // Колонка корпуса - фиксированная ширина 120px (+20%)
+      // Колонка корпуса - фиксированная ширина 100px
       columns.push({
         title: block.name,
         dataIndex: `block_${block.id}`,
         key: `block_${block.id}`,
-        width: 120,
+        width: 100,
         render: (cell: { floor: number; backgroundColor: string; blockName?: string } | null) => {
           if (!cell) return null
           return (
             <div
               style={{
                 backgroundColor: cell.backgroundColor,
-                border: '1px solid #d9d9d9',
-                height: 14.4, // +20% от 12px
+                height: '100%',
                 width: '100%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: 7.2, // +20% от 6px
+                fontSize: Math.max(8, Math.min(12, totalRows > 0 ? 300 / totalRows : 10)),
                 fontWeight: 'bold',
                 margin: 0,
                 padding: 0,
@@ -307,9 +350,9 @@ export default function ProjectCardModal({
           )
         },
       })
-      console.log(`✅ Added building column [${index}]: ${block.name} - 120px`)
+      console.log(`✅ Added building column [${index}]: ${block.name} - 100px`)
 
-      // Добавляем промежуток между корпусами (кроме последнего корпуса) - фиксированная ширина 120px (+20%)
+      // Добавляем промежуток между корпусами (кроме последнего корпуса) - фиксированная ширина 100px
       if (index < blocks.length - 1) {
         const nextBlock = blocks[index + 1]
 
@@ -318,20 +361,21 @@ export default function ProjectCardModal({
           title: '', // Пустой заголовок для промежутка
           dataIndex: `connection_${block.id}_${nextBlock.id}`,
           key: `connection_${block.id}_${nextBlock.id}`,
-          width: 120,
-          render: (cell: { floor: number; backgroundColor: string; type?: string; name?: string } | null) => {
+          width: 100,
+          render: (
+            cell: { floor: number; backgroundColor: string; type?: string; name?: string } | null,
+          ) => {
             if (!cell) return null
             return (
               <div
                 style={{
                   backgroundColor: cell.backgroundColor,
-                  border: '1px solid #d9d9d9',
-                  height: 14.4, // +20% от 12px
+                  height: '100%',
                   width: '100%',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: 6, // +20% от 5px = 6px
+                  fontSize: Math.max(7, Math.min(10, totalRows > 0 ? 250 / totalRows : 8)),
                   margin: 0,
                   padding: 0,
                   boxSizing: 'border-box',
@@ -342,13 +386,15 @@ export default function ProjectCardModal({
             )
           },
         })
-        console.log(`✅ Added connection column [${index}]: ${block.name} -> ${nextBlock.name} - 120px`)
+        console.log(
+          `✅ Added connection column [${index}]: ${block.name} -> ${nextBlock.name} - 100px`,
+        )
       }
     })
 
     // Рассчитываем правый отступ: ширина модального окна минус все колонки
     // Модальное окно: 98vw (примерно ~1900px на широком экране)
-    // Корпуса теперь 120px каждый (+20% от 100px)
+    // Корпуса и промежутки по 100px каждый
     // Используем константу для расчёта
     const modalWidth = typeof window !== 'undefined' ? window.innerWidth * 0.98 : 1900
     const usedWidth = columns.reduce((sum, col) => sum + col.width, 0)
@@ -368,7 +414,10 @@ export default function ProjectCardModal({
     console.log('🖥️ Modal width:', modalWidth + 'px')
     console.log('➡️ Right padding calculated:', rightPadding + 'px')
     console.log('📏 Total expected width:', columns.reduce((sum, col) => sum + col.width, 0) + 'px')
-    console.log('📋 Column details:', columns.map(col => `${col.key}: ${col.width}px`))
+    console.log(
+      '📋 Column details:',
+      columns.map((col) => `${col.key}: ${col.width}px`),
+    )
 
     return columns
   }
@@ -376,218 +425,284 @@ export default function ProjectCardModal({
   const tableData = createBuildingTableData()
   const tableColumns = createTableColumns()
 
+  // Рассчитываем динамическую высоту строк
+  const totalRows = tableData.length
+  const dynamicRowHeight = totalRows > 0 ? `calc((100vh - 300px) / ${totalRows})` : '20px'
+
   console.log('🎯 Rendering ProjectCardModal with:')
   console.log('   - Table data rows:', tableData.length)
   console.log('   - Table columns:', tableColumns.length)
+  console.log('   - Dynamic row height:', dynamicRowHeight)
 
   return (
-    <Modal
-      open={visible}
-      title="Карточка проекта"
-      onCancel={onCancel}
-      onOk={handleSave}
-      width="98vw"
-      style={{ top: 20, height: 'calc(100vh - 40px)' }}
-      styles={{ body: { height: 'calc(100vh - 140px)', overflow: 'hidden', padding: '16px' } }}
-      okText="Сохранить"
-      cancelText="Отмена"
-    >
-      <div
-        style={{
-          marginBottom: 20,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          gap: 16,
-        }}
-      >
-        {/* Информация о проекте */}
-        <div style={{ flex: '0 0 auto' }}>
-          <Title level={3}>{projectData.name}</Title>
-          <Text>{projectData.address}</Text>
-          <br />
-          <Text>
-            Количество корпусов: {blocks.length} (
-            {blocks.map((b) => `${b.bottomFloor}; ${b.topFloor}`).join(', ')})
-          </Text>
-        </div>
-
-        {/* Элементы управления */}
-        <div style={{ flex: 1, minWidth: 400 }}>
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-            {/* Стилобаты */}
-            {blocks.length > 1 && (
-              <div>
-                <Text strong style={{ fontSize: '0.75em', marginRight: 8 }}>Стилобаты:</Text>
-                {blocks.slice(0, -1).map((block, index) => {
-                  const nextBlock = blocks[index + 1]
-                  const stylobate = stylobates.find(
-                    (s) => s.fromBlockId === block.id && s.toBlockId === nextBlock.id,
-                  )
-                  const isChecked = !!stylobate
-
-                  return (
-                    <span key={`stylobate-${block.id}-${nextBlock.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 12 }}>
-                      <Checkbox
-                        checked={isChecked}
-                        onChange={(e) => handleStylobateChange(block.id, nextBlock.id, e.target.checked)}
-                      />
-                      <Text style={{ fontSize: '0.7em' }}>{block.name}↔{nextBlock.name}</Text>
-                      {isChecked && (
-                        <InputNumber
-                          size="small"
-                          min={1}
-                          value={stylobate?.floors || 1}
-                          onChange={(value) => handleStylobateFloorsChange(stylobate!.id, value || 1)}
-                          style={{ width: 40, marginLeft: 4 }}
-                        />
-                      )}
-                    </span>
-                  )
-                })}
-              </div>
-            )}
-
-            {/* Подземная парковка */}
-            <div>
-              <Text strong style={{ fontSize: '0.75em', marginRight: 8 }}>Подз.парковка:</Text>
-              {blocks.map((block) => {
-                const isChecked = undergroundParking.blockIds.includes(block.id)
-                return (
-                  <span key={`underground-${block.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 12 }}>
-                    <Checkbox
-                      checked={isChecked}
-                      onChange={(e) => handleUndergroundParkingBlockChange(block.id, e.target.checked)}
-                    />
-                    <Text style={{ fontSize: '0.7em' }}>{block.name}</Text>
-                  </span>
-                )
-              })}
-            </div>
-
-            {/* Подземные соединения */}
-            {blocks.length > 1 && (
-              <div>
-                <Text strong style={{ fontSize: '0.75em', marginRight: 8 }}>Подз.соединения:</Text>
-                {blocks.slice(0, -1).map((block, index) => {
-                  const nextBlock = blocks[index + 1]
-                  const isChecked = undergroundParking.connections.some(
-                    (conn) => conn.fromBlockId === block.id && conn.toBlockId === nextBlock.id,
-                  )
-
-                  return (
-                    <span key={`underground-connection-${block.id}-${nextBlock.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 12 }}>
-                      <Checkbox
-                        checked={isChecked}
-                        onChange={(e) =>
-                          handleUndergroundConnectionChange(block.id, nextBlock.id, e.target.checked)
-                        }
-                      />
-                      <Text style={{ fontSize: '0.7em' }}>{block.name}↔{nextBlock.name}</Text>
-                    </span>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Цветовая легенда */}
-        <div
-          style={{
+    <>
+      <style>{tableStyles}</style>
+      <Modal
+        open={visible}
+        title="Карточка проекта"
+        onCancel={onCancel}
+        onOk={handleSave}
+        width="98vw"
+        style={{ top: 20, height: 'calc(100vh - 40px)' }}
+        styles={{
+          body: {
+            height: 'calc(100vh - 140px)',
+            overflow: 'hidden',
+            padding: '16px',
             display: 'flex',
             flexDirection: 'column',
-            gap: 6,
-            minWidth: 250,
+          },
+        }}
+        okText="Сохранить"
+        cancelText="Отмена"
+      >
+        <div
+          style={{
+            marginBottom: 20,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: 16,
             flexShrink: 0,
           }}
         >
-          <Text strong style={{ fontSize: '0.9em', marginBottom: 4 }}>
-            Легенда:
-          </Text>
+          {/* Информация о проекте */}
+          <div style={{ flex: '0 0 auto' }}>
+            <Title level={3}>{projectData.name}</Title>
+            <Text>{projectData.address}</Text>
+            <br />
+            <Text>
+              Количество корпусов: {blocks.length} (
+              {blocks.map((b) => `${b.bottomFloor}; ${b.topFloor}`).join(', ')})
+            </Text>
+          </div>
+
+          {/* Элементы управления */}
+          <div style={{ flex: 1, minWidth: 400 }}>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              {/* Стилобаты */}
+              {blocks.length > 1 && (
+                <div>
+                  <Text strong style={{ fontSize: '0.75em', marginRight: 8 }}>
+                    Стилобаты:
+                  </Text>
+                  {blocks.slice(0, -1).map((block, index) => {
+                    const nextBlock = blocks[index + 1]
+                    const stylobate = stylobates.find(
+                      (s) => s.fromBlockId === block.id && s.toBlockId === nextBlock.id,
+                    )
+                    const isChecked = !!stylobate
+
+                    return (
+                      <span
+                        key={`stylobate-${block.id}-${nextBlock.id}`}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          marginRight: 12,
+                        }}
+                      >
+                        <Checkbox
+                          checked={isChecked}
+                          onChange={(e) =>
+                            handleStylobateChange(block.id, nextBlock.id, e.target.checked)
+                          }
+                        />
+                        <Text style={{ fontSize: '0.7em' }}>
+                          {block.name}↔{nextBlock.name}
+                        </Text>
+                        {isChecked && (
+                          <InputNumber
+                            size="small"
+                            min={1}
+                            value={stylobate?.floors || 1}
+                            onChange={(value) =>
+                              handleStylobateFloorsChange(stylobate!.id, value || 1)
+                            }
+                            style={{ width: 40, marginLeft: 4 }}
+                          />
+                        )}
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Подземная парковка */}
+              <div>
+                <Text strong style={{ fontSize: '0.75em', marginRight: 8 }}>
+                  Подз.парковка:
+                </Text>
+                {blocks.map((block) => {
+                  const isChecked = undergroundParking.blockIds.includes(block.id)
+                  return (
+                    <span
+                      key={`underground-${block.id}`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        marginRight: 12,
+                      }}
+                    >
+                      <Checkbox
+                        checked={isChecked}
+                        onChange={(e) =>
+                          handleUndergroundParkingBlockChange(block.id, e.target.checked)
+                        }
+                      />
+                      <Text style={{ fontSize: '0.7em' }}>{block.name}</Text>
+                    </span>
+                  )
+                })}
+              </div>
+
+              {/* Подземные соединения */}
+              {blocks.length > 1 && (
+                <div>
+                  <Text strong style={{ fontSize: '0.75em', marginRight: 8 }}>
+                    Подз.соединения:
+                  </Text>
+                  {blocks.slice(0, -1).map((block, index) => {
+                    const nextBlock = blocks[index + 1]
+                    const isChecked = undergroundParking.connections.some(
+                      (conn) => conn.fromBlockId === block.id && conn.toBlockId === nextBlock.id,
+                    )
+
+                    return (
+                      <span
+                        key={`underground-connection-${block.id}-${nextBlock.id}`}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          marginRight: 12,
+                        }}
+                      >
+                        <Checkbox
+                          checked={isChecked}
+                          onChange={(e) =>
+                            handleUndergroundConnectionChange(
+                              block.id,
+                              nextBlock.id,
+                              e.target.checked,
+                            )
+                          }
+                        />
+                        <Text style={{ fontSize: '0.7em' }}>
+                          {block.name}↔{nextBlock.name}
+                        </Text>
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Цветовая легенда */}
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gridTemplateRows: '1fr 1fr',
+              display: 'flex',
+              flexDirection: 'column',
               gap: 6,
+              minWidth: 250,
+              flexShrink: 0,
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div
-                style={{
-                  width: '0.8em',
-                  height: '0.8em',
-                  backgroundColor: '#e6f7ff',
-                  border: '1px solid #91d5ff',
-                  borderRadius: 2,
-                  flexShrink: 0,
-                }}
-              />
-              <Text style={{ fontSize: '0.7em', lineHeight: 1.2 }}>Подземная парковка</Text>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div
-                style={{
-                  width: '0.8em',
-                  height: '0.8em',
-                  backgroundColor: '#f6ffed',
-                  border: '1px solid #b7eb8f',
-                  borderRadius: 2,
-                  flexShrink: 0,
-                }}
-              />
-              <Text style={{ fontSize: '0.7em', lineHeight: 1.2 }}>Типовой корпус</Text>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div
-                style={{
-                  width: '0.8em',
-                  height: '0.8em',
-                  backgroundColor: '#fffbe6',
-                  border: '1px solid #ffe58f',
-                  borderRadius: 2,
-                  flexShrink: 0,
-                }}
-              />
-              <Text style={{ fontSize: '0.7em', lineHeight: 1.2 }}>Стилобат</Text>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div
-                style={{
-                  width: '0.8em',
-                  height: '0.8em',
-                  backgroundColor: '#fff2e8',
-                  border: '1px solid #ffbb96',
-                  borderRadius: 2,
-                  flexShrink: 0,
-                }}
-              />
-              <Text style={{ fontSize: '0.7em', lineHeight: 1.2 }}>Кровля</Text>
+            <Text strong style={{ fontSize: '0.9em', marginBottom: 4 }}>
+              Легенда:
+            </Text>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gridTemplateRows: '1fr 1fr',
+                gap: 6,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div
+                  style={{
+                    width: '0.8em',
+                    height: '0.8em',
+                    backgroundColor: '#e6f7ff',
+                    border: '1px solid #91d5ff',
+                    borderRadius: 2,
+                    flexShrink: 0,
+                  }}
+                />
+                <Text style={{ fontSize: '0.7em', lineHeight: 1.2 }}>Подземная парковка</Text>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div
+                  style={{
+                    width: '0.8em',
+                    height: '0.8em',
+                    backgroundColor: '#f6ffed',
+                    border: '1px solid #b7eb8f',
+                    borderRadius: 2,
+                    flexShrink: 0,
+                  }}
+                />
+                <Text style={{ fontSize: '0.7em', lineHeight: 1.2 }}>Типовой корпус</Text>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div
+                  style={{
+                    width: '0.8em',
+                    height: '0.8em',
+                    backgroundColor: '#fffbe6',
+                    border: '1px solid #ffe58f',
+                    borderRadius: 2,
+                    flexShrink: 0,
+                  }}
+                />
+                <Text style={{ fontSize: '0.7em', lineHeight: 1.2 }}>Стилобат</Text>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div
+                  style={{
+                    width: '0.8em',
+                    height: '0.8em',
+                    backgroundColor: '#fff2e8',
+                    border: '1px solid #ffbb96',
+                    borderRadius: 2,
+                    flexShrink: 0,
+                  }}
+                />
+                <Text style={{ fontSize: '0.7em', lineHeight: 1.2 }}>Кровля</Text>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
         {/* Табличное отображение корпусов */}
-        <div style={{
-          backgroundColor: '#fafafa',
-          border: '1px solid #d9d9d9',
-          height: 'calc(100vh - 240px)',
-          overflow: 'hidden'
-        }}>
+        <div
+          style={{
+            backgroundColor: '#fafafa',
+            border: '1px solid #d9d9d9',
+            flex: 1,
+            overflow: 'hidden',
+            minHeight: 0,
+          }}
+        >
           <Table
             dataSource={tableData}
             columns={tableColumns}
             pagination={false}
-            scroll={{ x: 'max-content', y: 'calc(100vh - 280px)' }}
+            scroll={{
+              x: tableColumns.reduce((sum, col) => sum + col.width, 0),
+              y: undefined
+            }}
             size="small"
             bordered={false}
             showHeader={true}
             tableLayout="fixed"
             style={{
               backgroundColor: 'transparent',
-              height: '100%'
+              height: '100%',
             }}
             className="building-table"
             onHeaderRow={() => {
@@ -603,28 +718,50 @@ export default function ProjectCardModal({
         <style>{`
           .building-table .ant-table {
             table-layout: fixed !important;
+            height: 100% !important;
+            width: 100% !important;
+          }
+          .building-table .ant-table-container {
+            height: 100% !important;
+            overflow: auto !important;
+          }
+          .building-table .ant-table-content {
+            height: 100% !important;
+          }
+          .building-table .ant-table-body {
+            height: calc(100% - 40px) !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+          }
+          .building-table .ant-table-tbody {
+            height: 100% !important;
+          }
+          .building-table .ant-table-tbody > tr {
+            height: ${dynamicRowHeight} !important;
           }
           .building-table .ant-table-tbody > tr > td {
             padding: 0 !important;
-            border: none !important;
-            height: 14.4px !important;
-            vertical-align: top !important;
+            border: 1px solid #d9d9d9 !important;
+            vertical-align: middle !important;
             overflow: hidden !important;
             box-sizing: border-box !important;
+            height: ${dynamicRowHeight} !important;
           }
           .building-table .ant-table-thead > tr > th {
             padding: 2px 4px !important;
             background: #fafafa !important;
-            border-bottom: 1px solid #d9d9d9 !important;
+            border: 1px solid #d9d9d9 !important;
             text-align: center !important;
             font-size: 12px !important;
             overflow: hidden !important;
             box-sizing: border-box !important;
+            height: 40px !important;
           }
           .building-table .ant-table-tbody > tr:hover > td {
             background: transparent !important;
           }
         `}</style>
-    </Modal>
+      </Modal>
+    </>
   )
 }
