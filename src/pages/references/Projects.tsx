@@ -352,15 +352,18 @@ export default function Projects() {
       return
     }
 
-    setProjectCardData({
+    console.log('🔍 Form values before mapping:', values.blocks)
+    const projectData = {
       name: values.name || '',
       address: values.address || '',
       blocks: (values.blocks || []).map((block: any) => ({
         name: block.name || '',
-        bottomFloor: block.bottom_floor || 0,
-        topFloor: block.top_floor || 0,
+        bottomFloor: block.bottom_floor ?? 0,
+        topFloor: block.top_floor ?? 0,
       })),
-    })
+    }
+    console.log('🔍 Mapped project data:', projectData)
+    setProjectCardData(projectData)
     setShowProjectCard(true)
   }
 
@@ -415,15 +418,7 @@ export default function Projects() {
       const regularBlocks = cardData.blocks
       const allBlocksToCreate = [...regularBlocks]
 
-      // Добавляем стилобаты как блоки
-      cardData.stylobates.forEach((stylobate) => {
-        allBlocksToCreate.push({
-          name: stylobate.name,
-          bottomFloor: 1,
-          topFloor: stylobate.floors,
-          isStylebat: true,
-        })
-      })
+      // Стилобаты не создаются как отдельные блоки - они отображаются только как соединения между корпусами
 
       if (allBlocksToCreate.length) {
         // Создаём все блоки
@@ -834,15 +829,15 @@ export default function Projects() {
 
                 // Фильтруем основные корпуса (не стилобаты)
                 const mainBlocks = currentProject.blocks.filter(
-                  (block) => !block.name.toLowerCase().includes('стилобат')
+                  (block) => !block.name.toLowerCase().includes('стилобат'),
                 )
 
                 // Проверяем наличие стилобатов и подземной парковки
-                const hasStylebates = currentProject.blocks.some(
-                  (block) => block.name.toLowerCase().includes('стилобат')
+                const hasStylebates = currentProject.blocks.some((block) =>
+                  block.name.toLowerCase().includes('стилобат'),
                 )
                 const hasUndergroundParking = currentProject.blocks.some(
-                  (block) => (block.bottom_floor ?? 0) < 0
+                  (block) => (block.bottom_floor ?? 0) < 0,
                 )
 
                 // Формируем описание основных корпусов
@@ -856,7 +851,9 @@ export default function Projects() {
                 if (hasUndergroundParking) additionalFeatures.push('подз.паркинг')
 
                 if (additionalFeatures.length > 0) {
-                  description += description ? '; ' + additionalFeatures.join('; ') : additionalFeatures.join('; ')
+                  description += description
+                    ? '; ' + additionalFeatures.join('; ')
+                    : additionalFeatures.join('; ')
                 }
 
                 return description
@@ -867,15 +864,18 @@ export default function Projects() {
                 type="primary"
                 onClick={() => {
                   if (currentProject?.blocks && currentProject.blocks.length > 0) {
-                    setProjectCardData({
+                    console.log('🔍 Current project blocks from DB:', currentProject.blocks)
+                    const projectData = {
                       name: currentProject.name || '',
                       address: currentProject.address || '',
                       blocks: currentProject.blocks.map((block) => ({
                         name: block.name || '',
-                        bottomFloor: block.bottom_floor || 0,
-                        topFloor: block.top_floor || 0,
+                        bottomFloor: block.bottom_floor ?? 0,
+                        topFloor: block.top_floor ?? 0,
                       })),
-                    })
+                    }
+                    console.log('🔍 Mapped project data from DB:', projectData)
+                    setProjectCardData(projectData)
                     setShowProjectCard(true)
                   } else {
                     message.warning('У проекта нет корпусов для отображения карточки')

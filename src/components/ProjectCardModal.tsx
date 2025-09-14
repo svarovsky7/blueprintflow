@@ -203,8 +203,6 @@ export default function ProjectCardModal({
     const maxTopFloor = Math.max(...blocks.map((block) => block.topFloor))
     const minBottomFloor = Math.min(...blocks.map((block) => block.bottomFloor))
 
-    console.log('🏢 Generating table data for floor range:', minBottomFloor, 'to', maxTopFloor)
-
     const tableData = []
 
     // Создаем данные для каждого этажа
@@ -328,7 +326,18 @@ export default function ProjectCardModal({
         key: `block_${block.id}`,
         width: 100,
         render: (cell: { floor: number; backgroundColor: string; blockName?: string } | null) => {
-          if (!cell) return null
+          if (!cell) {
+            return (
+              <div
+                style={{
+                  height: '100%',
+                  width: '100%',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                }}
+              />
+            )
+          }
           return (
             <div
               style={{
@@ -338,7 +347,7 @@ export default function ProjectCardModal({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: Math.max(8, Math.min(12, totalRows > 0 ? 300 / totalRows : 10)),
+                fontSize: 8,
                 fontWeight: 'bold',
                 margin: 0,
                 padding: 0,
@@ -365,7 +374,18 @@ export default function ProjectCardModal({
           render: (
             cell: { floor: number; backgroundColor: string; type?: string; name?: string } | null,
           ) => {
-            if (!cell) return null
+            if (!cell) {
+              return (
+                <div
+                  style={{
+                    height: '100%',
+                    width: '100%',
+                    border: 'none',
+                    backgroundColor: 'transparent',
+                  }}
+                />
+              )
+            }
             return (
               <div
                 style={{
@@ -375,7 +395,7 @@ export default function ProjectCardModal({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: Math.max(7, Math.min(10, totalRows > 0 ? 250 / totalRows : 8)),
+                  fontSize: 8,
                   margin: 0,
                   padding: 0,
                   boxSizing: 'border-box',
@@ -694,7 +714,7 @@ export default function ProjectCardModal({
             pagination={false}
             scroll={{
               x: tableColumns.reduce((sum, col) => sum + col.width, 0),
-              y: undefined
+              y: 'calc(100vh - 350px)'
             }}
             size="small"
             bordered={false}
@@ -729,23 +749,26 @@ export default function ProjectCardModal({
             height: 100% !important;
           }
           .building-table .ant-table-body {
-            height: calc(100% - 40px) !important;
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
+            height: 100% !important;
           }
           .building-table .ant-table-tbody {
             height: 100% !important;
           }
           .building-table .ant-table-tbody > tr {
-            height: ${dynamicRowHeight} !important;
+            height: 12px !important;
+            min-height: 12px !important;
           }
           .building-table .ant-table-tbody > tr > td {
             padding: 0 !important;
-            border: 1px solid #d9d9d9 !important;
+            border: none !important;
             vertical-align: middle !important;
             overflow: hidden !important;
             box-sizing: border-box !important;
-            height: ${dynamicRowHeight} !important;
+            height: 12px !important;
+            min-height: 12px !important;
+          }
+          .building-table .ant-table-tbody > tr > td > div:not([style*="transparent"]) {
+            border: 1px solid #d9d9d9 !important;
           }
           .building-table .ant-table-thead > tr > th {
             padding: 2px 4px !important;

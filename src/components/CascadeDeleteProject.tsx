@@ -44,10 +44,7 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
         .eq('project_id', projectId)
 
       // Подсчитываем файлы в storage
-      const { data: filesList } = await supabase
-        .storage
-        .from('files')
-        .list(`projects/${projectId}`)
+      const { data: filesList } = await supabase.storage.from('files').list(`projects/${projectId}`)
 
       const filesCount = filesList?.length || 0
 
@@ -66,7 +63,7 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
           .eq('project_id', projectId)
 
         if (estimatesIds && estimatesIds.length > 0) {
-          const estimateIdsList = estimatesIds.map(item => item.id)
+          const estimateIdsList = estimatesIds.map((item) => item.id)
           const { count: itemsCount } = await supabase
             .from('estimate_items')
             .select('*', { count: 'exact', head: true })
@@ -91,7 +88,7 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
           .eq('project_id', projectId)
 
         if (projectBlocksIds && projectBlocksIds.length > 0) {
-          const blockIdsList = projectBlocksIds.map(item => item.block_id)
+          const blockIdsList = projectBlocksIds.map((item) => item.block_id)
           const { count: floorMappingCount } = await supabase
             .from('block_floor_mapping')
             .select('*', { count: 'exact', head: true })
@@ -116,7 +113,7 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
         estimateItemsCount,
         projectBlocksCount: projectBlocksCount || 0,
         blockFloorMappingCount,
-        vorCount: vorCount || 0
+        vorCount: vorCount || 0,
       }
     } catch (error) {
       console.error('Ошибка подсчёта данных:', error)
@@ -129,7 +126,7 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
         estimateItemsCount: 0,
         projectBlocksCount: 0,
         blockFloorMappingCount: 0,
-        vorCount: 0
+        vorCount: 0,
       }
     }
   }
@@ -153,7 +150,7 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
         .eq('project_id', projectId)
 
       if (chessboardIds && chessboardIds.length > 0) {
-        const chessboardIdsList = chessboardIds.map(item => item.id)
+        const chessboardIdsList = chessboardIds.map((item) => item.id)
 
         // Удаляем chessboard_documentation_mapping
         await supabase
@@ -217,7 +214,7 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
       // Удаляем элементы смет если есть сметы
       if (estimatesIds && estimatesIds.length > 0) {
         console.log('📋 Удаляем элементы смет...')
-        const estimateIdsList = estimatesIds.map(item => item.id)
+        const estimateIdsList = estimatesIds.map((item) => item.id)
         const { error: estimateItemsError } = await supabase
           .from('estimate_items')
           .delete()
@@ -245,10 +242,7 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
 
       // Шаг 7: Удаляем ведомости объемов работ
       console.log('7️⃣ Удаляем ведомости объемов работ...')
-      const { error: vorError } = await supabase
-        .from('vor')
-        .delete()
-        .eq('project_id', projectId)
+      const { error: vorError } = await supabase.from('vor').delete().eq('project_id', projectId)
 
       if (vorError) {
         console.error('Ошибка при удалении ведомостей:', vorError)
@@ -258,19 +252,15 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
 
       // Шаг 8: Получаем список файлов для удаления из storage
       console.log('8️⃣ Ищем файлы для удаления...')
-      const { data: filesList, error: filesListError } = await supabase
-        .storage
+      const { data: filesList, error: filesListError } = await supabase.storage
         .from('files')
         .list(`projects/${projectId}`)
 
       // Удаляем файлы из storage если они есть
       if (filesList && filesList.length > 0) {
         console.log('📁 Удаляем файлы из storage:', filesList.length)
-        const filePaths = filesList.map(file => `projects/${projectId}/${file.name}`)
-        const { error: filesDeleteError } = await supabase
-          .storage
-          .from('files')
-          .remove(filePaths)
+        const filePaths = filesList.map((file) => `projects/${projectId}/${file.name}`)
+        const { error: filesDeleteError } = await supabase.storage.from('files').remove(filePaths)
 
         if (filesDeleteError) {
           console.warn('Предупреждение: не удалось удалить некоторые файлы:', filesDeleteError)
@@ -287,7 +277,7 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
       // Удаляем block_floor_mapping если есть блоки
       if (projectBlocksIds && projectBlocksIds.length > 0) {
         console.log('🏢 Удаляем привязки этажей к блокам...')
-        const blockIdsList = projectBlocksIds.map(item => item.block_id)
+        const blockIdsList = projectBlocksIds.map((item) => item.block_id)
 
         const { error: blockFloorMappingError } = await supabase
           .from('block_floor_mapping')
@@ -317,7 +307,7 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
       // Шаг 11: Удаляем блоки, которые больше не связаны ни с одним проектом
       if (projectBlocksIds && projectBlocksIds.length > 0) {
         console.log('🏗️ Удаляем изолированные блоки...')
-        const blockIdsList = projectBlocksIds.map(item => item.block_id)
+        const blockIdsList = projectBlocksIds.map((item) => item.block_id)
 
         // Для каждого блока проверяем, связан ли он с другими проектами
         for (const blockId of blockIdsList) {
@@ -342,10 +332,7 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
 
       // Шаг 12: Удаляем сам проект
       console.log('1️⃣2️⃣ Удаляем проект...')
-      const { error: projectError } = await supabase
-        .from('projects')
-        .delete()
-        .eq('id', projectId)
+      const { error: projectError } = await supabase.from('projects').delete().eq('id', projectId)
 
       if (projectError) {
         console.error('Ошибка при удалении проекта:', projectError)
@@ -377,13 +364,18 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
         content: (
           <div>
             <p style={{ marginBottom: 16, fontSize: 14 }}>
-              Проект <strong>"{projectName}"</strong> будет удалён безвозвратно вместе со следующими данными:
+              Проект <strong>"{projectName}"</strong> будет удалён безвозвратно вместе со следующими
+              данными:
             </p>
 
-            <div style={{ backgroundColor: '#fff2f0', padding: 12, borderRadius: 6, marginBottom: 16 }}>
+            <div
+              style={{ backgroundColor: '#fff2f0', padding: 12, borderRadius: 6, marginBottom: 16 }}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                 <span>📋 Записи в шахматке:</span>
-                <strong style={{ color: '#ff4d4f' }}>{counts.chessboardCount.toLocaleString()}</strong>
+                <strong style={{ color: '#ff4d4f' }}>
+                  {counts.chessboardCount.toLocaleString()}
+                </strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                 <span>📦 Комплекты шахматки:</span>

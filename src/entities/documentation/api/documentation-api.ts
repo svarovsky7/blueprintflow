@@ -290,7 +290,6 @@ export const documentationApi = {
         throw mappingError
       }
 
-
       // Получаем ID всех документов для загрузки информации о тегах
       const documentationIds = mappingData?.map((m) => m.documentation_id).filter(Boolean) || []
 
@@ -345,7 +344,6 @@ export const documentationApi = {
             tag_name: tagName,
             tag: tagData,
           }
-
 
           return result
         })

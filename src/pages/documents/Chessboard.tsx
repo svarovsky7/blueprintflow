@@ -967,7 +967,7 @@ export default function Chessboard() {
   // Принудительно обновляем документацию при смене проекта
   useEffect(() => {
     if (appliedFilters?.projectId) {
-      setDocumentationRefreshKey(prev => prev + 1)
+      setDocumentationRefreshKey((prev) => prev + 1)
     }
   }, [appliedFilters?.projectId])
 
@@ -1440,7 +1440,7 @@ export default function Chessboard() {
 
     // Принудительно обновляем документацию при смене проекта
     if (appliedFilters?.projectId !== filters.projectId) {
-      setDocumentationRefreshKey(prev => prev + 1)
+      setDocumentationRefreshKey((prev) => prev + 1)
     }
 
     setAppliedFilters({ ...filters } as {
@@ -3691,16 +3691,16 @@ export default function Chessboard() {
               if (record.tagId && documentations?.length > 0) {
                 console.log('🔧 ADD mode - Component documentations sample:', {
                   totalCount: documentations.length,
-                  first3Detailed: documentations.slice(0, 3).map(doc => {
+                  first3Detailed: documentations.slice(0, 3).map((doc) => {
                     console.log('🔧 Whole doc object:', doc)
                     return {
                       id: doc.id,
                       project_code: doc.project_code,
                       tag_id: doc.tag_id,
                       keys: Object.keys(doc),
-                      wholeDoc: doc
+                      wholeDoc: doc,
                     }
-                  })
+                  }),
                 })
 
                 const tagIds = documentations.slice(0, 5).map((doc) => ({
