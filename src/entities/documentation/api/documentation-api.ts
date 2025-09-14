@@ -353,7 +353,7 @@ export const documentationApi = {
     }
 
     // Если нет фильтров по проекту/блоку, возвращаем все документы (fallback)
-    let query = supabase
+    const query = supabase
       .from('documentations')
       .select(
         `

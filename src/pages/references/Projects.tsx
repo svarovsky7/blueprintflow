@@ -829,10 +829,62 @@ export default function Projects() {
             <p>Количество корпусов: {currentProject?.blocks.length ?? 0}</p>
             <p>
               Корпуса:{' '}
-              {currentProject?.blocks
-                .map((b) => `${b.name} (от ${b.bottom_floor ?? ''} до ${b.top_floor ?? ''})`)
-                .join('; ')}
+              {(() => {
+                if (!currentProject?.blocks || currentProject.blocks.length === 0) return ''
+
+                // Фильтруем основные корпуса (не стилобаты)
+                const mainBlocks = currentProject.blocks.filter(
+                  (block) => !block.name.toLowerCase().includes('стилобат')
+                )
+
+                // Проверяем наличие стилобатов и подземной парковки
+                const hasStylebates = currentProject.blocks.some(
+                  (block) => block.name.toLowerCase().includes('стилобат')
+                )
+                const hasUndergroundParking = currentProject.blocks.some(
+                  (block) => (block.bottom_floor ?? 0) < 0
+                )
+
+                // Формируем описание основных корпусов
+                let description = mainBlocks
+                  .map((b) => `${b.name} (от ${b.bottom_floor ?? ''} до ${b.top_floor ?? ''})`)
+                  .join('; ')
+
+                // Добавляем информацию о дополнительных элементах
+                const additionalFeatures = []
+                if (hasStylebates) additionalFeatures.push('стилобат')
+                if (hasUndergroundParking) additionalFeatures.push('подз.паркинг')
+
+                if (additionalFeatures.length > 0) {
+                  description += description ? '; ' + additionalFeatures.join('; ') : additionalFeatures.join('; ')
+                }
+
+                return description
+              })()}
             </p>
+            <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+              <Button
+                type="primary"
+                onClick={() => {
+                  if (currentProject?.blocks && currentProject.blocks.length > 0) {
+                    setProjectCardData({
+                      name: currentProject.name || '',
+                      address: currentProject.address || '',
+                      blocks: currentProject.blocks.map((block) => ({
+                        name: block.name || '',
+                        bottomFloor: block.bottom_floor || 0,
+                        topFloor: block.top_floor || 0,
+                      })),
+                    })
+                    setShowProjectCard(true)
+                  } else {
+                    message.warning('У проекта нет корпусов для отображения карточки')
+                  }
+                }}
+              >
+                Открыть карточку проекта
+              </Button>
+            </div>
           </div>
         ) : (
           <Form form={form} layout="vertical">

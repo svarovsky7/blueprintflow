@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react'
-import { Modal, Checkbox, InputNumber, Typography } from 'antd'
+import { Modal, Checkbox, InputNumber, Typography, Table } from 'antd'
 
 const { Title, Text } = Typography
 
@@ -63,34 +63,14 @@ export default function ProjectCardModal({
 
   React.useEffect(() => {
     if (visible && projectData.blocks.length > 0) {
-      // Находим максимальный верхний этаж и минимальный нижний этаж
-      const maxTopFloor = Math.max(...projectData.blocks.map((block) => block.topFloor))
-      const minBottomFloor = Math.min(...projectData.blocks.map((block) => block.bottomFloor))
-
-      // Общая высота от самого нижнего до самого верхнего этажа
-      const totalFloorsHeight = (maxTopFloor - minBottomFloor + 1) * 15
-
-      // Центрируем все корпуса в доступном пространстве (700px высота контейнера)
-      // Оставляем место сверху и снизу для элементов управления
-      const availableHeight = 700 - 100 // 100px для отступов и элементов управления
-      const startY = Math.max(50, (availableHeight - totalFloorsHeight) / 2 + 50)
-
-      // Базовая линия нулевого этажа
-      const groundLineY = startY + maxTopFloor * 15
-
-      const generatedBlocks: Block[] = projectData.blocks.map((block, index) => {
-        // Вычисляем Y позицию так, чтобы нулевой этаж был на одной линии
-        const blockY = groundLineY - block.topFloor * 15
-
-        return {
-          id: index + 1,
-          name: block.name,
-          bottomFloor: block.bottomFloor,
-          topFloor: block.topFloor,
-          x: 100 + index * 200,
-          y: blockY,
-        }
-      })
+      const generatedBlocks: Block[] = projectData.blocks.map((block, index) => ({
+        id: index + 1,
+        name: block.name,
+        bottomFloor: block.bottomFloor,
+        topFloor: block.topFloor,
+        x: 0,
+        y: 0,
+      }))
       setBlocks(generatedBlocks)
     }
   }, [visible, projectData.blocks])
@@ -123,8 +103,8 @@ export default function ProjectCardModal({
           fromBlockId,
           toBlockId,
           floors: 1,
-          x: 100 + (fromBlockId - 1) * 200 + 100,
-          y: 150,
+          x: 0,
+          y: 0,
         }
         setStylobates((prev) => [...prev, newStylobate])
       } else {
@@ -183,260 +163,222 @@ export default function ProjectCardModal({
     })
   }
 
-  const renderBlock = (block: Block) => {
-    const hasUndergroundParking = undergroundParking.blockIds.includes(block.id)
-    const floors = []
-    for (let floor = block.topFloor; floor >= block.bottomFloor; floor--) {
-      let backgroundColor
-      if (floor === 0) {
-        backgroundColor = '#fff2e8' // Кровля (оранжевый)
-      } else if (floor > 0) {
-        backgroundColor = '#f6ffed' // Типовой корпус (салатовый)
-      } else {
-        // Подземные этажи
-        backgroundColor = hasUndergroundParking ? '#e6f7ff' : '#f6ffed' // Подземная парковка (голубой) или типовой корпус
+  const createBuildingTableData = () => {
+    if (!blocks.length) return []
+
+    // Находим диапазон этажей
+    const maxTopFloor = Math.max(...blocks.map((block) => block.topFloor))
+    const minBottomFloor = Math.min(...blocks.map((block) => block.bottomFloor))
+
+    console.log('🏢 Generating table data for floor range:', minBottomFloor, 'to', maxTopFloor)
+
+    const tableData = []
+
+    // Создаем данные для каждого этажа
+    for (let floor = maxTopFloor; floor >= minBottomFloor; floor--) {
+      const row: Record<string, unknown> = {
+        key: floor,
+        floor: floor,
       }
 
-      floors.push(
-        <div
-          key={floor}
-          style={{
-            height: 15,
-            border: '1px solid #d9d9d9',
+      // Для каждого корпуса проверяем, есть ли этот этаж
+      blocks.forEach((block) => {
+        const blockKey = `block_${block.id}`
+        if (floor <= block.topFloor && floor >= block.bottomFloor) {
+          // Определяем тип этажа и цвет
+          let backgroundColor
+          const hasUndergroundParking = undergroundParking.blockIds.includes(block.id)
+
+          if (floor === 0) {
+            backgroundColor = '#fff2e8' // Кровля
+          } else if (floor > 0) {
+            backgroundColor = '#f6ffed' // Типовой корпус
+          } else {
+            backgroundColor = hasUndergroundParking ? '#e6f7ff' : '#f6ffed'
+          }
+
+          row[blockKey] = {
+            floor,
             backgroundColor,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 10,
-          }}
-        >
-          {floor}
-        </div>,
-      )
-    }
-    return (
-      <div
-        key={block.id}
-        style={{
-          position: 'absolute',
-          left: block.x,
-          top: block.y,
-          width: 120,
-        }}
-      >
-        <div
-          style={{
-            textAlign: 'center',
-            marginBottom: 4,
-            fontSize: 12,
-            fontWeight: 'bold',
-          }}
-        >
-          {block.name}
-        </div>
-        <div style={{ border: '2px solid #1890ff', marginBottom: 10 }}>{floors}</div>
-      </div>
-    )
-  }
+            blockName: block.name,
+          }
+        } else {
+          row[blockKey] = null
+        }
+      })
 
-  const renderGroundLine = () => {
-    const maxX = Math.max(...blocks.map((b) => b.x + 120))
+      // Проверяем стилобаты и подземные соединения между корпусами
+      for (let i = 0; i < blocks.length - 1; i++) {
+        const fromBlock = blocks[i]
+        const toBlock = blocks[i + 1]
+        const connectionKey = `connection_${fromBlock.id}_${toBlock.id}`
 
-    // Вычисляем позицию линии земли на основе текущего позиционирования корпусов
-    const maxTopFloor = Math.max(...blocks.map((block) => block.topFloor))
-    const minBottomFloor = Math.min(...blocks.map((block) => block.bottomFloor))
-    const totalFloorsHeight = (maxTopFloor - minBottomFloor + 1) * 15
-    const availableHeight = 700 - 100
-    const startY = Math.max(50, (availableHeight - totalFloorsHeight) / 2 + 50)
-    const groundLineY = startY + maxTopFloor * 15
-
-    return (
-      <div
-        style={{
-          position: 'absolute',
-          left: 50,
-          top: groundLineY,
-          width: maxX - 30,
-          height: 2,
-          backgroundColor: '#8B4513',
-          zIndex: 1,
-        }}
-      />
-    )
-  }
-
-  const renderStylobateControls = () => {
-    const controls = []
-    for (let i = 0; i < blocks.length - 1; i++) {
-      const fromBlock = blocks[i]
-      const toBlock = blocks[i + 1]
-      const stylobate = stylobates.find(
-        (s) => s.fromBlockId === fromBlock.id && s.toBlockId === toBlock.id,
-      )
-      const isChecked = !!stylobate
-
-      controls.push(
-        <div
-          key={`stylobate-${fromBlock.id}-${toBlock.id}`}
-          style={{
-            position: 'absolute',
-            left: fromBlock.x + 60,
-            top: 135,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-          }}
-        >
-          <Checkbox
-            checked={isChecked}
-            onChange={(e) => handleStylobateChange(fromBlock.id, toBlock.id, e.target.checked)}
-          />
-          {isChecked && (
-            <InputNumber
-              size="small"
-              min={1}
-              value={stylobate?.floors || 1}
-              onChange={(value) => handleStylobateFloorsChange(stylobate!.id, value || 1)}
-              style={{ width: 60, marginTop: 4 }}
-            />
-          )}
-        </div>,
-      )
-    }
-    return controls
-  }
-
-  const renderUndergroundControls = () => {
-    // Вычисляем позицию ниже границ корпусов
-    const maxTopFloor = Math.max(...blocks.map((block) => block.topFloor))
-    const minBottomFloor = Math.min(...blocks.map((block) => block.bottomFloor))
-    const totalFloorsHeight = (maxTopFloor - minBottomFloor + 1) * 15
-    const availableHeight = 700 - 100
-    const startY = Math.max(50, (availableHeight - totalFloorsHeight) / 2 + 50)
-
-    // Позиция ниже самого нижнего этажа корпусов + отступ
-    const checkboxesY = startY + totalFloorsHeight + 30
-    const controls = []
-
-    // Подземная парковка под корпусами - первый и последний чекбокс по центру корпусов
-    blocks.forEach((block, index) => {
-      const isChecked = undergroundParking.blockIds.includes(block.id)
-      controls.push(
-        <div
-          key={`underground-${block.id}`}
-          style={{
-            position: 'absolute',
-            left: block.x + 50, // Центр корпуса (120px ширина / 2 = 60, но 50 для центрирования чекбокса)
-            top: checkboxesY,
-          }}
-        >
-          <Checkbox
-            checked={isChecked}
-            onChange={(e) => handleUndergroundParkingBlockChange(block.id, e.target.checked)}
-          />
-        </div>,
-      )
-    })
-
-    // Подземные связи между корпусами - размещаем посередине между корпусами
-    for (let i = 0; i < blocks.length - 1; i++) {
-      const fromBlock = blocks[i]
-      const toBlock = blocks[i + 1]
-      const isChecked = undergroundParking.connections.some(
-        (conn) => conn.fromBlockId === fromBlock.id && conn.toBlockId === toBlock.id,
-      )
-
-      // Позиция посередине между корпусами
-      const middleX = (fromBlock.x + 120 + toBlock.x) / 2
-
-      controls.push(
-        <div
-          key={`underground-connection-${fromBlock.id}-${toBlock.id}`}
-          style={{
-            position: 'absolute',
-            left: middleX - 10, // -10 для центрирования чекбокса
-            top: checkboxesY,
-          }}
-        >
-          <Checkbox
-            checked={isChecked}
-            onChange={(e) =>
-              handleUndergroundConnectionChange(fromBlock.id, toBlock.id, e.target.checked)
-            }
-          />
-        </div>,
-      )
-    }
-
-    return controls
-  }
-
-  const renderUndergroundConnections = () => {
-    const connections = []
-
-    undergroundParking.connections.forEach((connection) => {
-      const fromBlock = blocks.find((b) => b.id === connection.fromBlockId)
-      const toBlock = blocks.find((b) => b.id === connection.toBlockId)
-
-      if (!fromBlock || !toBlock) return
-
-      // Вычисляем позицию и размеры соединения
-      const startX = fromBlock.x + 120 // Правый край первого корпуса
-      const endX = toBlock.x // Левый край второго корпуса
-      const connectionWidth = endX - startX
-
-      // Используем ту же логику позиционирования, что и в renderBlock
-      const maxTopFloor = Math.max(...blocks.map((block) => block.topFloor))
-      const minBottomFloor = Math.min(...blocks.map((block) => block.bottomFloor))
-      const totalFloorsHeight = (maxTopFloor - minBottomFloor + 1) * 15
-      const availableHeight = 700 - 100
-      const startY = Math.max(50, (availableHeight - totalFloorsHeight) / 2 + 50)
-      const groundLineY = startY + maxTopFloor * 15
-
-      // Находим общие подземные этажи между корпусами (самый верхний из нижних этажей)
-      const connectionMinBottomFloor = Math.max(fromBlock.bottomFloor, toBlock.bottomFloor)
-      const connectionFloors = []
-
-      // Создаем этажи соединения от -1 до минимального нижнего этажа
-      for (let floor = -1; floor >= connectionMinBottomFloor; floor--) {
-        // Для расчета используем логику из renderBlock:
-        // block.y = groundLineY - block.topFloor * 15
-        // В контейнере этаж с номером floor находится на смещении (block.topFloor - floor) * 15
-        // Плюс учитываем заголовок корпуса (примерно 20px)
-        const blockY = groundLineY - fromBlock.topFloor * 15
-        const headerHeight = 18 // Заголовок корпуса (fontSize: 12) + marginBottom: 4 + line-height
-        const floorOffsetInBlock = (fromBlock.topFloor - floor) * 15
-        const floorY = blockY + headerHeight + floorOffsetInBlock
-
-        connectionFloors.push(
-          <div
-            key={`connection-${connection.fromBlockId}-${connection.toBlockId}-floor-${floor}`}
-            style={{
-              position: 'absolute',
-              left: startX,
-              top: floorY,
-              width: connectionWidth,
-              height: 15,
-              backgroundColor: '#e6f7ff', // Цвет подземной парковки
-              border: '1px solid #d9d9d9',
-              borderLeft: 'none', // Убираем границу слева для плавного соединения
-              borderRight: 'none', // Убираем границу справа для плавного соединения
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 10,
-            }}
-          >
-            {floor}
-          </div>,
+        const stylobate = stylobates.find(
+          (s) => s.fromBlockId === fromBlock.id && s.toBlockId === toBlock.id,
         )
+        const connection = undergroundParking.connections.find(
+          (c) => c.fromBlockId === fromBlock.id && c.toBlockId === toBlock.id,
+        )
+
+        // Стилобат - только для положительных этажей
+        if (stylobate && floor > 0 && floor <= stylobate.floors) {
+          row[connectionKey] = {
+            floor,
+            backgroundColor: '#fffbe6', // Цвет стилобата
+            type: 'stylobate',
+            name: stylobate.name,
+          }
+        }
+        // Подземное соединение - для этажа 0 и отрицательных этажей
+        // И только в диапазоне этажей обоих корпусов
+        else if (connection && floor <= 0) {
+          const minBottomFloor = Math.max(fromBlock.bottomFloor, toBlock.bottomFloor)
+          if (floor >= minBottomFloor) {
+            // Определяем цвет: 0 этаж - как кровля, отрицательные - как подземная парковка
+            const backgroundColor = floor === 0 ? '#fff2e8' : '#e6f7ff'
+            row[connectionKey] = {
+              floor,
+              backgroundColor,
+              type: 'underground',
+            }
+          }
+        }
       }
 
-      connections.push(...connectionFloors)
+      tableData.push(row)
+    }
+
+    console.log('📋 Generated table data:', tableData.length, 'rows')
+    console.log('🔍 Sample row keys:', Object.keys(tableData[0] || {}))
+
+    return tableData
+  }
+
+  const createTableColumns = () => {
+    const columns: Array<{
+      title: string
+      dataIndex: string
+      key: string
+      width: number
+      render: (cell: { floor: number; backgroundColor: string; blockName?: string; type?: string; name?: string } | null) => React.ReactNode
+    }> = []
+
+    console.log('🏗️ Creating table columns for blocks:', blocks.length)
+
+    // Добавляем левый отступ 50px
+    columns.push({
+      title: '',
+      dataIndex: 'left_margin',
+      key: 'left_margin',
+      width: 50,
+      render: () => null, // Пустая колонка для отступа
+    })
+    console.log('✅ Added left margin column: 50px')
+
+    // Добавляем колонки для каждого корпуса и промежутки между ними
+    blocks.forEach((block, index) => {
+      // Колонка корпуса - фиксированная ширина 120px (+20%)
+      columns.push({
+        title: block.name,
+        dataIndex: `block_${block.id}`,
+        key: `block_${block.id}`,
+        width: 120,
+        render: (cell: { floor: number; backgroundColor: string; blockName?: string } | null) => {
+          if (!cell) return null
+          return (
+            <div
+              style={{
+                backgroundColor: cell.backgroundColor,
+                border: '1px solid #d9d9d9',
+                height: 14.4, // +20% от 12px
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 7.2, // +20% от 6px
+                fontWeight: 'bold',
+                margin: 0,
+                padding: 0,
+                boxSizing: 'border-box',
+              }}
+            >
+              {cell.floor}
+            </div>
+          )
+        },
+      })
+      console.log(`✅ Added building column [${index}]: ${block.name} - 120px`)
+
+      // Добавляем промежуток между корпусами (кроме последнего корпуса) - фиксированная ширина 120px (+20%)
+      if (index < blocks.length - 1) {
+        const nextBlock = blocks[index + 1]
+
+        // Колонка промежутка (для стилобатов и подземных соединений)
+        columns.push({
+          title: '', // Пустой заголовок для промежутка
+          dataIndex: `connection_${block.id}_${nextBlock.id}`,
+          key: `connection_${block.id}_${nextBlock.id}`,
+          width: 120,
+          render: (cell: { floor: number; backgroundColor: string; type?: string; name?: string } | null) => {
+            if (!cell) return null
+            return (
+              <div
+                style={{
+                  backgroundColor: cell.backgroundColor,
+                  border: '1px solid #d9d9d9',
+                  height: 14.4, // +20% от 12px
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 6, // +20% от 5px = 6px
+                  margin: 0,
+                  padding: 0,
+                  boxSizing: 'border-box',
+                }}
+              >
+                {cell.floor}
+              </div>
+            )
+          },
+        })
+        console.log(`✅ Added connection column [${index}]: ${block.name} -> ${nextBlock.name} - 120px`)
+      }
     })
 
-    return connections
+    // Рассчитываем правый отступ: ширина модального окна минус все колонки
+    // Модальное окно: 98vw (примерно ~1900px на широком экране)
+    // Корпуса теперь 120px каждый (+20% от 100px)
+    // Используем константу для расчёта
+    const modalWidth = typeof window !== 'undefined' ? window.innerWidth * 0.98 : 1900
+    const usedWidth = columns.reduce((sum, col) => sum + col.width, 0)
+    const rightPadding = Math.max(0, modalWidth - usedWidth)
+
+    // Добавляем правый отступ как последнюю колонку
+    columns.push({
+      title: '',
+      dataIndex: 'right_margin',
+      key: 'right_margin',
+      width: rightPadding,
+      render: () => null, // Пустая колонка для правого отступа
+    })
+
+    console.log('📊 Total columns created:', columns.length)
+    console.log('📏 Used width (without right margin):', usedWidth + 'px')
+    console.log('🖥️ Modal width:', modalWidth + 'px')
+    console.log('➡️ Right padding calculated:', rightPadding + 'px')
+    console.log('📏 Total expected width:', columns.reduce((sum, col) => sum + col.width, 0) + 'px')
+    console.log('📋 Column details:', columns.map(col => `${col.key}: ${col.width}px`))
+
+    return columns
   }
+
+  const tableData = createBuildingTableData()
+  const tableColumns = createTableColumns()
+
+  console.log('🎯 Rendering ProjectCardModal with:')
+  console.log('   - Table data rows:', tableData.length)
+  console.log('   - Table columns:', tableColumns.length)
 
   return (
     <Modal
@@ -444,9 +386,9 @@ export default function ProjectCardModal({
       title="Карточка проекта"
       onCancel={onCancel}
       onOk={handleSave}
-      width="95vw"
-      style={{ height: '95vh' }}
-      styles={{ body: { height: 'calc(95vh - 110px)', overflow: 'auto' } }}
+      width="98vw"
+      style={{ top: 20, height: 'calc(100vh - 40px)' }}
+      styles={{ body: { height: 'calc(100vh - 140px)', overflow: 'hidden', padding: '16px' } }}
       okText="Сохранить"
       cancelText="Отмена"
     >
@@ -456,9 +398,11 @@ export default function ProjectCardModal({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'flex-start',
+          gap: 16,
         }}
       >
-        <div>
+        {/* Информация о проекте */}
+        <div style={{ flex: '0 0 auto' }}>
           <Title level={3}>{projectData.name}</Title>
           <Text>{projectData.address}</Text>
           <br />
@@ -468,18 +412,97 @@ export default function ProjectCardModal({
           </Text>
         </div>
 
+        {/* Элементы управления */}
+        <div style={{ flex: 1, minWidth: 400 }}>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            {/* Стилобаты */}
+            {blocks.length > 1 && (
+              <div>
+                <Text strong style={{ fontSize: '0.75em', marginRight: 8 }}>Стилобаты:</Text>
+                {blocks.slice(0, -1).map((block, index) => {
+                  const nextBlock = blocks[index + 1]
+                  const stylobate = stylobates.find(
+                    (s) => s.fromBlockId === block.id && s.toBlockId === nextBlock.id,
+                  )
+                  const isChecked = !!stylobate
+
+                  return (
+                    <span key={`stylobate-${block.id}-${nextBlock.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 12 }}>
+                      <Checkbox
+                        checked={isChecked}
+                        onChange={(e) => handleStylobateChange(block.id, nextBlock.id, e.target.checked)}
+                      />
+                      <Text style={{ fontSize: '0.7em' }}>{block.name}↔{nextBlock.name}</Text>
+                      {isChecked && (
+                        <InputNumber
+                          size="small"
+                          min={1}
+                          value={stylobate?.floors || 1}
+                          onChange={(value) => handleStylobateFloorsChange(stylobate!.id, value || 1)}
+                          style={{ width: 40, marginLeft: 4 }}
+                        />
+                      )}
+                    </span>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Подземная парковка */}
+            <div>
+              <Text strong style={{ fontSize: '0.75em', marginRight: 8 }}>Подз.парковка:</Text>
+              {blocks.map((block) => {
+                const isChecked = undergroundParking.blockIds.includes(block.id)
+                return (
+                  <span key={`underground-${block.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 12 }}>
+                    <Checkbox
+                      checked={isChecked}
+                      onChange={(e) => handleUndergroundParkingBlockChange(block.id, e.target.checked)}
+                    />
+                    <Text style={{ fontSize: '0.7em' }}>{block.name}</Text>
+                  </span>
+                )
+              })}
+            </div>
+
+            {/* Подземные соединения */}
+            {blocks.length > 1 && (
+              <div>
+                <Text strong style={{ fontSize: '0.75em', marginRight: 8 }}>Подз.соединения:</Text>
+                {blocks.slice(0, -1).map((block, index) => {
+                  const nextBlock = blocks[index + 1]
+                  const isChecked = undergroundParking.connections.some(
+                    (conn) => conn.fromBlockId === block.id && conn.toBlockId === nextBlock.id,
+                  )
+
+                  return (
+                    <span key={`underground-connection-${block.id}-${nextBlock.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 12 }}>
+                      <Checkbox
+                        checked={isChecked}
+                        onChange={(e) =>
+                          handleUndergroundConnectionChange(block.id, nextBlock.id, e.target.checked)
+                        }
+                      />
+                      <Text style={{ fontSize: '0.7em' }}>{block.name}↔{nextBlock.name}</Text>
+                    </span>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Цветовая легенда */}
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 8,
-            minWidth: 300,
-            maxWidth: '30%',
+            gap: 6,
+            minWidth: 250,
             flexShrink: 0,
           }}
         >
-          <Text strong style={{ fontSize: '1em', marginBottom: 4 }}>
+          <Text strong style={{ fontSize: '0.9em', marginBottom: 4 }}>
             Легенда:
           </Text>
           <div
@@ -487,106 +510,121 @@ export default function ProjectCardModal({
               display: 'grid',
               gridTemplateColumns: '1fr 1fr',
               gridTemplateRows: '1fr 1fr',
-              gap: 8,
+              gap: 6,
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div
                 style={{
-                  width: '1em',
-                  height: '1em',
+                  width: '0.8em',
+                  height: '0.8em',
                   backgroundColor: '#e6f7ff',
                   border: '1px solid #91d5ff',
                   borderRadius: 2,
                   flexShrink: 0,
                 }}
               />
-              <Text style={{ fontSize: '0.75em', lineHeight: 1.2 }}>Подземная парковка</Text>
+              <Text style={{ fontSize: '0.7em', lineHeight: 1.2 }}>Подземная парковка</Text>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div
                 style={{
-                  width: '1em',
-                  height: '1em',
+                  width: '0.8em',
+                  height: '0.8em',
                   backgroundColor: '#f6ffed',
                   border: '1px solid #b7eb8f',
                   borderRadius: 2,
                   flexShrink: 0,
                 }}
               />
-              <Text style={{ fontSize: '0.75em', lineHeight: 1.2 }}>Типовой корпус</Text>
+              <Text style={{ fontSize: '0.7em', lineHeight: 1.2 }}>Типовой корпус</Text>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div
                 style={{
-                  width: '1em',
-                  height: '1em',
+                  width: '0.8em',
+                  height: '0.8em',
                   backgroundColor: '#fffbe6',
                   border: '1px solid #ffe58f',
                   borderRadius: 2,
                   flexShrink: 0,
                 }}
               />
-              <Text style={{ fontSize: '0.75em', lineHeight: 1.2 }}>Стилобат</Text>
+              <Text style={{ fontSize: '0.7em', lineHeight: 1.2 }}>Стилобат</Text>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div
                 style={{
-                  width: '1em',
-                  height: '1em',
+                  width: '0.8em',
+                  height: '0.8em',
                   backgroundColor: '#fff2e8',
                   border: '1px solid #ffbb96',
                   borderRadius: 2,
                   flexShrink: 0,
                 }}
               />
-              <Text style={{ fontSize: '0.75em', lineHeight: 1.2 }}>Кровля</Text>
+              <Text style={{ fontSize: '0.7em', lineHeight: 1.2 }}>Кровля</Text>
             </div>
           </div>
         </div>
       </div>
 
-      <div
-        style={{
-          position: 'relative',
-          height: 700,
-          border: '1px solid #d9d9d9',
+        {/* Табличное отображение корпусов */}
+        <div style={{
           backgroundColor: '#fafafa',
-          overflow: 'hidden',
-        }}
-      >
-        {blocks.map(renderBlock)}
-        {renderUndergroundConnections()}
-        {renderStylobateControls()}
-        {renderUndergroundControls()}
-
-        {/* Надпись "Подземный паркинг" */}
-        {blocks.length > 0 && (
-          <div
+          border: '1px solid #d9d9d9',
+          height: 'calc(100vh - 240px)',
+          overflow: 'hidden'
+        }}>
+          <Table
+            dataSource={tableData}
+            columns={tableColumns}
+            pagination={false}
+            scroll={{ x: 'max-content', y: 'calc(100vh - 280px)' }}
+            size="small"
+            bordered={false}
+            showHeader={true}
+            tableLayout="fixed"
             style={{
-              position: 'absolute',
-              left: 10,
-              top: (() => {
-                const maxTopFloor = Math.max(...blocks.map((block) => block.topFloor))
-                const minBottomFloor = Math.min(...blocks.map((block) => block.bottomFloor))
-                const totalFloorsHeight = (maxTopFloor - minBottomFloor + 1) * 15
-                const availableHeight = 700 - 100
-                const startY = Math.max(50, (availableHeight - totalFloorsHeight) / 2 + 50)
-                // Позиционируем напротив -1 этажа (на 15px ниже нулевого этажа)
-                return startY + maxTopFloor * 15 + 15 - 7 // -7 для центрирования по высоте этажа
-              })(),
-              fontSize: 12,
-              fontWeight: 'bold',
-              color: '#1890ff',
-              lineHeight: '14px',
+              backgroundColor: 'transparent',
+              height: '100%'
             }}
-          >
-            Подземный
-            <br />
-            паркинг
-          </div>
-        )}
-      </div>
+            className="building-table"
+            onHeaderRow={() => {
+              console.log('🔍 Table header rendered')
+              return {}
+            }}
+            onRow={() => {
+              console.log('🔍 Table row rendered')
+              return {}
+            }}
+          />
+        </div>
+        <style>{`
+          .building-table .ant-table {
+            table-layout: fixed !important;
+          }
+          .building-table .ant-table-tbody > tr > td {
+            padding: 0 !important;
+            border: none !important;
+            height: 14.4px !important;
+            vertical-align: top !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+          }
+          .building-table .ant-table-thead > tr > th {
+            padding: 2px 4px !important;
+            background: #fafafa !important;
+            border-bottom: 1px solid #d9d9d9 !important;
+            text-align: center !important;
+            font-size: 12px !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+          }
+          .building-table .ant-table-tbody > tr:hover > td {
+            background: transparent !important;
+          }
+        `}</style>
     </Modal>
   )
 }
