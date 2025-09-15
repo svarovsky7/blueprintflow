@@ -11,19 +11,18 @@ const { Title, Text } = Typography
 // CSS стили для правильного отображения таблицы на полную высоту
 const tableStyles = `
 .building-table .ant-table {
-  height: 100% !important;
   margin: 0 !important;
+  width: 100% !important;
+  table-layout: fixed !important;
 }
 .building-table .ant-table-container {
-  height: 100% !important;
   padding: 0 !important;
+  overflow: auto !important;
 }
 .building-table .ant-table-content {
-  height: 100% !important;
   overflow: visible !important;
 }
 .building-table .ant-table-body {
-  height: 100% !important;
   overflow: visible !important;
   padding: 0 !important;
 }
@@ -49,7 +48,7 @@ const tableStyles = `
   line-height: 1 !important;
 }
 .building-table .ant-table-tbody {
-  height: calc(100% - 20px) !important;
+  overflow: visible !important;
 }
 `
 
@@ -228,15 +227,74 @@ export default function ProjectCardModal({
     }
   }
 
+  // Вычисляем масштабирование для высоких зданий
+  const scalingInfo = useMemo(() => {
+    if (!blocks.length) return { totalFloors: 0, needsScaling: false, rowHeight: 12, maxTopFloor: 0, minBottomFloor: 0 }
+
+    console.log('🔍 ProjectCardModal: Calculating scaling for blocks:', blocks.map(b => ({
+      name: b.name,
+      bottomFloor: b.bottomFloor,
+      topFloor: b.topFloor
+    })))
+
+    const maxTopFloor = Math.max(...blocks.map((block) => block.topFloor))
+    const minBottomFloor = Math.min(...blocks.map((block) => block.bottomFloor))
+    const totalFloors = maxTopFloor - minBottomFloor + 1
+
+    // Применяем масштабирование если этажей 43 и больше
+    const needsScaling = totalFloors >= 43
+
+    // Стандартная высота строки - 12px (было 20px)
+    const standardRowHeight = 12
+    // Минимальная высота строки при масштабировании
+    const minRowHeight = 8
+
+    let rowHeight = standardRowHeight
+    if (needsScaling) {
+      // Доступная высота для таблицы с учетом всех элементов интерфейса
+      // Экран минус отступы, заголовок модала, управляющие элементы, кнопки
+      const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 900
+      const modalPadding = 120 // Заголовок модала + кнопки + отступы
+      const controlsHeight = 180 // Высота блока с информацией о проекте и управляющими элементами
+      const headerHeight = 40 // Высота заголовка таблицы
+      const availableHeight = viewportHeight - modalPadding - controlsHeight - headerHeight
+
+      // Вычисляем оптимальную высоту строки чтобы все этажи поместились БЕЗ прокрутки
+      const calculatedHeight = availableHeight / totalFloors
+      rowHeight = Math.max(calculatedHeight, minRowHeight)
+
+      console.log('🔍 ProjectCardModal: Scaling calculation:', {
+        viewportHeight,
+        modalPadding,
+        controlsHeight,
+        headerHeight,
+        availableHeight,
+        totalFloors,
+        calculatedHeight,
+        finalRowHeight: rowHeight
+      })
+    }
+
+    const result = {
+      totalFloors,
+      needsScaling,
+      rowHeight: Math.round(rowHeight),
+      maxTopFloor,
+      minBottomFloor
+    }
+
+    console.log('🔍 ProjectCardModal: Scaling info calculated:', result)
+
+    return result
+  }, [blocks])
+
   const tableData = useMemo(() => {
     if (!blocks.length) return []
 
-
-    // Находим диапазон этажей
-    const maxTopFloor = Math.max(...blocks.map((block) => block.topFloor))
-    const minBottomFloor = Math.min(...blocks.map((block) => block.bottomFloor))
-
     const data = []
+
+    // Используем значения из scalingInfo
+    const { maxTopFloor, minBottomFloor } = scalingInfo
 
     // Создаем данные для каждого этажа
     for (let floor = maxTopFloor; floor >= minBottomFloor; floor--) {
@@ -318,7 +376,52 @@ export default function ProjectCardModal({
     }
 
     return data
-  }, [blocks, stylobates, undergroundParking])
+  }, [blocks, stylobates, undergroundParking, scalingInfo])
+
+  // Динамические стили для масштабирования
+  const scalingStyles = useMemo(() => {
+    if (!scalingInfo.needsScaling) {
+      console.log('🔍 ProjectCardModal: No scaling needed')
+      return ''
+    }
+
+    const styles = `
+      .building-table-scaled.building-table .ant-table-tbody tr {
+        height: ${scalingInfo.rowHeight}px !important;
+        min-height: ${scalingInfo.rowHeight}px !important;
+        max-height: ${scalingInfo.rowHeight}px !important;
+      }
+      .building-table-scaled.building-table .ant-table-tbody tr td {
+        height: ${scalingInfo.rowHeight}px !important;
+        min-height: ${scalingInfo.rowHeight}px !important;
+        max-height: ${scalingInfo.rowHeight}px !important;
+        font-size: ${Math.max(6, Math.round(scalingInfo.rowHeight * 0.6))}px !important;
+        line-height: 1 !important;
+        padding: 0 1px !important;
+      }
+      .building-table-scaled.building-table .ant-table-thead tr th {
+        height: ${Math.max(20, scalingInfo.rowHeight + 8)}px !important;
+        font-size: ${Math.max(8, Math.round(scalingInfo.rowHeight * 0.7))}px !important;
+        padding: 1px 2px !important;
+      }
+      .building-table-scaled.building-table .ant-table,
+      .building-table-scaled.building-table .ant-table-content,
+      .building-table-scaled.building-table .ant-table-body,
+      .building-table-scaled.building-table .ant-table-tbody {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+      }
+      .building-table-scaled.building-table .ant-table-container {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        height: auto !important;
+      }
+    `
+
+    console.log('🔍 ProjectCardModal: Generated scaling styles:', styles)
+    return styles
+  }, [scalingInfo])
 
   const tableColumns = useMemo(() => {
     const columns: Array<{
@@ -476,20 +579,23 @@ export default function ProjectCardModal({
     return columns
   }, [blocks, stylobates])
 
-  // Рассчитываем динамическую высоту строк
-  const totalRows = tableData.length
-  const dynamicRowHeight = totalRows > 0 ? `calc((100vh - 300px) / ${totalRows})` : '20px'
-
   return (
     <>
-      <style>{tableStyles}</style>
+      <style>{tableStyles + scalingStyles}</style>
       <Modal
         open={visible}
-        title="Карточка проекта"
+        title={
+          scalingInfo.needsScaling
+            ? `Карточка проекта (${scalingInfo.totalFloors} этажей - масштабируется)`
+            : "Карточка проекта"
+        }
         onCancel={onCancel}
         onOk={handleSave}
         width="98vw"
-        style={{ top: 20, height: 'calc(100vh - 40px)' }}
+        style={{
+          top: 20,
+          height: 'calc(100vh - 40px)',
+        }}
         styles={{
           body: {
             height: 'calc(100vh - 140px)',
@@ -730,8 +836,10 @@ export default function ProjectCardModal({
             backgroundColor: '#fafafa',
             border: '1px solid #d9d9d9',
             flex: 1,
-            overflow: 'hidden',
+            overflow: 'hidden', // КРИТИЧНО: убираем прокрутку контейнера
             minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           <Table
@@ -740,7 +848,7 @@ export default function ProjectCardModal({
             pagination={false}
             scroll={{
               x: tableColumns.reduce((sum, col) => sum + col.width, 0),
-              y: 'calc(100vh - 350px)',
+              // НЕ устанавливаем y - таблица должна растягиваться на всю доступную высоту
             }}
             size="small"
             bordered={false}
@@ -748,29 +856,37 @@ export default function ProjectCardModal({
             tableLayout="fixed"
             style={{
               backgroundColor: 'transparent',
-              height: '100%',
+              flex: 1, // Добавляем flex: 1 для таблицы
+              height: scalingInfo.needsScaling
+                ? `${scalingInfo.totalFloors * scalingInfo.rowHeight + 30}px` // +30px для заголовка
+                : 'auto'
             }}
-            className="building-table"
+            className={(() => {
+              const className = scalingInfo.needsScaling ? "building-table building-table-scaled" : "building-table"
+              console.log('🔍 ProjectCardModal: Applied className:', className, 'Total height:', scalingInfo.needsScaling ? `${scalingInfo.totalFloors * scalingInfo.rowHeight + 30}px` : 'auto')
+              return className
+            })()}
           />
         </div>
         <style>{`
           .building-table .ant-table {
             table-layout: fixed !important;
-            height: 100% !important;
             width: 100% !important;
           }
           .building-table .ant-table-container {
-            height: 100% !important;
-            overflow: auto !important;
+            overflow: hidden !important;
+          }
+          .building-table-scaled .ant-table-container {
+            overflow: hidden !important;
           }
           .building-table .ant-table-content {
-            height: 100% !important;
+            overflow: visible !important;
           }
           .building-table .ant-table-body {
-            height: 100% !important;
+            overflow: visible !important;
           }
           .building-table .ant-table-tbody {
-            height: 100% !important;
+            overflow: visible !important;
           }
           .building-table .ant-table-tbody > tr {
             height: 12px !important;

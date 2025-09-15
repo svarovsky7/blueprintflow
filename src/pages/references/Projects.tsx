@@ -19,12 +19,14 @@ import { supabase } from '../../lib/supabase'
 import { EyeOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import ProjectCardModal from '../../components/ProjectCardModal'
 import { blocksApi, blockConnectionsApi } from '@/entities/projects'
+import type { BlockType } from '@/entities/projects/model/types'
 import CascadeDeleteProject from '../../components/CascadeDeleteProject'
 import styles from './Projects.module.css'
 
 interface BlockInfo {
   id: string
   name: string
+  type_blocks?: BlockType
   bottom_floor?: number | null
   top_floor?: number | null
   bottom_underground_floor?: number | null
@@ -76,7 +78,8 @@ export default function Projects() {
           block_id,
           blocks (
             id,
-            name
+            name,
+            type_blocks
           )
         `)
         .eq('project_id', projectId)
@@ -119,8 +122,13 @@ export default function Projects() {
       })
 
       // 3. Разделяем блоки на обычные корпуса и стилобаты
-      const regularBlocks = allProjectBlocks.filter(block => !stylobateBlockIds.has(block.id))
-      const stylobateBlocks = allProjectBlocks.filter(block => stylobateBlockIds.has(block.id))
+      const regularBlocks = allProjectBlocks.filter(block =>
+        // Fallback: если type_blocks не указан, используем старую логику по типам этажей
+        block.type_blocks ? block.type_blocks === 'Типовой корпус' : !stylobateBlockIds.has(block.id)
+      )
+      const stylobateBlocks = allProjectBlocks.filter(block =>
+        block.type_blocks ? block.type_blocks === 'Стилобат' : stylobateBlockIds.has(block.id)
+      )
 
       // 4. Загружаем связи между блоками
       const { data: connections, error: connectionsError } = await supabase
@@ -302,7 +310,7 @@ export default function Projects() {
         // Используем старую структуру
         const result = await supabase
           .from('projects_blocks')
-          .select('project_id, block_id, blocks(name, bottom_underground_floor, top_ground_floor)')
+          .select('project_id, block_id, blocks(name, type_blocks, bottom_underground_floor, top_ground_floor)')
           .in('project_id', ids)
         linkData = result.data
         linkError = result.error
@@ -312,9 +320,9 @@ export default function Projects() {
           .from('projects_blocks')
           .select(
             `
-            project_id, 
-            block_id, 
-            blocks(name)
+            project_id,
+            block_id,
+            blocks(name, type_blocks)
           `,
           )
           .in('project_id', ids)
@@ -477,12 +485,19 @@ export default function Projects() {
       const blocks = record.blocks
       const blockIds = record.projects_blocks?.map((b) => b.block_id) ?? []
       setExistingBlockIds(blockIds)
-      setBlocksCount(blocks.length)
+
+      // Фильтруем только блоки типа "Типовой корпус"
+      const regularBlocks = blocks.filter(block =>
+        block.type_blocks ? block.type_blocks === 'Типовой корпус' : true
+      )
+      const regularBlocksCount = regularBlocks.length
+
+      setBlocksCount(regularBlocksCount)
       form.setFieldsValue({
         name: record.name,
         address: record.address,
-        blocksCount: blocks.length,
-        blocks,
+        blocksCount: regularBlocksCount,
+        blocks: regularBlocks, // Передаем только типовые корпуса
       })
       setModalMode('edit')
     },
@@ -492,10 +507,21 @@ export default function Projects() {
   const handleBlocksCountChange = (value: number | null) => {
     const count = value ?? 0
     const current = form.getFieldValue('blocks') || []
+
+    // Берем только существующие типовые корпуса, новые поля делаем пустыми
     const updated = Array.from(
       { length: count },
-      (_, i) => current[i] || { name: '', bottom_floor: null, top_floor: null },
+      (_, i) => {
+        if (i < current.length) {
+          // Сохраняем существующий типовой корпус
+          return current[i]
+        } else {
+          // Новое поле - пустое
+          return { name: '', bottom_floor: null, top_floor: null }
+        }
+      }
     )
+
     form.setFieldsValue({ blocks: updated })
     setBlocksCount(count)
 
@@ -550,7 +576,7 @@ export default function Projects() {
     blocks: [] as Array<{ name: string; bottomFloor: number; topFloor: number }>,
   })
 
-  const handleShowProjectCard = () => {
+  const handleShowProjectCard = async () => {
     const values = form.getFieldsValue()
     if (!values.name || !values.address || !values.blocks?.length) {
       message.warning('Заполните все обязательные поля перед открытием карточки')
@@ -558,22 +584,63 @@ export default function Projects() {
     }
 
     try {
-      console.log('🔍 Form values before mapping:', values.blocks)
+      if (modalMode === 'edit' && currentProject?.id) {
+        // Для режима редактирования загружаем данные из БД и объединяем с данными из формы
+        console.log('🔍 Loading existing project data for edit mode')
+        const fullProjectData = await loadProjectCardData(currentProject.id)
 
-      const projectCardData = {
-        id: modalMode === 'add' ? '' : (currentProject?.id || ''), // Пустой ID для новых проектов
-        name: values.name || '',
-        address: values.address || '',
-        blocks: (values.blocks || []).map((block: any) => ({
+        // Обновляем имя и адрес из формы
+        fullProjectData.name = values.name
+        fullProjectData.address = values.address
+
+        // Заменяем корпуса данными из формы (форма содержит только типовые корпуса)
+        const formBlocks = (values.blocks || []).map((block: any, index: number) => ({
+          id: index + 1,
           name: block.name || '',
           bottomFloor: block.bottom_floor ?? 0,
           topFloor: block.top_floor ?? 0,
-        })),
-      }
+          x: 0,
+          y: 0,
+        }))
 
-      console.log('🔍 Mapped project data:', projectCardData)
-      setProjectCardData(projectCardData)
-      setShowProjectCard(true)
+        // Обновляем только блоки, стилобаты и подземный паркинг остаются из БД
+        fullProjectData.blocks = formBlocks
+
+        console.log('🔍 Updated project data with form blocks:', {
+          formBlocksCount: formBlocks.length,
+          stylobatesCount: fullProjectData.stylobates.length,
+          undergroundConnections: fullProjectData.undergroundParking.connections.length
+        })
+
+        setProjectCardData(fullProjectData)
+        setShowProjectCard(true)
+      } else {
+        // Для режима добавления используем данные из формы
+        console.log('🔍 Form values before mapping:', values.blocks)
+
+        const projectCardData = {
+          id: '', // Пустой ID для новых проектов
+          name: values.name || '',
+          address: values.address || '',
+          blocks: (values.blocks || []).map((block: any, index: number) => ({
+            id: index + 1,
+            name: block.name || '',
+            bottomFloor: block.bottom_floor ?? 0,
+            topFloor: block.top_floor ?? 0,
+            x: 0,
+            y: 0,
+          })),
+          stylobates: [],
+          undergroundParking: {
+            blockIds: [],
+            connections: []
+          }
+        }
+
+        console.log('🔍 Mapped project data:', projectCardData)
+        setProjectCardData(projectCardData)
+        setShowProjectCard(true)
+      }
     } catch (error) {
       console.error('Ошибка при подготовке карточки проекта:', error)
       message.error('Ошибка при подготовке карточки проекта')
@@ -616,13 +683,35 @@ export default function Projects() {
         if (projectError) throw projectError
         projectId = currentProject.id
 
-        // Удаляем существующие блоки
+        // Удаляем все существующие данные проекта для пересоздания
+        console.log('🗑️ Cleaning up existing project data for re-creation')
+
+        // Удаляем связи блоков
+        await supabase
+          .from('block_connections_mapping')
+          .delete()
+          .eq('project_id', currentProject.id)
+
+        // Удаляем этажи блоков
         if (existingBlockIds.length) {
-          const { error: delError } = await supabase
+          await supabase
+            .from('block_floor_mapping')
+            .delete()
+            .in('block_id', existingBlockIds)
+        }
+
+        // Удаляем связи блоков с проектом
+        await supabase
+          .from('projects_blocks')
+          .delete()
+          .eq('project_id', currentProject.id)
+
+        // Удаляем блоки
+        if (existingBlockIds.length) {
+          await supabase
             .from('blocks')
             .delete()
             .in('id', existingBlockIds)
-          if (delError) throw delError
         }
       } else {
         return
@@ -676,7 +765,7 @@ export default function Projects() {
           )
 
           // Создаем блок стилобата в таблице blocks
-          const stylobateBlock = await blocksApi.createBlock(stylobate.name)
+          const stylobateBlock = await blocksApi.createBlock(stylobate.name, 'Стилобат')
           await blocksApi.linkBlockToProject(projectId, stylobateBlock.id)
 
           // Добавляем этажи стилобата
@@ -1070,7 +1159,9 @@ export default function Projects() {
           <div>
             <p>Название: {currentProject?.name}</p>
             <p>Адрес: {currentProject?.address}</p>
-            <p>Количество корпусов: {currentProject?.blocks.length ?? 0}</p>
+            <p>Количество корпусов: {currentProject?.blocks.filter(block =>
+              block.type_blocks ? block.type_blocks === 'Типовой корпус' : true
+            ).length ?? 0}</p>
             <p>
               Корпуса:{' '}
               {(() => {

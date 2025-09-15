@@ -437,6 +437,8 @@ export default function Chessboard() {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [importOpen, setImportOpen] = useState(false)
   const [importFile, setImportFile] = useState<File | null>(null)
+  const [isImporting, setIsImporting] = useState(false)
+  const [importErrors, setImportErrors] = useState<{[key: string]: number}>({})
   const [importState, setImportState] = useState<{
     projectId?: string
     blockId?: string[]
@@ -1036,9 +1038,11 @@ export default function Chessboard() {
     enabled: !!appliedFilters?.projectId,
   })
 
-  const { data: tableData, refetch } = useQuery<DbRow[]>({
+  const { data: tableData, refetch, error: tableDataError, isError } = useQuery<DbRow[]>({
     queryKey: ['chessboard', appliedFilters, selectedVersions],
     enabled: !!appliedFilters?.projectId,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     queryFn: async () => {
       if (!supabase || !appliedFilters) return []
 
@@ -1081,8 +1085,18 @@ export default function Chessboard() {
       const { data, error } = await query.order('created_at', { ascending: false })
       if (error) {
         console.error('❌ Query Error:', error)
-        message.error('Не удалось загрузить данные')
-        throw error
+
+        // Определяем тип ошибки для более понятного сообщения
+        let errorMessage = 'Не удалось загрузить данные'
+        if (error.message?.includes('network')) {
+          errorMessage = 'Проблема с сетевым соединением. Проверьте интернет-подключение'
+        } else if (error.message?.includes('timeout')) {
+          errorMessage = 'Превышено время ожидания. Попробуйте еще раз'
+        } else if (error.code === 'PGRST116') {
+          errorMessage = 'Слишком много данных для обработки. Уточните фильтры'
+        }
+
+        throw new Error(errorMessage)
       }
 
       // Загружаем этажи для всех записей
@@ -1092,13 +1106,27 @@ export default function Chessboard() {
       const floorsMap: Record<string, { floors: string; quantities: FloorQuantities }> = {}
 
       if (chessboardIds.length > 0) {
-        const { data: floorsData } = await supabase
-          .from('chessboard_floor_mapping')
-          .select(
-            'chessboard_id, floor_number, location_id, "quantityPd", "quantitySpec", "quantityRd"',
-          )
-          .in('chessboard_id', chessboardIds)
-          .order('floor_number', { ascending: true })
+        // Разбиваем на батчи для избежания слишком длинных URL
+        const batchSize = 100
+        let floorsData: any[] = []
+
+        for (let i = 0; i < chessboardIds.length; i += batchSize) {
+          const batch = chessboardIds.slice(i, i + batchSize)
+          const { data: batchData, error: floorsError } = await supabase
+            .from('chessboard_floor_mapping')
+            .select(
+              'chessboard_id, floor_number, location_id, "quantityPd", "quantitySpec", "quantityRd"',
+            )
+            .in('chessboard_id', batch)
+            .order('floor_number', { ascending: true })
+
+          if (floorsError) {
+            console.error('Ошибка загрузки этажей (батч):', floorsError)
+            // Не бросаем ошибку, продолжаем без этажей для этого батча
+          } else if (batchData) {
+            floorsData = floorsData.concat(batchData)
+          }
+        }
 
         // Группируем этажи или локации по chessboard_id и сохраняем количества
         if (floorsData) {
@@ -1175,29 +1203,102 @@ export default function Chessboard() {
     },
   })
 
-  // Запрос комментариев для всех строк
+  // Запрос комментариев для всех строк (с обработкой ошибок для отсутствующих таблиц)
   const { data: commentsData } = useQuery<CommentWithMapping[]>({
-    queryKey: ['chessboard-comments', appliedFilters?.projectId],
-    enabled: !!appliedFilters?.projectId && !!tableData && tableData.length > 0,
+    queryKey: ['chessboard-comments', appliedFilters?.projectId, tableData?.length],
+    enabled: !!appliedFilters?.projectId && !!tableData && tableData.length > 0 && !isImporting,
+    retry: 0, // Не повторяем при ошибке отсутствия таблицы
     queryFn: async () => {
       if (!supabase || !tableData) return []
 
       const chessboardIds = tableData.map((item) => item.id)
       if (chessboardIds.length === 0) return []
 
-      const { data, error } = await supabase
-        .from('comments')
-        .select('*, entity_comments_mapping!inner(entity_type, entity_id)')
-        .eq('entity_comments_mapping.entity_type', 'chessboard')
-        .in('entity_comments_mapping.entity_id', chessboardIds)
-        .order('created_at', { ascending: false })
+      try {
+        // Используем батч-обработку для избежания длинных URL
+        const batchSize = 50
+        const allMappings: any[] = []
 
-      if (error) {
-        console.error('Ошибка загрузки комментариев:', error)
+        for (let i = 0; i < chessboardIds.length; i += batchSize) {
+          const batch = chessboardIds.slice(i, i + batchSize)
+
+          const { data: mappingsBatch, error: mappingError } = await supabase
+            .from('entity_comments_mapping')
+            .select('entity_id, comment_id')
+            .eq('entity_type', 'chessboard')
+            .in('entity_id', batch)
+
+          if (mappingError) {
+            console.warn(`Ошибка загрузки маппинга комментариев для батча ${i / batchSize + 1}:`, mappingError)
+            continue
+          }
+
+          if (mappingsBatch && mappingsBatch.length > 0) {
+            allMappings.push(...mappingsBatch)
+          }
+        }
+
+        if (allMappings.length === 0) {
+          return []
+        }
+
+        // Получаем все уникальные comment_id
+        const commentIds = [...new Set(allMappings.map((m: any) => m.comment_id))]
+
+        // Теперь получаем сами комментарии (тоже с батч-обработкой если нужно)
+        const allComments: any[] = []
+        const commentBatchSize = 100
+
+        for (let i = 0; i < commentIds.length; i += commentBatchSize) {
+          const batch = commentIds.slice(i, i + commentBatchSize)
+
+          const { data: commentsBatch, error: commentsError } = await supabase
+            .from('comments')
+            .select('*')
+            .in('id', batch)
+            .order('created_at', { ascending: false })
+
+          if (commentsError) {
+            console.warn(`Ошибка загрузки комментариев для батча ${i / commentBatchSize + 1}:`, commentsError)
+            continue
+          }
+
+          if (commentsBatch && commentsBatch.length > 0) {
+            allComments.push(...commentsBatch)
+          }
+        }
+
+        // Преобразуем данные в нужный формат
+        const result: CommentWithMapping[] = []
+
+        if (allComments.length > 0 && allMappings.length > 0) {
+          allComments.forEach((comment) => {
+            // Находим все маппинги для этого комментария
+            const commentMappings = allMappings.filter((m: any) => m.comment_id === comment.id)
+
+            commentMappings.forEach((mapping: any) => {
+              result.push({
+                id: comment.id,
+                comment_text: comment.comment_text,
+                author_id: comment.author_id,
+                created_at: comment.created_at,
+                updated_at: comment.updated_at,
+                entity_comments_mapping: [{
+                  entity_type: 'chessboard',
+                  entity_id: mapping.entity_id,
+                  comment_id: comment.id
+                }]
+              })
+            })
+          })
+        }
+
+        return result
+      } catch (error) {
+        // Обрабатываем любые другие ошибки сети или парсинга
+        console.warn('Комментарии недоступны:', error)
         return []
       }
-
-      return (data as CommentWithMapping[]) || []
     },
   })
 
@@ -2682,17 +2783,17 @@ export default function Chessboard() {
           const floorMappings = floors.map((floor) => ({
             chessboard_id: r.key,
             floor_number: floor,
-            quantityPd: floorQuantities?.[floor]?.quantityPd
+            "quantityPd": floorQuantities?.[floor]?.quantityPd
               ? Number(floorQuantities[floor].quantityPd)
               : r.quantityPd
                 ? Number(r.quantityPd) / totalFloors
                 : null,
-            quantitySpec: floorQuantities?.[floor]?.quantitySpec
+            "quantitySpec": floorQuantities?.[floor]?.quantitySpec
               ? Number(floorQuantities[floor].quantitySpec)
               : r.quantitySpec
                 ? Number(r.quantitySpec) / totalFloors
                 : null,
-            quantityRd: floorQuantities?.[floor]?.quantityRd
+            "quantityRd": floorQuantities?.[floor]?.quantityRd
               ? Number(floorQuantities[floor].quantityRd)
               : r.quantityRd
                 ? Number(r.quantityRd) / totalFloors
@@ -2704,17 +2805,17 @@ export default function Chessboard() {
           await supabase!.from('chessboard_floor_mapping').insert({
             chessboard_id: r.key,
             location_id: r.locationId ? Number(r.locationId) : null,
-            quantityPd: qty?.quantityPd
+            "quantityPd": qty?.quantityPd
               ? Number(qty.quantityPd)
               : r.quantityPd
                 ? Number(r.quantityPd)
                 : null,
-            quantitySpec: qty?.quantitySpec
+            "quantitySpec": qty?.quantitySpec
               ? Number(qty.quantitySpec)
               : r.quantitySpec
                 ? Number(r.quantitySpec)
                 : null,
-            quantityRd: qty?.quantityRd
+            "quantityRd": qty?.quantityRd
               ? Number(qty.quantityRd)
               : r.quantityRd
                 ? Number(r.quantityRd)
@@ -2904,6 +3005,8 @@ export default function Chessboard() {
       message.error('Выберите проект и файл')
       return
     }
+    setIsImporting(true) // Включаем режим импорта
+    setImportErrors({}) // Очищаем ошибки
     try {
       const data = await importFile.arrayBuffer()
       const workbook = XLSX.read(data, { type: 'array' })
@@ -2969,9 +3072,30 @@ export default function Chessboard() {
         const quantitySpec = parseQuantity(quantitySpecCell)
         const quantityRd = parseQuantity(quantityRdCell)
 
+        // Собираем статистику по количественным данным
+        if (!quantityPd && !quantitySpec && !quantityRd) {
+          setImportErrors(prev => ({
+            ...prev,
+            'Строки без количественных данных': (prev['Строки без количественных данных'] || 0) + 1
+          }))
+        }
+
         const unitId = unitName
           ? units?.find((u) => u.name.toLowerCase() === unitName.toLowerCase())?.id || null
           : null
+
+        // Собираем статистику ошибок по единицам измерения
+        if (!unitName) {
+          setImportErrors(prev => ({
+            ...prev,
+            'Пустые единицы измерения': (prev['Пустые единицы измерения'] || 0) + 1
+          }))
+        } else if (!unitId) {
+          setImportErrors(prev => ({
+            ...prev,
+            'Неизвестные единицы измерения': (prev['Неизвестные единицы измерения'] || 0) + 1
+          }))
+        }
 
         payload.push({
           project_id: importState.projectId,
@@ -3015,6 +3139,12 @@ export default function Chessboard() {
             )
             if (foundBlock) {
               blockId = foundBlock.id
+            } else {
+              // Блок из файла не найден в справочнике
+              setImportErrors(prev => ({
+                ...prev,
+                'Неизвестные корпуса в файле': (prev['Неизвестные корпуса в файле'] || 0) + 1
+              }))
             }
           }
 
@@ -3036,12 +3166,20 @@ export default function Chessboard() {
           }
 
           if (!categoryId) {
+            setImportErrors(prev => ({
+              ...prev,
+              'Строки без категории затрат': (prev['Строки без категории затрат'] || 0) + 1
+            }))
             return null // Не создаем mapping если нет категории
           }
 
           // Проверяем, что выбранная категория действительно существует в справочнике
           const categoryExists = costCategories?.some((cat) => cat.id === categoryId)
           if (!categoryExists) {
+            setImportErrors(prev => ({
+              ...prev,
+              'Несуществующие категории затрат': (prev['Несуществующие категории затрат'] || 0) + 1
+            }))
             return null // Не создаем mapping если категория не существует
           }
 
@@ -3054,6 +3192,11 @@ export default function Chessboard() {
             )
             if (typeExists) {
               typeId = selectedTypeId
+            } else {
+              setImportErrors(prev => ({
+                ...prev,
+                'Несоответствие видов затрат категориям': (prev['Несоответствие видов затрат категориям'] || 0) + 1
+              }))
             }
           }
 
@@ -3078,9 +3221,9 @@ export default function Chessboard() {
         chessboard_id: d.id,
         floor_number: null, // Будет NULL при импорте, так как этажи указываются отдельно
         location_id: importState.locationId ? Number(importState.locationId) : null,
-        quantityPd: additionalData[idx].quantityPd,
-        quantitySpec: additionalData[idx].quantitySpec,
-        quantityRd: additionalData[idx].quantityRd,
+        "quantityPd": additionalData[idx].quantityPd,
+        "quantitySpec": additionalData[idx].quantitySpec,
+        "quantityRd": additionalData[idx].quantityRd,
       }))
       if (floorMappings.length > 0) {
         const { error: floorError } = await supabase!
@@ -3213,8 +3356,11 @@ export default function Chessboard() {
       setImportState({})
 
       // Затем показываем модальное окно с результатами
-      modal.success({
-        title: 'Импорт завершен успешно!',
+      const hasErrors = Object.keys(importErrors).length > 0
+      const totalErrors = Object.values(importErrors).reduce((sum, count) => sum + count, 0)
+
+      modal[hasErrors ? 'warning' : 'success']({
+        title: hasErrors ? 'Импорт завершен с предупреждениями' : 'Импорт завершен успешно!',
         content: (
           <div>
             <p>
@@ -3225,13 +3371,31 @@ export default function Chessboard() {
                 Создано связей с категориями: <strong>{mappings.length}</strong>
               </p>
             )}
+            {hasErrors && (
+              <div style={{ marginTop: 16, padding: 12, backgroundColor: '#fff2e8', borderRadius: 6 }}>
+                <p style={{ fontWeight: 'bold', color: '#d46b08', marginBottom: 8 }}>
+                  Предупреждения при импорте ({totalErrors} шт.):
+                </p>
+                {Object.entries(importErrors).map(([errorType, count]) => (
+                  <div key={errorType} style={{ marginBottom: 4, fontSize: '14px' }}>
+                    • {errorType}: <strong>{count} строк</strong>
+                  </div>
+                ))}
+                <p style={{ fontSize: '12px', color: '#8c8c8c', marginTop: 8, marginBottom: 0 }}>
+                  Данные предупреждения не влияют на работу системы, но могут требовать внимания.
+                </p>
+              </div>
+            )}
             <p style={{ color: '#666', fontSize: '14px', marginTop: 16 }}>
               Данные были добавлены в таблицу согласно выбранным параметрам импорта.
             </p>
           </div>
         ),
         okText: 'ОК',
-        width: 400,
+        width: 500,
+        onOk: () => {
+          setIsImporting(false) // Отключаем режим импорта только после закрытия окна результатов
+        }
       })
     } catch (e) {
       console.error('Ошибка импорта:', e)
@@ -3297,6 +3461,7 @@ export default function Chessboard() {
         okText: 'Понятно',
         width: 500,
       })
+      setIsImporting(false) // Отключаем режим импорта при ошибке
       // Не закрываем модальное окно при ошибке, чтобы пользователь мог исправить данные
     }
   }, [
@@ -3403,17 +3568,17 @@ export default function Chessboard() {
         const floorMappings = floors.map((floor) => ({
           chessboard_id: data[idx].id,
           floor_number: floor,
-          quantityPd: floorQuantities?.[floor]?.quantityPd
+          "quantityPd": floorQuantities?.[floor]?.quantityPd
             ? Number(floorQuantities[floor].quantityPd)
             : rows[idx].quantityPd
               ? Number(rows[idx].quantityPd) / totalFloors
               : null,
-          quantitySpec: floorQuantities?.[floor]?.quantitySpec
+          "quantitySpec": floorQuantities?.[floor]?.quantitySpec
             ? Number(floorQuantities[floor].quantitySpec)
             : rows[idx].quantitySpec
               ? Number(rows[idx].quantitySpec) / totalFloors
               : null,
-          quantityRd: floorQuantities?.[floor]?.quantityRd
+          "quantityRd": floorQuantities?.[floor]?.quantityRd
             ? Number(floorQuantities[floor].quantityRd)
             : rows[idx].quantityRd
               ? Number(rows[idx].quantityRd) / totalFloors
@@ -3430,17 +3595,17 @@ export default function Chessboard() {
         const { error: floorError } = await supabase.from('chessboard_floor_mapping').insert({
           chessboard_id: data[idx].id,
           location_id: rows[idx].locationId ? Number(rows[idx].locationId) : null,
-          quantityPd: qty?.quantityPd
+          "quantityPd": qty?.quantityPd
             ? Number(qty.quantityPd)
             : rows[idx].quantityPd
               ? Number(rows[idx].quantityPd)
               : null,
-          quantitySpec: qty?.quantitySpec
+          "quantitySpec": qty?.quantitySpec
             ? Number(qty.quantitySpec)
             : rows[idx].quantitySpec
               ? Number(rows[idx].quantitySpec)
               : null,
-          quantityRd: qty?.quantityRd
+          "quantityRd": qty?.quantityRd
             ? Number(qty.quantityRd)
             : rows[idx].quantityRd
               ? Number(rows[idx].quantityRd)
@@ -5246,6 +5411,33 @@ export default function Chessboard() {
         minHeight: 0,
       }}
     >
+      {/* Индикатор ошибки загрузки данных */}
+      {isError && tableDataError && (
+        <div style={{
+          margin: '16px 0',
+          padding: '12px',
+          backgroundColor: '#fff2f0',
+          border: '1px solid #ffccc7',
+          borderRadius: '6px',
+          color: '#cf1322'
+        }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+            Ошибка загрузки данных
+          </div>
+          <div style={{ fontSize: '14px' }}>
+            {tableDataError.message || 'Неизвестная ошибка'}
+          </div>
+          <Button
+            size="small"
+            type="primary"
+            style={{ marginTop: '8px' }}
+            onClick={() => refetch()}
+          >
+            Повторить попытку
+          </Button>
+        </div>
+      )}
+
       <div className="filters" style={{ flexShrink: 0, paddingBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
           <Space align="center" size="middle">
@@ -5696,6 +5888,7 @@ export default function Chessboard() {
           setImportOpen(false)
           setImportFile(null)
           setImportState({})
+          setIsImporting(false) // Отключаем режим импорта при отмене
         }}
         onOk={handleImport}
         okText="Импорт"
