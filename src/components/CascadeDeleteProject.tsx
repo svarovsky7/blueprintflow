@@ -48,30 +48,6 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
 
       const filesCount = filesList?.length || 0
 
-      // Подсчитываем сметы
-      const { count: estimatesCount } = await supabase
-        .from('estimates')
-        .select('*', { count: 'exact', head: true })
-        .eq('project_id', projectId)
-
-      // Подсчитываем элементы смет через связанные сметы
-      let estimateItemsCount = 0
-      if (estimatesCount && estimatesCount > 0) {
-        const { data: estimatesIds } = await supabase
-          .from('estimates')
-          .select('id')
-          .eq('project_id', projectId)
-
-        if (estimatesIds && estimatesIds.length > 0) {
-          const estimateIdsList = estimatesIds.map((item) => item.id)
-          const { count: itemsCount } = await supabase
-            .from('estimate_items')
-            .select('*', { count: 'exact', head: true })
-            .in('estimate_id', estimateIdsList)
-
-          estimateItemsCount = itemsCount || 0
-        }
-      }
 
       // Подсчитываем блоки проекта
       const { count: projectBlocksCount } = await supabase
@@ -109,8 +85,6 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
         setsCount: setsCount || 0,
         docsCount: docsCount || 0,
         filesCount,
-        estimatesCount: estimatesCount || 0,
-        estimateItemsCount,
         projectBlocksCount: projectBlocksCount || 0,
         blockFloorMappingCount,
         vorCount: vorCount || 0,
@@ -122,8 +96,6 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
         setsCount: 0,
         docsCount: 0,
         filesCount: 0,
-        estimatesCount: 0,
-        estimateItemsCount: 0,
         projectBlocksCount: 0,
         blockFloorMappingCount: 0,
         vorCount: 0,
@@ -204,44 +176,9 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
         return
       }
 
-      // Шаг 5: Получаем ID смет для проекта
-      console.log('5️⃣ Получаем ID смет для проекта...')
-      const { data: estimatesIds } = await supabase
-        .from('estimates')
-        .select('id')
-        .eq('project_id', projectId)
 
-      // Удаляем элементы смет если есть сметы
-      if (estimatesIds && estimatesIds.length > 0) {
-        console.log('📋 Удаляем элементы смет...')
-        const estimateIdsList = estimatesIds.map((item) => item.id)
-        const { error: estimateItemsError } = await supabase
-          .from('estimate_items')
-          .delete()
-          .in('estimate_id', estimateIdsList)
-
-        if (estimateItemsError) {
-          console.error('Ошибка при удалении элементов смет:', estimateItemsError)
-          message.error('Ошибка при удалении элементов смет')
-          return
-        }
-      }
-
-      // Шаг 6: Удаляем сметы
-      console.log('6️⃣ Удаляем сметы...')
-      const { error: estimatesError } = await supabase
-        .from('estimates')
-        .delete()
-        .eq('project_id', projectId)
-
-      if (estimatesError) {
-        console.error('Ошибка при удалении смет:', estimatesError)
-        message.error('Ошибка при удалении смет')
-        return
-      }
-
-      // Шаг 7: Удаляем ведомости объемов работ
-      console.log('7️⃣ Удаляем ведомости объемов работ...')
+      // Шаг 5: Удаляем ведомости объемов работ
+      console.log('5️⃣ Удаляем ведомости объемов работ...')
       const { error: vorError } = await supabase.from('vor').delete().eq('project_id', projectId)
 
       if (vorError) {
@@ -250,8 +187,8 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
         return
       }
 
-      // Шаг 8: Получаем список файлов для удаления из storage
-      console.log('8️⃣ Ищем файлы для удаления...')
+      // Шаг 6: Получаем список файлов для удаления из storage
+      console.log('6️⃣ Ищем файлы для удаления...')
       const { data: filesList, error: filesListError } = await supabase.storage
         .from('files')
         .list(`projects/${projectId}`)
@@ -267,8 +204,8 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
         }
       }
 
-      // Шаг 9: Получаем ID блоков проекта для удаления связанных данных
-      console.log('9️⃣ Получаем ID блоков проекта...')
+      // Шаг 7: Получаем ID блоков проекта для удаления связанных данных
+      console.log('7️⃣ Получаем ID блоков проекта...')
       const { data: projectBlocksIds } = await supabase
         .from('projects_blocks')
         .select('block_id')
@@ -291,8 +228,8 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
         }
       }
 
-      // Шаг 10: Удаляем связи проектов с блоками
-      console.log('🔟 Удаляем связи проектов с блоками...')
+      // Шаг 8: Удаляем связи проектов с блоками
+      console.log('8️⃣ Удаляем связи проектов с блоками...')
       const { error: projectsBlocksError } = await supabase
         .from('projects_blocks')
         .delete()
@@ -304,7 +241,7 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
         return
       }
 
-      // Шаг 11: Удаляем блоки, которые больше не связаны ни с одним проектом
+      // Шаг 9: Удаляем блоки, которые больше не связаны ни с одним проектом
       if (projectBlocksIds && projectBlocksIds.length > 0) {
         console.log('🏗️ Удаляем изолированные блоки...')
         const blockIdsList = projectBlocksIds.map((item) => item.block_id)
@@ -330,8 +267,8 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
         }
       }
 
-      // Шаг 12: Удаляем сам проект
-      console.log('1️⃣2️⃣ Удаляем проект...')
+      // Шаг 10: Удаляем сам проект
+      console.log('🔟 Удаляем проект...')
       const { error: projectError } = await supabase.from('projects').delete().eq('id', projectId)
 
       if (projectError) {
@@ -384,14 +321,6 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                 <span>📄 Шифры проектов:</span>
                 <strong style={{ color: '#ff4d4f' }}>{counts.docsCount}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span>📊 Сметы:</span>
-                <strong style={{ color: '#ff4d4f' }}>{counts.estimatesCount}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span>📋 Элементы смет:</span>
-                <strong style={{ color: '#ff4d4f' }}>{counts.estimateItemsCount}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                 <span>🏢 Блоки проекта:</span>

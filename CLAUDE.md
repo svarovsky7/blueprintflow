@@ -23,12 +23,17 @@ npm run build        # TypeScript check + Vite build (MUST pass before commit)
 npm run lint         # ESLint check (MUST pass before commit)
 npm run format       # Prettier formatting
 npm run format:check # Check formatting without changes
-npx tsc --noEmit    # Type checking only (standalone)
+npx tsc --noEmit     # Type checking only (standalone)
 
 # Testing
-npx playwright test  # Run end-to-end tests (requires playwright.config.ts setup)
+npx playwright test  # Run end-to-end tests (base URL: http://localhost:5174)
 npx playwright test --ui  # Run tests with UI mode
 npx playwright show-report  # Open test results in browser
+
+# Single test examples
+npx playwright test tests/auth.spec.js  # Run specific test file
+npx playwright test --grep "login"      # Run tests matching pattern
+npx playwright test --debug             # Run in debug mode
 ```
 
 ## Pre-commit Checklist
@@ -114,7 +119,13 @@ src/
 
 ## Database Integration
 
-**CRITICAL**: Always reference `supabase/schemas/prod.sql` for current production database structure. The `supabase.sql` file contains a simplified development schema.
+**CRITICAL**: Перед любой работой с базой данных ОБЯЗАТЕЛЬНО используй MCP сервер для проверки актуальной схемы БД. Установлены MCP серверы:
+- `mcp-supabase` - основной сервер для работы с Supabase
+- `supabase-mcp` - дополнительный сервер для CRUD операций
+
+**ПРАВИЛО**: Всегда сначала проверяй актуальную структуру таблиц через MCP инструменты, прежде чем писать SQL-запросы или API-вызовы.
+
+**РЕЗЕРВНЫЙ ИСТОЧНИК**: При отсутствии доступа к MCP - reference `supabase/schemas/prod.sql` for current production database structure. The `supabase.sql` file contains a simplified development schema.
 
 ### Supabase Configuration
 Environment variables required:
@@ -126,6 +137,24 @@ VITE_STORAGE_BUCKET=<storage_url>
 ```
 
 Configuration: `src/lib/supabase.ts`
+
+### MCP Tools Usage
+
+Перед работой с БД используй MCP инструменты для получения актуальной схемы:
+
+```typescript
+// Примеры использования MCP инструментов:
+// 1. Получить список всех таблиц
+// 2. Получить структуру конкретной таблицы
+// 3. Проверить существование полей и связей
+// 4. Получить информацию о индексах и ограничениях
+```
+
+**Рабочий процесс с БД**:
+1. Используй MCP инструмент для проверки схемы таблицы
+2. Анализируй структуру полей и типов данных
+3. Проверяй связи между таблицами
+4. Пиши код с учетом актуальной структуры БД
 
 ### Database Deployment
 Deploy database schema:
@@ -193,10 +222,12 @@ From technical specification (`tech_task.md`):
 - Latency < 300ms for real-time sync
 - 99.9% uptime target
 - MTTR ≤ 5 minutes
+- File upload support up to 250 MB with drag-and-drop
 
 ## Critical Guidelines
 
 ### MUST DO
+- **КРИТИЧЕСКИ ВАЖНО**: Перед любой работой с БД используй MCP сервер для проверки актуальной схемы
 - Run `npm run lint` before committing
 - Run `npm run format` for consistent code style
 - Handle all TypeScript strict mode requirements
@@ -438,6 +469,38 @@ From technical specification (`tech_task.md`):
 3. **По запросу пользователя** - всегда используй агентов, если пользователь прямо просит их задействовать
 4. **Проактивно** - используй агентов помеченных как "Use PROACTIVELY" без запроса пользователя
 
+## Временные файлы и документация
+
+### Правила работы с временными файлами
+
+- **Все временные файлы** размещаются в папке `temp/`
+- **НИКОГДА** не создавайте временные файлы в корневой папке проекта
+- **Типы временных файлов**:
+  - Файлы с описаниями изменений (DEVELOPMENT_NOTES.md, CHANGELOG.md и т.д.)
+  - Технические заметки и черновики
+  - Файлы с временными данными для анализа
+  - Экспериментальные файлы
+
+### Что НЕ относится к временным файлам
+- **Миграции БД** (`sql/*.sql`) - постоянные файлы
+- **Конфигурации** (`.eslintrc`, `tsconfig.json` и т.д.) - постоянные файлы
+- **Основной код** (`src/**/*`) - постоянные файлы
+- **Документация проекта** (README.md, CLAUDE.md) - постоянные файлы
+
+### Очистка временных файлов
+- Регулярно очищайте папку `temp/` от устаревших файлов
+- Перед удалением любых файлов ВСЕГДА согласовывайте список с пользователем
+
+## Testing Configuration
+
+### Playwright E2E Testing
+- **Base URL**: http://localhost:5174 (different from dev server port 5173)
+- **Test directory**: `./tests`
+- **Browsers**: Chromium, Firefox, WebKit
+- **Auto-start dev server**: Configured in `playwright.config.js`
+- **Reporters**: HTML report with screenshots and videos on failure
+- **Parallel execution**: Enabled for faster test runs
+
 ## Application Structure Notes
 
 ### Multi-Select Filter Support
@@ -467,3 +530,4 @@ Do what has been asked; nothing more, nothing less.
 NEVER create files unless they're absolutely necessary for achieving your goal.
 ALWAYS prefer editing an existing file to creating a new one.
 NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
+ALL temporary files MUST be placed in the temp/ directory, NEVER in the root directory.

@@ -1,5 +1,10 @@
-import React, { useState, useCallback } from 'react'
-import { Modal, Checkbox, InputNumber, Typography, Table } from 'antd'
+import React, { useState, useCallback, useMemo } from 'react'
+import { Modal, Checkbox, InputNumber, Typography, Table, message } from 'antd'
+import {
+  type UIBlock,
+  type UIStylobate,
+  type UIUndergroundParking,
+} from '@/entities/projects'
 
 const { Title, Text } = Typography
 
@@ -48,48 +53,48 @@ const tableStyles = `
 }
 `
 
-export type BlockType = 'Подземная парковка' | 'Типовой корпус' | 'Стилобат' | 'Кровля'
+export type BlockType = 'Подземный паркинг' | 'Типовой корпус' | 'Стилобат' | 'Кровля'
 
-interface Block {
-  id: number
-  name: string
-  bottomFloor: number
-  topFloor: number
-  x: number
-  y: number
-}
-
-interface Stylobate {
-  id: string
-  name: string
-  fromBlockId: number
-  toBlockId: number
-  floors: number
-  x: number
-  y: number
-}
-
-interface UndergroundParking {
-  blockIds: number[]
-  connections: Array<{ fromBlockId: number; toBlockId: number }>
-}
+// Переиспользуем типы из entities/projects
+type Block = UIBlock
+type Stylobate = UIStylobate
+type UndergroundParking = UIUndergroundParking
 
 interface ProjectCardModalProps {
   visible: boolean
   onCancel: () => void
   onSave: (data: {
+    projectName: string
+    projectAddress: string
     blocks: Block[]
     stylobates: Stylobate[]
     undergroundParking: UndergroundParking
-  }) => void
+  }) => Promise<void>
   projectData: {
+    id: string // ID проекта (пустая строка для новых проектов)
     name: string
     address: string
     blocks: Array<{
+      id?: number
       name: string
       bottomFloor: number
       topFloor: number
+      x?: number
+      y?: number
     }>
+    stylobates?: Array<{
+      id: string
+      name: string
+      fromBlockId: number
+      toBlockId: number
+      floors: number
+      x: number
+      y: number
+    }>
+    undergroundParking?: {
+      blockIds: number[]
+      connections: Array<{ fromBlockId: number; toBlockId: number }>
+    }
   }
 }
 
@@ -109,16 +114,33 @@ export default function ProjectCardModal({
   React.useEffect(() => {
     if (visible && projectData.blocks.length > 0) {
       const generatedBlocks: Block[] = projectData.blocks.map((block, index) => ({
-        id: index + 1,
+        id: block.id || index + 1,
         name: block.name,
         bottomFloor: block.bottomFloor,
         topFloor: block.topFloor,
-        x: 0,
-        y: 0,
+        x: block.x || 0,
+        y: block.y || 0,
       }))
       setBlocks(generatedBlocks)
+
+      // Устанавливаем стилобаты, если они переданы
+      if (projectData.stylobates) {
+        setStylobates(projectData.stylobates)
+      } else {
+        setStylobates([])
+      }
+
+      // Устанавливаем подземную парковку, если она передана
+      if (projectData.undergroundParking) {
+        setUndergroundParking(projectData.undergroundParking)
+      } else {
+        setUndergroundParking({
+          blockIds: [],
+          connections: [],
+        })
+      }
     }
-  }, [visible, projectData.blocks])
+  }, [visible, projectData])
 
   const generateStylobateName = (fromBlock: Block, toBlock: Block) => {
     return `Стилобат (${fromBlock.name}-${toBlock.name})`
@@ -188,22 +210,33 @@ export default function ProjectCardModal({
     [],
   )
 
-  const handleSave = () => {
-    onSave({
-      blocks,
-      stylobates,
-      undergroundParking,
-    })
+  const handleSave = async () => {
+    try {
+      // Передаем все данные в родительский компонент для сохранения
+      await onSave({
+        projectName: projectData.name,
+        projectAddress: projectData.address,
+        blocks,
+        stylobates,
+        undergroundParking,
+      })
+
+      message.success('Данные проекта успешно сохранены')
+    } catch (error) {
+      console.error('Ошибка сохранения данных проекта:', error)
+      message.error('Ошибка при сохранении данных проекта')
+    }
   }
 
-  const createBuildingTableData = () => {
+  const tableData = useMemo(() => {
     if (!blocks.length) return []
+
 
     // Находим диапазон этажей
     const maxTopFloor = Math.max(...blocks.map((block) => block.topFloor))
     const minBottomFloor = Math.min(...blocks.map((block) => block.bottomFloor))
 
-    const tableData = []
+    const data = []
 
     // Создаем данные для каждого этажа
     for (let floor = maxTopFloor; floor >= minBottomFloor; floor--) {
@@ -251,6 +284,7 @@ export default function ProjectCardModal({
           (c) => c.fromBlockId === fromBlock.id && c.toBlockId === toBlock.id,
         )
 
+
         // Стилобат - только для положительных этажей
         if (stylobate && floor > 0 && floor <= stylobate.floors) {
           row[connectionKey] = {
@@ -274,18 +308,19 @@ export default function ProjectCardModal({
             }
           }
         }
+        // Если ничего не найдено, оставляем пустую ячейку
+        else {
+          row[connectionKey] = null
+        }
       }
 
-      tableData.push(row)
+      data.push(row)
     }
 
-    console.log('📋 Generated table data:', tableData.length, 'rows')
-    console.log('🔍 Sample row keys:', Object.keys(tableData[0] || {}))
+    return data
+  }, [blocks, stylobates, undergroundParking])
 
-    return tableData
-  }
-
-  const createTableColumns = () => {
+  const tableColumns = useMemo(() => {
     const columns: Array<{
       title: string
       dataIndex: string
@@ -302,11 +337,6 @@ export default function ProjectCardModal({
       ) => React.ReactNode
     }> = []
 
-    console.log('🏗️ Creating table columns for blocks:', blocks.length)
-
-    // Используем длину tableData для расчётов размера шрифта
-    const totalRows = tableData.length
-
     // Добавляем левый отступ 50px
     columns.push({
       title: '',
@@ -315,16 +345,31 @@ export default function ProjectCardModal({
       width: 50,
       render: () => null, // Пустая колонка для отступа
     })
-    console.log('✅ Added left margin column: 50px')
+
+    // Рассчитываем ширину колонок заранее
+    const totalBlocks = blocks.length
+    const totalConnections = Math.max(0, blocks.length - 1)
+    const modalWidth = typeof window !== 'undefined' ? window.innerWidth * 0.98 - 64 : 1836 // 64px = 32px padding с каждой стороны
+    const requiredWidth = 50 + (totalBlocks + totalConnections) * 100 // 50px левый отступ + по 100px на колонку
+
+    let blockWidth = 100
+    let connectionWidth = 100
+
+    if (requiredWidth > modalWidth) {
+      // Уменьшаем ширину колонок чтобы избежать скролла
+      const availableWidthForBlocks = modalWidth - 50 // Вычитаем левый отступ
+      blockWidth = Math.floor(availableWidthForBlocks / (totalBlocks + totalConnections))
+      connectionWidth = blockWidth
+    }
 
     // Добавляем колонки для каждого корпуса и промежутки между ними
     blocks.forEach((block, index) => {
-      // Колонка корпуса - фиксированная ширина 100px
+      // Колонка корпуса - динамическая ширина
       columns.push({
         title: block.name,
         dataIndex: `block_${block.id}`,
         key: `block_${block.id}`,
-        width: 100,
+        width: blockWidth,
         render: (cell: { floor: number; backgroundColor: string; blockName?: string } | null) => {
           if (!cell) {
             return (
@@ -359,18 +404,22 @@ export default function ProjectCardModal({
           )
         },
       })
-      console.log(`✅ Added building column [${index}]: ${block.name} - 100px`)
 
       // Добавляем промежуток между корпусами (кроме последнего корпуса) - фиксированная ширина 100px
       if (index < blocks.length - 1) {
         const nextBlock = blocks[index + 1]
 
+        // Найдем стилобат между этими корпусами
+        const stylobateBetween = stylobates.find(
+          (s) => s.fromBlockId === block.id && s.toBlockId === nextBlock.id,
+        )
+
         // Колонка промежутка (для стилобатов и подземных соединений)
         columns.push({
-          title: '', // Пустой заголовок для промежутка
+          title: stylobateBetween ? stylobateBetween.name : '', // Показываем название стилобата
           dataIndex: `connection_${block.id}_${nextBlock.id}`,
           key: `connection_${block.id}_${nextBlock.id}`,
-          width: 100,
+          width: connectionWidth,
           render: (
             cell: { floor: number; backgroundColor: string; type?: string; name?: string } | null,
           ) => {
@@ -406,53 +455,30 @@ export default function ProjectCardModal({
             )
           },
         })
-        console.log(
-          `✅ Added connection column [${index}]: ${block.name} -> ${nextBlock.name} - 100px`,
-        )
       }
     })
 
-    // Рассчитываем правый отступ: ширина модального окна минус все колонки
-    // Модальное окно: 98vw (примерно ~1900px на широком экране)
-    // Корпуса и промежутки по 100px каждый
-    // Используем константу для расчёта
-    const modalWidth = typeof window !== 'undefined' ? window.innerWidth * 0.98 : 1900
-    const usedWidth = columns.reduce((sum, col) => sum + col.width, 0)
-    const rightPadding = Math.max(0, modalWidth - usedWidth)
+    // Рассчитываем правый отступ
+    const finalUsedWidth = columns.reduce((sum, col) => sum + col.width, 0)
+    const rightPadding = Math.max(0, modalWidth - finalUsedWidth)
 
-    // Добавляем правый отступ как последнюю колонку
-    columns.push({
-      title: '',
-      dataIndex: 'right_margin',
-      key: 'right_margin',
-      width: rightPadding,
-      render: () => null, // Пустая колонка для правого отступа
-    })
-
-    console.log('📊 Total columns created:', columns.length)
-    console.log('📏 Used width (without right margin):', usedWidth + 'px')
-    console.log('🖥️ Modal width:', modalWidth + 'px')
-    console.log('➡️ Right padding calculated:', rightPadding + 'px')
-    console.log('📏 Total expected width:', columns.reduce((sum, col) => sum + col.width, 0) + 'px')
-    console.log(
-      '📋 Column details:',
-      columns.map((col) => `${col.key}: ${col.width}px`),
-    )
+    // Добавляем правый отступ как последнюю колонку только если есть свободное место
+    if (rightPadding > 10) {
+      columns.push({
+        title: '',
+        dataIndex: 'right_margin',
+        key: 'right_margin',
+        width: rightPadding,
+        render: () => null, // Пустая колонка для правого отступа
+      })
+    }
 
     return columns
-  }
-
-  const tableData = createBuildingTableData()
-  const tableColumns = createTableColumns()
+  }, [blocks, stylobates])
 
   // Рассчитываем динамическую высоту строк
   const totalRows = tableData.length
   const dynamicRowHeight = totalRows > 0 ? `calc((100vh - 300px) / ${totalRows})` : '20px'
-
-  console.log('🎯 Rendering ProjectCardModal with:')
-  console.log('   - Table data rows:', tableData.length)
-  console.log('   - Table columns:', tableColumns.length)
-  console.log('   - Dynamic row height:', dynamicRowHeight)
 
   return (
     <>
@@ -549,10 +575,10 @@ export default function ProjectCardModal({
                 </div>
               )}
 
-              {/* Подземная парковка */}
+              {/* Подземный паркинг */}
               <div>
                 <Text strong style={{ fontSize: '0.75em', marginRight: 8 }}>
-                  Подз.парковка:
+                  Подз.паркинг:
                 </Text>
                 {blocks.map((block) => {
                   const isChecked = undergroundParking.blockIds.includes(block.id)
@@ -653,7 +679,7 @@ export default function ProjectCardModal({
                     flexShrink: 0,
                   }}
                 />
-                <Text style={{ fontSize: '0.7em', lineHeight: 1.2 }}>Подземная парковка</Text>
+                <Text style={{ fontSize: '0.7em', lineHeight: 1.2 }}>Подземный паркинг</Text>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <div
@@ -714,7 +740,7 @@ export default function ProjectCardModal({
             pagination={false}
             scroll={{
               x: tableColumns.reduce((sum, col) => sum + col.width, 0),
-              y: 'calc(100vh - 350px)'
+              y: 'calc(100vh - 350px)',
             }}
             size="small"
             bordered={false}
@@ -725,14 +751,6 @@ export default function ProjectCardModal({
               height: '100%',
             }}
             className="building-table"
-            onHeaderRow={() => {
-              console.log('🔍 Table header rendered')
-              return {}
-            }}
-            onRow={() => {
-              console.log('🔍 Table row rendered')
-              return {}
-            }}
           />
         </div>
         <style>{`

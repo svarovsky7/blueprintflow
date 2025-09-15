@@ -25,20 +25,6 @@ create table if not exists projects_blocks (
   primary key (project_id, block_id)
 );
 
-create table if not exists estimates (
-  id uuid primary key default gen_random_uuid(),
-  project_id uuid references projects on delete cascade,
-  type text check (type in ('chessboard', 'vor')) not null,
-  name text
-);
-
-create table if not exists estimate_items (
-  id uuid primary key default gen_random_uuid(),
-  estimate_id uuid references estimates on delete cascade,
-  description text,
-  quantity numeric,
-  unit_price numeric
-);
 
 create table if not exists materials (
   uuid uuid primary key default gen_random_uuid(),
