@@ -223,7 +223,10 @@ export default function ProjectCardModal({
     }
   }
 
-  // Новая логика масштабирования с фиксированной высотой модального окна
+  // НОВАЯ ЛОГИКА масштабирования согласно требованиям:
+  // ≤40 этажей: стандартная высота 12px, без прокрутки
+  // 41-60 этажей: масштабирование чтобы все поместилось, без прокрутки
+  // >60 этажей: стандартная высота 12px + прокрутка
   const scalingInfo = useMemo(() => {
     if (!blocks.length)
       return {
@@ -248,28 +251,33 @@ export default function ProjectCardModal({
     const minBottomFloor = Math.min(...blocks.map((block) => block.bottomFloor))
     const totalFloors = maxTopFloor - minBottomFloor + 1
 
-    // НОВАЯ КОНЦЕПЦИЯ: до 60 этажей - масштабирование, свыше 60 - прокрутка
-    const needsScrolling = totalFloors > 60
-
-    // Фиксированная высота для области таблицы в модальном окне (80vh - отступы на управляющие элементы)
+    // Высота модального окна изменена на 95vh
     const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 900
-    const modalHeight = viewportHeight * 0.8 // 80vh
+    const modalHeight = viewportHeight * 0.95 // 95vh
     const controlsAndPaddingHeight = 300 // Место под заголовок, управляющие элементы и отступы
     const availableTableHeight = modalHeight - controlsAndPaddingHeight
 
     let rowHeight = 12 // Стандартная высота строки
     let tableScrollHeight: string | undefined = undefined
+    let needsScrolling = false
 
-    if (needsScrolling) {
-      // Свыше 60 этажей: используем стандартную высоту строки и прокрутку
+    if (totalFloors <= 40) {
+      // ≤40 этажей: стандартная высота строки 12px, без прокрутки
+      rowHeight = 12
+      tableScrollHeight = undefined
+      needsScrolling = false
+    } else if (totalFloors <= 60) {
+      // 41-60 этажей: масштабирование чтобы все поместилось без прокрутки
+      const calculatedRowHeight = availableTableHeight / totalFloors
+      const minRowHeight = 8 // Минимальная высота строки 8px
+      rowHeight = Math.max(calculatedRowHeight, minRowHeight)
+      tableScrollHeight = undefined
+      needsScrolling = false
+    } else {
+      // >60 этажей: стандартная высота 12px + прокрутка
       rowHeight = 12
       tableScrollHeight = `${availableTableHeight}px`
-    } else {
-      // До 60 этажей: масштабируем строки чтобы все поместилось без прокрутки
-      const calculatedRowHeight = availableTableHeight / totalFloors
-      const minRowHeight = 6 // Минимальная высота строки
-      rowHeight = Math.max(calculatedRowHeight, minRowHeight)
-      tableScrollHeight = undefined // Без прокрутки
+      needsScrolling = true
     }
 
     const result = {
@@ -281,8 +289,9 @@ export default function ProjectCardModal({
       tableScrollHeight,
     }
 
-    console.log('🔍 ProjectCardModal: New scaling logic applied:', {
+    console.log('🔍 ProjectCardModal: NEW scaling logic applied:', {
       totalFloors,
+      category: totalFloors <= 40 ? '≤40 floors (standard)' : totalFloors <= 60 ? '41-60 floors (scaled)' : '>60 floors (scrolled)',
       needsScrolling,
       availableTableHeight,
       finalRowHeight: rowHeight,
@@ -447,10 +456,10 @@ export default function ProjectCardModal({
       render: () => null, // Пустая колонка для отступа
     })
 
-    // Рассчитываем ширину колонок заранее
+    // Рассчитываем ширину колонок заранее (изменено на 95vw)
     const totalBlocks = blocks.length
     const totalConnections = Math.max(0, blocks.length - 1)
-    const modalWidth = typeof window !== 'undefined' ? window.innerWidth * 0.98 - 64 : 1836 // 64px = 32px padding с каждой стороны
+    const modalWidth = typeof window !== 'undefined' ? window.innerWidth * 0.95 - 64 : 1800 // 64px = 32px padding с каждой стороны
     const requiredWidth = 50 + (totalBlocks + totalConnections) * 100 // 50px левый отступ + по 100px на колонку
 
     let blockWidth = 100
@@ -591,19 +600,19 @@ export default function ProjectCardModal({
         }
         onCancel={onCancel}
         onOk={handleSave}
-        width="98vw"
+        width="95vw"
         // Всегда центрируем модальное окно
         centered={true}
         style={{
-          // ФИКСИРОВАННАЯ высота модального окна: 80vh
-          height: '80vh',
-          maxHeight: '80vh',
+          // ИЗМЕНЕНО: высота модального окна 95vh
+          height: '95vh',
+          maxHeight: '95vh',
         }}
         styles={{
           body: {
-            // ФИКСИРОВАННАЯ высота тела модального окна
-            height: 'calc(80vh - 140px)', // 140px на заголовок и кнопки
-            maxHeight: 'calc(80vh - 140px)',
+            // ИЗМЕНЕНО: высота тела модального окна
+            height: 'calc(95vh - 140px)', // 140px на заголовок и кнопки
+            maxHeight: 'calc(95vh - 140px)',
             overflow: 'hidden', // Прокрутка только внутри таблицы, если нужна
             padding: '16px',
             display: 'flex',
