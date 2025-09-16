@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useEffect, type Key } from 'react'
+import { useCallback, useMemo, useState, useEffect, useDeferredValue, startTransition, type Key } from 'react'
 import { useLocation } from 'react-router-dom'
 import {
   App,
@@ -55,6 +55,7 @@ import SimpleDeleteConfirm from '../../components/SimpleDeleteConfirm'
 import { normalizeColorToHex } from '@/shared/constants/statusColors'
 import { useScale } from '@/shared/contexts/ScaleContext'
 import ChessboardSetsModal from './ChessboardSetsModal'
+import ChessboardOptimized from '../../components/ChessboardOptimized'
 
 const { Text } = Typography
 
@@ -438,7 +439,7 @@ export default function Chessboard() {
   const [importOpen, setImportOpen] = useState(false)
   const [importFile, setImportFile] = useState<File | null>(null)
   const [isImporting, setIsImporting] = useState(false)
-  const [importErrors, setImportErrors] = useState<{[key: string]: number}>({})
+  const [importErrors, setImportErrors] = useState<{ [key: string]: number }>({})
   const [importState, setImportState] = useState<{
     projectId?: string
     blockId?: string[]
@@ -467,6 +468,77 @@ export default function Chessboard() {
   const [matchedSet, setMatchedSet] = useState<ChessboardSet | null>(null)
   const [setNameModalOpen, setSetNameModalOpen] = useState(false)
   const [pendingStatusId, setPendingStatusId] = useState<string | undefined>(undefined)
+
+  // Состояние для количества отображаемых строк
+  const [rowsPerPage, setRowsPerPage] = useState<number>(() => {
+    const saved = localStorage.getItem('chessboard-rows-per-page')
+    const parsed = saved ? parseInt(saved, 10) : 200
+    console.log('🔍 rowsPerPage initialization:', { saved, parsed })
+
+    // Защита от некорректных значений - принудительно используем 200 если значение слишком мало
+    if (parsed < 10) {
+      console.log('🔍 rowsPerPage too small, using 200 instead of:', parsed)
+      localStorage.setItem('chessboard-rows-per-page', '200')
+      return 200
+    }
+
+    return parsed
+  })
+
+  // Обработчик изменения количества строк с сохранением в localStorage
+  const handleRowsPerPageChange = useCallback((value: number) => {
+    console.log('🔍 handleRowsPerPageChange called with:', value, 'current rowsPerPage:', rowsPerPage)
+    if (value > 0) {
+      setRowsPerPage(value)
+      localStorage.setItem('chessboard-rows-per-page', value.toString())
+      console.log('🔍 rowsPerPage updated to:', value)
+    } else {
+      console.warn('🔍 Invalid rowsPerPage value:', value)
+    }
+  }, [rowsPerPage])
+
+  // Состояния производительности
+  const [useVirtualization, setUseVirtualization] = useState(() => {
+    const saved = localStorage.getItem('chessboard-use-virtualization')
+    return saved ? saved === 'true' : false
+  })
+
+  const [performanceMode, setPerformanceMode] = useState(() => {
+    const saved = localStorage.getItem('chessboard-performance-mode')
+    return saved ? saved === 'true' : false
+  })
+
+  const [virtualRowHeight, setVirtualRowHeight] = useState(() => {
+    const saved = localStorage.getItem('chessboard-virtual-row-height')
+    return saved ? parseInt(saved, 10) : 54
+  })
+
+  const [displayRowLimit, setDisplayRowLimit] = useState(() => {
+    // Очищаем старое значение из localStorage и убираем ограничение
+    localStorage.removeItem('chessboard-display-row-limit')
+    return -1
+  })
+
+  // Обработчики изменений с сохранением в localStorage
+  const handleVirtualizationChange = useCallback((enabled: boolean) => {
+    setUseVirtualization(enabled)
+    localStorage.setItem('chessboard-use-virtualization', enabled.toString())
+  }, [])
+
+  const handlePerformanceModeChange = useCallback((enabled: boolean) => {
+    setPerformanceMode(enabled)
+    localStorage.setItem('chessboard-performance-mode', enabled.toString())
+  }, [])
+
+  const handleVirtualRowHeightChange = useCallback((height: number) => {
+    setVirtualRowHeight(height)
+    localStorage.setItem('chessboard-virtual-row-height', height.toString())
+  }, [])
+
+  const handleDisplayRowLimitChange = useCallback((limit: number) => {
+    setDisplayRowLimit(limit)
+    localStorage.setItem('chessboard-display-row-limit', limit.toString())
+  }, [])
   const [setNameInput, setSetNameInput] = useState<string>('')
 
   const { data: projects } = useQuery<ProjectOption[]>({
@@ -1038,7 +1110,12 @@ export default function Chessboard() {
     enabled: !!appliedFilters?.projectId,
   })
 
-  const { data: tableData, refetch, error: tableDataError, isError } = useQuery<DbRow[]>({
+  const {
+    data: tableData,
+    refetch,
+    error: tableDataError,
+    isError,
+  } = useQuery<DbRow[]>({
     queryKey: ['chessboard', appliedFilters, selectedVersions],
     enabled: !!appliedFilters?.projectId,
     retry: 3,
@@ -1229,7 +1306,10 @@ export default function Chessboard() {
             .in('entity_id', batch)
 
           if (mappingError) {
-            console.warn(`Ошибка загрузки маппинга комментариев для батча ${i / batchSize + 1}:`, mappingError)
+            console.warn(
+              `Ошибка загрузки маппинга комментариев для батча ${i / batchSize + 1}:`,
+              mappingError,
+            )
             continue
           }
 
@@ -1259,7 +1339,10 @@ export default function Chessboard() {
             .order('created_at', { ascending: false })
 
           if (commentsError) {
-            console.warn(`Ошибка загрузки комментариев для батча ${i / commentBatchSize + 1}:`, commentsError)
+            console.warn(
+              `Ошибка загрузки комментариев для батча ${i / commentBatchSize + 1}:`,
+              commentsError,
+            )
             continue
           }
 
@@ -1283,11 +1366,13 @@ export default function Chessboard() {
                 author_id: comment.author_id,
                 created_at: comment.created_at,
                 updated_at: comment.updated_at,
-                entity_comments_mapping: [{
-                  entity_type: 'chessboard',
-                  entity_id: mapping.entity_id,
-                  comment_id: comment.id
-                }]
+                entity_comments_mapping: [
+                  {
+                    entity_type: 'chessboard',
+                    entity_id: mapping.entity_id,
+                    comment_id: comment.id,
+                  },
+                ],
               })
             })
           })
@@ -1302,7 +1387,7 @@ export default function Chessboard() {
     },
   })
 
-  const viewRows = useMemo<ViewRow[]>(() => {
+  const viewRowsData = useMemo(() => {
     const commentsMap = new Map<string, Comment[]>()
 
     // Группируем комментарии по entity_id
@@ -1322,7 +1407,7 @@ export default function Chessboard() {
       })
     }
 
-    return (tableData ?? [])
+    const filteredRows = (tableData ?? [])
       .map((item) => {
         // Если есть выбранные версии из модального окна, нужно найти правильную версию
         let version = item.chessboard_documentation_mapping?.documentation_versions
@@ -1483,6 +1568,11 @@ export default function Chessboard() {
 
         return true
       })
+
+    return {
+      allRows: filteredRows,
+      visibleRows: filteredRows, // Убираем ограничение - пагинация управляется Table компонентом
+    }
   }, [
     tableData,
     commentsData,
@@ -1492,6 +1582,21 @@ export default function Chessboard() {
     documentVersions,
     selectedVersions,
   ])
+
+  // Извлекаем видимые строки и общее количество с проверкой на существование
+  const viewRows = viewRowsData?.visibleRows || []
+  const totalRowsCount = viewRowsData?.allRows?.length || 0
+
+  // React 18 оптимизации для плавной работы с большими данными
+  const deferredViewRows = useDeferredValue(viewRows)
+  const deferredTotalCount = useDeferredValue(totalRowsCount)
+
+  // Функция для некритичных обновлений фильтров
+  const updateFilterAsync = useCallback((updater: (filters: typeof filters) => typeof filters) => {
+    startTransition(() => {
+      setFilters(updater)
+    })
+  }, [])
 
   const tableRows = useMemo<TableRow[]>(
     () => [
@@ -2628,11 +2733,37 @@ export default function Chessboard() {
                 )
                 return appliedFilters.tagId[0]
               }
+
+              // Fallback: если есть фильтр по tagId, но не один - берем первый
+              if (appliedFilters?.tagId && appliedFilters.tagId.length > 0) {
+                console.log(
+                  '🔧 EDIT INIT - Using first filter tagId:',
+                  appliedFilters.tagId[0],
+                  'from',
+                  appliedFilters.tagId.length,
+                  'options for row:',
+                  id,
+                )
+                return appliedFilters.tagId[0]
+              }
+
+              // Последний fallback: ищем первый доступный тег из списка
+              if (sortedDocumentationTags && sortedDocumentationTags.length > 0) {
+                console.log(
+                  '🔧 EDIT INIT - Using first available tag:',
+                  sortedDocumentationTags[0].id,
+                  'for row:',
+                  id,
+                )
+                return String(sortedDocumentationTags[0].id)
+              }
+
               console.log('🔧 EDIT INIT - No tagId found for row:', id, {
                 mappingTagId,
                 docTagId,
                 appliedFiltersTagId: appliedFilters?.tagId,
                 appliedFiltersTagIdLength: appliedFilters?.tagId?.length,
+                availableTagsCount: sortedDocumentationTags?.length,
               })
               return ''
             })(),
@@ -2783,17 +2914,17 @@ export default function Chessboard() {
           const floorMappings = floors.map((floor) => ({
             chessboard_id: r.key,
             floor_number: floor,
-            "quantityPd": floorQuantities?.[floor]?.quantityPd
+            quantityPd: floorQuantities?.[floor]?.quantityPd
               ? Number(floorQuantities[floor].quantityPd)
               : r.quantityPd
                 ? Number(r.quantityPd) / totalFloors
                 : null,
-            "quantitySpec": floorQuantities?.[floor]?.quantitySpec
+            quantitySpec: floorQuantities?.[floor]?.quantitySpec
               ? Number(floorQuantities[floor].quantitySpec)
               : r.quantitySpec
                 ? Number(r.quantitySpec) / totalFloors
                 : null,
-            "quantityRd": floorQuantities?.[floor]?.quantityRd
+            quantityRd: floorQuantities?.[floor]?.quantityRd
               ? Number(floorQuantities[floor].quantityRd)
               : r.quantityRd
                 ? Number(r.quantityRd) / totalFloors
@@ -2805,17 +2936,17 @@ export default function Chessboard() {
           await supabase!.from('chessboard_floor_mapping').insert({
             chessboard_id: r.key,
             location_id: r.locationId ? Number(r.locationId) : null,
-            "quantityPd": qty?.quantityPd
+            quantityPd: qty?.quantityPd
               ? Number(qty.quantityPd)
               : r.quantityPd
                 ? Number(r.quantityPd)
                 : null,
-            "quantitySpec": qty?.quantitySpec
+            quantitySpec: qty?.quantitySpec
               ? Number(qty.quantitySpec)
               : r.quantitySpec
                 ? Number(r.quantitySpec)
                 : null,
-            "quantityRd": qty?.quantityRd
+            quantityRd: qty?.quantityRd
               ? Number(qty.quantityRd)
               : r.quantityRd
                 ? Number(r.quantityRd)
@@ -3074,9 +3205,9 @@ export default function Chessboard() {
 
         // Собираем статистику по количественным данным
         if (!quantityPd && !quantitySpec && !quantityRd) {
-          setImportErrors(prev => ({
+          setImportErrors((prev) => ({
             ...prev,
-            'Строки без количественных данных': (prev['Строки без количественных данных'] || 0) + 1
+            'Строки без количественных данных': (prev['Строки без количественных данных'] || 0) + 1,
           }))
         }
 
@@ -3086,14 +3217,14 @@ export default function Chessboard() {
 
         // Собираем статистику ошибок по единицам измерения
         if (!unitName) {
-          setImportErrors(prev => ({
+          setImportErrors((prev) => ({
             ...prev,
-            'Пустые единицы измерения': (prev['Пустые единицы измерения'] || 0) + 1
+            'Пустые единицы измерения': (prev['Пустые единицы измерения'] || 0) + 1,
           }))
         } else if (!unitId) {
-          setImportErrors(prev => ({
+          setImportErrors((prev) => ({
             ...prev,
-            'Неизвестные единицы измерения': (prev['Неизвестные единицы измерения'] || 0) + 1
+            'Неизвестные единицы измерения': (prev['Неизвестные единицы измерения'] || 0) + 1,
           }))
         }
 
@@ -3141,9 +3272,9 @@ export default function Chessboard() {
               blockId = foundBlock.id
             } else {
               // Блок из файла не найден в справочнике
-              setImportErrors(prev => ({
+              setImportErrors((prev) => ({
                 ...prev,
-                'Неизвестные корпуса в файле': (prev['Неизвестные корпуса в файле'] || 0) + 1
+                'Неизвестные корпуса в файле': (prev['Неизвестные корпуса в файле'] || 0) + 1,
               }))
             }
           }
@@ -3166,9 +3297,9 @@ export default function Chessboard() {
           }
 
           if (!categoryId) {
-            setImportErrors(prev => ({
+            setImportErrors((prev) => ({
               ...prev,
-              'Строки без категории затрат': (prev['Строки без категории затрат'] || 0) + 1
+              'Строки без категории затрат': (prev['Строки без категории затрат'] || 0) + 1,
             }))
             return null // Не создаем mapping если нет категории
           }
@@ -3176,9 +3307,9 @@ export default function Chessboard() {
           // Проверяем, что выбранная категория действительно существует в справочнике
           const categoryExists = costCategories?.some((cat) => cat.id === categoryId)
           if (!categoryExists) {
-            setImportErrors(prev => ({
+            setImportErrors((prev) => ({
               ...prev,
-              'Несуществующие категории затрат': (prev['Несуществующие категории затрат'] || 0) + 1
+              'Несуществующие категории затрат': (prev['Несуществующие категории затрат'] || 0) + 1,
             }))
             return null // Не создаем mapping если категория не существует
           }
@@ -3193,9 +3324,10 @@ export default function Chessboard() {
             if (typeExists) {
               typeId = selectedTypeId
             } else {
-              setImportErrors(prev => ({
+              setImportErrors((prev) => ({
                 ...prev,
-                'Несоответствие видов затрат категориям': (prev['Несоответствие видов затрат категориям'] || 0) + 1
+                'Несоответствие видов затрат категориям':
+                  (prev['Несоответствие видов затрат категориям'] || 0) + 1,
               }))
             }
           }
@@ -3221,9 +3353,9 @@ export default function Chessboard() {
         chessboard_id: d.id,
         floor_number: null, // Будет NULL при импорте, так как этажи указываются отдельно
         location_id: importState.locationId ? Number(importState.locationId) : null,
-        "quantityPd": additionalData[idx].quantityPd,
-        "quantitySpec": additionalData[idx].quantitySpec,
-        "quantityRd": additionalData[idx].quantityRd,
+        quantityPd: additionalData[idx].quantityPd,
+        quantitySpec: additionalData[idx].quantitySpec,
+        quantityRd: additionalData[idx].quantityRd,
       }))
       if (floorMappings.length > 0) {
         const { error: floorError } = await supabase!
@@ -3372,7 +3504,9 @@ export default function Chessboard() {
               </p>
             )}
             {hasErrors && (
-              <div style={{ marginTop: 16, padding: 12, backgroundColor: '#fff2e8', borderRadius: 6 }}>
+              <div
+                style={{ marginTop: 16, padding: 12, backgroundColor: '#fff2e8', borderRadius: 6 }}
+              >
                 <p style={{ fontWeight: 'bold', color: '#d46b08', marginBottom: 8 }}>
                   Предупреждения при импорте ({totalErrors} шт.):
                 </p>
@@ -3395,7 +3529,7 @@ export default function Chessboard() {
         width: 500,
         onOk: () => {
           setIsImporting(false) // Отключаем режим импорта только после закрытия окна результатов
-        }
+        },
       })
     } catch (e) {
       console.error('Ошибка импорта:', e)
@@ -3568,17 +3702,17 @@ export default function Chessboard() {
         const floorMappings = floors.map((floor) => ({
           chessboard_id: data[idx].id,
           floor_number: floor,
-          "quantityPd": floorQuantities?.[floor]?.quantityPd
+          quantityPd: floorQuantities?.[floor]?.quantityPd
             ? Number(floorQuantities[floor].quantityPd)
             : rows[idx].quantityPd
               ? Number(rows[idx].quantityPd) / totalFloors
               : null,
-          "quantitySpec": floorQuantities?.[floor]?.quantitySpec
+          quantitySpec: floorQuantities?.[floor]?.quantitySpec
             ? Number(floorQuantities[floor].quantitySpec)
             : rows[idx].quantitySpec
               ? Number(rows[idx].quantitySpec) / totalFloors
               : null,
-          "quantityRd": floorQuantities?.[floor]?.quantityRd
+          quantityRd: floorQuantities?.[floor]?.quantityRd
             ? Number(floorQuantities[floor].quantityRd)
             : rows[idx].quantityRd
               ? Number(rows[idx].quantityRd) / totalFloors
@@ -3595,17 +3729,17 @@ export default function Chessboard() {
         const { error: floorError } = await supabase.from('chessboard_floor_mapping').insert({
           chessboard_id: data[idx].id,
           location_id: rows[idx].locationId ? Number(rows[idx].locationId) : null,
-          "quantityPd": qty?.quantityPd
+          quantityPd: qty?.quantityPd
             ? Number(qty.quantityPd)
             : rows[idx].quantityPd
               ? Number(rows[idx].quantityPd)
               : null,
-          "quantitySpec": qty?.quantitySpec
+          quantitySpec: qty?.quantitySpec
             ? Number(qty.quantitySpec)
             : rows[idx].quantitySpec
               ? Number(rows[idx].quantitySpec)
               : null,
-          "quantityRd": qty?.quantityRd
+          quantityRd: qty?.quantityRd
             ? Number(qty.quantityRd)
             : rows[idx].quantityRd
               ? Number(rows[idx].quantityRd)
@@ -3753,25 +3887,7 @@ export default function Chessboard() {
         return aIndex - bIndex
       })
       .map((col) => {
-        const values = Array.from(
-          new Set(viewRows.map((row) => row[map[col.dataIndex] as keyof ViewRow]).filter((v) => v)),
-        )
-        const filters = values.map((v) => ({ text: String(v), value: String(v) }))
-
-        const sorter =
-          col.dataIndex === 'tagName'
-            ? (a: TableRow, b: TableRow) => (a.tagNumber ?? 0) - (b.tagNumber ?? 0)
-            : (a: TableRow, b: TableRow) => {
-                const aVal = a[col.dataIndex]
-                const bVal = b[col.dataIndex]
-                const aNum = Number(aVal)
-                const bNum = Number(bVal)
-                if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum
-                return String(aVal ?? '').localeCompare(String(bVal ?? ''))
-              }
-
-        const onFilter = (value: boolean | Key, record: TableRow) =>
-          String(record[col.dataIndex] ?? '') === String(value)
+        // Убираем фильтры и сортировку для увеличения производительности
 
         const render: ColumnType<TableRow>['render'] = (_, record) => {
           if (record.isExisting) return record[col.dataIndex] as string
@@ -4264,10 +4380,6 @@ export default function Chessboard() {
           ...col,
           title: createMultilineTitle(col.title),
           width: dynamicWidth,
-          filters,
-          filterSearch: true,
-          sorter,
-          onFilter,
           render,
         }
       })
@@ -4438,18 +4550,7 @@ export default function Chessboard() {
         return aIndex - bIndex
       })
       .map((col) => {
-        // Исключаем comments из фильтров, так как это массив объектов
-        const values =
-          col.dataIndex === 'comments'
-            ? []
-            : Array.from(
-                new Set(
-                  viewRows
-                    .map((row) => row[col.dataIndex as keyof ViewRow])
-                    .filter((v) => v && typeof v !== 'object'),
-                ),
-              )
-        const filters = values.map((v) => ({ text: String(v), value: String(v) }))
+        // Убираем фильтры для увеличения производительности
 
         const render: ColumnType<ViewRow>['render'] = (_, record): React.ReactNode => {
           const edit = editingRows[record.key]
@@ -4954,24 +5055,6 @@ export default function Chessboard() {
           ...col,
           title: createMultilineTitle(col.title),
           width: dynamicWidth,
-          filterSearch: true,
-          sorter:
-            col.dataIndex === 'tagName'
-              ? (a: ViewRow, b: ViewRow) => (a.tagNumber ?? 0) - (b.tagNumber ?? 0)
-              : (a: ViewRow, b: ViewRow) => {
-                  const dataIndex = col.dataIndex as keyof ViewRow
-                  const aVal = a[dataIndex]
-                  const bVal = b[dataIndex]
-                  const aNum = Number(aVal)
-                  const bNum = Number(bVal)
-                  if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum
-                  return String(aVal ?? '').localeCompare(String(bVal ?? ''))
-                },
-          filters,
-          onFilter: (value: boolean | Key, record: ViewRow) => {
-            const dataIndex = col.dataIndex as keyof ViewRow
-            return String(record[dataIndex] ?? '') === String(value)
-          },
           render,
         }
       })
@@ -5413,20 +5496,18 @@ export default function Chessboard() {
     >
       {/* Индикатор ошибки загрузки данных */}
       {isError && tableDataError && (
-        <div style={{
-          margin: '16px 0',
-          padding: '12px',
-          backgroundColor: '#fff2f0',
-          border: '1px solid #ffccc7',
-          borderRadius: '6px',
-          color: '#cf1322'
-        }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-            Ошибка загрузки данных
-          </div>
-          <div style={{ fontSize: '14px' }}>
-            {tableDataError.message || 'Неизвестная ошибка'}
-          </div>
+        <div
+          style={{
+            margin: '16px 0',
+            padding: '12px',
+            backgroundColor: '#fff2f0',
+            border: '1px solid #ffccc7',
+            borderRadius: '6px',
+            color: '#cf1322',
+          }}
+        >
+          <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Ошибка загрузки данных</div>
+          <div style={{ fontSize: '14px' }}>{tableDataError.message || 'Неизвестная ошибка'}</div>
           <Button
             size="small"
             type="primary"
@@ -5798,43 +5879,79 @@ export default function Chessboard() {
                   }}
                 />
               </Space>
-              <Button icon={<SettingOutlined />} onClick={() => setColumnsSettingsOpen(true)}>
-                Настройка столбцов
-              </Button>
+              <Space>
+                <Button icon={<SettingOutlined />} onClick={() => setColumnsSettingsOpen(true)}>
+                  Настройка столбцов
+                </Button>
+              </Space>
             </div>
+
           </Card>
         )}
       </div>
 
+
       {/* Таблица */}
       {appliedFilters && (
-        <div className="table-host chessboard-table">
+        <div
+          className="table-host chessboard-table"
+          style={{
+            borderRadius: '6px',
+          }}
+        >
           {mode === 'add' ? (
-            <Table<TableRow>
-              dataSource={tableRows}
+            <ChessboardOptimized
+              originalTable={
+                <Table<TableRow>
+                  dataSource={tableRows}
+                  columns={orderedAddColumns}
+                  pagination={true}
+                  rowKey="key"
+                  sticky
+                  scroll={{
+                    x: 'max-content',
+                  }}
+                  rowClassName={(record) => (record.color ? `row-${record.color}` : '')}
+                />
+              }
+              data={tableRows}
               columns={orderedAddColumns}
-              pagination={false}
-              rowKey="key"
-              sticky
-              scroll={{
-                x: 'max-content',
-              }}
-              rowClassName={(record) => (record.color ? `row-${record.color}` : '')}
+              loading={false}
+              useVirtualization={useVirtualization}
+              performanceMode={performanceMode}
+              displayRowLimit={displayRowLimit}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={handleRowsPerPageChange}
             />
           ) : (
-            <Table<ViewRow>
-              dataSource={viewRows}
+            <ChessboardOptimized
+              originalTable={
+                <Table<ViewRow>
+                  dataSource={deferredViewRows}
+                  columns={orderedViewColumns}
+                  pagination={true}
+                  rowKey="key"
+                  sticky
+                  scroll={{
+                    x: 'max-content',
+                  }}
+                  rowClassName={(record) => {
+                    const color = editingRows[record.key]?.color ?? record.color
+                    return color ? `row-${color}` : ''
+                  }}
+                />
+              }
+              data={deferredViewRows}
               columns={orderedViewColumns}
-              pagination={false}
-              rowKey="key"
-              sticky
-              scroll={{
-                x: 'max-content',
-              }}
-              rowClassName={(record) => {
-                const color = editingRows[record.key]?.color ?? record.color
-                return color ? `row-${color}` : ''
-              }}
+              loading={false}
+              useVirtualization={useVirtualization}
+              onVirtualizationChange={handleVirtualizationChange}
+              virtualRowHeight={virtualRowHeight}
+              performanceMode={performanceMode}
+              onPerformanceModeChange={handlePerformanceModeChange}
+              displayRowLimit={displayRowLimit}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={handleRowsPerPageChange}
             />
           )}
         </div>

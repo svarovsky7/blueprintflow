@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { Card, Progress, Tag, Space, Typography, Tooltip, Button } from 'antd'
-import { ThunderboltOutlined, EyeOutlined, DatabaseOutlined, ClockCircleOutlined } from '@ant-design/icons'
+import {
+  ThunderboltOutlined,
+  EyeOutlined,
+  DatabaseOutlined,
+  ClockCircleOutlined,
+} from '@ant-design/icons'
 
 const { Text } = Typography
 
@@ -22,7 +27,7 @@ interface PerformanceMonitorProps {
 const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
   stats,
   isVisible = false,
-  onToggle
+  onToggle,
 }) => {
   const [fps, setFps] = useState(60)
   const [frameCount, setFrameCount] = useState(0)
@@ -36,7 +41,8 @@ const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
     const measureFPS = (currentTime: number) => {
       frameCounter++
 
-      if (currentTime - lastTime >= 1000) { // Каждую секунду
+      if (currentTime - lastTime >= 1000) {
+        // Каждую секунду
         setFps(Math.round((frameCounter * 1000) / (currentTime - lastTime)))
         setFrameCount(frameCounter)
         frameCounter = 0
@@ -87,7 +93,7 @@ const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
           right: 20,
           zIndex: 1000,
           backgroundColor: 'rgba(0,0,0,0.1)',
-          borderRadius: '20px'
+          borderRadius: '20px',
         }}
       >
         Монитор
@@ -116,7 +122,7 @@ const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
         right: 20,
         width: 350,
         zIndex: 1000,
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
       }}
     >
       <Space direction="vertical" size="small" style={{ width: '100%' }}>
@@ -124,7 +130,9 @@ const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
         <Space split={<span style={{ color: '#d9d9d9' }}>|</span>}>
           <Tooltip title="Кадров в секунду">
             <Space size="small">
-              <ClockCircleOutlined style={{ color: fps > 50 ? '#52c41a' : fps > 30 ? '#faad14' : '#ff4d4f' }} />
+              <ClockCircleOutlined
+                style={{ color: fps > 50 ? '#52c41a' : fps > 30 ? '#faad14' : '#ff4d4f' }}
+              />
               <Text style={{ fontSize: '12px' }}>{fps} FPS</Text>
             </Space>
           </Tooltip>
@@ -147,7 +155,9 @@ const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
           <Progress
             percent={memoryUsagePercent}
             size="small"
-            strokeColor={memoryUsagePercent > 80 ? '#ff4d4f' : memoryUsagePercent > 60 ? '#faad14' : '#52c41a'}
+            strokeColor={
+              memoryUsagePercent > 80 ? '#ff4d4f' : memoryUsagePercent > 60 ? '#faad14' : '#52c41a'
+            }
             showInfo={false}
           />
         </Space>
@@ -158,7 +168,8 @@ const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
             <Space size="small">
               <EyeOutlined style={{ color: '#1890ff' }} />
               <Text style={{ fontSize: '12px' }}>
-                {stats.visibleRows.toLocaleString('ru-RU')} / {stats.totalRows.toLocaleString('ru-RU')}
+                {stats.visibleRows.toLocaleString('ru-RU')} /{' '}
+                {stats.totalRows.toLocaleString('ru-RU')}
               </Text>
             </Space>
           </Tooltip>

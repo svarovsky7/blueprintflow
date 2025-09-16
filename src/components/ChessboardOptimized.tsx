@@ -1,138 +1,102 @@
 import React, { useMemo, useCallback, useState, useEffect } from 'react'
-import { Switch, Alert, Space, Typography } from 'antd'
 import VirtualizedTable from './VirtualizedTable'
+import SmartTableOptimizer from './SmartTableOptimizer'
 import { useVirtualizedChessboard } from '../hooks/useVirtualizedChessboard'
-
-const { Text } = Typography
+import { useScale } from '@/shared/contexts/ScaleContext'
 
 interface ChessboardOptimizedProps {
   originalTable: React.ReactElement
   data: any[]
   columns: any[]
   loading?: boolean
+  // Новые пропсы для ручного управления
+  useVirtualization?: boolean
+  onVirtualizationChange?: (enabled: boolean) => void
+  virtualRowHeight?: number
+  performanceMode?: boolean
+  onPerformanceModeChange?: (enabled: boolean) => void
+  displayRowLimit?: number
+  // Пропсы для пагинации
+  rowsPerPage?: number
+  onRowsPerPageChange?: (value: number) => void
 }
 
 const ChessboardOptimized: React.FC<ChessboardOptimizedProps> = ({
   originalTable,
   data,
   columns,
-  loading
+  loading,
+  useVirtualization: externalUseVirtualization,
+  onVirtualizationChange,
+  virtualRowHeight = 54,
+  performanceMode: externalPerformanceMode,
+  onPerformanceModeChange,
+  displayRowLimit = 200,
+  rowsPerPage,
+  onRowsPerPageChange,
 }) => {
-  const [useVirtualization, setUseVirtualization] = useState(() => {
-    // Автоматически включаем виртуализацию для больших таблиц
-    return data.length > 200
-  })
+  const { scale } = useScale()
 
-  const [performanceMode, setPerformanceMode] = useState(false)
+  // Используем внешнее управление, если предоставлено
+  const useVirtualization = externalUseVirtualization ?? false
+  const performanceMode = externalPerformanceMode ?? false
 
-  const {
-    visibleData,
-    handleVisibleRangeChange,
-    stats
-  } = useVirtualizedChessboard({
+  // Масштабируемая высота элементов управления (75px для масштаба 1.0)
+  const scaledControlsHeight = useMemo(() => Math.round(75 * scale), [scale])
+
+  const { visibleData, handleVisibleRangeChange, stats } = useVirtualizedChessboard({
     data,
-    enabled: useVirtualization
+    enabled: useVirtualization,
   })
 
   // Оптимизированные столбцы для виртуализации
   const optimizedColumns = useMemo(() => {
     if (!useVirtualization) return columns
 
-    return columns.map(col => ({
+    return columns.map((col) => ({
       ...col,
       // Отключаем сложные фильтры в режиме виртуализации
       filters: performanceMode ? undefined : col.filters,
       filterDropdown: performanceMode ? undefined : col.filterDropdown,
       // Упрощаем сортировку
-      sorter: performanceMode ? false : col.sorter
+      sorter: performanceMode ? false : col.sorter,
     }))
   }, [columns, useVirtualization, performanceMode])
 
-  // Автоматическое переключение в режим производительности
-  useEffect(() => {
-    if (data.length > 1000 && !performanceMode) {
-      setPerformanceMode(true)
-      setUseVirtualization(true)
-    }
-  }, [data.length, performanceMode])
+  // Удаляем автоматические переключения - теперь все управляется извне
 
-  const handleVirtualizationToggle = useCallback((checked: boolean) => {
-    setUseVirtualization(checked)
-    if (!checked) {
-      setPerformanceMode(false)
-    }
-  }, [])
-
-  const renderPerformanceAlert = () => {
-    if (data.length <= 200) return null
-
+  // Временно отключаем виртуализацию - фокус на оптимизации без виртуализации
+  // if (!useVirtualization) {
+    // Используем SmartTableOptimizer для обычных таблиц
     return (
-      <Alert
-        type={data.length > 1000 ? 'warning' : 'info'}
-        showIcon
-        message={
-          <Space direction="vertical" size="small">
-            <Text>
-              {data.length > 1000
-                ? `Обнаружено ${data.length.toLocaleString()} строк. Автоматически включена оптимизация производительности.`
-                : `Таблица содержит ${data.length.toLocaleString()} строк. Рекомендуется включить виртуализацию.`
-              }
-            </Text>
-            <Space>
-              <Text>Виртуализация:</Text>
-              <Switch
-                checked={useVirtualization}
-                onChange={handleVirtualizationToggle}
-                size="small"
-              />
-              {useVirtualization && (
-                <>
-                  <Text>Режим производительности:</Text>
-                  <Switch
-                    checked={performanceMode}
-                    onChange={setPerformanceMode}
-                    size="small"
-                  />
-                </>
-              )}
-            </Space>
-            {useVirtualization && (
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                Видимые строки: {stats.visibleItems} / {stats.totalItems} |
-                Загружено комментариев: {stats.loadedComments}
-              </Text>
-            )}
-          </Space>
-        }
-        style={{ marginBottom: 16 }}
-      />
-    )
-  }
-
-  if (!useVirtualization) {
-    return (
-      <>
-        {renderPerformanceAlert()}
-        {originalTable}
-      </>
-    )
-  }
-
-  return (
-    <>
-      {renderPerformanceAlert()}
-      <VirtualizedTable
-        columns={optimizedColumns}
-        dataSource={visibleData}
-        height={600}
+      <SmartTableOptimizer
+        {...originalTable.props}
+        data={data}
+        columns={columns}
+        displayLimit={displayRowLimit}
+        performanceMode={performanceMode}
         loading={loading}
-        rowHeight={54}
-        sticky
-        scroll={{ y: 600 }}
-        className="chessboard-virtualized"
+        useAdaptiveHeight={true}
+        controlsHeight={scaledControlsHeight} // масштабируемая высота для элементов управления и пагинации
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={onRowsPerPageChange}
       />
-    </>
-  )
+    )
+  // }
+
+  // Временно отключено - используем виртуализированную таблицу
+  // return (
+  //   <VirtualizedTable
+  //     columns={optimizedColumns}
+  //     dataSource={visibleData}
+  //     height={'calc(100vh - 300px)'}
+  //     loading={loading}
+  //     rowHeight={virtualRowHeight}
+  //     sticky
+  //     scroll={{ y: 'calc(100vh - 300px)' }}
+  //     className="chessboard-virtualized"
+  //   />
+  // )
 }
 
 export default ChessboardOptimized

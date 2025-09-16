@@ -21,7 +21,7 @@ const ChessboardIntegrationExample: React.FC<ChessboardIntegrationExampleProps> 
   loading,
   appliedFilters,
   enableOptimizations = true,
-  forceVirtualization = false
+  forceVirtualization = false,
 }) => {
   // Оригинальная таблица Ant Design
   const originalTable = (
@@ -54,7 +54,7 @@ const ChessboardIntegrationExample: React.FC<ChessboardIntegrationExampleProps> 
         categoryId: appliedFilters?.categoryId,
         typeId: appliedFilters?.typeId,
         tagId: appliedFilters?.tagId,
-        documentationId: appliedFilters?.documentationId
+        documentationId: appliedFilters?.documentationId,
       }}
       enableVirtualization={viewRows.length > 200 || forceVirtualization}
       enableServerPagination={false} // Пока отключено, можно включить позже

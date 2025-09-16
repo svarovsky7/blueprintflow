@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react'
 import { Modal, Checkbox, InputNumber, Typography, Table, message } from 'antd'
 import { type UIBlock, type UIStylobate, type UIUndergroundParking } from '@/entities/projects'
+import { useScale } from '@/shared/contexts/ScaleContext'
 
 const { Title, Text } = Typography
 
@@ -35,7 +36,7 @@ const tableStyles = `
   border-bottom: 1px solid #d9d9d9 !important;
   vertical-align: middle !important;
   line-height: 1 !important;
-  font-size: 10px !important;
+  /* font-size удален - применяется через scalingStyles */
 }
 .building-table .ant-table-tbody td {
   padding: 0 !important;
@@ -99,6 +100,7 @@ export default function ProjectCardModal({
   onSave,
   projectData,
 }: ProjectCardModalProps) {
+  const { scale } = useScale()
   const [blocks, setBlocks] = useState<Block[]>([])
   const [stylobates, setStylobates] = useState<Stylobate[]>([])
   const [undergroundParking, setUndergroundParking] = useState<UndergroundParking>({
@@ -254,30 +256,28 @@ export default function ProjectCardModal({
     // Высота модального окна изменена на 95vh
     const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 900
     const modalHeight = viewportHeight * 0.95 // 95vh
-    const controlsAndPaddingHeight = 300 // Место под заголовок, управляющие элементы и отступы
+    const controlsAndPaddingHeight = 200 // УМЕНЬШЕНО: место под заголовок, управляющие элементы и отступы
     const availableTableHeight = modalHeight - controlsAndPaddingHeight
 
     let rowHeight = 12 // Стандартная высота строки
     let tableScrollHeight: string | undefined = undefined
     let needsScrolling = false
 
-    if (totalFloors <= 40) {
-      // ≤40 этажей: стандартная высота строки 12px, без прокрутки
+    if (totalFloors <= 48) {
+      // ≤48 этажей: стандартная высота строки 12px, без прокрутки
       rowHeight = 12
-      tableScrollHeight = undefined
-      needsScrolling = false
-    } else if (totalFloors <= 60) {
-      // 41-60 этажей: масштабирование чтобы все поместилось без прокрутки
-      const calculatedRowHeight = availableTableHeight / totalFloors
-      const minRowHeight = 8 // Минимальная высота строки 8px
-      rowHeight = Math.max(calculatedRowHeight, minRowHeight)
       tableScrollHeight = undefined
       needsScrolling = false
     } else {
-      // >60 этажей: стандартная высота 12px + прокрутка
+      // >48 этажей: всегда используем прокрутку со стандартной высотой строк
       rowHeight = 12
       tableScrollHeight = `${availableTableHeight}px`
       needsScrolling = true
+      console.log('🔍 Прокрутка >48 этажей:', {
+        totalFloors,
+        availableTableHeight,
+        tableScrollHeight,
+      })
     }
 
     const result = {
@@ -289,9 +289,9 @@ export default function ProjectCardModal({
       tableScrollHeight,
     }
 
-    console.log('🔍 ProjectCardModal: NEW scaling logic applied:', {
+    console.log('🔍 ProjectCardModal: УПРОЩЕННАЯ логика прокрутки:', {
       totalFloors,
-      category: totalFloors <= 40 ? '≤40 floors (standard)' : totalFloors <= 60 ? '41-60 floors (scaled)' : '>60 floors (scrolled)',
+      category: totalFloors <= 48 ? '≤48 floors (standard 12px)' : '>48 floors (scrolled)',
       needsScrolling,
       availableTableHeight,
       finalRowHeight: rowHeight,
@@ -307,8 +307,17 @@ export default function ProjectCardModal({
 
     const data = []
 
-    // Используем значения из scalingInfo
-    const { maxTopFloor, minBottomFloor } = scalingInfo
+    // ИСПРАВЛЕНО: вычисляем значения напрямую для предотвращения рассинхронизации
+    const maxTopFloor = Math.max(...blocks.map((block) => block.topFloor))
+    const minBottomFloor = Math.min(...blocks.map((block) => block.bottomFloor))
+
+    console.log('🔍 ProjectCardModal: TableData generation - floors range:', {
+      maxTopFloor,
+      minBottomFloor,
+      totalFloors: maxTopFloor - minBottomFloor + 1,
+      blocks: blocks.map(b => `${b.name}: ${b.bottomFloor}-${b.topFloor}`),
+      generatedFloors: `from ${maxTopFloor} down to ${minBottomFloor}`
+    })
 
     // Создаем данные для каждого этажа
     for (let floor = maxTopFloor; floor >= minBottomFloor; floor--) {
@@ -388,47 +397,80 @@ export default function ProjectCardModal({
       data.push(row)
     }
 
-    return data
-  }, [blocks, stylobates, undergroundParking, scalingInfo])
+    console.log('🔍 ProjectCardModal: Generated table data:', {
+      totalRows: data.length,
+      firstFloor: data[0]?.floor,
+      lastFloor: data[data.length - 1]?.floor,
+      hasNegativeFloors: data.some(row => row.floor < 0),
+      negativeFloors: data.filter(row => row.floor < 0).map(row => row.floor)
+    })
 
-  // Динамические стили для нового подхода
+    return data
+  }, [blocks, stylobates, undergroundParking])
+
+  // УБРАНО: масштабирование больше не используется, только прокрутка для >48 этажей
   const scalingStyles = useMemo(() => {
-    // Для зданий до 60 этажей применяем масштабирование строк
-    if (!scalingInfo.needsScrolling && scalingInfo.totalFloors > 0) {
-      const styles = `
-        .building-table-scaled.building-table .ant-table-tbody tr {
-          height: ${scalingInfo.rowHeight}px !important;
-          min-height: ${scalingInfo.rowHeight}px !important;
-          max-height: ${scalingInfo.rowHeight}px !important;
+    // МАСШТАБИРУЕМЫЕ СТИЛИ ЗАГОЛОВКОВ - применяются ВСЕГДА
+    let styles = `
+      /* Масштабируемые стили для заголовков таблицы с повышенной специфичностью */
+      .building-table.ant-table-wrapper .ant-table-thead th,
+      .building-table .ant-table .ant-table-thead th {
+        font-size: ${Math.round(10 * scale)}px !important;
+      }
+      .building-table.ant-table-wrapper .ant-table-thead > tr > th,
+      .building-table .ant-table .ant-table-thead > tr > th {
+        font-size: ${Math.round(12 * scale)}px !important;
+      }
+      /* Дополнительные селекторы для полной совместимости */
+      .ant-modal .building-table .ant-table-thead th {
+        font-size: ${Math.round(10 * scale)}px !important;
+      }
+      .ant-modal .building-table .ant-table-thead > tr > th {
+        font-size: ${Math.round(12 * scale)}px !important;
+      }
+    `
+
+    console.log('🔍 ProjectCardModal: Применяются масштабированные заголовки:', {
+      scale,
+      fontSize10: Math.round(10 * scale),
+      fontSize12: Math.round(12 * scale),
+      needsScrolling: scalingInfo.needsScrolling
+    })
+
+    // Дополнительные стили для скроллируемых таблиц >48 этажей
+    if (scalingInfo.needsScrolling && scalingInfo.tableScrollHeight) {
+      // Добавляем запас для прокрутки до отрицательных этажей
+      const scrollHeight = parseFloat(scalingInfo.tableScrollHeight)
+      const adjustedScrollHeight = `${Math.max(400, scrollHeight - 40)}px` // Уменьшаем на 40px для лучшей прокрутки
+
+      console.log('🔍 Scroll adjustments:', {
+        originalHeight: scalingInfo.tableScrollHeight,
+        adjustedHeight: adjustedScrollHeight,
+        totalRows: scalingInfo.totalFloors,
+        expectedTableHeight: scalingInfo.totalFloors * 12
+      })
+
+      styles += `
+        .building-table-scrollable .ant-table-container {
+          height: ${adjustedScrollHeight} !important;
+          max-height: ${adjustedScrollHeight} !important;
         }
-        .building-table-scaled.building-table .ant-table-tbody tr td {
-          height: ${scalingInfo.rowHeight}px !important;
-          min-height: ${scalingInfo.rowHeight}px !important;
-          max-height: ${scalingInfo.rowHeight}px !important;
-          font-size: ${Math.max(6, Math.round(scalingInfo.rowHeight * 0.6))}px !important;
-          line-height: 1 !important;
-          padding: 0 1px !important;
-          vertical-align: middle !important;
-        }
-        .building-table-scaled.building-table .ant-table-thead tr th {
-          height: ${Math.max(20, scalingInfo.rowHeight + 8)}px !important;
-          font-size: ${Math.max(8, Math.round(scalingInfo.rowHeight * 0.7))}px !important;
-          padding: 1px 2px !important;
-          vertical-align: middle !important;
-          line-height: 1 !important;
+        .building-table-scrollable .ant-table-body {
+          height: ${adjustedScrollHeight} !important;
+          max-height: ${adjustedScrollHeight} !important;
+          overflow-y: scroll !important;
         }
       `
-      console.log('🔍 ProjectCardModal: Generated scaling styles for ≤60 floors:', {
-        rowHeight: scalingInfo.rowHeight,
-        totalFloors: scalingInfo.totalFloors,
-      })
-      return styles
     }
 
-    // Для зданий свыше 60 этажей используем стандартные стили (без дополнительного масштабирования)
-    console.log('🔍 ProjectCardModal: Using standard styles for >60 floors with scrolling')
-    return ''
-  }, [scalingInfo])
+    console.log('🔍 ProjectCardModal: Финальные scalingStyles:', {
+      stylesLength: styles.length,
+      hasHeaderStyles: styles.includes('ant-table-thead'),
+      stylesPreview: styles.substring(0, 200)
+    })
+
+    return styles
+  }, [scalingInfo, scale])
 
   const tableColumns = useMemo(() => {
     const columns: Array<{
@@ -601,20 +643,21 @@ export default function ProjectCardModal({
         onCancel={onCancel}
         onOk={handleSave}
         width="95vw"
-        // Всегда центрируем модальное окно
         centered={true}
-        style={{
-          // ИЗМЕНЕНО: высота модального окна 95vh
-          height: '95vh',
-          maxHeight: '95vh',
-        }}
         styles={{
           body: {
-            // ИЗМЕНЕНО: высота тела модального окна
-            height: 'calc(95vh - 140px)', // 140px на заголовок и кнопки
-            maxHeight: 'calc(95vh - 140px)',
+            // ИСПРАВЛЕНО: правильная высота для Ant Design 5 модального окна 95% экрана
+            height: 'calc(95vh - 110px)', // 110px на заголовок и кнопки в Ant Design 5
+            maxHeight: 'calc(95vh - 110px)',
             overflow: 'hidden', // Прокрутка только внутри таблицы, если нужна
             padding: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+          },
+          content: {
+            // Настройка самого модального окна для 95% высоты экрана
+            height: '95vh',
+            maxHeight: '95vh',
             display: 'flex',
             flexDirection: 'column',
           },
@@ -865,7 +908,9 @@ export default function ProjectCardModal({
             scroll={{
               x: tableColumns.reduce((sum, col) => sum + col.width, 0),
               // НОВАЯ ЛОГИКА: для зданий >60 этажей используем прокрутку, для ≤60 - без прокрутки
-              y: scalingInfo.tableScrollHeight,
+              ...(scalingInfo.needsScrolling && scalingInfo.tableScrollHeight
+                ? { y: parseInt(scalingInfo.tableScrollHeight) }
+                : {}),
             }}
             size="small"
             bordered={false}
@@ -877,11 +922,10 @@ export default function ProjectCardModal({
               height: 'auto',
             }}
             className={(() => {
-              // Применяем масштабирование только для зданий ≤60 этажей
-              const className =
-                !scalingInfo.needsScrolling && scalingInfo.totalFloors > 0
-                  ? 'building-table building-table-scaled'
-                  : 'building-table'
+              // УПРОЩЕННАЯ ЛОГИКА: ≤48 этажей - стандартные стили, >48 - прокрутка
+              const className = scalingInfo.needsScrolling
+                ? 'building-table building-table-scrollable'
+                : 'building-table'
               console.log(
                 '🔍 ProjectCardModal: Applied className:',
                 className,
@@ -889,6 +933,14 @@ export default function ProjectCardModal({
                 scalingInfo.needsScrolling,
                 'Scroll height:',
                 scalingInfo.tableScrollHeight,
+                'Total floors:',
+                scalingInfo.totalFloors,
+                'Table data rows:',
+                tableData.length,
+                'Min floor:',
+                scalingInfo.minBottomFloor,
+                'Max floor:',
+                scalingInfo.maxTopFloor
               )
               return className
             })()}
@@ -900,18 +952,50 @@ export default function ProjectCardModal({
             width: 100% !important;
           }
           .building-table .ant-table-container {
-            overflow: visible !important;
+            overflow: hidden !important;
           }
           .building-table-scaled .ant-table-container {
             overflow: visible !important;
+            height: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+          }
+          .building-table-scrollable .ant-table-container {
+            overflow: hidden !important;
+            display: flex !important;
+            flex-direction: column !important;
           }
           .building-table .ant-table-content {
+            overflow: auto !important;
+          }
+          .building-table-scaled .ant-table-content {
             overflow: visible !important;
+            flex: 1 !important;
+            display: flex !important;
+            flex-direction: column !important;
+          }
+          .building-table-scrollable .ant-table-content {
+            overflow: hidden !important;
+            height: 100% !important;
+            flex: 1 !important;
+            display: flex !important;
+            flex-direction: column !important;
           }
           .building-table .ant-table-body {
+            overflow: auto !important;
+          }
+          .building-table-scaled .ant-table-body {
             overflow: visible !important;
+            flex: 1 !important;
+          }
+          .building-table-scrollable .ant-table-body {
+            overflow-x: hidden !important;
+            flex: 1 !important;
           }
           .building-table .ant-table-tbody {
+            overflow: visible !important;
+          }
+          .building-table-scrollable .ant-table-tbody {
             overflow: visible !important;
           }
           .building-table .ant-table-tbody > tr {
@@ -935,7 +1019,7 @@ export default function ProjectCardModal({
             background: #fafafa !important;
             border: 1px solid #d9d9d9 !important;
             text-align: center !important;
-            font-size: 12px !important;
+            /* font-size: 12px удален - применяется через scalingStyles */
             overflow: hidden !important;
             box-sizing: border-box !important;
             height: 40px !important;

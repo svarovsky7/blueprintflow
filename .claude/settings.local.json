@@ -27,7 +27,10 @@
       "Bash(pkill:*)",
       "Bash(taskkill:*)",
       "Bash(npm search:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npx prettier:*)",
+      "Bash(npx playwright test:*)",
+      "Bash(npx playwright:*)"
     ],
     "deny": [],
     "ask": []

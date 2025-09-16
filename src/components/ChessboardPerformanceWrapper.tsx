@@ -37,7 +37,7 @@ const ChessboardPerformanceWrapper: React.FC<ChessboardPerformanceWrapperProps> 
   filters = {},
   enableServerPagination = false,
   enableVirtualization = true,
-  enablePerformanceMonitor = true
+  enablePerformanceMonitor = true,
 }) => {
   const { metrics, startMeasure, endMeasure, markRender } = usePerformanceMetrics()
   const [showMonitor, setShowMonitor] = useState(false)
@@ -48,7 +48,7 @@ const ChessboardPerformanceWrapper: React.FC<ChessboardPerformanceWrapperProps> 
     table: 'chessboard',
     filters,
     enabled: enableServerPagination,
-    defaultPageSize: 200
+    defaultPageSize: 200,
   })
 
   // Выбираем источник данных
@@ -61,21 +61,24 @@ const ChessboardPerformanceWrapper: React.FC<ChessboardPerformanceWrapperProps> 
     const timeoutId = setTimeout(() => {
       endMeasure('chessboard-render')
       markRender()
-      setRenderCount(prev => prev + 1)
+      setRenderCount((prev) => prev + 1)
     }, 0)
 
     return () => clearTimeout(timeoutId)
   }, [effectiveData, startMeasure, endMeasure, markRender])
 
   // Статистика для монитора производительности
-  const performanceStats = useMemo(() => ({
-    renderTime: metrics.renderTime,
-    memoryUsage: metrics.memoryUsage,
-    visibleRows: enableVirtualization ? Math.min(50, effectiveData.length) : effectiveData.length,
-    totalRows: effectiveData.length,
-    loadedComments: 0, // Будет обновляться из hook'а комментариев
-    activeQueries: effectiveLoading ? 1 : 0
-  }), [metrics, enableVirtualization, effectiveData.length, effectiveLoading])
+  const performanceStats = useMemo(
+    () => ({
+      renderTime: metrics.renderTime,
+      memoryUsage: metrics.memoryUsage,
+      visibleRows: enableVirtualization ? Math.min(50, effectiveData.length) : effectiveData.length,
+      totalRows: effectiveData.length,
+      loadedComments: 0, // Будет обновляться из hook'а комментариев
+      activeQueries: effectiveLoading ? 1 : 0,
+    }),
+    [metrics, enableVirtualization, effectiveData.length, effectiveLoading],
+  )
 
   // Автоматическое включение оптимизаций
   const optimizationRecommendations = useMemo(() => {
@@ -90,27 +93,31 @@ const ChessboardPerformanceWrapper: React.FC<ChessboardPerformanceWrapperProps> 
     }
 
     if (metrics.renderTime > 500) {
-      recommendations.push('Время рендеринга превышает рекомендуемое. Попробуйте режим производительности')
+      recommendations.push(
+        'Время рендеринга превышает рекомендуемое. Попробуйте режим производительности',
+      )
     }
 
     return recommendations
   }, [effectiveData.length, enableVirtualization, enableServerPagination, metrics.renderTime])
 
   const handleToggleMonitor = useCallback(() => {
-    setShowMonitor(prev => !prev)
+    setShowMonitor((prev) => !prev)
   }, [])
 
   return (
     <>
       {/* Информационная панель */}
       {optimizationRecommendations.length > 0 && (
-        <div style={{
-          padding: '12px 16px',
-          backgroundColor: '#fffbe6',
-          border: '1px solid #ffe58f',
-          borderRadius: '6px',
-          marginBottom: '16px'
-        }}>
+        <div
+          style={{
+            padding: '12px 16px',
+            backgroundColor: '#fffbe6',
+            border: '1px solid #ffe58f',
+            borderRadius: '6px',
+            marginBottom: '16px',
+          }}
+        >
           <Space direction="vertical" size="small">
             <Text strong style={{ color: '#d48806' }}>
               💡 Рекомендации по производительности:
@@ -125,40 +132,29 @@ const ChessboardPerformanceWrapper: React.FC<ChessboardPerformanceWrapperProps> 
       )}
 
       {/* Краткая статистика */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '16px',
-        padding: '8px 12px',
-        backgroundColor: '#fafafa',
-        borderRadius: '4px',
-        fontSize: '12px'
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '16px',
+          padding: '8px 12px',
+          backgroundColor: '#fafafa',
+          borderRadius: '4px',
+          fontSize: '12px',
+        }}
+      >
         <Space size="large">
-          <Text type="secondary">
-            Строк: {effectiveData.length.toLocaleString('ru-RU')}
-          </Text>
-          <Text type="secondary">
-            Рендеров: {renderCount}
-          </Text>
-          <Text type="secondary">
-            Время: {metrics.renderTime}ms
-          </Text>
+          <Text type="secondary">Строк: {effectiveData.length.toLocaleString('ru-RU')}</Text>
+          <Text type="secondary">Рендеров: {renderCount}</Text>
+          <Text type="secondary">Время: {metrics.renderTime}ms</Text>
           {enableServerPagination && (
-            <Text type="secondary">
-              Страница: {serverPagination.pagination.current}
-            </Text>
+            <Text type="secondary">Страница: {serverPagination.pagination.current}</Text>
           )}
         </Space>
 
         {enablePerformanceMonitor && (
-          <Button
-            type="text"
-            icon={<SettingOutlined />}
-            onClick={handleToggleMonitor}
-            size="small"
-          >
+          <Button type="text" icon={<SettingOutlined />} onClick={handleToggleMonitor} size="small">
             Монитор
           </Button>
         )}

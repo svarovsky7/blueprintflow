@@ -11,8 +11,14 @@ interface VirtualizedRange {
   endIndex: number
 }
 
-export const useVirtualizedChessboard = ({ data, enabled = true }: UseVirtualizedChessboardProps) => {
-  const [visibleRange, setVisibleRange] = useState<VirtualizedRange>({ startIndex: 0, endIndex: 50 })
+export const useVirtualizedChessboard = ({
+  data,
+  enabled = true,
+}: UseVirtualizedChessboardProps) => {
+  const [visibleRange, setVisibleRange] = useState<VirtualizedRange>({
+    startIndex: 0,
+    endIndex: 50,
+  })
   const { commentsMap, loadCommentsForIds, isLoading: commentsLoading } = useCommentsLazy()
 
   // Мемоизируем видимые элементы
@@ -25,42 +31,46 @@ export const useVirtualizedChessboard = ({ data, enabled = true }: UseVirtualize
 
   // Мемоизируем данные с комментариями
   const dataWithComments = useMemo(() => {
-    return visibleData.map(item => ({
+    return visibleData.map((item) => ({
       ...item,
-      comments: commentsMap.get(item.id) || []
+      comments: commentsMap.get(item.id) || [],
     }))
   }, [visibleData, commentsMap])
 
   // Callback для обновления видимого диапазона
-  const handleVisibleRangeChange = useCallback((range: VirtualizedRange) => {
-    setVisibleRange(range)
+  const handleVisibleRangeChange = useCallback(
+    (range: VirtualizedRange) => {
+      setVisibleRange(range)
 
-    // Загружаем комментарии для видимых строк с буфером
-    const bufferSize = 10
-    const startWithBuffer = Math.max(0, range.startIndex - bufferSize)
-    const endWithBuffer = Math.min(data.length, range.endIndex + bufferSize)
+      // Загружаем комментарии для видимых строк с буфером
+      const bufferSize = 10
+      const startWithBuffer = Math.max(0, range.startIndex - bufferSize)
+      const endWithBuffer = Math.min(data.length, range.endIndex + bufferSize)
 
-    const visibleIds = data
-      .slice(startWithBuffer, endWithBuffer)
-      .map(item => item.id)
-      .filter(Boolean)
+      const visibleIds = data
+        .slice(startWithBuffer, endWithBuffer)
+        .map((item) => item.id)
+        .filter(Boolean)
 
-    if (visibleIds.length > 0) {
-      loadCommentsForIds(visibleIds)
-    }
-  }, [data, loadCommentsForIds])
+      if (visibleIds.length > 0) {
+        loadCommentsForIds(visibleIds)
+      }
+    },
+    [data, loadCommentsForIds],
+  )
 
   // Оптимизированный поиск/фильтрация
-  const searchInData = useCallback((searchTerm: string, fields: string[] = ['material']) => {
-    if (!searchTerm.trim()) return data
+  const searchInData = useCallback(
+    (searchTerm: string, fields: string[] = ['material']) => {
+      if (!searchTerm.trim()) return data
 
-    const lowerSearchTerm = searchTerm.toLowerCase()
-    return data.filter(item =>
-      fields.some(field =>
-        item[field]?.toString().toLowerCase().includes(lowerSearchTerm)
+      const lowerSearchTerm = searchTerm.toLowerCase()
+      return data.filter((item) =>
+        fields.some((field) => item[field]?.toString().toLowerCase().includes(lowerSearchTerm)),
       )
-    )
-  }, [data])
+    },
+    [data],
+  )
 
   // Мемоизированные вычисления для статистики
   const stats = useMemo(() => {
@@ -68,7 +78,7 @@ export const useVirtualizedChessboard = ({ data, enabled = true }: UseVirtualize
       totalItems: data.length,
       visibleItems: visibleData.length,
       loadedComments: commentsMap.size,
-      commentsLoading
+      commentsLoading,
     }
   }, [data.length, visibleData.length, commentsMap.size, commentsLoading])
 
@@ -78,6 +88,6 @@ export const useVirtualizedChessboard = ({ data, enabled = true }: UseVirtualize
     searchInData,
     stats,
     commentsMap,
-    loadCommentsForIds
+    loadCommentsForIds,
   }
 }

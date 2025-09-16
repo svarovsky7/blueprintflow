@@ -74,22 +74,24 @@ export default function Projects() {
       // 1. Загружаем все блоки проекта из базы данных
       const { data: projectBlocksData, error: projectBlocksError } = await supabase
         .from('projects_blocks')
-        .select(`
+        .select(
+          `
           block_id,
           blocks (
             id,
             name,
             type_blocks
           )
-        `)
+        `,
+        )
         .eq('project_id', projectId)
 
       if (projectBlocksError) throw projectBlocksError
 
-      const allProjectBlocks = projectBlocksData?.map(pb => pb.blocks).filter(Boolean) || []
+      const allProjectBlocks = projectBlocksData?.map((pb) => pb.blocks).filter(Boolean) || []
 
       // 2. Загружаем диапазоны этажей для всех блоков проекта
-      const blockIds = allProjectBlocks.map(b => b.id)
+      const blockIds = allProjectBlocks.map((b) => b.id)
       const { data: floorData, error: floorError } = await supabase
         .from('block_floor_mapping')
         .select('block_id, floor_number, type_blocks')
@@ -98,10 +100,13 @@ export default function Projects() {
       if (floorError) throw floorError
 
       // Создаем диапазоны этажей для каждого блока
-      const blockFloorRanges: Record<string, { bottom_floor: number; top_floor: number; isStylebate: boolean }> = {}
+      const blockFloorRanges: Record<
+        string,
+        { bottom_floor: number; top_floor: number; isStylebate: boolean }
+      > = {}
       const stylobateBlockIds = new Set()
 
-      floorData?.forEach(f => {
+      floorData?.forEach((f) => {
         if (f.type_blocks === 'Стилобат') {
           stylobateBlockIds.add(f.block_id)
         }
@@ -110,11 +115,17 @@ export default function Projects() {
           blockFloorRanges[f.block_id] = {
             bottom_floor: f.floor_number,
             top_floor: f.floor_number,
-            isStylebate: f.type_blocks === 'Стилобат'
+            isStylebate: f.type_blocks === 'Стилобат',
           }
         } else {
-          blockFloorRanges[f.block_id].bottom_floor = Math.min(blockFloorRanges[f.block_id].bottom_floor, f.floor_number)
-          blockFloorRanges[f.block_id].top_floor = Math.max(blockFloorRanges[f.block_id].top_floor, f.floor_number)
+          blockFloorRanges[f.block_id].bottom_floor = Math.min(
+            blockFloorRanges[f.block_id].bottom_floor,
+            f.floor_number,
+          )
+          blockFloorRanges[f.block_id].top_floor = Math.max(
+            blockFloorRanges[f.block_id].top_floor,
+            f.floor_number,
+          )
           if (f.type_blocks === 'Стилобат') {
             blockFloorRanges[f.block_id].isStylebate = true
           }
@@ -122,24 +133,28 @@ export default function Projects() {
       })
 
       // 3. Разделяем блоки на обычные корпуса и стилобаты
-      const regularBlocks = allProjectBlocks.filter(block =>
+      const regularBlocks = allProjectBlocks.filter((block) =>
         // Fallback: если type_blocks не указан, используем старую логику по типам этажей
-        block.type_blocks ? block.type_blocks === 'Типовой корпус' : !stylobateBlockIds.has(block.id)
+        block.type_blocks
+          ? block.type_blocks === 'Типовой корпус'
+          : !stylobateBlockIds.has(block.id),
       )
-      const stylobateBlocks = allProjectBlocks.filter(block =>
-        block.type_blocks ? block.type_blocks === 'Стилобат' : stylobateBlockIds.has(block.id)
+      const stylobateBlocks = allProjectBlocks.filter((block) =>
+        block.type_blocks ? block.type_blocks === 'Стилобат' : stylobateBlockIds.has(block.id),
       )
 
       // 4. Загружаем связи между блоками
       const { data: connections, error: connectionsError } = await supabase
         .from('block_connections_mapping')
-        .select(`
+        .select(
+          `
           id,
           from_block_id,
           to_block_id,
           connection_type,
           floors_count
-        `)
+        `,
+        )
         .eq('project_id', projectId)
 
       if (connectionsError) throw connectionsError
@@ -150,20 +165,22 @@ export default function Projects() {
         blockIdMapping[block.id] = index + 1
       })
 
-
       // 6. Создаем структуру стилобатов с правильным позиционированием
       const stylobates = stylobateBlocks.map((stylobateBlock, index) => {
         // Попробуем несколько способов найти соединения для стилобата:
 
         // Способ 1: Стилобат как участник соединения (from_block_id или to_block_id)
-        let stylobateConnections = connections?.filter(c =>
-          c.connection_type === 'Стилобат' &&
-          (c.from_block_id === stylobateBlock.id || c.to_block_id === stylobateBlock.id)
-        ) || []
+        let stylobateConnections =
+          connections?.filter(
+            (c) =>
+              c.connection_type === 'Стилобат' &&
+              (c.from_block_id === stylobateBlock.id || c.to_block_id === stylobateBlock.id),
+          ) || []
 
         // Способ 2: Поиск соединений типа "Стилобат" между обычными корпусами
         if (stylobateConnections.length === 0) {
-          const stylobateTypeConnections = connections?.filter(c => c.connection_type === 'Стилобат') || []
+          const stylobateTypeConnections =
+            connections?.filter((c) => c.connection_type === 'Стилобат') || []
 
           // Если есть соединения типа "Стилобат", берем соответствующее по индексу
           if (stylobateTypeConnections.length > index) {
@@ -171,12 +188,13 @@ export default function Projects() {
           }
         }
 
-        let fromBlockId = 0, toBlockId = 0
+        let fromBlockId = 0,
+          toBlockId = 0
 
         if (stylobateConnections.length > 0) {
           // Находим корпуса, участвующие в соединении
           const connectedBlockIds = new Set()
-          stylobateConnections.forEach(conn => {
+          stylobateConnections.forEach((conn) => {
             connectedBlockIds.add(conn.from_block_id)
             if (conn.to_block_id) connectedBlockIds.add(conn.to_block_id)
           })
@@ -184,7 +202,7 @@ export default function Projects() {
           // Исключаем сам стилобат из списка связанных блоков
           connectedBlockIds.delete(stylobateBlock.id)
 
-          const connectedRegularBlocks = regularBlocks.filter(b => connectedBlockIds.has(b.id))
+          const connectedRegularBlocks = regularBlocks.filter((b) => connectedBlockIds.has(b.id))
 
           if (connectedRegularBlocks.length >= 2) {
             // Стилобат между двумя корпусами
@@ -217,37 +235,43 @@ export default function Projects() {
       })
 
       // 7. Создаем структуру подземной парковки
-      const undergroundConnections = connections?.filter(c =>
-        c.connection_type === 'Подземный паркинг' && c.to_block_id !== null
-      ) || []
+      const undergroundConnections =
+        connections?.filter(
+          (c) => c.connection_type === 'Подземный паркинг' && c.to_block_id !== null,
+        ) || []
 
       // Подземный паркинг под отдельными корпусами (без соединений)
-      const undergroundParkingIds = connections?.filter(c =>
-        c.connection_type === 'Подземный паркинг' && c.to_block_id === null
-      ).map(c => c.from_block_id) || []
+      const undergroundParkingIds =
+        connections
+          ?.filter((c) => c.connection_type === 'Подземный паркинг' && c.to_block_id === null)
+          .map((c) => c.from_block_id) || []
 
       // Проверяем, что все ID соединений относятся к обычным корпусам (не стилобатам)
-      const validUndergroundConnections = undergroundConnections.filter(conn => {
-        const fromIsRegular = regularBlocks.some(b => b.id === conn.from_block_id)
-        const toIsRegular = regularBlocks.some(b => b.id === conn.to_block_id)
+      const validUndergroundConnections = undergroundConnections.filter((conn) => {
+        const fromIsRegular = regularBlocks.some((b) => b.id === conn.from_block_id)
+        const toIsRegular = regularBlocks.some((b) => b.id === conn.to_block_id)
         return fromIsRegular && toIsRegular
       })
 
-      const validUndergroundParkingIds = undergroundParkingIds.filter(id =>
-        regularBlocks.some(b => b.id === id)
+      const validUndergroundParkingIds = undergroundParkingIds.filter((id) =>
+        regularBlocks.some((b) => b.id === id),
       )
 
       const undergroundParking = {
-        blockIds: validUndergroundParkingIds.map(dbId => blockIdMapping[dbId]).filter(id => id > 0),
-        connections: validUndergroundConnections.map(conn => {
-          const fromLocalId = blockIdMapping[conn.from_block_id] || 0
-          const toLocalId = blockIdMapping[conn.to_block_id] || 0
+        blockIds: validUndergroundParkingIds
+          .map((dbId) => blockIdMapping[dbId])
+          .filter((id) => id > 0),
+        connections: validUndergroundConnections
+          .map((conn) => {
+            const fromLocalId = blockIdMapping[conn.from_block_id] || 0
+            const toLocalId = blockIdMapping[conn.to_block_id] || 0
 
-          return {
-            fromBlockId: fromLocalId,
-            toBlockId: toLocalId,
-          }
-        }).filter(conn => conn.fromBlockId > 0 && conn.toBlockId > 0)
+            return {
+              fromBlockId: fromLocalId,
+              toBlockId: toLocalId,
+            }
+          })
+          .filter((conn) => conn.fromBlockId > 0 && conn.toBlockId > 0),
       }
 
       return {
@@ -310,7 +334,9 @@ export default function Projects() {
         // Используем старую структуру
         const result = await supabase
           .from('projects_blocks')
-          .select('project_id, block_id, blocks(name, type_blocks, bottom_underground_floor, top_ground_floor)')
+          .select(
+            'project_id, block_id, blocks(name, type_blocks, bottom_underground_floor, top_ground_floor)',
+          )
           .in('project_id', ids)
         linkData = result.data
         linkError = result.error
@@ -487,8 +513,8 @@ export default function Projects() {
       setExistingBlockIds(blockIds)
 
       // Фильтруем только блоки типа "Типовой корпус"
-      const regularBlocks = blocks.filter(block =>
-        block.type_blocks ? block.type_blocks === 'Типовой корпус' : true
+      const regularBlocks = blocks.filter((block) =>
+        block.type_blocks ? block.type_blocks === 'Типовой корпус' : true,
       )
       const regularBlocksCount = regularBlocks.length
 
@@ -509,18 +535,15 @@ export default function Projects() {
     const current = form.getFieldValue('blocks') || []
 
     // Берем только существующие типовые корпуса, новые поля делаем пустыми
-    const updated = Array.from(
-      { length: count },
-      (_, i) => {
-        if (i < current.length) {
-          // Сохраняем существующий типовой корпус
-          return current[i]
-        } else {
-          // Новое поле - пустое
-          return { name: '', bottom_floor: null, top_floor: null }
-        }
+    const updated = Array.from({ length: count }, (_, i) => {
+      if (i < current.length) {
+        // Сохраняем существующий типовой корпус
+        return current[i]
+      } else {
+        // Новое поле - пустое
+        return { name: '', bottom_floor: null, top_floor: null }
       }
-    )
+    })
 
     form.setFieldsValue({ blocks: updated })
     setBlocksCount(count)
@@ -609,7 +632,7 @@ export default function Projects() {
         console.log('🔍 Updated project data with form blocks:', {
           formBlocksCount: formBlocks.length,
           stylobatesCount: fullProjectData.stylobates.length,
-          undergroundConnections: fullProjectData.undergroundParking.connections.length
+          undergroundConnections: fullProjectData.undergroundParking.connections.length,
         })
 
         setProjectCardData(fullProjectData)
@@ -633,8 +656,8 @@ export default function Projects() {
           stylobates: [],
           undergroundParking: {
             blockIds: [],
-            connections: []
-          }
+            connections: [],
+          },
         }
 
         console.log('🔍 Mapped project data:', projectCardData)
@@ -694,24 +717,15 @@ export default function Projects() {
 
         // Удаляем этажи блоков
         if (existingBlockIds.length) {
-          await supabase
-            .from('block_floor_mapping')
-            .delete()
-            .in('block_id', existingBlockIds)
+          await supabase.from('block_floor_mapping').delete().in('block_id', existingBlockIds)
         }
 
         // Удаляем связи блоков с проектом
-        await supabase
-          .from('projects_blocks')
-          .delete()
-          .eq('project_id', currentProject.id)
+        await supabase.from('projects_blocks').delete().eq('project_id', currentProject.id)
 
         // Удаляем блоки
         if (existingBlockIds.length) {
-          await supabase
-            .from('blocks')
-            .delete()
-            .in('id', existingBlockIds)
+          await supabase.from('blocks').delete().in('id', existingBlockIds)
         }
       } else {
         return
@@ -1159,9 +1173,12 @@ export default function Projects() {
           <div>
             <p>Название: {currentProject?.name}</p>
             <p>Адрес: {currentProject?.address}</p>
-            <p>Количество корпусов: {currentProject?.blocks.filter(block =>
-              block.type_blocks ? block.type_blocks === 'Типовой корпус' : true
-            ).length ?? 0}</p>
+            <p>
+              Количество корпусов:{' '}
+              {currentProject?.blocks.filter((block) =>
+                block.type_blocks ? block.type_blocks === 'Типовой корпус' : true,
+              ).length ?? 0}
+            </p>
             <p>
               Корпуса:{' '}
               {(() => {
@@ -1206,7 +1223,9 @@ export default function Projects() {
                   if (currentProject?.blocks && currentProject.blocks.length > 0) {
                     try {
                       console.log('🔍 Loading project card data for project:', currentProject.id)
-                      const projectCardDataWithStylobates = await loadProjectCardData(currentProject.id)
+                      const projectCardDataWithStylobates = await loadProjectCardData(
+                        currentProject.id,
+                      )
                       console.log('🔍 Loaded project card data:', projectCardDataWithStylobates)
                       setProjectCardData(projectCardDataWithStylobates)
                       setShowProjectCard(true)

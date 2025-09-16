@@ -48,20 +48,18 @@ export const useServerPagination = ({
   table,
   filters = {},
   enabled = true,
-  defaultPageSize = 200
+  defaultPageSize = 200,
 }: UseServerPaginationProps): UseServerPaginationReturn => {
   const [pagination, setPagination] = useState<PaginationParams>({
     page: 1,
-    pageSize: defaultPageSize
+    pageSize: defaultPageSize,
   })
 
   // Строим запрос с фильтрами
   const buildQuery = useCallback(() => {
     if (!supabase) return null
 
-    let query = supabase
-      .from(table)
-      .select('*', { count: 'exact' })
+    let query = supabase.from(table).select('*', { count: 'exact' })
 
     // Применяем фильтры
     if (filters.projectId) {
@@ -81,7 +79,10 @@ export const useServerPagination = ({
       if (filters.categoryId.length === 1) {
         query = query.eq('cost_category_id', parseInt(filters.categoryId[0]))
       } else {
-        query = query.in('cost_category_id', filters.categoryId.map(id => parseInt(id)))
+        query = query.in(
+          'cost_category_id',
+          filters.categoryId.map((id) => parseInt(id)),
+        )
       }
     }
 
@@ -89,7 +90,10 @@ export const useServerPagination = ({
       if (filters.typeId.length === 1) {
         query = query.eq('cost_type_id', parseInt(filters.typeId[0]))
       } else {
-        query = query.in('cost_type_id', filters.typeId.map(id => parseInt(id)))
+        query = query.in(
+          'cost_type_id',
+          filters.typeId.map((id) => parseInt(id)),
+        )
       }
     }
 
@@ -119,7 +123,7 @@ export const useServerPagination = ({
     data: queryResult,
     isLoading,
     error,
-    refetch
+    refetch,
   } = useQuery({
     queryKey: [
       'server-pagination',
@@ -128,7 +132,7 @@ export const useServerPagination = ({
       pagination.page,
       pagination.pageSize,
       pagination.sortField,
-      pagination.sortOrder
+      pagination.sortOrder,
     ],
     queryFn: async () => {
       const query = buildQuery()
@@ -139,7 +143,7 @@ export const useServerPagination = ({
 
       return {
         data: result.data || [],
-        count: result.count || 0
+        count: result.count || 0,
       }
     },
     enabled: enabled && !!supabase,
@@ -149,44 +153,47 @@ export const useServerPagination = ({
 
   // Обработчики пагинации
   const handlePageChange = useCallback((page: number, size: number) => {
-    setPagination(prev => ({
+    setPagination((prev) => ({
       ...prev,
       page,
-      pageSize: size
+      pageSize: size,
     }))
   }, [])
 
   const handlePageSizeChange = useCallback((current: number, size: number) => {
-    setPagination(prev => ({
+    setPagination((prev) => ({
       ...prev,
       page: 1, // Сбрасываем на первую страницу при изменении размера
-      pageSize: size
+      pageSize: size,
     }))
   }, [])
 
   // Обработчик сортировки
   const setSorting = useCallback((field: string, order: 'asc' | 'desc' | null) => {
-    setPagination(prev => ({
+    setPagination((prev) => ({
       ...prev,
       page: 1, // Сбрасываем на первую страницу при сортировке
       sortField: order ? field : undefined,
-      sortOrder: order || undefined
+      sortOrder: order || undefined,
     }))
   }, [])
 
   // Конфигурация пагинации для Ant Design
-  const paginationConfig = useMemo(() => ({
-    current: pagination.page,
-    pageSize: pagination.pageSize,
-    total: queryResult?.count || 0,
-    showSizeChanger: true,
-    showQuickJumper: true,
-    showTotal: (total: number, range: [number, number]) =>
-      `${range[0]}-${range[1]} из ${total.toLocaleString('ru-RU')} записей`,
-    pageSizeOptions: ['50', '100', '200', '500'],
-    onChange: handlePageChange,
-    onShowSizeChange: handlePageSizeChange
-  }), [pagination, queryResult?.count, handlePageChange, handlePageSizeChange])
+  const paginationConfig = useMemo(
+    () => ({
+      current: pagination.page,
+      pageSize: pagination.pageSize,
+      total: queryResult?.count || 0,
+      showSizeChanger: true,
+      showQuickJumper: true,
+      showTotal: (total: number, range: [number, number]) =>
+        `${range[0]}-${range[1]} из ${total.toLocaleString('ru-RU')} записей`,
+      pageSizeOptions: ['50', '100', '200', '500'],
+      onChange: handlePageChange,
+      onShowSizeChange: handlePageSizeChange,
+    }),
+    [pagination, queryResult?.count, handlePageChange, handlePageSizeChange],
+  )
 
   return {
     data: queryResult?.data || [],
@@ -194,6 +201,6 @@ export const useServerPagination = ({
     error,
     pagination: paginationConfig,
     setSorting,
-    refresh: refetch
+    refresh: refetch,
   }
 }

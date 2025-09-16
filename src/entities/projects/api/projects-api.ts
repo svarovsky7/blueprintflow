@@ -183,7 +183,10 @@ export const blocksApi = {
     let insertData: any = { name, type_blocks }
     let { data, error } = await supabase.from('blocks').insert(insertData).select().single()
 
-    if (error && error.message.includes('column "type_blocks" of relation "blocks" does not exist')) {
+    if (
+      error &&
+      error.message.includes('column "type_blocks" of relation "blocks" does not exist')
+    ) {
       console.warn('⚠️ Колонка type_blocks не найдена, создаем блок без неё')
       insertData = { name }
       const fallbackResult = await supabase.from('blocks').insert(insertData).select().single()
@@ -230,7 +233,10 @@ export const blocksApi = {
 
     console.log('🔄 Создание этажей для блока:', blockId)
     console.log('📊 Количество этажей:', floorsData.length)
-    console.log('📋 Детали этажей:', floorsData.map(f => `${f.floor_number}:${f.type_blocks}`).join(', '))
+    console.log(
+      '📋 Детали этажей:',
+      floorsData.map((f) => `${f.floor_number}:${f.type_blocks}`).join(', '),
+    )
 
     if (!supabase) throw new Error('Supabase client not initialized')
 
@@ -242,12 +248,10 @@ export const blocksApi = {
       }
     }
 
-    const { error } = await supabase
-      .from('block_floor_mapping')
-      .upsert(floorsData, {
-        onConflict: 'block_id,floor_number',
-        ignoreDuplicates: false
-      })
+    const { error } = await supabase.from('block_floor_mapping').upsert(floorsData, {
+      onConflict: 'block_id,floor_number',
+      ignoreDuplicates: false,
+    })
 
     if (error) {
       console.error('❌ Ошибка добавления этажей к блоку:', error)

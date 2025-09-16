@@ -19,7 +19,7 @@ export const usePerformanceMetrics = (): UsePerformanceMetricsReturn => {
     renderTime: 0,
     memoryUsage: 0,
     frameCount: 0,
-    lastUpdate: Date.now()
+    lastUpdate: Date.now(),
   })
 
   const measureStartTime = useRef<number>(0)
@@ -43,39 +43,42 @@ export const usePerformanceMetrics = (): UsePerformanceMetricsReturn => {
   }, [])
 
   // Заканчиваем измерение времени
-  const endMeasure = useCallback((label = 'render') => {
-    const endTime = performance.now()
-    const renderTime = endTime - measureStartTime.current
+  const endMeasure = useCallback(
+    (label = 'render') => {
+      const endTime = performance.now()
+      const renderTime = endTime - measureStartTime.current
 
-    if (typeof performance.mark === 'function' && typeof performance.measure === 'function') {
-      performance.mark(`${label}-end`)
-      performance.measure(label, `${label}-start`, `${label}-end`)
-    }
+      if (typeof performance.mark === 'function' && typeof performance.measure === 'function') {
+        performance.mark(`${label}-end`)
+        performance.measure(label, `${label}-start`, `${label}-end`)
+      }
 
-    setMetrics(prev => ({
-      ...prev,
-      renderTime: Math.round(renderTime),
-      memoryUsage: measureMemory(),
-      lastUpdate: Date.now()
-    }))
-  }, [measureMemory])
+      setMetrics((prev) => ({
+        ...prev,
+        renderTime: Math.round(renderTime),
+        memoryUsage: measureMemory(),
+        lastUpdate: Date.now(),
+      }))
+    },
+    [measureMemory],
+  )
 
   // Отмечаем кадр рендеринга
   const markRender = useCallback(() => {
     frameCountRef.current++
-    setMetrics(prev => ({
+    setMetrics((prev) => ({
       ...prev,
-      frameCount: frameCountRef.current
+      frameCount: frameCountRef.current,
     }))
   }, [])
 
   // Автоматическое обновление метрик памяти каждую секунду
   useEffect(() => {
     const interval = setInterval(() => {
-      setMetrics(prev => ({
+      setMetrics((prev) => ({
         ...prev,
         memoryUsage: measureMemory(),
-        lastUpdate: Date.now()
+        lastUpdate: Date.now(),
       }))
     }, 1000)
 
@@ -95,6 +98,6 @@ export const usePerformanceMetrics = (): UsePerformanceMetricsReturn => {
     metrics,
     startMeasure,
     endMeasure,
-    markRender
+    markRender,
   }
 }

@@ -1,0 +1,283 @@
+/* ===== ОПТИМИЗАЦИИ СКРОЛЛА ДЛЯ ТАБЛИЦ ===== */
+
+/* Основные оптимизации для таблиц */
+.performance-table-container {
+  /* GPU ускорение */
+  will-change: scroll-position;
+  transform: translateZ(0);
+
+  /* Оптимизация прокрутки */
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+
+  /* Предотвращение лагов при скролле */
+  -webkit-overflow-scrolling: touch;
+
+  /* Оптимизация рендеринга */
+  contain: layout style paint;
+}
+
+/* Оптимизация заголовков таблицы */
+.performance-table-container .ant-table-thead > tr > th {
+  /* Фиксация заголовков */
+  position: sticky;
+  top: 0;
+  z-index: 10;
+
+  /* GPU слой для плавности */
+  will-change: transform;
+  transform: translateZ(0);
+
+  /* Предотвращение размытия текста */
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Оптимизация строк таблицы */
+.performance-table-container .ant-table-tbody > tr {
+  /* Оптимизация содержимого */
+  contain: layout style;
+
+  /* Отключаем анимации при скролле для производительности */
+  transition: none;
+}
+
+/* Оптимизация ячеек */
+.performance-table-container .ant-table-cell {
+  /* Оптимизация содержимого ячеек */
+  contain: layout style;
+
+  /* Предотвращение ненужных репейнтов */
+  will-change: auto;
+}
+
+/* Оптимизация для режима производительности */
+.performance-mode .ant-table-cell {
+  /* Отключаем сложные стили в режиме производительности */
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  transition: none !important;
+}
+
+.performance-mode .ant-table-tbody > tr:hover {
+  /* Убираем hover эффекты в режиме производительности */
+  background-color: transparent !important;
+}
+
+/* ===== ОПТИМИЗАЦИИ ДЛЯ INPUT КОМПОНЕНТОВ ===== */
+
+/* Базовые оптимизации для полей ввода */
+.performance-input {
+  /* Отключаем дорогие CSS свойства */
+  transition: border-color 0.1s ease !important;
+  box-shadow: none !important;
+
+  /* Оптимизация текста */
+  text-rendering: optimizeSpeed;
+  -webkit-font-smoothing: antialiased;
+}
+
+.performance-input:focus {
+  /* Минимальный стиль фокуса */
+  border-color: #1890ff !important;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2) !important;
+}
+
+/* Оптимизация Select компонентов */
+.performance-select {
+  /* Отключаем анимации */
+  transition: none !important;
+}
+
+.performance-select .ant-select-selector {
+  transition: border-color 0.1s ease !important;
+  box-shadow: none !important;
+}
+
+/* ===== ПРОГРЕССИВНЫЕ УЛУЧШЕНИЯ ===== */
+
+/* Для мощных устройств включаем дополнительные оптимизации */
+@media (min-resolution: 2dppx) {
+  .performance-table-container {
+    /* Высокое разрешение - больше оптимизаций */
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+}
+
+/* Для слабых устройств отключаем эффекты */
+@media (max-width: 768px), (pointer: coarse) {
+  .performance-table-container {
+    /* Мобильные устройства - максимальная производительность */
+    scroll-behavior: auto;
+  }
+
+  .performance-table-container .ant-table-cell {
+    /* Отключаем will-change на мобильных */
+    will-change: auto;
+  }
+
+  .performance-table-container .ant-table-tbody > tr:hover {
+    /* Отключаем hover на тач устройствах */
+    background-color: transparent !important;
+  }
+}
+
+/* ===== СПЕЦИАЛЬНЫЕ ОПТИМИЗАЦИИ ДЛЯ БОЛЬШИХ ТАБЛИЦ ===== */
+
+/* Для таблиц с 100+ строками */
+.large-table-optimization {
+  /* Принудительное создание композитного слоя */
+  transform: translate3d(0, 0, 0);
+
+  /* Оптимизация для больших объемов данных */
+  contain: strict;
+  content-visibility: auto;
+}
+
+.large-table-optimization .ant-table-tbody {
+  /* Оптимизация тела таблицы */
+  contain: layout style paint;
+}
+
+/* Для таблиц с 200+ строками - агрессивные оптимизации */
+.massive-table-optimization {
+  /* Максимальная производительность */
+  pointer-events: auto;
+  user-select: none;
+}
+
+.massive-table-optimization .ant-table-cell {
+  /* Отключаем все декоративные эффекты */
+  border: 1px solid #f0f0f0;
+  background: #fff;
+  transition: none;
+  animation: none;
+}
+
+.massive-table-optimization .ant-table-cell:hover {
+  /* Отключаем hover эффекты */
+  background: #fff !important;
+}
+
+/* ===== УТИЛИТАРНЫЕ КЛАССЫ ===== */
+
+/* Для отключения всех анимаций */
+.no-animations * {
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+}
+
+/* Для GPU ускорения элементов */
+.gpu-accelerated {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Для оптимизации содержимого */
+.content-optimized {
+  contain: layout style paint;
+  content-visibility: auto;
+}
+
+/* Для быстрого рендеринга текста */
+.fast-text {
+  text-rendering: optimizeSpeed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===== КАСТОМИЗАЦИЯ ANT DESIGN ДЛЯ ПРОИЗВОДИТЕЛЬНОСТИ ===== */
+
+/* Упрощение стилей Ant Design для лучшей производительности */
+.ant-table-performance-mode {
+  /* Упрощенные границы */
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.ant-table-performance-mode .ant-table-thead > tr > th {
+  /* Упрощенные заголовки */
+  border-bottom: 2px solid #f0f0f0;
+  background: #fafafa;
+  font-weight: 600;
+}
+
+.ant-table-performance-mode .ant-table-tbody > tr > td {
+  /* Упрощенные ячейки */
+  border-bottom: 1px solid #f0f0f0;
+  padding: 8px 16px;
+}
+
+.ant-table-performance-mode .ant-table-tbody > tr:nth-child(even) {
+  /* Зебра стиль без hover */
+  background-color: #fafafa;
+}
+
+/* Скрытие ненужных элементов в режиме производительности */
+.performance-mode .ant-table-filter-trigger,
+.performance-mode .ant-table-sorter,
+.performance-mode .ant-table-expand-icon {
+  display: none !important;
+}
+
+/* ===== АДАПТИВНОСТЬ ДЛЯ ПРОИЗВОДИТЕЛЬНОСТИ ===== */
+
+/* Медиа запросы для оптимизации на разных устройствах */
+@media (prefers-reduced-motion: reduce) {
+  /* Для пользователей с ограниченной анимацией */
+  .performance-table-container {
+    scroll-behavior: auto;
+  }
+
+  .performance-table-container * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@media (max-height: 600px) {
+  /* Для низких экранов - компактная таблица */
+  .performance-table-container .ant-table-cell {
+    padding: 4px 8px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* ===== ДОПОЛНИТЕЛЬНЫЕ ХАКИ ДЛЯ WEBKIT ===== */
+
+@supports (-webkit-overflow-scrolling: touch) {
+  .performance-table-container {
+    /* Дополнительные оптимизации для WebKit */
+    -webkit-transform: translate3d(0, 0, 0);
+    -webkit-backface-visibility: hidden;
+    -webkit-perspective: 1000;
+  }
+}
+
+/* ===== ОПТИМИЗАЦИЯ ЗАГРУЗКИ ===== */
+
+/* Скелетон загрузка для лучшего UX */
+.table-skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, transparent 37%, transparent 63%, #f0f0f0 75%);
+  background-size: 400% 100%;
+  animation: skeleton-loading 1.4s ease infinite;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: -100% 50%;
+  }
+}
+
+/* Отключение скелетон анимации в режиме производительности */
+.performance-mode .table-skeleton {
+  animation: none;
+  background: #f0f0f0;
+}

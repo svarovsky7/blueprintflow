@@ -48,7 +48,6 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
 
       const filesCount = filesList?.length || 0
 
-
       // Подсчитываем блоки проекта
       const { count: projectBlocksCount } = await supabase
         .from('projects_blocks')
@@ -175,7 +174,6 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
         message.error('Ошибка при удалении связей с документацией')
         return
       }
-
 
       // Шаг 5: Удаляем ведомости объемов работ
       console.log('5️⃣ Удаляем ведомости объемов работ...')
