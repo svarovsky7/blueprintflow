@@ -19,6 +19,10 @@ interface ChessboardOptimizedProps {
   // Пропсы для пагинации
   rowsPerPage?: number
   onRowsPerPageChange?: (value: number) => void
+  // Состояние редактирования для корректной работы render функций
+  editingRows?: Record<string, any>
+  // Ключ для принудительного перерендера
+  forceRerenderKey?: number
 }
 
 const ChessboardOptimized: React.FC<ChessboardOptimizedProps> = ({
@@ -34,7 +38,11 @@ const ChessboardOptimized: React.FC<ChessboardOptimizedProps> = ({
   displayRowLimit = 200,
   rowsPerPage,
   onRowsPerPageChange,
+  editingRows = {},
+  forceRerenderKey = 0,
 }) => {
+  console.log('🔧 ChessboardOptimized received editingRows:', Object.keys(editingRows).length > 0 ? Object.keys(editingRows) : 'empty')
+  console.log('🔧 ChessboardOptimized originalTable.props keys:', Object.keys(originalTable.props))
   const { scale } = useScale()
 
   // Используем внешнее управление, если предоставлено
@@ -68,19 +76,25 @@ const ChessboardOptimized: React.FC<ChessboardOptimizedProps> = ({
   // Временно отключаем виртуализацию - фокус на оптимизации без виртуализации
   // if (!useVirtualization) {
     // Используем SmartTableOptimizer для обычных таблиц
+    const smartTableProps = {
+      ...originalTable.props,
+      data,
+      columns,
+      displayLimit: displayRowLimit,
+      performanceMode,
+      loading,
+      useAdaptiveHeight: true,
+      controlsHeight: scaledControlsHeight,
+      rowsPerPage,
+      onRowsPerPageChange,
+      editingRows, // Явно переопределяем editingRows последним
+      forceRerenderKey,
+    }
+
+    console.log('🔧 SmartTableOptimizer props editingRows:', Object.keys(smartTableProps.editingRows || {}).length > 0 ? Object.keys(smartTableProps.editingRows) : 'empty')
+
     return (
-      <SmartTableOptimizer
-        {...originalTable.props}
-        data={data}
-        columns={columns}
-        displayLimit={displayRowLimit}
-        performanceMode={performanceMode}
-        loading={loading}
-        useAdaptiveHeight={true}
-        controlsHeight={scaledControlsHeight} // масштабируемая высота для элементов управления и пагинации
-        rowsPerPage={rowsPerPage}
-        onRowsPerPageChange={onRowsPerPageChange}
-      />
+      <SmartTableOptimizer {...smartTableProps} />
     )
   // }
 

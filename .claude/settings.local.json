@@ -30,7 +30,10 @@
       "Bash(grep:*)",
       "Bash(npx prettier:*)",
       "Bash(npx playwright test:*)",
-      "Bash(npx playwright:*)"
+      "Bash(npx playwright:*)",
+      "Bash(node:*)",
+      "Bash(del debug_king.js debug_import_429.js debug_final_analysis.js)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []

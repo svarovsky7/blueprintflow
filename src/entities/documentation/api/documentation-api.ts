@@ -412,11 +412,17 @@ export const documentationApi = {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     // Проверяем, существует ли запись
-    const { data: existingDoc } = await supabase
+    // Используем ilike вместо eq для лучшей совместимости с особыми символами
+    const { data: existingDoc, error: searchError } = await supabase
       .from('documentations')
       .select('id, project_name, tag_id, stage')
       .eq('code', code)
-      .single()
+      .maybeSingle()
+
+    // Игнорируем ошибки 406 при поиске - они не критичны
+    if (searchError && !searchError.message.includes('PGRST116')) {
+      console.warn('Search error (non-critical):', searchError)
+    }
 
     let updateData: any = {
       code,

@@ -504,8 +504,10 @@ export default function Chessboard() {
   })
 
   const [performanceMode, setPerformanceMode] = useState(() => {
-    const saved = localStorage.getItem('chessboard-performance-mode')
-    return saved ? saved === 'true' : false
+    // Принудительно отключаем performance mode для исправления проблемы с редактированием
+    return false
+    // const saved = localStorage.getItem('chessboard-performance-mode')
+    // return saved ? saved === 'true' : false
   })
 
   const [virtualRowHeight, setVirtualRowHeight] = useState(() => {
@@ -1841,13 +1843,19 @@ export default function Chessboard() {
     [],
   )
 
+  // Состояние для принудительного перерендера таблицы
+  const [forceRerenderKey, setForceRerenderKey] = useState(0)
+
   const handleEditChange = useCallback(
     (key: string, field: keyof RowData, value: string | number | null) => {
+      console.log('🔧 EDIT CHANGE - key:', key, 'field:', field, 'value:', value)
       setEditingRows((prev) => {
         const updated = { ...prev[key], [field]: value }
         if (field === 'quantityPd' || field === 'quantitySpec' || field === 'quantityRd') {
           delete updated.floorQuantities
         }
+        console.log('🔧 EDIT CHANGE - updated editingRows:', { ...prev, [key]: updated })
+        // Убираем принудительный перерендер - теперь React.memo правильно работает
         return { ...prev, [key]: updated }
       })
     },
@@ -2632,18 +2640,32 @@ export default function Chessboard() {
     findMatchingSet()
   }, [appliedFilters, selectedVersions])
 
+  // Отслеживание изменений editingRows для отладки
+  useEffect(() => {
+    console.log('🔧 EDIT STATE - editingRows updated:', Object.keys(editingRows).length > 0 ? editingRows : 'empty')
+  }, [editingRows])
+
   const startEdit = useCallback(
     (id: string) => {
+      console.log('🔧 EDIT INIT - startEdit called with id:', id)
+      console.log('🔧 EDIT INIT - Current editingRows before:', Object.keys(editingRows))
+      console.log('🔧 EDIT INIT - tableData length:', tableData?.length)
       const dbRow = tableData?.find((r) => r.id === id)
       if (!dbRow) {
+        console.log('🔧 EDIT INIT - No dbRow found for id:', id)
         return
       }
+      console.log('🔧 EDIT INIT - Found dbRow for id:', id)
       const mapping = getNomenclatureMapping(dbRow.chessboard_nomenclature_mapping)
       const nomenclatureId = mapping?.nomenclature_id ?? ''
       const nomenclatureName = mapping?.nomenclature?.name ?? ''
       const supplierName = mapping?.supplier_name ?? ''
       setEditingRows((prev) => {
-        if (prev[id]) return prev
+        if (prev[id]) {
+          console.log('🔧 EDIT INIT - Row already being edited:', id)
+          return prev
+        }
+        console.log('🔧 EDIT INIT - Starting edit for row:', id)
         return {
           ...prev,
           [id]: {
@@ -2780,6 +2802,12 @@ export default function Chessboard() {
                 const tag = sortedDocumentationTags?.find((t) => t.id === tagId)
                 return tag?.name ?? ''
               }
+
+              // Если используем первый доступный тег (fallback из tagId) - найдем его название
+              if (sortedDocumentationTags && sortedDocumentationTags.length > 0) {
+                return sortedDocumentationTags[0].name
+              }
+
               return ''
             })(),
             tagNumber: (() => {
@@ -2795,6 +2823,12 @@ export default function Chessboard() {
                 const tag = sortedDocumentationTags?.find((t) => t.id === tagId)
                 return tag?.tag_number ?? null
               }
+
+              // Если используем первый доступный тег (fallback из tagId) - найдем его номер
+              if (sortedDocumentationTags && sortedDocumentationTags.length > 0) {
+                return sortedDocumentationTags[0].tag_number ?? null
+              }
+
               return null
             })(),
             projectCode: (() => {
@@ -2859,6 +2893,9 @@ export default function Chessboard() {
           },
         }
       })
+      console.log('🔧 EDIT INIT - Edit object created for row:', id)
+      console.log('🔧 EDIT INIT - editingRows state will be updated')
+      console.log('🔧 EDIT INIT - About to call loadSupplierOptions for:', { nomenclatureId, id, supplierName })
       void loadSupplierOptions(nomenclatureId, id, supplierName)
     },
     [
@@ -3157,6 +3194,9 @@ export default function Chessboard() {
         floors: string
         nomenclature: string
         supplier: string
+        tagName: string
+        docCode: string
+        projectName: string
       }[] = []
       const header = rows[0]?.map((h) => String(h || '').toLowerCase()) ?? []
       const materialIdx = header.findIndex((h) => h.includes('материал'))
@@ -3168,6 +3208,10 @@ export default function Chessboard() {
       const floorsIdx = header.findIndex((h) => h.includes('этаж'))
       const nomenclatureIdx = header.findIndex((h) => h.includes('номенклатур'))
       const supplierIdx = header.findIndex((h) => h.includes('поставщик'))
+      // Индексы для разделов и шифров проектов
+      const tagIdx = header.findIndex((h) => h.includes('раздел') || h.includes('tag'))
+      const docCodeIdx = header.findIndex((h) => h.includes('шифр') || h.includes('том') || h.includes('документ'))
+      const projectNameIdx = header.findIndex((h) => h.includes('название') && h.includes('проект'))
       const materialMap: Record<string, string> = {}
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i]
@@ -3191,6 +3235,10 @@ export default function Chessboard() {
         const nomenclatureName =
           nomenclatureIdx >= 0 ? String(row[nomenclatureIdx] ?? '').trim() : ''
         const supplierName = supplierIdx >= 0 ? String(row[supplierIdx] ?? '').trim() : ''
+        // Извлекаем раздел и шифр проекта из файла
+        const tagName = tagIdx >= 0 ? String(row[tagIdx] ?? '').trim() : ''
+        const docCode = docCodeIdx >= 0 ? String(row[docCodeIdx] ?? '').trim() : ''
+        const projectNameFromFile = projectNameIdx >= 0 ? String(row[projectNameIdx] ?? '').trim() : ''
 
         // Парсим количественные данные
         const parseQuantity = (cell: string | number | null | undefined) => {
@@ -3238,6 +3286,19 @@ export default function Chessboard() {
               : undefined, // Оставляем пустым если не выбрано
         })
 
+        // Автозаполнение названия проекта по шифру проекта
+        let projectName = projectNameFromFile
+        if (!projectName && docCode) {
+          // Ищем название проекта по шифру в документации
+          const foundDoc = documentations?.find(d =>
+            d.project_code?.toLowerCase().includes(docCode.toLowerCase()) ||
+            docCode.toLowerCase().includes(d.project_code?.toLowerCase() || '')
+          )
+          if (foundDoc && foundDoc.project_name) {
+            projectName = foundDoc.project_name
+          }
+        }
+
         additionalData.push({
           quantityPd,
           quantitySpec,
@@ -3246,6 +3307,9 @@ export default function Chessboard() {
           floors: floorsValue,
           nomenclature: nomenclatureName,
           supplier: supplierName,
+          tagName: tagName,
+          docCode: docCode,
+          projectName: projectName,
         })
       }
       if (payload.length === 0) {
@@ -3349,14 +3413,44 @@ export default function Chessboard() {
           throw mapError
         }
       }
-      const floorMappings = inserted.map((d, idx) => ({
-        chessboard_id: d.id,
-        floor_number: null, // Будет NULL при импорте, так как этажи указываются отдельно
-        location_id: importState.locationId ? Number(importState.locationId) : null,
-        quantityPd: additionalData[idx].quantityPd,
-        quantitySpec: additionalData[idx].quantitySpec,
-        quantityRd: additionalData[idx].quantityRd,
-      }))
+      // Создаем mappings для этажей из Excel файла
+      const floorMappings: {
+        chessboard_id: string
+        floor_number: number | null
+        location_id: number | null
+        quantityPd: number | null
+        quantitySpec: number | null
+        quantityRd: number | null
+      }[] = []
+
+      inserted.forEach((d, idx) => {
+        const floors = parseFloorsString(additionalData[idx].floors)
+        if (floors.length > 0) {
+          // Если есть этажи из файла, создаем записи для каждого этажа
+          const totalFloors = floors.length
+          floors.forEach((floor) => {
+            floorMappings.push({
+              chessboard_id: d.id,
+              floor_number: floor,
+              location_id: importState.locationId ? Number(importState.locationId) : null,
+              // Делим количество поровну между этажами
+              quantityPd: additionalData[idx].quantityPd ? additionalData[idx].quantityPd / totalFloors : null,
+              quantitySpec: additionalData[idx].quantitySpec ? additionalData[idx].quantitySpec / totalFloors : null,
+              quantityRd: additionalData[idx].quantityRd ? additionalData[idx].quantityRd / totalFloors : null,
+            })
+          })
+        } else {
+          // Если этажей нет, создаем запись без этажа
+          floorMappings.push({
+            chessboard_id: d.id,
+            floor_number: null,
+            location_id: importState.locationId ? Number(importState.locationId) : null,
+            quantityPd: additionalData[idx].quantityPd,
+            quantitySpec: additionalData[idx].quantitySpec,
+            quantityRd: additionalData[idx].quantityRd,
+          })
+        }
+      })
       if (floorMappings.length > 0) {
         const { error: floorError } = await supabase!
           .from('chessboard_floor_mapping')
@@ -3417,26 +3511,104 @@ export default function Chessboard() {
         await supabase!.from('chessboard_nomenclature_mapping').insert(nomenclatureMappings)
       }
 
-      // Создаем связи с документацией если выбраны раздел и/или шифр тома
-      if (importState.tagId || importState.documentationId) {
-        let documentationId = importState.documentationId
+      // Создаем связи с документацией для каждой строки
+      const tagCache = new Map<string, { id: number }>()
+      const docCache = new Map<string, { id: string, projectName?: string }>()
 
-        // Если не выбран шифр тома, но выбран раздел, создаем или находим документ
-        if (!documentationId && importState.tagId && importState.projectId) {
-          const defaultCode = `DOC-${Date.now()}`
-          const doc = await documentationApi.upsertDocumentation(
-            defaultCode,
-            Number(importState.tagId),
-            importState.projectId,
-          )
-          documentationId = doc.id
+      for (let idx = 0; idx < inserted.length; idx++) {
+        const rowData = additionalData[idx]
+        const chessboardId = inserted[idx].id
+
+        // Приоритет: данные из файла > настройки импорта
+        const rowTagName = rowData.tagName || ''
+        const rowDocCode = rowData.docCode || ''
+        const fallbackTagId = importState.tagId
+        const fallbackDocId = importState.documentationId
+
+        let tagId: number | null = null
+        let documentationId: string | null = null
+
+        // 1. Ищем раздел (tagId) из файла или fallback из настроек
+        if (rowTagName) {
+          // Ищем тег по названию
+          if (!tagCache.has(rowTagName)) {
+            const tag = sortedDocumentationTags?.find(t =>
+              t.name.toLowerCase().includes(rowTagName.toLowerCase()) ||
+              rowTagName.toLowerCase().includes(t.name.toLowerCase())
+            )
+            if (tag) {
+              tagCache.set(rowTagName, { id: tag.id })
+            } else {
+              // Собираем ошибку: неизвестный раздел
+              setImportErrors((prev) => ({
+                ...prev,
+                'Неизвестные разделы': (prev['Неизвестные разделы'] || 0) + 1,
+              }))
+              tagCache.set(rowTagName, { id: -1 }) // помечаем как не найденный
+            }
+          }
+          const cachedTag = tagCache.get(rowTagName)
+          if (cachedTag && cachedTag.id > 0) {
+            tagId = cachedTag.id
+          }
+        } else if (fallbackTagId) {
+          tagId = Number(fallbackTagId)
         }
 
+        // 2. Ищем документ (documentationId) из файла или fallback из настроек
+        if (rowDocCode) {
+          // Ищем документ по коду
+          if (!docCache.has(rowDocCode)) {
+            const doc = documentations?.find(d =>
+              d.project_code?.toLowerCase().includes(rowDocCode.toLowerCase()) ||
+              rowDocCode.toLowerCase().includes(d.project_code?.toLowerCase() || '')
+            )
+            if (doc) {
+              docCache.set(rowDocCode, { id: doc.id, projectName: doc.project_name })
+            } else {
+              // Собираем ошибку: неизвестный шифр проекта
+              setImportErrors((prev) => ({
+                ...prev,
+                'Неизвестные шифры проектов': (prev['Неизвестные шифры проектов'] || 0) + 1,
+              }))
+              docCache.set(rowDocCode, { id: 'NOT_FOUND' }) // помечаем как не найденный
+            }
+          }
+          const cachedDoc = docCache.get(rowDocCode)
+          if (cachedDoc && cachedDoc.id !== 'NOT_FOUND') {
+            documentationId = cachedDoc.id
+          }
+        } else if (fallbackDocId) {
+          documentationId = fallbackDocId
+        }
+
+        // 3. Если нет документа, но есть раздел - создаем документ
+        if (!documentationId && tagId && importState.projectId) {
+          const docCode = rowDocCode || `DOC-${tagId}-${Date.now()}`
+          const projectNameForDoc = rowData.projectName || undefined
+          try {
+            const doc = await documentationApi.upsertDocumentation(
+              docCode,
+              tagId,
+              importState.projectId,
+              undefined, // blockId
+              undefined, // color
+              undefined, // stage
+              projectNameForDoc, // projectName из файла
+            )
+            documentationId = doc.id
+            docCache.set(docCode, { id: doc.id, projectName: projectNameForDoc })
+          } catch (error) {
+            console.error('Ошибка создания документа:', error)
+            continue
+          }
+        }
+
+        // 4. Создаем связь если есть документ
         if (documentationId) {
-          // Определяем version_id для связи
           let versionId = importState.versionId
 
-          // Если версия не выбрана, используем последнюю версию документа или создаем новую
+          // Если версия не выбрана, используем последнюю версию документа
           if (!versionId && documentVersions) {
             const existingVersion = documentVersions
               .filter((v) => v.documentation_id === documentationId)
@@ -3445,36 +3617,47 @@ export default function Chessboard() {
             if (existingVersion) {
               versionId = existingVersion.id
             } else {
-              // Создаем новую версию с номером 1
-              const { data: newVersion, error: versionError } = await supabase!
-                .from('documentation_versions')
-                .insert({
-                  documentation_id: documentationId,
-                  version_number: 1,
-                })
-                .select()
-                .single()
+              // Создаем новую версию
+              try {
+                const { data: newVersion, error: versionError } = await supabase!
+                  .from('documentation_versions')
+                  .insert({
+                    documentation_id: documentationId,
+                    version_number: 1,
+                  })
+                  .select()
+                  .single()
 
-              if (versionError) {
-                console.error('Ошибка создания версии документа:', versionError)
-                throw versionError
+                if (versionError) {
+                  console.error('Ошибка создания версии документа:', versionError)
+                  continue
+                } else {
+                  versionId = newVersion.id
+                }
+              } catch (error) {
+                console.error('Ошибка создания версии документа:', error)
+                continue
               }
-              versionId = newVersion.id
             }
           }
 
+          // Создаем связь для этой конкретной строки
           if (versionId) {
-            const docMappings = inserted.map((d) => ({
-              chessboard_id: d.id,
-              version_id: versionId,
-              // TODO: добавить tag_id после применения миграции
-              // tag_id: importState.tagId ? Number(importState.tagId) : null,
-            }))
-
-            const { error: docError } = await supabase!
-              .from('chessboard_documentation_mapping')
-              .insert(docMappings)
-            if (docError) throw docError
+            try {
+              const { error: docError } = await supabase!
+                .from('chessboard_documentation_mapping')
+                .insert({
+                  chessboard_id: chessboardId,
+                  version_id: versionId,
+                  // TODO: добавить tag_id после применения миграции
+                  // tag_id: tagId,
+                })
+              if (docError) {
+                console.error('Ошибка создания связи с документацией:', docError)
+              }
+            } catch (error) {
+              console.error('Ошибка создания связи с документацией:', error)
+            }
           }
         }
       }
@@ -4106,6 +4289,7 @@ export default function Chessboard() {
             case 'versionNumber':
               return (
                 <Select
+                  key={`select-versionNumber-${record.key}`}
                   style={{ width: 60 }}
                   placeholder="Вер."
                   allowClear
@@ -4554,6 +4738,7 @@ export default function Chessboard() {
 
         const render: ColumnType<ViewRow>['render'] = (_, record): React.ReactNode => {
           const edit = editingRows[record.key]
+          console.log('🔧 RENDER CHECK - record.key:', record.key, 'edit exists:', !!edit, 'editingRows keys:', Object.keys(editingRows))
           if (!edit) {
             if (col.dataIndex === 'comments') {
               const rowComments = record.comments || []
@@ -4617,11 +4802,14 @@ export default function Chessboard() {
           }
           switch (col.dataIndex) {
             case 'tagName':
+              console.log('🎯 SELECT RENDER - tagName field for record:', record.key, '| edit.tagId:', edit.tagId, '| edit.tagName:', edit.tagName, '| available options count:', sortedDocumentationTags.length)
               return (
                 <Select
+                  key={`select-tagName-${record.key}`}
                   style={{ minWidth: 120, width: 'auto' }}
                   value={edit.tagId}
                   onChange={(value) => {
+                    console.log('🎯 SELECT onChange - tagName - value:', value)
                     handleEditChange(record.key, 'tagId', value)
                     const tag = sortedDocumentationTags.find((t) => String(t.id) === value)
                     handleEditChange(record.key, 'tagName', tag?.name ?? '')
@@ -4645,6 +4833,7 @@ export default function Chessboard() {
             case 'documentationId':
               return (
                 <Select
+                  key={`select-documentationId-${record.key}`}
                   style={{ width: 150 }}
                   value={edit.documentationId}
                   onChange={(value) => {
@@ -4705,6 +4894,7 @@ export default function Chessboard() {
               }
               return (
                 <Select
+                  key={`select-projectCode-${record.key}`}
                   style={{ width: '100%' }}
                   placeholder="Шифр проекта"
                   allowClear
@@ -4787,6 +4977,7 @@ export default function Chessboard() {
             case 'versionNumber':
               return (
                 <Select
+                  key={`select-versionNumber-${record.key}`}
                   style={{ width: 60 }}
                   placeholder="Вер."
                   allowClear
@@ -4891,6 +5082,7 @@ export default function Chessboard() {
             case 'supplier':
               return (
                 <Select
+                  key={`select-supplier-${record.key}`}
                   style={{ width: 250 }}
                   popupMatchSelectWidth={supplierDropdownWidths[record.key] ?? 250}
                   value={edit.supplier || undefined}
@@ -4905,6 +5097,7 @@ export default function Chessboard() {
             case 'unit':
               return (
                 <Select
+                  key={`select-unit-${record.key}`}
                   style={{ minWidth: 80, width: 'auto' }}
                   value={edit.unitId}
                   onChange={(value) => handleEditChange(record.key, 'unitId', value)}
@@ -4914,6 +5107,7 @@ export default function Chessboard() {
             case 'block':
               return (
                 <Select
+                  key={`select-block-${record.key}`}
                   style={{ minWidth: 100, width: 'auto' }}
                   value={edit.blockId}
                   onChange={(value) => {
@@ -4936,6 +5130,7 @@ export default function Chessboard() {
             case 'costCategory':
               return (
                 <Select
+                  key={`select-costCategory-${record.key}`}
                   style={{ minWidth: 150, width: 'auto' }}
                   value={edit.costCategoryId}
                   onChange={(value) => {
@@ -4972,6 +5167,7 @@ export default function Chessboard() {
             case 'costType':
               return (
                 <Select
+                  key={`select-costType-${record.key}`}
                   style={{ minWidth: 150, width: 'auto' }}
                   value={edit.costTypeId}
                   onChange={(value) => {
@@ -4992,6 +5188,7 @@ export default function Chessboard() {
             case 'workName':
               return (
                 <Select
+                  key={`select-workName-${record.key}`}
                   style={{ width: 300 }}
                   value={edit.rateId || undefined}
                   onChange={(value) => handleEditChange(record.key, 'rateId', value)}
@@ -5005,6 +5202,7 @@ export default function Chessboard() {
             case 'location':
               return (
                 <Select
+                  key={`select-location-${record.key}`}
                   style={{ minWidth: 130, width: 'auto' }}
                   value={edit.locationId}
                   onChange={(value) => handleEditChange(record.key, 'locationId', value)}
@@ -5922,6 +6120,7 @@ export default function Chessboard() {
               displayRowLimit={displayRowLimit}
               rowsPerPage={rowsPerPage}
               onRowsPerPageChange={handleRowsPerPageChange}
+              editingRows={{}} // Режим добавления не использует editingRows
             />
           ) : (
             <ChessboardOptimized
@@ -5952,6 +6151,8 @@ export default function Chessboard() {
               displayRowLimit={displayRowLimit}
               rowsPerPage={rowsPerPage}
               onRowsPerPageChange={handleRowsPerPageChange}
+              editingRows={editingRows}
+              forceRerenderKey={forceRerenderKey}
             />
           )}
         </div>
@@ -6023,6 +6224,8 @@ export default function Chessboard() {
                 пустыми):
               </Typography.Text>
               <ul style={{ margin: '8px 0', paddingLeft: 20 }}>
+                <li>Раздел</li>
+                <li>Шифр проекта</li>
                 <li>Корпус</li>
                 <li>Этажи</li>
                 <li>Материал</li>

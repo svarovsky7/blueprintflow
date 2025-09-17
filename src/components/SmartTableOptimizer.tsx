@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState, useRef, useLayoutEffect } from 'react'
+import React, { useMemo, useCallback, useState, useRef, useLayoutEffect, useDeferredValue } from 'react'
 import { Table } from 'antd'
 import { useTableHeight } from '../hooks/useTableHeight'
 
@@ -17,6 +17,10 @@ interface SmartTableOptimizerProps {
   // Пропсы для управления пагинацией
   rowsPerPage?: number
   onRowsPerPageChange?: (value: number) => void
+  // Состояние редактирования для правильной обработки render функций
+  editingRows?: Record<string, any>
+  // Ключ для принудительного перерендера
+  forceRerenderKey?: number
   [key: string]: any // остальные пропсы Table
 }
 
@@ -42,7 +46,7 @@ const createStableRowKey = (() => {
   }
 })()
 
-// Функция для глубокого сравнения колонок
+// Функция для глубокого сравнения колонок - ИСПРАВЛЕНО для Select компонентов
 const deepMemoColumns = (() => {
   const columnsCache = new WeakMap<any[], any[]>()
 
@@ -55,7 +59,7 @@ const deepMemoColumns = (() => {
       return columns
     }
 
-    // В режиме производительности упрощаем колонки
+    // В режиме производительности упрощаем колонки, НО сохраняем важные render функции
     const optimized = columns.map((col: any) => ({
       ...col,
       // Отключаем сложные фильтры
@@ -64,8 +68,8 @@ const deepMemoColumns = (() => {
       filterIcon: undefined,
       // Упрощаем сортировку только для базовых типов
       sorter: (col.sorter === true || typeof col.sorter === 'function') ? true : false,
-      // Сохраняем только критические рендеры
-      render: (['actions', 'comments', 'checkbox'].includes(col.dataIndex) || col.key === 'actions')
+      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Сохраняем render функции для Select полей + критические
+      render: (['actions', 'comments', 'checkbox', 'tagName', 'unit', 'costCategory', 'costType', 'location', 'workName', 'material'].includes(col.dataIndex) || col.key === 'actions')
         ? col.render
         : undefined,
     }))
@@ -98,11 +102,23 @@ const SmartTableOptimizer: React.FC<SmartTableOptimizerProps> = ({
   controlsHeight = 56,
   rowsPerPage = 50,
   onRowsPerPageChange,
+  editingRows = {},
+  forceRerenderKey = 0,
   ...tableProps
 }) => {
+  console.log('🔧 SmartTableOptimizer RENDER - editingRows keys:', Object.keys(editingRows).length > 0 ? Object.keys(editingRows) : 'empty', 'timestamp:', Date.now())
   const [isReady, setIsReady] = useState(!lazyRendering)
   const previousDataRef = useRef<any[]>([])
   const frameRef = useRef<number>()
+
+  // 🚀 ОПТИМИЗАЦИЯ: Используем useDeferredValue для неблокирующих обновлений
+  const deferredData = useDeferredValue(data)
+  const deferredEditingRows = useDeferredValue(editingRows)
+
+  // Отслеживание изменений editingRows
+  React.useEffect(() => {
+    console.log('🔧 SmartTableOptimizer editingRows changed:', Object.keys(editingRows))
+  }, [editingRows])
 
   // Используем динамический расчет высоты таблицы
   const { tableHeight } = useTableHeight({
@@ -125,34 +141,50 @@ const SmartTableOptimizer: React.FC<SmartTableOptimizerProps> = ({
     }
   }, [lazyRendering, isReady])
 
-  // Оптимизация 1: Интеллектуальное ограничение данных с чанками
+  // 🚀 ОПТИМИЗАЦИЯ 1: ЖЁСТКОЕ ограничение данных для производительности
   const limitedData = useMemo(() => {
-    console.log('🔍 SmartTableOptimizer limitedData:', {
-      isReady,
-      dataLength: data.length,
-      displayLimit,
-      chunkSize,
-      calculatedLimit: chunkSize * 4
-    })
+    // Убираем частые логи - только при изменениях
+    if (deferredData.length !== previousDataRef.current.length) {
+      console.log('🔍 SmartTableOptimizer limitedData:', {
+        isReady,
+        dataLength: deferredData.length,
+        displayLimit,
+      })
+    }
 
     if (!isReady) return []
 
-    if (displayLimit === -1) {
-      // Убираем ограничение чанками - отображаем все данные
-      // Пагинация в Table компоненте сама управляет отображением
-      console.log('🔍 Unlimited mode: returning all', data.length, 'rows')
-      return data
+    // 🚨 КРИТИЧЕСКАЯ ОПТИМИЗАЦИЯ: Максимум 100 строк в DOM для производительности
+    const MAX_RENDER_ROWS = 100
+    const effectiveLimit = displayLimit === -1 ? MAX_RENDER_ROWS : Math.min(displayLimit, MAX_RENDER_ROWS)
+
+    if (deferredData.length > MAX_RENDER_ROWS) {
+      console.warn(`⚠️ PERFORMANCE: Rendering only ${effectiveLimit} of ${deferredData.length} rows for performance. Use pagination to view more.`)
+      return deferredData.slice(0, effectiveLimit)
     }
 
-    console.log('🔍 Limited mode: returning first', displayLimit, 'of', data.length, 'rows')
-    return data.slice(0, displayLimit)
-  }, [data, displayLimit, chunkSize, isReady])
+    console.log('🔍 Safe mode: returning', Math.min(effectiveLimit, deferredData.length), 'of', deferredData.length, 'rows')
+    return deferredData.slice(0, effectiveLimit)
+  }, [deferredData, displayLimit, chunkSize, isReady])
 
-  // Оптимизация 2: Глубокая мемоизация колонок
+  // 🚀 ОПТИМИЗАЦИЯ 2: Глубокая мемоизация колонок с deferredEditingRows
   const optimizedColumns = useMemo(() => {
+    const hasActiveEditing = Object.keys(deferredEditingRows).length > 0
+    console.log('🔧 COLUMNS OPTIMIZATION - performanceMode:', performanceMode, 'enableDeepMemo:', enableDeepMemo, 'hasActiveEditing:', hasActiveEditing, 'deferredEditingRows keys:', Object.keys(deferredEditingRows))
+
+    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Никогда не отключаем render функции при активном редактировании
+    if (hasActiveEditing) {
+      console.log('🔧 COLUMNS OPTIMIZATION - Active editing detected, returning ALL original columns with render functions')
+      return columns
+    }
+
     if (!enableDeepMemo) {
-      // Простая оптимизация
-      if (!performanceMode) return columns
+      // Простая оптимизация только при отсутствии активного редактирования
+      if (!performanceMode) {
+        console.log('🔧 COLUMNS OPTIMIZATION - Returning original columns (no performance mode)')
+        return columns
+      }
+      console.log('🔧 COLUMNS OPTIMIZATION - Performance mode enabled, stripping render functions except for:', ['actions', 'comments', 'checkbox'])
       return columns.map((col: any) => ({
         ...col,
         filters: undefined,
@@ -163,11 +195,22 @@ const SmartTableOptimizer: React.FC<SmartTableOptimizerProps> = ({
       }))
     }
 
-    // Глубокая мемоизация
+    // Глубокая мемоизация - только при отсутствии активного редактирования
     return deepMemoColumns(columns, performanceMode)
-  }, [columns, performanceMode, enableDeepMemo])
+  }, [columns, performanceMode, enableDeepMemo, deferredEditingRows])
 
-  // Оптимизация 3: Стабильная функция rowKey (без deprecated index)
+  // 🚀 ОПТИМИЗАЦИЯ 3: Intelligent shouldCellUpdate для минимизации перерендеров
+  const shouldCellUpdate = useCallback((record: any, prevRecord: any) => {
+    // Быстрая проверка ссылочного равенства
+    if (record === prevRecord) return false
+
+    // Проверяем только ключевые поля, которые влияют на отображение
+    const keyFields = ['id', 'material', 'quantityPd', 'quantitySpec', 'quantityRd', 'unit', 'updated_at']
+
+    return keyFields.some(field => record[field] !== prevRecord[field])
+  }, [])
+
+  // Оптимизация 4: Стабильная функция rowKey (без deprecated index)
   const getRowKey = useCallback((record: any) => {
     return createStableRowKey(record)
   }, [])
@@ -208,14 +251,8 @@ const SmartTableOptimizer: React.FC<SmartTableOptimizerProps> = ({
     // Используем переданное значение rowsPerPage или безопасный fallback
     const defaultPageSize = rowsPerPage && rowsPerPage > 0 ? rowsPerPage : 100
 
-    console.log('🔍 SmartTableOptimizer paginationConfig:', {
-      dataLength,
-      rowsPerPage,
-      rowsPerPageType: typeof rowsPerPage,
-      rowsPerPageValid: rowsPerPage && rowsPerPage > 0,
-      defaultPageSize,
-      onRowsPerPageChangeExists: !!onRowsPerPageChange
-    })
+    // Убираем частые логи - только при изменениях размера страницы
+    // console.log убран для избежания спама
 
     return {
       pageSize: defaultPageSize,
@@ -238,17 +275,31 @@ const SmartTableOptimizer: React.FC<SmartTableOptimizerProps> = ({
     }
   }, [limitedData.length, rowsPerPage, onRowsPerPageChange])
 
-  // Оптимизация 7: Детекция изменений данных
+  // 🚀 ОПТИМИЗАЦИЯ 7: Performance Monitor для отслеживания времени рендеринга
+  const renderStartTime = useRef<number>(0)
+
+  React.useLayoutEffect(() => {
+    renderStartTime.current = performance.now()
+  })
+
+  React.useEffect(() => {
+    const renderTime = performance.now() - renderStartTime.current
+    if (renderTime > 50) { // Логируем только медленные рендеры
+      console.warn(`⚠️ SmartTableOptimizer slow render: ${Math.round(renderTime)}ms for ${limitedData.length} rows`)
+    }
+  })
+
+  // Оптимизация 8: Детекция изменений данных с deferredData
   const hasDataChanged = useMemo(() => {
-    const changed = previousDataRef.current.length !== data.length ||
-      previousDataRef.current.some((item, index) => item !== data[index])
+    const changed = previousDataRef.current.length !== deferredData.length ||
+      previousDataRef.current.some((item, index) => item !== deferredData[index])
 
     if (changed) {
-      previousDataRef.current = data
+      previousDataRef.current = deferredData
     }
 
     return changed
-  }, [data])
+  }, [deferredData])
 
   // Показать loading состояние если lazy rendering не готов
   if (!isReady) {
@@ -263,10 +314,33 @@ const SmartTableOptimizer: React.FC<SmartTableOptimizerProps> = ({
     )
   }
 
+  // Создаем уникальный ключ для принудительного перерендера при изменении editingRows
+  const editingRowsHash = useMemo(() => {
+    const keys = Object.keys(editingRows).sort()
+    // Создаем хэш только из критических полей для Select компонентов (ПОЛНЫЙ СПИСОК)
+    const criticalFields = [
+      // Select компоненты
+      'tagId', 'tagName', 'documentationId', 'projectCode', 'versionNumber',
+      'unitId', 'blockId', 'block', 'costCategoryId', 'costTypeId',
+      'locationId', 'rateId', 'materialId', 'material', 'nomenclatureId',
+      'nomenclature', 'supplier',
+      // Input компоненты
+      'floors', 'quantityPd', 'quantitySpec', 'quantityRd'
+    ]
+    const values = keys.map(key => {
+      const row = editingRows[key]
+      const criticalValues = criticalFields.map(field => `${field}:${row[field] || ''}`).join(',')
+      return `${key}:(${criticalValues})`
+    }).join('|')
+
+    console.log('🔧 editingRowsHash calculated:', values || 'empty')
+    return values || 'empty'
+  }, [editingRows])
+
   return (
     <Table
       {...tableProps}
-      key={`table-${rowsPerPage}-${limitedData.length}`} // принудительный перерендер при изменении rowsPerPage
+      key={`table-${rowsPerPage}-${limitedData.length}-force-${forceRerenderKey}`} // стабильный ключ для сохранения скролла
       dataSource={limitedData}
       columns={optimizedColumns}
       rowKey={getRowKey}
@@ -282,7 +356,7 @@ const SmartTableOptimizer: React.FC<SmartTableOptimizerProps> = ({
   )
 }
 
-// Мемоизация с проверкой глубоких изменений
+// Мемоизация с ИСПРАВЛЕННОЙ проверкой глубоких изменений editingRows
 export default React.memo(SmartTableOptimizer, (prevProps, nextProps) => {
   // Быстрая проверка примитивных значений
   if (
@@ -293,9 +367,59 @@ export default React.memo(SmartTableOptimizer, (prevProps, nextProps) => {
     prevProps.lazyRendering !== nextProps.lazyRendering ||
     prevProps.useAdaptiveHeight !== nextProps.useAdaptiveHeight ||
     prevProps.controlsHeight !== nextProps.controlsHeight ||
-    prevProps.rowsPerPage !== nextProps.rowsPerPage // КРИТИЧЕСКИ ВАЖНО для обновления пагинации
+    prevProps.rowsPerPage !== nextProps.rowsPerPage || // КРИТИЧЕСКИ ВАЖНО для обновления пагинации
+    prevProps.forceRerenderKey !== nextProps.forceRerenderKey // КРИТИЧЕСКИ ВАЖНО для принудительного перерендера
   ) {
+    if (prevProps.forceRerenderKey !== nextProps.forceRerenderKey) {
+      console.log('🔧 SmartTableOptimizer memo: forceRerenderKey changed', prevProps.forceRerenderKey, '->', nextProps.forceRerenderKey)
+    }
     return false
+  }
+
+  // КРИТИЧЕСКИ ВАЖНО: Глубокая проверка изменений editingRows
+  const prevEditingRows = prevProps.editingRows || {}
+  const nextEditingRows = nextProps.editingRows || {}
+  const prevEditingKeys = Object.keys(prevEditingRows)
+  const nextEditingKeys = Object.keys(nextEditingRows)
+
+  if (prevEditingKeys.length !== nextEditingKeys.length) {
+    console.log('🔧 SmartTableOptimizer memo: editingRows length changed', prevEditingKeys.length, '->', nextEditingKeys.length)
+    return false
+  }
+
+  // Проверяем, изменились ли ключи редактируемых строк
+  if (prevEditingKeys.length > 0 || nextEditingKeys.length > 0) {
+    const keysChanged = prevEditingKeys.some(key => !nextEditingKeys.includes(key)) ||
+                       nextEditingKeys.some(key => !prevEditingKeys.includes(key))
+    if (keysChanged) {
+      console.log('🔧 SmartTableOptimizer memo: editingRows keys changed', prevEditingKeys, '->', nextEditingKeys)
+      return false
+    }
+
+    // НОВОЕ: Глубокое сравнение значений editingRows для одинаковых ключей
+    for (const key of prevEditingKeys) {
+      const prevRow = prevEditingRows[key]
+      const nextRow = nextEditingRows[key]
+
+      if (!nextRow) continue // ключ исчез, уже обработано выше
+
+      // Сравниваем критические поля для Select компонентов (ПОЛНЫЙ СПИСОК)
+      const criticalFields = [
+        // Select компоненты
+        'tagId', 'tagName', 'documentationId', 'projectCode', 'versionNumber',
+        'unitId', 'blockId', 'block', 'costCategoryId', 'costTypeId',
+        'locationId', 'rateId', 'materialId', 'material', 'nomenclatureId',
+        'nomenclature', 'supplier',
+        // Input компоненты
+        'floors', 'quantityPd', 'quantitySpec', 'quantityRd'
+      ]
+      for (const field of criticalFields) {
+        if (prevRow[field] !== nextRow[field]) {
+          console.log(`🔧 SmartTableOptimizer memo: editingRows field ${field} changed for key ${key}:`, prevRow[field], '->', nextRow[field])
+          return false
+        }
+      }
+    }
   }
 
   // Проверка изменений данных

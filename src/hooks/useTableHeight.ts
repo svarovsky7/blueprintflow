@@ -73,16 +73,17 @@ export const useTableHeight = ({
 
       setTableHeight(finalHeight)
 
-      console.log('🔧 Table height calculation:', {
-        scale,
-        measurements,
-        totalUsedHeight,
-        availableHeight,
-        finalHeight,
-        viewport: `${window.innerHeight}px`,
-        extraPadding: Math.round(extraPadding * scale),
-        controlsHeight,
-      })
+      // Убираем частые логи - только при значительных изменениях
+      if (Math.abs(totalUsedHeight - (measurementRef.current?.lastLoggedHeight || 0)) > 10) {
+        console.log('🔧 Table height calculation:', {
+          scale,
+          totalUsedHeight,
+          finalHeight,
+          viewport: `${window.innerHeight}px`,
+        })
+        measurementRef.current = measurementRef.current || {}
+        measurementRef.current.lastLoggedHeight = totalUsedHeight
+      }
 
     } catch (error) {
       console.error('❌ Error calculating table height:', error)

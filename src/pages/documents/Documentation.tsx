@@ -521,7 +521,22 @@ export default function Documentation() {
     // Чекбокс колонка для режима удаления
     const checkboxColumn = deleteMode
       ? {
-          title: '',
+          title: (
+            <Checkbox
+              checked={[...newRows, ...documentation].length > 0 && selectedRowsForDelete.size === [...newRows, ...documentation].length}
+              indeterminate={selectedRowsForDelete.size > 0 && selectedRowsForDelete.size < [...newRows, ...documentation].length}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  // Выделить все строки
+                  const allIds = new Set([...newRows, ...documentation].map(row => row.id))
+                  setSelectedRowsForDelete(allIds)
+                } else {
+                  // Снять выделение со всех строк
+                  setSelectedRowsForDelete(new Set())
+                }
+              }}
+            />
+          ),
           dataIndex: 'checkbox',
           key: 'checkbox',
           width: 50,
@@ -1240,6 +1255,7 @@ export default function Documentation() {
   }, [
     columnSettings,
     newRows,
+    documentation,
     editingKey,
     editingRows,
     tags,
@@ -1429,17 +1445,7 @@ export default function Documentation() {
           stage: values.stage,
         }
 
-        // Логируем первые несколько строк для отладки
-        if (index < 3) {
-          console.log(`Row ${index + 1}:`, {
-            raw_date_value: row['Дата выдачи версии'] || row['Дата выдачи'],
-            date_type: typeof (row['Дата выдачи версии'] || row['Дата выдачи']),
-            converted_date: processedRow.issue_date,
-            raw_url_value: row['Ссылка'] || row['Ссылка на документ'],
-            file_url: processedRow.file_url,
-            all_fields: Object.keys(row),
-          })
-        }
+        // Логирование отключено для уменьшения шума в консоли
 
         return processedRow
       })
@@ -1940,18 +1946,54 @@ export default function Documentation() {
                 icon={<DeleteOutlined />}
                 onClick={() => {
                   if (deleteMode && selectedRowsForDelete.size > 0) {
-                    Modal.confirm({
+                    modal.confirm({
                       title: 'Удалить выбранные записи?',
                       content: `Будет удалено записей: ${selectedRowsForDelete.size}`,
                       okText: 'Удалить',
                       cancelText: 'Отмена',
                       okButtonProps: { danger: true },
                       onOk: async () => {
-                        // TODO: Добавить логику удаления через API
-                        message.success(`Удалено записей: ${selectedRowsForDelete.size}`)
-                        setSelectedRowsForDelete(new Set())
-                        setDeleteMode(false)
-                        queryClient.invalidateQueries({ queryKey: ['documentation'] })
+                        try {
+                          // Получаем записи для удаления по ID
+                          const recordsToDelete = [...newRows, ...documentation].filter(row =>
+                            selectedRowsForDelete.has(row.id)
+                          )
+
+                          // Удаляем только записи с documentation_id (уже созданные в БД)
+                          const recordsWithDbId = recordsToDelete.filter(row =>
+                            row.documentation_id
+                          )
+
+                          // Удаляем новые записи (не сохраненные в БД)
+                          const newRecordsToDelete = recordsToDelete.filter(row =>
+                            !row.documentation_id
+                          )
+
+                          // Удаляем из базы данных
+                          if (recordsWithDbId.length > 0) {
+                            await Promise.all(
+                              recordsWithDbId.map(record =>
+                                documentationApi.deleteDocumentation(record.documentation_id!)
+                              )
+                            )
+                          }
+
+                          // Удаляем новые записи из локального состояния
+                          if (newRecordsToDelete.length > 0) {
+                            setNewRows(prev => prev.filter(row => !selectedRowsForDelete.has(row.id)))
+                          }
+
+                          message.success(`Удалено записей: ${selectedRowsForDelete.size}`)
+                          setSelectedRowsForDelete(new Set())
+                          setDeleteMode(false)
+
+                          // Обновляем данные из БД
+                          queryClient.invalidateQueries({ queryKey: ['documentation'] })
+
+                        } catch (error) {
+                          console.error('Ошибка при удалении записей:', error)
+                          message.error('Ошибка при удалении записей')
+                        }
                       },
                     })
                   } else {

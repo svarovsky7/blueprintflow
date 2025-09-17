@@ -430,13 +430,6 @@ export default function ProjectCardModal({
       }
     `
 
-    console.log('🔍 ProjectCardModal: Применяются масштабированные заголовки:', {
-      scale,
-      fontSize10: Math.round(10 * scale),
-      fontSize12: Math.round(12 * scale),
-      needsScrolling: scalingInfo.needsScrolling
-    })
-
     // Дополнительные стили для скроллируемых таблиц >48 этажей
     if (scalingInfo.needsScrolling && scalingInfo.tableScrollHeight) {
       // Добавляем запас для прокрутки до отрицательных этажей
