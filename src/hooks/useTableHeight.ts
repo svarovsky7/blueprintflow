@@ -73,8 +73,8 @@ export const useTableHeight = ({
 
       setTableHeight(finalHeight)
 
-      // Убираем частые логи - только при значительных изменениях
-      if (Math.abs(totalUsedHeight - (measurementRef.current?.lastLoggedHeight || 0)) > 10) {
+      // Убираем частые логи - только при значительных изменениях в development режиме
+      if (process.env.NODE_ENV === 'development' && Math.abs(totalUsedHeight - (measurementRef.current?.lastLoggedHeight || 0)) > 10) {
         console.log('🔧 Table height calculation:', {
           scale,
           totalUsedHeight,

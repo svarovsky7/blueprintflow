@@ -33,7 +33,9 @@
       "Bash(npx playwright:*)",
       "Bash(node:*)",
       "Bash(del debug_king.js debug_import_429.js debug_final_analysis.js)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(curl:*)",
+      "Bash(npx @modelcontextprotocol/cli list-servers:*)"
     ],
     "deny": [],
     "ask": []

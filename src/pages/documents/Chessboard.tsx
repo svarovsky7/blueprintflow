@@ -355,8 +355,10 @@ const parseFloorsString = (floorsStr: string): number[] => {
   return Array.from(floors).sort((a, b) => a - b)
 }
 
+// ИСПРАВЛЕНИЕ: Стабильный генератор ключей для строк вместо Math.random
+let rowIdCounter = 0
 const emptyRow = (defaults: Partial<RowData>): RowData => ({
-  key: Math.random().toString(36).slice(2),
+  key: `new-row-${++rowIdCounter}-${Date.now()}`, // Стабильный ключ для предотвращения перерендеров
   material: '',
   materialId: '',
   quantityPd: '',
@@ -1581,6 +1583,16 @@ export default function Chessboard() {
 
   const tableRows = useMemo<TableRow[]>(
     () => [
+      // ИСПРАВЛЕНИЕ: Добавляем строки из editingRows для отображения новых строк без смены режима
+      ...Object.values(editingRows).map((r) => ({
+        ...r,
+        // Обеспечиваем fallback для projectName если он пустой
+        projectName:
+          r.projectName ||
+          (r.projectCode &&
+            documentations?.find((d) => d.project_code === r.projectCode)?.project_name) ||
+          r.projectName,
+      })),
       ...rows.map((r) => ({
         ...r,
         // Обеспечиваем fallback для projectName если он пустой
@@ -1616,7 +1628,7 @@ export default function Chessboard() {
         isExisting: true,
       })),
     ],
-    [rows, viewRows, documentations],
+    [editingRows, rows, viewRows, documentations], // ВАЖНО: добавляем editingRows в зависимости
   )
 
   const handleApply = () => {
@@ -1759,7 +1771,7 @@ export default function Chessboard() {
 
   const handleDeleteSelected = useCallback(async () => {
     const deleteStartTime = performance.now()
-    console.log(`⏱️ [PERFORMANCE] Начало удаления ${selectedRows.size} строк`)
+    // УДАЛЕН лог для оптимизации производительности
 
     if (!supabase || selectedRows.size === 0) return
 
@@ -1776,7 +1788,7 @@ export default function Chessboard() {
       await Promise.all(deletePromises)
       const deleteEndTime = performance.now()
       const deleteDuration = (deleteEndTime - deleteStartTime).toFixed(2)
-      console.log(`⏱️ [PERFORMANCE] Удаление завершено за ${deleteDuration}ms (${idsToDelete.length} строк)`)
+      // УДАЛЕН лог для оптимизации производительности
 
       message.success(`Удалено строк: ${idsToDelete.length}`)
       setSelectedRows(new Set())
@@ -2259,6 +2271,7 @@ export default function Chessboard() {
     refetch()
   }, [selectedVersions, appliedFilters, refetch, documentVersions])
 
+  // ИСПРАВЛЕНИЕ: Быстрое добавление строк без смены режима (оптимизация производительности)
   const startAdd = useCallback(() => {
     if (!appliedFilters) return
 
@@ -2286,6 +2299,7 @@ export default function Chessboard() {
         setSelectedVersions(newVersions)
       }
     }
+
     const defaultLocationId =
       appliedFilters.typeId && appliedFilters.typeId.length > 0
         ? String(
@@ -2310,29 +2324,37 @@ export default function Chessboard() {
       docData && selectedVersions[docData.id]
         ? documentVersions?.find((v) => v.id === selectedVersions[docData.id])
         : undefined
-    setRows([
-      emptyRow({
-        blockId:
-          appliedFilters.blockId && appliedFilters.blockId.length > 0
-            ? appliedFilters.blockId[0]
-            : '',
-        costCategoryId:
-          appliedFilters.categoryId && appliedFilters.categoryId.length > 0
-            ? appliedFilters.categoryId[0]
-            : '',
-        costTypeId:
-          appliedFilters.typeId && appliedFilters.typeId.length > 0 ? appliedFilters.typeId[0] : '',
-        locationId: defaultLocationId,
-        block: blockName,
-        tagId: tagData ? String(tagData.id) : '',
-        tagName: tagData?.name ?? '',
-        tagNumber: tagData?.tag_number ?? null,
-        documentationId: docData?.id ?? '',
-        projectCode: docData?.project_code ?? '',
-        versionNumber: versionData?.version_number ?? undefined,
-      }),
-    ])
-    setMode('add')
+
+    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Создаем новую строку напрямую в режиме редактирования без смены mode
+    const newRowData = emptyRow({
+      blockId:
+        appliedFilters.blockId && appliedFilters.blockId.length > 0
+          ? appliedFilters.blockId[0]
+          : '',
+      costCategoryId:
+        appliedFilters.categoryId && appliedFilters.categoryId.length > 0
+          ? appliedFilters.categoryId[0]
+          : '',
+      costTypeId:
+        appliedFilters.typeId && appliedFilters.typeId.length > 0 ? appliedFilters.typeId[0] : '',
+      locationId: defaultLocationId,
+      block: blockName,
+      tagId: tagData ? String(tagData.id) : '',
+      tagName: tagData?.name ?? '',
+      tagNumber: tagData?.tag_number ?? null,
+      documentationId: docData?.id ?? '',
+      projectCode: docData?.project_code ?? '',
+      versionNumber: versionData?.version_number ?? undefined,
+    })
+
+    // ОПТИМИЗАЦИЯ: Добавляем строку сразу в editingRows (быстро) вместо setRows + setMode (медленно)
+    setEditingRows(prev => ({ ...prev, [newRowData.key]: newRowData }))
+
+    if (process.env.NODE_ENV === 'development') { // LOG: условное логирование для отладки
+      console.log('⚡ Быстрое добавление строки:', newRowData.key) // LOG: добавление новой строки
+    }
+
+    // НЕ меняем mode - остаемся в 'view' для оптимальной производительности
   }, [
     appliedFilters,
     costTypes,
@@ -2631,7 +2653,7 @@ export default function Chessboard() {
       const scrollContainer = document.querySelector('.ant-table-body')
       const savedScrollLeft = scrollContainer?.scrollLeft || 0
 
-      console.log('💾 Сохраняем позицию скролла:', savedScrollLeft)
+      const containerScrollWidth = scrollContainer?.scrollWidth || 0
 
       const dbRow = tableData?.find((r) => r.id === id)
       if (!dbRow) {
@@ -2868,8 +2890,33 @@ export default function Chessboard() {
       const restoreScroll = () => {
         const container = document.querySelector('.ant-table-body')
         if (container && savedScrollLeft > 0) {
-          console.log('🔄 Восстанавливаем позицию скролла:', savedScrollLeft)
-          container.scrollLeft = savedScrollLeft
+          const newContainerScrollWidth = container?.scrollWidth || 0
+
+          // Универсальный алгоритм восстановления позиции скролла
+          const containerWidth = container.clientWidth
+          const widthChange = newContainerScrollWidth - containerScrollWidth
+
+          let adjustedScrollLeft: number
+
+          if (Math.abs(widthChange) < 100) {
+            // Малые изменения: простая пропорциональная корректировка
+            const relativePosition = savedScrollLeft / containerScrollWidth
+            adjustedScrollLeft = relativePosition * newContainerScrollWidth
+          } else {
+            // Большие изменения: фиксация центра видимой области
+            const visibleCenter = savedScrollLeft + containerWidth / 2
+            const relativeCenterPosition = visibleCenter / containerScrollWidth
+            const newCenterPosition = relativeCenterPosition * newContainerScrollWidth
+            adjustedScrollLeft = newCenterPosition - containerWidth / 2
+          }
+
+          // Защита от выхода за границы
+          const maxScrollLeft = newContainerScrollWidth - containerWidth
+          const safeScrollLeft = Math.min(Math.max(adjustedScrollLeft, 0), maxScrollLeft)
+
+
+          container.scrollLeft = safeScrollLeft
+
         }
       }
 
@@ -2895,8 +2942,185 @@ export default function Chessboard() {
   const handleUpdate = useCallback(async () => {
     if (!supabase || Object.keys(editingRows).length === 0) return
 
-    // Параллельное выполнение всех обновлений
-    const updatePromises = Object.values(editingRows).map(async (r) => {
+    console.log('🚀 SAVE START - Beginning handleUpdate process') // LOG: начало процесса сохранения
+    console.log(`📊 SAVE START - Total editing rows: ${Object.keys(editingRows).length}`) // LOG: общее количество редактируемых строк
+
+    // ИСПРАВЛЕНИЕ: Разделяем новые строки и существующие для корректного сохранения
+    const newRows: RowData[] = []
+    const existingRows: RowData[] = []
+
+    Object.values(editingRows).forEach(r => {
+      if (r.key.startsWith('new-row-')) {
+        newRows.push(r)
+      } else {
+        existingRows.push(r)
+      }
+    })
+
+    console.log(`📈 SAVE SPLIT - New rows: ${newRows.length}, Existing rows: ${existingRows.length}`) // LOG: разделение строк на новые и существующие
+
+    // Обрабатываем новые строки - создаем записи в БД
+    const newRowPromises = newRows.map(async (r) => {
+      if (!appliedFilters?.projectId) return null
+
+      console.log(`🆕 NEW ROW START - Processing new row ${r.key}:`, { material: r.material, nomenclature: r.nomenclatureId, projectCode: r.projectCode }) // LOG: начало обработки новой строки
+
+      let materialId = r.materialId
+      if (!materialId && r.material) {
+        console.log(`🔧 NEW ROW - Creating material: ${r.material}`) // LOG: создание материала
+        const material = await materialsApi.ensure(r.material)
+        materialId = material.uuid
+        console.log(`✅ NEW ROW - Material created: ${materialId}`) // LOG: материал создан
+      }
+
+      // Создаем новую запись в chessboard без временного ID
+      console.log(`🔧 NEW ROW - Creating chessboard record for ${r.key}`) // LOG: создание основной записи в chessboard
+      const { data: insertedData, error: insertError } = await supabase!
+        .from('chessboard')
+        .insert({
+          project_id: appliedFilters.projectId,
+          material: materialId || null,
+          unit_id: r.unitId || null,
+          color: r.color || null,
+        })
+        .select('id')
+        .single()
+
+      if (insertError || !insertedData) {
+        throw new Error(`Ошибка создания новой записи: ${insertError?.message}`)
+      }
+
+      const newId = insertedData.id
+      console.log(`✅ NEW ROW - Chessboard record created with newId: ${newId}`) // LOG: основная запись создана
+
+      // Создаем mapping для новой записи
+      console.log(`🔧 NEW ROW - Creating mapping for newId: ${newId}:`, { blockId: r.blockId, costCategoryId: r.costCategoryId, costTypeId: r.costTypeId, locationId: r.locationId }) // LOG: создание mapping
+      await supabase!.from('chessboard_mapping').upsert(
+        {
+          chessboard_id: newId,
+          block_id: r.blockId || null,
+          cost_category_id: Number(r.costCategoryId),
+          cost_type_id: r.costTypeId ? Number(r.costTypeId) : null,
+          location_id: r.locationId ? Number(r.locationId) : null,
+        },
+        { onConflict: 'chessboard_id' },
+      )
+      console.log(`✅ NEW ROW - Mapping created for newId: ${newId}`) // LOG: mapping создан
+
+      // Добавляем этажи для новой записи
+      const floors = parseFloorsString(r.floors)
+      if (floors.length > 0) {
+        console.log(`🔧 NEW ROW - Creating floor mappings for newId: ${newId}, floors:`, floors) // LOG: создание этажей
+        const floorQuantities = r.floorQuantities
+        const totalFloors = floors.length
+        const floorMappings = floors.map((floor) => ({
+          chessboard_id: newId,
+          floor_number: floor,
+          quantityPd: floorQuantities?.[floor]?.quantityPd
+            ? Number(floorQuantities[floor].quantityPd)
+            : r.quantityPd
+              ? Number(r.quantityPd) / totalFloors
+              : null,
+          quantitySpec: floorQuantities?.[floor]?.quantitySpec
+            ? Number(floorQuantities[floor].quantitySpec)
+            : r.quantitySpec
+              ? Number(r.quantitySpec) / totalFloors
+              : null,
+          quantityRd: floorQuantities?.[floor]?.quantityRd
+            ? Number(floorQuantities[floor].quantityRd)
+            : r.quantityRd
+              ? Number(r.quantityRd) / totalFloors
+              : null,
+        }))
+
+        await supabase!.from('chessboard_floor_mapping').insert(floorMappings)
+        console.log(`✅ NEW ROW - Floor mappings created for newId: ${newId}`) // LOG: этажи созданы
+      }
+
+      // LOG: Добавляем сохранение номенклатуры для новой записи
+      if (r.nomenclatureId) {
+        console.log(`🔧 NEW ROW - Saving nomenclature mapping for newId: ${newId}, nomenclatureId: ${r.nomenclatureId}, supplier: ${r.supplier || 'null'}`) // LOG: процесс сохранения номенклатуры
+        await supabase!.from('chessboard_nomenclature_mapping').insert({
+          chessboard_id: newId,
+          nomenclature_id: r.nomenclatureId,
+          supplier_name: r.supplier || null,
+        })
+        console.log(`✅ NEW ROW - Nomenclature mapping saved for newId: ${newId}`) // LOG: успешное сохранение номенклатуры
+      }
+
+      // LOG: Добавляем сохранение документации для новой записи
+      let docId = r.documentationId
+
+      // Если есть тэг и шифр проекта, создаём или обновляем документацию
+      if (r.projectCode && r.tagId) {
+        console.log(`🔧 NEW ROW - Creating/updating documentation for newId: ${newId}, projectCode: ${r.projectCode}, tagId: ${r.tagId}, projectName: ${r.projectName || 'null'}`) // LOG: процесс создания документации
+        const doc = await documentationApi.upsertDocumentation(
+          r.projectCode,
+          Number(r.tagId),
+          appliedFilters?.projectId,
+          undefined, // blockId
+          undefined, // color
+          undefined, // stage
+          r.projectName, // projectName - ВАЖНО: передаем название проекта!
+        )
+        docId = doc.id
+        console.log(`✅ NEW ROW - Documentation created/updated for newId: ${newId}, docId: ${docId}`) // LOG: успешное создание документации
+      }
+
+      if (docId && r.versionNumber) {
+        console.log(`🔧 NEW ROW - Saving documentation version mapping for newId: ${newId}, docId: ${docId}, versionNumber: ${r.versionNumber}`) // LOG: процесс сохранения версии документации
+        // Ищем существующую версию или создаём новую
+        let version = documentVersions?.find(
+          (v) => v.documentation_id === docId && v.version_number === r.versionNumber,
+        )
+
+        if (!version) {
+          // Создаем новую версию
+          const { data: newVersion, error: versionError } = await supabase!
+            .from('documentation_versions')
+            .insert({
+              documentation_id: docId,
+              version_number: r.versionNumber,
+            })
+            .select()
+            .single()
+
+          if (versionError) {
+            throw new Error(`Не удалось создать версию документа: ${versionError.message}`)
+          }
+          version = newVersion
+          console.log(`✅ NEW ROW - New version created for newId: ${newId}, versionId: ${version.id}`) // LOG: создание новой версии
+        }
+
+        // Сохраняем прямую ссылку на версию документа (новая схема)
+        await supabase!.from('chessboard_documentation_mapping').insert({
+          chessboard_id: newId,
+          version_id: version?.id || '',
+          // TODO: добавить tag_id после применения миграции
+          // tag_id: r.tagId ? Number(r.tagId) : null,
+        })
+        console.log(`✅ NEW ROW - Documentation mapping saved for newId: ${newId}, versionId: ${version?.id}`) // LOG: успешное сохранение маппинга документации
+      } else if (docId && !r.versionNumber) {
+        // Если выбран документ, но не указана версия - выдаем ошибку
+        throw new Error('Сохранение шифра проекта без указания версии невозможно!')
+      }
+
+      // LOG: Добавляем сохранение расценок для новой записи
+      if (r.rateId) {
+        console.log(`🔧 NEW ROW - Saving rate mapping for newId: ${newId}, rateId: ${r.rateId}`) // LOG: процесс сохранения расценки
+        await supabase!.from('chessboard_rates_mapping').insert({
+          chessboard_id: newId,
+          rate_id: r.rateId,
+        })
+        console.log(`✅ NEW ROW - Rate mapping saved for newId: ${newId}`) // LOG: успешное сохранение расценки
+      }
+
+      console.log(`🎉 NEW ROW COMPLETE - All data saved for newId: ${newId}`) // LOG: завершение обработки новой строки
+      return newId
+    })
+
+    // Обрабатываем существующие строки - обновляем записи
+    const updatePromises = existingRows.map(async (r) => {
       let materialId = r.materialId
       if (!materialId && r.material) {
         const material = await materialsApi.ensure(r.material)
@@ -3078,14 +3302,42 @@ export default function Chessboard() {
     })
 
     try {
-      await Promise.all(updatePromises)
+      console.log('⏳ SAVE EXECUTION - Starting Promise.all execution') // LOG: начало выполнения промисов
+      // ИСПРАВЛЕНИЕ: Выполняем промисы для новых и существующих строк отдельно
+      const [newRowResults, updateResults] = await Promise.all([
+        Promise.all(newRowPromises),
+        Promise.all(updatePromises)
+      ])
+      console.log('✅ SAVE EXECUTION - All promises completed successfully') // LOG: завершение выполнения промисов
 
+      console.log('🔄 SAVE POST - Refetching materials') // LOG: обновление материалов
       await refetchMaterials()
 
-      message.success('Изменения сохранены')
+      const totalProcessed = newRows.length + existingRows.length
+      const newRowsCreated = newRowResults.filter(id => id !== null).length
+      const nullResults = newRowResults.filter(id => id === null).length
+      console.log(`📊 SAVE RESULTS - Total processed: ${totalProcessed}, New rows created: ${newRowsCreated}, Failed: ${nullResults}, Existing updated: ${existingRows.length}`) // LOG: результаты сохранения
+
+      if (newRowsCreated > 0 && existingRows.length > 0) {
+        message.success(`Сохранено: ${newRowsCreated} новых строк, ${existingRows.length} изменений`)
+      } else if (newRowsCreated > 0) {
+        message.success(`Создано ${newRowsCreated} новых строк`)
+      } else if (existingRows.length > 0) {
+        message.success(`Обновлено ${existingRows.length} строк`)
+      } else {
+        message.success('Изменения сохранены')
+      }
+
+      console.log('🧹 SAVE CLEANUP - Clearing editing rows') // LOG: очистка редактируемых строк
       setEditingRows({})
 
+      console.log('🔄 SAVE POST - Refetching table data') // LOG: обновление данных таблицы
       await refetch()
+
+      console.log('🎉 SAVE COMPLETE - HandleUpdate process finished successfully') // LOG: завершение процесса сохранения
+      if (process.env.NODE_ENV === 'development') { // LOG: условное логирование для отладки
+        console.log('✅ Успешно сохранено:', { newRows: newRowsCreated, updated: existingRows.length }) // LOG: результат сохранения
+      }
     } catch (error: unknown) {
       console.error(`❌ ОШИБКА ПРИ СОХРАНЕНИИ:`, error)
       message.error(`Не удалось сохранить изменения: ${(error as Error).message}`)
@@ -3154,7 +3406,7 @@ export default function Chessboard() {
 
   const handleImport = useCallback(async () => {
     const importStartTime = performance.now()
-    console.log('⏱️ [PERFORMANCE] Начало импорта Excel файла')
+    // УДАЛЕН лог для оптимизации производительности
 
     if (!supabase || !importFile || !importState.projectId) {
       message.error('Выберите проект и файл')
@@ -3660,7 +3912,7 @@ export default function Chessboard() {
       // Затем показываем модальное окно с результатами
       const importEndTime = performance.now()
       const importDuration = (importEndTime - importStartTime).toFixed(2)
-      console.log(`⏱️ [PERFORMANCE] Импорт завершен за ${importDuration}ms (${inserted.length} строк)`)
+      // УДАЛЕН лог для оптимизации производительности
 
       const hasErrors = Object.keys(importErrors).length > 0
       const totalErrors = Object.values(importErrors).reduce((sum, count) => sum + count, 0)
@@ -3788,7 +4040,7 @@ export default function Chessboard() {
 
   const handleSave = async () => {
     const performanceStart = performance.now()
-    console.log('⏱️ [PERFORMANCE] Начало сохранения данных')
+    // УДАЛЕН лог для оптимизации производительности
 
     if (!supabase || !appliedFilters) return
     const payload = await Promise.all(
@@ -3986,7 +4238,7 @@ export default function Chessboard() {
 
     const performanceEnd = performance.now()
     const duration = (performanceEnd - performanceStart).toFixed(2)
-    console.log(`⏱️ [PERFORMANCE] Сохранение завершено за ${duration}ms (${rows.length} строк)`)
+    // УДАЛЕН лог для оптимизации производительности
 
     message.success('Данные успешно сохранены')
     setMode('view')
@@ -4242,7 +4494,7 @@ export default function Chessboard() {
                       ?.filter((doc) => {
                         // Если нет выбранного раздела - показываем все документы
                         if (!record.tagId) {
-                          console.log('🔧 ADD filter - No tagId selected, showing all docs')
+                          // УДАЛЕН лог для оптимизации
                           return true
                         }
 
@@ -4919,7 +5171,7 @@ export default function Chessboard() {
                       ?.filter((doc) => {
                         // Если нет выбранного тега - показываем все документы
                         if (!edit.tagId) {
-                          console.log('🔧 EDIT filter - No edit.tagId, showing all docs')
+                          // УДАЛЕН избыточный лог для оптимизации производительности
                           return true
                         }
 
@@ -5248,8 +5500,7 @@ export default function Chessboard() {
       {
         title: '',
         dataIndex: 'color',
-        width: 35, // Фиксированная ширина для предотвращения прыжков скролла
-        fixed: 'left' as const, // Закрепляем столбец и предотвращаем изменение размеров
+        width: Object.keys(editingRows).length > 0 ? 35 : 5,
         render: (_: unknown, record: ViewRow) => {
           const edit = editingRows[record.key]
           return edit ? (
@@ -6114,8 +6365,8 @@ export default function Chessboard() {
           ) : (
             <ChessboardOptimized
               originalTable={
-                <Table<ViewRow>
-                  dataSource={deferredViewRows}
+                <Table<TableRow>
+                  dataSource={tableRows}
                   columns={orderedViewColumns}
                   pagination={true}
                   rowKey="key"
@@ -6129,7 +6380,7 @@ export default function Chessboard() {
                   }}
                 />
               }
-              data={deferredViewRows}
+              data={tableRows}
               columns={orderedViewColumns}
               loading={false}
               useVirtualization={useVirtualization}

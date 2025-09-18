@@ -1,5 +1,6 @@
 import React, { useMemo, useCallback, useState, useEffect } from 'react'
 import VirtualizedTable from './VirtualizedTable'
+import VirtualTableOptimized from './VirtualTableOptimized'
 import SmartTableOptimizer from './SmartTableOptimizer'
 import { useVirtualizedChessboard } from '../hooks/useVirtualizedChessboard'
 import { useScale } from '@/shared/contexts/ScaleContext'
@@ -41,8 +42,6 @@ const ChessboardOptimized: React.FC<ChessboardOptimizedProps> = ({
   editingRows = {},
   forceRerenderKey = 0,
 }) => {
-  console.log('🔧 ChessboardOptimized received editingRows:', Object.keys(editingRows).length > 0 ? Object.keys(editingRows) : 'empty')
-  console.log('🔧 ChessboardOptimized originalTable.props keys:', Object.keys(originalTable.props))
   const { scale } = useScale()
 
   // Используем внешнее управление, если предоставлено
@@ -73,30 +72,51 @@ const ChessboardOptimized: React.FC<ChessboardOptimizedProps> = ({
 
   // Удаляем автоматические переключения - теперь все управляется извне
 
-  // Временно отключаем виртуализацию - фокус на оптимизации без виртуализации
-  // if (!useVirtualization) {
-    // Используем SmartTableOptimizer для обычных таблиц
-    const smartTableProps = {
-      ...originalTable.props,
-      data,
-      columns,
-      displayLimit: displayRowLimit,
-      performanceMode,
-      loading,
-      useAdaptiveHeight: true,
-      controlsHeight: scaledControlsHeight,
-      rowsPerPage,
-      onRowsPerPageChange,
-      editingRows, // Явно переопределяем editingRows последним
-      forceRerenderKey,
-    }
+  // 🚨 ВРЕМЕННО ОТКЛЮЧЕНО: Виртуализация создаёт проблемы с производительностью
+  // Возвращаемся к SmartTableOptimizer с жёстким ограничением строк
+  const shouldUseVirtualization = false // data.length > 500 // Отключено временно
 
-    console.log('🔧 SmartTableOptimizer props editingRows:', Object.keys(smartTableProps.editingRows || {}).length > 0 ? Object.keys(smartTableProps.editingRows) : 'empty')
+  // console.log(`🔧 ChessboardOptimized: ${data.length} rows, using ${shouldUseVirtualization ? 'VIRTUALIZATION' : 'SMART_TABLE_OPTIMIZED'}`)
 
-    return (
-      <SmartTableOptimizer {...smartTableProps} />
-    )
+  // Временно отключено до исправления проблем с производительностью
+  // if (shouldUseVirtualization) {
+  //   console.log('🚀 Using VirtualTableOptimized for large dataset')
+  //   return (
+  //     <VirtualTableOptimized
+  //       {...originalTable.props}
+  //       dataSource={data}
+  //       columns={optimizedColumns}
+  //       height="calc(100vh - 300px)"
+  //       itemHeight={virtualRowHeight}
+  //       bufferSize={20}
+  //       editingRows={editingRows}
+  //       performanceMode={performanceMode}
+  //       loading={loading}
+  //     />
+  //   )
   // }
+
+  // Для небольших объёмов используем SmartTableOptimizer
+  const smartTableProps = {
+    ...originalTable.props,
+    data,
+    columns,
+    displayLimit: displayRowLimit,
+    performanceMode,
+    loading,
+    useAdaptiveHeight: true,
+    controlsHeight: scaledControlsHeight,
+    rowsPerPage,
+    onRowsPerPageChange,
+    editingRows, // Явно переопределяем editingRows последним
+    forceRerenderKey,
+  }
+
+  // console.log('🔧 SmartTableOptimizer props editingRows:', Object.keys(smartTableProps.editingRows || {}).length > 0 ? Object.keys(smartTableProps.editingRows) : 'empty')
+
+  return (
+    <SmartTableOptimizer {...smartTableProps} />
+  )
 
   // Временно отключено - используем виртуализированную таблицу
   // return (

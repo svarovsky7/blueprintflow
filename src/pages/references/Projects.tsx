@@ -1077,6 +1077,11 @@ export default function Projects() {
         sorter: (a: ProjectRow, b: ProjectRow) => a.name.localeCompare(b.name),
         filters: nameFilters,
         onFilter: (value: unknown, record: ProjectRow) => record.name === value,
+        width: '20%',
+        ellipsis: false,
+        render: (text: string) => (
+          <div style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>{text}</div>
+        ),
       },
       {
         title: 'Адрес',
@@ -1084,6 +1089,11 @@ export default function Projects() {
         sorter: (a: ProjectRow, b: ProjectRow) => (a.address ?? '').localeCompare(b.address ?? ''),
         filters: addressFilters,
         onFilter: (value: unknown, record: ProjectRow) => record.address === value,
+        width: '30%',
+        ellipsis: false,
+        render: (text: string) => (
+          <div style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>{text || '-'}</div>
+        ),
       },
       {
         title: 'Корпуса',
@@ -1093,14 +1103,20 @@ export default function Projects() {
         filters: blockNameFilters,
         onFilter: (value: unknown, record: ProjectRow) =>
           record.blockNames.includes(value as string),
-        render: (_: unknown, record: ProjectRow) =>
-          record.blocks
-            .map((b) => `${b.name} (${b.bottom_floor ?? ''}; ${b.top_floor ?? ''})`)
-            .join('; '),
+        width: '40%',
+        ellipsis: false,
+        render: (_: unknown, record: ProjectRow) => (
+          <div style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>
+            {record.blocks
+              .map((b) => `${b.name} (${b.bottom_floor ?? ''}; ${b.top_floor ?? ''})`)
+              .join('; ')}
+          </div>
+        ),
       },
       {
         title: 'Действия',
         dataIndex: 'actions',
+        width: '10%',
         render: (_: unknown, record: ProjectRow) => (
           <Space>
             <Button
@@ -1143,8 +1159,8 @@ export default function Projects() {
           columns={columns}
           rowKey="id"
           loading={isLoading}
-          scroll={{ x: 'max-content' }}
           className={styles.projectsTable}
+          tableLayout="fixed"
         />
       </div>
 

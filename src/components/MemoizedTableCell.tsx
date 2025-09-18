@@ -1,4 +1,4 @@
-import React, { memo, useMemo } from 'react'
+import React, { memo, useMemo, useRef, useLayoutEffect } from 'react'
 import { Button, Select } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import DebouncedInput from './DebouncedInput'
@@ -15,6 +15,19 @@ interface MemoizedTableCellProps {
 
 const MemoizedTableCell: React.FC<MemoizedTableCellProps> = memo(
   ({ value, record, column, isEditing, onEdit, onOpenComments, performanceMode = false }) => {
+    // 🚀 ОПТИМИЗАЦИЯ: Performance Monitor для отслеживания медленных ячеек
+    const renderStartTime = useRef<number>(0)
+
+    useLayoutEffect(() => {
+      renderStartTime.current = performance.now()
+    })
+
+    React.useEffect(() => {
+      const renderTime = performance.now() - renderStartTime.current
+      if (renderTime > 50 && process.env.NODE_ENV === 'development') { // LOG: условное логирование только критически медленных ячеек
+        console.warn(`⚠️ MemoizedTableCell критически медленный рендер: ${Math.round(renderTime)}ms для колонки ${column.dataIndex}`) // LOG: производительность ячейки таблицы
+      }
+    })
     const cellContent = useMemo(() => {
       // Режим редактирования
       if (isEditing) {
@@ -152,17 +165,40 @@ const MemoizedTableCell: React.FC<MemoizedTableCellProps> = memo(
     )
   },
   (prevProps, nextProps) => {
-    // Кастомная функция сравнения для оптимизации
-    return (
-      prevProps.value === nextProps.value &&
-      prevProps.isEditing === nextProps.isEditing &&
-      prevProps.record.key === nextProps.record.key &&
-      prevProps.column.dataIndex === nextProps.column.dataIndex &&
-      prevProps.performanceMode === nextProps.performanceMode &&
-      // Сравниваем комментарии только для столбца комментариев
-      (prevProps.column.dataIndex !== 'comments' ||
-        JSON.stringify(prevProps.record.comments) === JSON.stringify(nextProps.record.comments))
-    )
+    // 🚀 ОПТИМИЗАЦИЯ: Более точная кастомная функция сравнения
+
+    // Быстрая проверка основных пропсов
+    if (
+      prevProps.value !== nextProps.value ||
+      prevProps.isEditing !== nextProps.isEditing ||
+      prevProps.record.key !== nextProps.record.key ||
+      prevProps.column.dataIndex !== nextProps.column.dataIndex ||
+      prevProps.performanceMode !== nextProps.performanceMode
+    ) {
+      return false
+    }
+
+    // Специальная логика для комментариев - сравниваем только длину массива для производительности
+    if (prevProps.column.dataIndex === 'comments') {
+      const prevCommentsLength = prevProps.record.comments?.length || 0
+      const nextCommentsLength = nextProps.record.comments?.length || 0
+
+      if (prevCommentsLength !== nextCommentsLength) {
+        return false
+      }
+
+      // Если есть комментарии, сравниваем только последний (для отображения)
+      if (prevCommentsLength > 0 && nextCommentsLength > 0) {
+        const prevLatest = prevProps.record.comments[0]
+        const nextLatest = nextProps.record.comments[0]
+        return (
+          prevLatest?.comment_text === nextLatest?.comment_text &&
+          prevLatest?.id === nextLatest?.id
+        )
+      }
+    }
+
+    return true
   },
 )
 
