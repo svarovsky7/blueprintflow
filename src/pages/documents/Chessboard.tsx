@@ -1103,13 +1103,10 @@ export default function Chessboard() {
     queryFn: async () => {
       if (!supabase || !appliedFilters) return []
 
-      // Определяем тип join для chessboard_mapping
-      const hasFilters =
-        (appliedFilters.blockId && appliedFilters.blockId.length > 0) ||
-        (appliedFilters.categoryId && appliedFilters.categoryId.length > 0) ||
-        (appliedFilters.typeId && appliedFilters.typeId.length > 0)
-
-      const mappingJoin = hasFilters ? 'chessboard_mapping!inner' : 'chessboard_mapping!left'
+      // ИСПРАВЛЕНИЕ: Всегда используем left join для chessboard_mapping чтобы не терять новые записи
+      // Фильтрацию будем делать на уровне приложения, а не в запросе БД
+      const mappingJoin = 'chessboard_mapping!left'
+      console.log('🔍 DB QUERY - Using left join for chessboard_mapping to avoid losing new records') // LOG: тип join для маппинга
 
       // Всегда используем left join для документации, чтобы получать все записи
       // Фильтрацию по документам делаем отдельными условиями where
@@ -1127,13 +1124,9 @@ export default function Chessboard() {
         `,
         )
         .eq('project_id', appliedFilters.projectId)
-      // Восстанавливаем фильтры с учетом типа join
-      if (appliedFilters.blockId && appliedFilters.blockId.length > 0)
-        query.in('chessboard_mapping.block_id', appliedFilters.blockId)
-      if (appliedFilters.categoryId && appliedFilters.categoryId.length > 0)
-        query.in('chessboard_mapping.cost_category_id', appliedFilters.categoryId.map(Number))
-      if (appliedFilters.typeId && appliedFilters.typeId.length > 0)
-        query.in('chessboard_mapping.cost_type_id', appliedFilters.typeId.map(Number))
+      // ИСПРАВЛЕНИЕ: Убираем фильтры из запроса БД - будем фильтровать на уровне приложения
+      // Это гарантирует, что новые записи не потеряются из-за отсутствующих связей
+      console.log('🔍 DB QUERY - Fetching all records for project, filtering will be done in app') // LOG: отключение фильтров БД
       // НЕ фильтруем по документации в запросе - делаем это на уровне данных
       // Это позволяет получить все записи проекта, а потом отфильтровать по документам
       // НЕ фильтруем по версиям в запросе - делаем это на уровне данных
@@ -1468,6 +1461,26 @@ export default function Chessboard() {
               0,
             )
           : null
+        // LOG: Отладка данных для новых записей
+        if (process.env.NODE_ENV === 'development' && (item.id === '837c81f6-adef-4b6d-8b1c-d79321133b2e' || item.id === '7318d107-5d14-4d15-9f08-c8405ab2bd75')) { // LOG: логирование для новых записей
+          console.log('🔍 MAPPING DEBUG - New record detailed data:', {
+            id: item.id,
+            material: item.material,
+            materials_name: item.materials?.name,
+            chessboard_mapping: item.chessboard_mapping,
+            mapping_block_id: item.chessboard_mapping?.block_id,
+            mapping_cost_category_id: item.chessboard_mapping?.cost_category_id,
+            mapping_cost_type_id: item.chessboard_mapping?.cost_type_id,
+            mapping_location_id: item.chessboard_mapping?.location_id,
+            cost_categories_name: item.chessboard_mapping?.cost_categories?.name,
+            detail_cost_categories_name: item.chessboard_mapping?.detail_cost_categories?.name,
+            location_name: item.chessboard_mapping?.location?.name,
+            nomenclature_mapping: item.chessboard_nomenclature_mapping,
+            nomenclature_id: item.chessboard_nomenclature_mapping?.[0]?.nomenclature_id || item.chessboard_nomenclature_mapping?.nomenclature_id,
+            nomenclature_name: item.chessboard_nomenclature_mapping?.[0]?.nomenclature?.name || item.chessboard_nomenclature_mapping?.nomenclature?.name
+          }) // LOG: детальная отладка маппинга данных для новой записи
+        }
+
         return {
           key: item.id,
           materialId: item.material ?? '',
@@ -1551,6 +1564,36 @@ export default function Chessboard() {
 
         return true
       })
+      // ИСПРАВЛЕНИЕ: Добавляем фильтрацию на уровне приложения для block, category, type
+      .filter((row) => {
+        // Фильтр по корпусам
+        if (appliedFilters?.blockId && appliedFilters.blockId.length > 0) {
+          const rowBlockId = row.chessboard_mapping?.block_id
+          if (!rowBlockId || !appliedFilters.blockId.includes(rowBlockId)) {
+            return false
+          }
+        }
+
+        // Фильтр по категориям затрат
+        if (appliedFilters?.categoryId && appliedFilters.categoryId.length > 0) {
+          const rowCategoryId = row.chessboard_mapping?.cost_category_id
+          if (!rowCategoryId || !appliedFilters.categoryId.includes(String(rowCategoryId))) {
+            return false
+          }
+        }
+
+        // Фильтр по видам затрат
+        if (appliedFilters?.typeId && appliedFilters.typeId.length > 0) {
+          const rowTypeId = row.chessboard_mapping?.cost_type_id
+          if (!rowTypeId || !appliedFilters.typeId.includes(String(rowTypeId))) {
+            return false
+          }
+        }
+
+        return true
+      })
+
+    console.log(`🔍 APP FILTER - Applied filters result: ${filteredRows.length} rows after app-level filtering`) // LOG: результат фильтрации на уровне приложения
 
     return {
       allRows: filteredRows,
@@ -1630,6 +1673,13 @@ export default function Chessboard() {
     ],
     [editingRows, rows, viewRows, documentations], // ВАЖНО: добавляем editingRows в зависимости
   )
+
+  // LOG: Логирование изменений tableRows для отслеживания подсчета строк
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') { // LOG: условное логирование только в dev режиме
+      console.log(`📊 TABLEROWS UPDATED - Total: ${tableRows.length} (editingRows: ${Object.keys(editingRows).length}, rows: ${rows.length}, viewRows: ${viewRows.length})`) // LOG: обновление tableRows
+    }
+  }, [tableRows.length, editingRows, rows.length, viewRows.length])
 
   const handleApply = () => {
     if (!filters.projectId) {
@@ -1793,11 +1843,18 @@ export default function Chessboard() {
       message.success(`Удалено строк: ${idsToDelete.length}`)
       setSelectedRows(new Set())
       setDeleteMode(false)
+
+      // ИСПРАВЛЕНИЕ: Принудительно инвалидируем кэш запроса перед refetch
+      queryClient.invalidateQueries({
+        queryKey: ['chessboard', appliedFilters, selectedVersions],
+        exact: true
+      })
+
       await refetch()
     } catch (error: unknown) {
       message.error(`Не удалось удалить строки: ${(error as Error).message}`)
     }
-  }, [selectedRows, message, refetch])
+  }, [selectedRows, message, refetch, queryClient, appliedFilters, selectedVersions])
 
   const toggleRowSelection = useCallback((key: string) => {
     setSelectedRows((prev) => {
@@ -2268,8 +2325,13 @@ export default function Chessboard() {
     message.success(`Выбрано версий документов: ${Object.keys(selectedVersions).length}`)
 
     // Обновляем данные таблицы с учетом выбранных версий
+    // ИСПРАВЛЕНИЕ: Принудительно инвалидируем кэш запроса перед refetch
+    queryClient.invalidateQueries({
+      queryKey: ['chessboard', appliedFilters, selectedVersions],
+      exact: true
+    })
     refetch()
-  }, [selectedVersions, appliedFilters, refetch, documentVersions])
+  }, [selectedVersions, appliedFilters, refetch, documentVersions, queryClient])
 
   // ИСПРАВЛЕНИЕ: Быстрое добавление строк без смены режима (оптимизация производительности)
   const startAdd = useCallback(() => {
@@ -3329,10 +3391,42 @@ export default function Chessboard() {
       }
 
       console.log('🧹 SAVE CLEANUP - Clearing editing rows') // LOG: очистка редактируемых строк
+      console.log(`📊 COUNT BEFORE CLEAR - tableRows: ${tableRows.length}, viewRows: ${viewRows.length}, editingRows: ${Object.keys(editingRows).length}`) // LOG: подсчет до очистки
       setEditingRows({})
 
-      console.log('🔄 SAVE POST - Refetching table data') // LOG: обновление данных таблицы
-      await refetch()
+      console.log('🔄 SAVE POST - Invalidating queries and refetching table data') // LOG: обновление данных таблицы
+      // ИСПРАВЛЕНИЕ: Принудительно инвалидируем кэш запроса с точным совпадением queryKey
+      console.log('🔧 INVALIDATION - Query key:', ['chessboard', appliedFilters, selectedVersions]) // LOG: используемый ключ для инвалидации
+      queryClient.invalidateQueries({
+        queryKey: ['chessboard', appliedFilters, selectedVersions],
+        exact: true
+      })
+      // Также инвалидируем все связанные запросы комментариев
+      queryClient.invalidateQueries({
+        queryKey: ['chessboard-comments'],
+        exact: false
+      })
+      console.log('✅ INVALIDATION - Cache invalidated successfully') // LOG: успешная инвалидация кеша
+
+      // ИСПРАВЛЕНИЕ: Добавляем небольшую задержку для завершения транзакции в PostgreSQL
+      console.log('⏳ SAVE POST - Waiting 100ms for transaction to complete') // LOG: ожидание завершения транзакции
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      const refetchResult = await refetch()
+      console.log(`📊 COUNT AFTER REFETCH - Refetch returned ${refetchResult.data?.length || 0} records`) // LOG: количество записей после refetch
+      console.log(`📊 COUNT AFTER REFETCH - Data should be updated now. Please check current counts`) // LOG: подсчет после обновления
+
+      // LOG: Проверяем что новые записи появились в результате
+      if (newRowsCreated > 0) {
+        const expectedTotal = tableRows.length + newRowsCreated
+        const actualTotal = refetchResult.data?.length || 0
+        console.log(`🔍 VALIDATION - Expected ${expectedTotal} total records, got ${actualTotal}`) // LOG: проверка ожидаемого количества записей
+        if (actualTotal >= expectedTotal) {
+          console.log('✅ SUCCESS - New records are visible in the UI after refetch') // LOG: успешное отображение новых записей
+        } else {
+          console.log('⚠️  WARNING - New records might not be fully visible yet') // LOG: предупреждение о возможном недоотображении
+        }
+      }
 
       console.log('🎉 SAVE COMPLETE - HandleUpdate process finished successfully') // LOG: завершение процесса сохранения
       if (process.env.NODE_ENV === 'development') { // LOG: условное логирование для отладки
@@ -3342,7 +3436,7 @@ export default function Chessboard() {
       console.error(`❌ ОШИБКА ПРИ СОХРАНЕНИИ:`, error)
       message.error(`Не удалось сохранить изменения: ${(error as Error).message}`)
     }
-  }, [editingRows, message, refetch, appliedFilters, refetchMaterials])
+  }, [editingRows, message, refetch, appliedFilters, refetchMaterials, queryClient, selectedVersions])
 
   const handleCancelEdit = useCallback(() => {
     setEditingRows({})
@@ -3373,9 +3467,16 @@ export default function Chessboard() {
         return
       }
       message.success('Строка удалена')
+
+      // ИСПРАВЛЕНИЕ: Принудительно инвалидируем кэш запроса перед refetch
+      queryClient.invalidateQueries({
+        queryKey: ['chessboard', appliedFilters, selectedVersions],
+        exact: true
+      })
+
       await refetch()
     },
-    [message, refetch],
+    [message, refetch, queryClient, appliedFilters, selectedVersions],
   )
 
   const openImport = useCallback(() => {
@@ -3902,6 +4003,13 @@ export default function Chessboard() {
       }
 
       await refetchMaterials()
+
+      // ИСПРАВЛЕНИЕ: Принудительно инвалидируем кэш запроса перед refetch
+      queryClient.invalidateQueries({
+        queryKey: ['chessboard', appliedFilters, selectedVersions],
+        exact: true
+      })
+
       await refetch()
 
       // Сначала закрываем модальное окно импорта
@@ -4243,6 +4351,13 @@ export default function Chessboard() {
     message.success('Данные успешно сохранены')
     setMode('view')
     setRows([])
+
+    // ИСПРАВЛЕНИЕ: Принудительно инвалидируем кэш запроса перед refetch
+    queryClient.invalidateQueries({
+      queryKey: ['chessboard', appliedFilters, selectedVersions],
+      exact: true
+    })
+
     await refetch()
   }
 
@@ -5950,7 +6065,14 @@ export default function Chessboard() {
             size="small"
             type="primary"
             style={{ marginTop: '8px' }}
-            onClick={() => refetch()}
+            onClick={() => {
+              // ИСПРАВЛЕНИЕ: Принудительно инвалидируем кэш запроса перед refetch
+              queryClient.invalidateQueries({
+                queryKey: ['chessboard', appliedFilters, selectedVersions],
+                exact: true
+              })
+              refetch()
+            }}
           >
             Повторить попытку
           </Button>
