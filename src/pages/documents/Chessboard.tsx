@@ -1502,7 +1502,8 @@ export default function Chessboard() {
           console.log('🔍 ABOUT TO CREATE ROW - Начинаем создание row объекта для index:', index) // LOG: начало создания row
         }
 
-        return {
+
+        const row = {
           key: item.id,
           materialId: item.material ?? '',
           material: item.materials?.name ?? '',
@@ -1511,27 +1512,43 @@ export default function Chessboard() {
           quantityRd: sumRd !== null ? String(sumRd) : '',
           nomenclatureId:
             getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature_id ?? '',
-          nomenclature:
-            getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature?.name ?? '',
+          nomenclature: (() => {
+            const nomenclature = getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature?.name ?? ''
+            if (index === 0) console.log('🔍 NOMENCLATURE FIELD - nomenclature value:', nomenclature) // LOG: проверка поля nomenclature
+            return nomenclature
+          })(),
           supplier:
             getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.supplier_name ?? '',
-          unit: item.units?.name ?? '',
+          unit: (() => {
+            const unitName = item.units?.name ?? ''
+            if (index === 0) console.log('🔍 UNIT FIELD - unit value:', unitName) // LOG: проверка поля unit
+            return unitName
+          })(),
           blockId: item.chessboard_mapping?.block_id ?? '',
           block: item.chessboard_mapping?.blocks?.name ?? '',
-          costCategory: item.chessboard_mapping?.cost_categories?.name ?? '',
-          costType: item.chessboard_mapping?.detail_cost_categories?.name ?? '',
+          costCategory: (() => {
+            const costCat = item.chessboard_mapping?.cost_categories?.name ?? ''
+            if (index === 0) console.log('🔍 COST_CATEGORY FIELD - costCategory value:', costCat) // LOG: проверка поля costCategory
+            return costCat
+          })(),
+          costType: (() => {
+            const costType = item.chessboard_mapping?.detail_cost_categories?.name ?? ''
+            if (index === 0) console.log('🔍 COST_TYPE FIELD - costType value:', costType) // LOG: проверка поля costType
+            return costType
+          })(),
           workName: item.chessboard_rates_mapping?.[0]?.rates?.work_name ?? '',
-          location: item.chessboard_mapping?.location?.name ?? '',
+          location: (() => {
+            const location = item.chessboard_mapping?.location?.name ?? ''
+            if (index === 0) console.log('🔍 LOCATION FIELD - location value:', location) // LOG: проверка поля location
+            return location
+          })(),
           floors: item.floors ?? '',
           color: (item.color as RowColor | null) ?? '',
-          documentationId: documentation?.id, // НЕ используем fallbackDoc для documentationId
+          documentationId: documentation?.id,
           tagName: tag?.name || fallbackTag?.name || '',
           tagNumber: tag?.tag_number ?? fallbackTag?.tag_number ?? null,
           projectCode: (() => {
-            // Получаем код только из реальной связи документации
             let code = documentation?.code || ''
-
-            // Если код пустой, пробуем найти в documentations по documentationId
             if (!code && documentation?.id && documentations) {
               const foundInDocumentations = documentations.find(
                 (doc) => doc.id === documentation.id,
@@ -1540,7 +1557,6 @@ export default function Chessboard() {
                 code = foundInDocumentations.project_code || ''
               }
             }
-
             return code
           })(),
           projectName: (documentation as { project_name?: string })?.project_name || '',
@@ -1561,9 +1577,6 @@ export default function Chessboard() {
             location: row.location,
             nomenclature: row.nomenclature
           }) // LOG: отладка данных столбцов
-          console.log('🔍 RAW MAPPING DATA - chessboard_mapping:', item.chessboard_mapping) // LOG: сырые данные mapping
-          console.log('🔍 RAW UNITS DATA - units:', item.units) // LOG: сырые данные units
-          console.log('🔍 RAW NOMENCLATURE DATA - nomenclature_mapping:', item.chessboard_nomenclature_mapping) // LOG: сырые данные nomenclature
         }
 
         // LOG: Финальная проверка - доходим ли мы до создания row объекта
@@ -1637,6 +1650,18 @@ export default function Chessboard() {
 
     console.log(`🔍 APP FILTER - Applied filters result: ${filteredRows.length} rows after app-level filtering`) // LOG: результат фильтрации на уровне приложения
 
+    // 🔍 DATA IN PROBLEM COLUMNS - Проверка данных в проблемных колонках
+    if (filteredRows.length > 0) {
+      const firstRow = filteredRows[0]
+      console.log('🔍 FIRST ROW DATA FOR PROBLEM COLUMNS:') // LOG: отладка данных строки
+      console.log('  unit:', firstRow.unit) // LOG: проверка поля unit
+      console.log('  nomenclature:', firstRow.nomenclature) // LOG: проверка поля nomenclature
+      console.log('  costCategory:', firstRow.costCategory) // LOG: проверка поля costCategory
+      console.log('  costType:', firstRow.costType) // LOG: проверка поля costType
+      console.log('  location:', firstRow.location) // LOG: проверка поля location
+      console.log('  Full row keys:', Object.keys(firstRow)) // LOG: все ключи объекта строки
+    }
+
     return {
       allRows: filteredRows,
       visibleRows: filteredRows, // Убираем ограничение - пагинация управляется Table компонентом
@@ -1698,21 +1723,23 @@ export default function Chessboard() {
         quantitySpec: v.quantitySpec,
         quantityRd: v.quantityRd,
         nomenclatureId: v.nomenclatureId,
+        nomenclature: v.nomenclature, // ✅ ИСПРАВЛЕНО: добавляем nomenclature
         supplier: v.supplier,
-        unitId: v.unit,
+        unit: v.unit, // ✅ ИСПРАВЛЕНО: изменено с unitId на unit
         blockId: v.blockId,
         block: v.block,
-        costCategoryId: v.costCategory,
-        costTypeId: v.costType,
-        locationId: v.location,
-        rateId: v.workName,
+        costCategory: v.costCategory, // ✅ ИСПРАВЛЕНО: изменено с costCategoryId на costCategory
+        costType: v.costType, // ✅ ИСПРАВЛЕНО: изменено с costTypeId на costType
+        location: v.location, // ✅ ИСПРАВЛЕНО: изменено с locationId на location
+        workName: v.workName, // ✅ ИСПРАВЛЕНО: изменено с rateId на workName
         floors: v.floors,
         color: v.color,
         tagName: v.tagName,
         tagNumber: v.tagNumber,
         projectCode: v.projectCode,
-        projectName: v.projectName, // Добавляем projectName
+        projectName: v.projectName,
         versionNumber: v.versionNumber,
+        comments: v.comments, // ✅ ИСПРАВЛЕНО: добавляем comments
         isExisting: mode !== 'add', // В режиме добавления показываем кнопки
       })),
     ],
@@ -4447,15 +4474,15 @@ export default function Chessboard() {
         maxWidth: 180,
         align: 'center',
       },
-      { title: 'Номенклатура', dataIndex: 'nomenclatureId', maxWidth: 170 },
+      { title: 'Номенклатура', dataIndex: 'nomenclature', maxWidth: 170 },
       { title: 'Наименование поставщика', dataIndex: 'supplier', maxWidth: 170 },
-      { title: 'Ед.изм.', dataIndex: 'unitId' },
+      { title: 'Ед.изм.', dataIndex: 'unit' },
       { title: 'Корпус', dataIndex: 'block' },
       { title: 'Этажи', dataIndex: 'floors' },
-      { title: 'Категория затрат', dataIndex: 'costCategoryId' },
-      { title: 'Вид затрат', dataIndex: 'costTypeId' },
-      { title: 'Наименование работ', dataIndex: 'rateId', maxWidth: 220 },
-      { title: 'Локализация', dataIndex: 'locationId', maxWidth: 120 },
+      { title: 'Категория затрат', dataIndex: 'costCategory' },
+      { title: 'Вид затрат', dataIndex: 'costType' },
+      { title: 'Наименование работ', dataIndex: 'workName', maxWidth: 220 },
+      { title: 'Локализация', dataIndex: 'location', maxWidth: 120 },
     ]
 
     const dataColumns = base
@@ -5693,7 +5720,26 @@ export default function Chessboard() {
           )
         },
       },
-      ...dataColumns,
+      ...(() => {
+        const problemColumns = dataColumns.filter(col => ['unit', 'nomenclature', 'costCategory', 'costType', 'location'].includes(col.dataIndex))
+        console.log('🔍 PROBLEM COLUMNS DEBUG - Проблемные колонки:') // LOG: проверка проблемных колонок
+        problemColumns.forEach(col => {
+          console.log(`  - title type: ${typeof col.title}, value:`, col.title) // LOG: тип и значение title
+          console.log(`    dataIndex: "${col.dataIndex}"`) // LOG: детали каждой проблемной колонки
+          console.log(`    render function exists: ${typeof col.render === 'function'}`) // LOG: наличие render функции
+
+          // Добавляем мониторинг render функции
+          if (typeof col.render === 'function') {
+            const originalRender = col.render
+            col.render = (value: any, record: any, index: number) => {
+              const renderResult = originalRender(value, record, index)
+              console.log(`🔍 RENDER DEBUG - ${col.dataIndex}:`, { value, result: renderResult, record }) // LOG: результат render функции
+              return renderResult
+            }
+          }
+        })
+        return dataColumns
+      })(),
       {
         title: '',
         dataIndex: 'actions',

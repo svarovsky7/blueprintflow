@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест поиска номенклатуры</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .test-title {
+            font-weight: bold;
+            color: #1890ff;
+            margin-bottom: 10px;
+        }
+        .result {
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin-top: 10px;
+        }
+        .success {
+            color: #52c41a;
+        }
+        .error {
+            color: #ff4d4f;
+        }
+        input, button {
+            padding: 8px 12px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #1890ff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #40a9ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Тест поиска номенклатуры в Supabase БД</h1>
+
+        <div class="test-section">
+            <div class="test-title">1. Подключение к Supabase</div>
+            <button onclick="testConnection()">Проверить подключение</button>
+            <div id="connection-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">2. Общая статистика таблицы nomenclature</div>
+            <button onclick="getTableStats()">Получить статистику</button>
+            <div id="stats-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">3. Поиск "пенополистирол"</div>
+            <button onclick="searchPenopolistirol()">Найти записи с "пенополистирол"</button>
+            <div id="penopolistirol-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">4. Поиск "теплоизоляция"</div>
+            <button onclick="searchTeploizolyacia()">Найти записи с "теплоизоляция"</button>
+            <div id="teploizolyacia-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">5. Пользовательский поиск</div>
+            <input type="text" id="custom-search" placeholder="Введите поисковый запрос" />
+            <button onclick="customSearch()">Поиск</button>
+            <div id="custom-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">6. Тест ML поиска</div>
+            <input type="text" id="ml-search" placeholder="Материал для ML поиска" value="пенополистирол экструдированный" />
+            <button onclick="testMLSearch()">ML Поиск</button>
+            <div id="ml-result" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        // Инициализация Supabase клиента
+        const supabaseUrl = 'https://hfqgcaxmufzitdfafdlp.supabase.co'
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhmcWdjYXhtdWZ6aXRkZmFmZGxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4OTI5MjMsImV4cCI6MjA3MDQ2ODkyM30.XnOEKdwZdJM-DilhrjZ7PdzHU2rx3L72oQ1rJYo5pXc'
+
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey)
+
+        async function testConnection() {
+            const resultDiv = document.getElementById('connection-result')
+            resultDiv.textContent = 'Тестирование подключения...'
+
+            try {
+                const { data, error } = await supabase
+                    .from('nomenclature')
+                    .select('count', { count: 'exact', head: true })
+                    .limit(1)
+
+                if (error) {
+                    resultDiv.innerHTML = `<span class="error">❌ Ошибка подключения: ${error.message}</span>`
+                } else {
+                    resultDiv.innerHTML = `<span class="success">✅ Подключение успешно!</span>\n\nВсего записей в таблице nomenclature: ${data || 'неизвестно'}`
+                }
+            } catch (e) {
+                resultDiv.innerHTML = `<span class="error">❌ Исключение: ${e.message}</span>`
+            }
+        }
+
+        async function getTableStats() {
+            const resultDiv = document.getElementById('stats-result')
+            resultDiv.textContent = 'Получение статистики...'
+
+            try {
+                // Общее количество записей
+                const { count, error: countError } = await supabase
+                    .from('nomenclature')
+                    .select('*', { count: 'exact', head: true })
+
+                if (countError) {
+                    resultDiv.innerHTML = `<span class="error">❌ Ошибка подсчета: ${countError.message}</span>`
+                    return
+                }
+
+                // Примеры записей
+                const { data: samples, error: samplesError } = await supabase
+                    .from('nomenclature')
+                    .select('id, name')
+                    .limit(5)
+
+                if (samplesError) {
+                    resultDiv.innerHTML = `<span class="error">❌ Ошибка получения примеров: ${samplesError.message}</span>`
+                    return
+                }
+
+                let result = `<span class="success">✅ Статистика таблицы nomenclature:</span>\n\n`
+                result += `Всего записей: ${count}\n\n`
+                result += `Примеры записей:\n`
+                samples.forEach((item, index) => {
+                    result += `${index + 1}. [${item.id}] ${item.name}\n`
+                })
+
+                resultDiv.innerHTML = result
+            } catch (e) {
+                resultDiv.innerHTML = `<span class="error">❌ Исключение: ${e.message}</span>`
+            }
+        }
+
+        async function searchPenopolistirol() {
+            const resultDiv = document.getElementById('penopolistirol-result')
+            resultDiv.textContent = 'Поиск записей с "пенополистирол"...'
+
+            try {
+                const { data, error } = await supabase
+                    .from('nomenclature')
+                    .select('id, name')
+                    .ilike('name', '%пенополистирол%')
+                    .limit(10)
+
+                if (error) {
+                    resultDiv.innerHTML = `<span class="error">❌ Ошибка поиска: ${error.message}</span>`
+                    return
+                }
+
+                if (!data || data.length === 0) {
+                    resultDiv.innerHTML = `<span class="error">❌ Записи с "пенополистирол" не найдены</span>`
+                    return
+                }
+
+                let result = `<span class="success">✅ Найдено ${data.length} записей с "пенополистирол":</span>\n\n`
+                data.forEach((item, index) => {
+                    result += `${index + 1}. [${item.id}] ${item.name}\n`
+                })
+
+                resultDiv.innerHTML = result
+            } catch (e) {
+                resultDiv.innerHTML = `<span class="error">❌ Исключение: ${e.message}</span>`
+            }
+        }
+
+        async function searchTeploizolyacia() {
+            const resultDiv = document.getElementById('teploizolyacia-result')
+            resultDiv.textContent = 'Поиск записей с "теплоизоляция"...'
+
+            try {
+                const { data, error } = await supabase
+                    .from('nomenclature')
+                    .select('id, name')
+                    .ilike('name', '%теплоизоляц%')
+                    .limit(10)
+
+                if (error) {
+                    resultDiv.innerHTML = `<span class="error">❌ Ошибка поиска: ${error.message}</span>`
+                    return
+                }
+
+                if (!data || data.length === 0) {
+                    resultDiv.innerHTML = `<span class="error">❌ Записи с "теплоизоляц" не найдены</span>`
+                    return
+                }
+
+                let result = `<span class="success">✅ Найдено ${data.length} записей с "теплоизоляц":</span>\n\n`
+                data.forEach((item, index) => {
+                    result += `${index + 1}. [${item.id}] ${item.name}\n`
+                })
+
+                resultDiv.innerHTML = result
+            } catch (e) {
+                resultDiv.innerHTML = `<span class="error">❌ Исключение: ${e.message}</span>`
+            }
+        }
+
+        async function customSearch() {
+            const searchTerm = document.getElementById('custom-search').value.trim()
+            const resultDiv = document.getElementById('custom-result')
+
+            if (!searchTerm) {
+                resultDiv.innerHTML = `<span class="error">❌ Введите поисковый запрос</span>`
+                return
+            }
+
+            resultDiv.textContent = `Поиск записей с "${searchTerm}"...`
+
+            try {
+                const { data, error } = await supabase
+                    .from('nomenclature')
+                    .select('id, name')
+                    .ilike('name', `%${searchTerm}%`)
+                    .limit(15)
+
+                if (error) {
+                    resultDiv.innerHTML = `<span class="error">❌ Ошибка поиска: ${error.message}</span>`
+                    return
+                }
+
+                if (!data || data.length === 0) {
+                    resultDiv.innerHTML = `<span class="error">❌ Записи с "${searchTerm}" не найдены</span>`
+                    return
+                }
+
+                let result = `<span class="success">✅ Найдено ${data.length} записей с "${searchTerm}":</span>\n\n`
+                data.forEach((item, index) => {
+                    result += `${index + 1}. [${item.id}] ${item.name}\n`
+                })
+
+                resultDiv.innerHTML = result
+            } catch (e) {
+                resultDiv.innerHTML = `<span class="error">❌ Исключение: ${e.message}</span>`
+            }
+        }
+
+        async function testMLSearch() {
+            const materialName = document.getElementById('ml-search').value.trim()
+            const resultDiv = document.getElementById('ml-result')
+
+            if (!materialName) {
+                resultDiv.innerHTML = `<span class="error">❌ Введите название материала</span>`
+                return
+            }
+
+            resultDiv.textContent = `ML поиск для материала "${materialName}"...`
+
+            try {
+                const startTime = Date.now()
+
+                // Имитация ML логики из кода
+                const searchTerm = materialName.toLowerCase().trim()
+
+                // Поиск похожих записей
+                const { data: matches, error } = await supabase
+                    .from('nomenclature')
+                    .select('id, name')
+                    .ilike('name', `%${searchTerm}%`)
+                    .limit(100)
+
+                if (error) {
+                    resultDiv.innerHTML = `<span class="error">❌ Ошибка ML поиска: ${error.message}</span>`
+                    return
+                }
+
+                const processingTime = Date.now() - startTime
+
+                if (!matches || matches.length === 0) {
+                    resultDiv.innerHTML = `<span class="error">❌ ML поиск не нашел совпадений для "${materialName}"</span>\n\nВремя поиска: ${processingTime}мс`
+                    return
+                }
+
+                // Простая симуляция ML скоринга
+                const suggestions = matches.map(nom => {
+                    const nomLower = nom.name.toLowerCase()
+                    const hasExactMatch = nomLower.includes(searchTerm)
+                    const hasPrefixMatch = nomLower.startsWith(searchTerm)
+
+                    let confidence = 0.3 // базовая confidence
+                    if (hasExactMatch) confidence += 0.4
+                    if (hasPrefixMatch) confidence += 0.3
+
+                    return {
+                        ...nom,
+                        confidence: Math.min(0.95, confidence),
+                        reasoning: `Exact: ${hasExactMatch}, Prefix: ${hasPrefixMatch}`
+                    }
+                })
+                .filter(s => s.confidence >= 0.3)
+                .sort((a, b) => b.confidence - a.confidence)
+                .slice(0, 10)
+
+                let result = `<span class="success">✅ ML нашел ${suggestions.length} предложений за ${processingTime}мс:</span>\n\n`
+                suggestions.forEach((item, index) => {
+                    result += `${index + 1}. [${Math.round(item.confidence * 100)}%] ${item.name}\n`
+                    result += `    Обоснование: ${item.reasoning}\n\n`
+                })
+
+                resultDiv.innerHTML = result
+            } catch (e) {
+                resultDiv.innerHTML = `<span class="error">❌ Исключение при ML поиске: ${e.message}</span>`
+            }
+        }
+
+        // Автоматически тестируем подключение при загрузке страницы
+        window.addEventListener('load', () => {
+            testConnection()
+        })
+    </script>
+</body>
+</html>

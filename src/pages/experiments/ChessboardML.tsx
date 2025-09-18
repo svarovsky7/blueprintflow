@@ -57,7 +57,7 @@ import { useScale } from '@/shared/contexts/ScaleContext'
 import ChessboardSetsModal from '../documents/ChessboardSetsModal'
 import ChessboardOptimized from '../../components/ChessboardOptimized'
 import { DropdownPortalManager } from '../../components/DropdownPortalManager'
-import { MLNomenclatureSelect } from '@/entities/ml'
+import { MLNomenclatureSelect, MLConfigPanel } from '@/entities/ml'
 
 const { Text } = Typography
 
@@ -440,6 +440,7 @@ export default function Chessboard() {
   const [columnOrder, setColumnOrder] = useState<string[]>([])
   const [deleteMode, setDeleteMode] = useState(false)
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
+  const [mlConfigOpen, setMLConfigOpen] = useState(false) // Состояние для панели настроек ML
   const [importOpen, setImportOpen] = useState(false)
   const [importFile, setImportFile] = useState<File | null>(null)
   const [isImporting, setIsImporting] = useState(false)
@@ -6123,6 +6124,24 @@ export default function Chessboard() {
             <span style={{ fontSize: '13px', marginLeft: 'auto', opacity: 0.95 }}>
               Умный подбор номенклатуры по материалам
             </span>
+            <button
+              onClick={() => setMLConfigOpen(true)}
+              style={{
+                background: 'rgba(255,255,255,0.2)',
+                border: '1px solid rgba(255,255,255,0.3)',
+                borderRadius: '6px',
+                color: 'white',
+                padding: '4px 8px',
+                fontSize: '12px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              title="Настройки ML алгоритма"
+            >
+              ⚙️ Настройки
+            </button>
           </div>
 
           <div style={{ fontSize: '11px', opacity: 0.9, lineHeight: '1.3' }}>
@@ -7155,6 +7174,16 @@ export default function Chessboard() {
           </div>
         </Space>
       </Modal>
+
+      {/* Панель настроек ML */}
+      <MLConfigPanel
+        open={mlConfigOpen}
+        onClose={() => setMLConfigOpen(false)}
+        onConfigChange={(newConfig) => {
+          console.log('🤖 ML Config updated:', newConfig) // LOG: обновление конфигурации ML
+          // Можно добавить дополнительную логику обновления UI здесь
+        }}
+      />
       </div>
     </DropdownPortalManager>
   )

@@ -51,7 +51,8 @@ export const useMLNomenclature = (options: UseMLNomenclatureOptions = {}): UseML
   const { data: config } = useQuery({
     queryKey: ['ml-config'],
     queryFn: getMLConfig,
-    staleTime: 5 * 60 * 1000, // 5 минут
+    staleTime: 10 * 1000, // ИСПРАВЛЕНИЕ: 10 секунд для быстрого обновления настроек
+    gcTime: 30 * 1000, // 30 секунд в памяти
   })
 
   // Основной запрос для получения предсказаний
@@ -61,7 +62,7 @@ export const useMLNomenclature = (options: UseMLNomenclatureOptions = {}): UseML
     error,
     refetch
   } = useQuery({
-    queryKey: ['ml-nomenclature-predictions', currentRequest],
+    queryKey: ['ml-nomenclature-predictions', currentRequest, config],
     queryFn: async () => {
       if (!currentRequest) return null
 

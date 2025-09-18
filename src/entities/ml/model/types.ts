@@ -40,6 +40,15 @@ export interface MLConfig {
   maxSuggestions: number
   modelEndpoint?: string
   apiKey?: string
+
+  // Настройки точности сопоставления
+  algorithm: 'strict' | 'balanced' | 'fuzzy' // Режим сопоставления
+  keywordBonus: number // Бонус за совпадающие ключевые слова (0-1)
+  exactMatchBonus: number // Бонус за точное совпадение части строки (0-1)
+  prefixBonus: number // Бонус за совпадение в начале строки (0-1)
+  similarityWeight: number // Вес алгоритма Levenshtein (0-1)
+  minWordLength: number // Минимальная длина слова для поиска
+  ignoredTerms: string[] // Игнорируемые термины при сопоставлении
 }
 
 export interface MLMetrics {

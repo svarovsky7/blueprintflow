@@ -100,16 +100,24 @@ export const MLNomenclatureSelect: React.FC<MLNomenclatureSelectProps> = ({
     }
   }, [])
 
+  // Стабилизируем массивы для предотвращения избыточных перерендеров
+  const stableSuggestions = React.useMemo(() => suggestions, [JSON.stringify(suggestions)])
+  const stableSearchResults = React.useMemo(() => searchResults, [JSON.stringify(searchResults)])
+  const stableOptions = React.useMemo(() => options, [JSON.stringify(options)])
+
   // Объединяем ML предложения с server-side поиском и обычными опциями
   const allOptions = React.useMemo(() => {
-    console.log('🔄 Rebuilding options:', { // LOG: пересборка опций
-      mlSuggestions: suggestions.length,
-      searchResults: searchResults.length,
-      staticOptions: options.length,
-      searchQuery
-    })
+    // LOG: пересборка опций (только при реальных изменениях)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔄 Rebuilding options:', {
+        mlSuggestions: stableSuggestions.length,
+        searchResults: stableSearchResults.length,
+        staticOptions: stableOptions.length,
+        searchQuery
+      })
+    }
 
-    const mlOptions = suggestions.map(suggestion => ({
+    const mlOptions = stableSuggestions.map(suggestion => ({
       value: suggestion.id,
       label: (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -136,7 +144,7 @@ export const MLNomenclatureSelect: React.FC<MLNomenclatureSelectProps> = ({
     }))
 
     // Server-side результаты поиска
-    const serverOptions = searchResults
+    const serverOptions = stableSearchResults
       .filter(item => !mlOptions.some(mlOpt => mlOpt.value === item.id))
       .map(item => ({
         value: item.id,
@@ -146,7 +154,7 @@ export const MLNomenclatureSelect: React.FC<MLNomenclatureSelectProps> = ({
       }))
 
     // Статические опции (из props)
-    const staticOptions = options
+    const staticOptions = stableOptions
       .filter(opt =>
         !mlOptions.some(mlOpt => mlOpt.value === opt.value) &&
         !serverOptions.some(serverOpt => serverOpt.value === opt.value)
@@ -159,7 +167,7 @@ export const MLNomenclatureSelect: React.FC<MLNomenclatureSelectProps> = ({
 
     // Порядок: ML предложения -> Server-side результаты -> Статические опции
     return [...mlOptions, ...serverOptions, ...staticOptions]
-  }, [suggestions, searchResults, options, searchQuery])
+  }, [stableSuggestions, stableSearchResults, stableOptions, searchQuery])
 
   const handleSelect = (selectedValue: string, option: any) => {
     console.log('🤖 ML AutoComplete: Option selected:', { // LOG: выбор опции в ML AutoComplete

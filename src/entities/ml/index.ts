@@ -24,3 +24,4 @@ export {
 // React hooks and components
 export { useMLNomenclature } from './lib/useMLNomenclature'
 export { MLNomenclatureSelect } from './lib/MLNomenclatureSelect'
+export { MLConfigPanel } from './lib/MLConfigPanel'

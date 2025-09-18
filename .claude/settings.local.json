@@ -37,7 +37,10 @@
       "Bash(curl:*)",
       "Bash(npx @modelcontextprotocol/cli list-servers:*)",
       "Bash(supabase:*)",
-      "Read(//c//**)"
+      "Read(//c//**)",
+      "Bash(start http://localhost:5175/experiments/chessboard-ml)",
+      "Bash(start http://localhost:5175/temp/test-db-connection.html)",
+      "Bash(start http://localhost:5173/experiments/chessboard-ml)"
     ],
     "deny": [],
     "ask": []
