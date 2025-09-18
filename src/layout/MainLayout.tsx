@@ -12,6 +12,7 @@ import {
   BarChartOutlined,
   SettingOutlined,
   DatabaseOutlined,
+  ExperimentOutlined,
 } from '@ant-design/icons'
 import PortalHeader from '../components/PortalHeader'
 
@@ -96,6 +97,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       key: '/references',
       icon: <DatabaseOutlined />,
       label: 'Справочники',
+    },
+    {
+      key: '/experiments',
+      icon: <ExperimentOutlined />,
+      label: 'Эксперименты',
     },
     {
       key: '/admin',

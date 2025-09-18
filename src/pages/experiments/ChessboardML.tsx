@@ -54,9 +54,10 @@ import { statusesApi } from '@/entities/statuses/api/statuses-api'
 import SimpleDeleteConfirm from '../../components/SimpleDeleteConfirm'
 import { normalizeColorToHex } from '@/shared/constants/statusColors'
 import { useScale } from '@/shared/contexts/ScaleContext'
-import ChessboardSetsModal from './ChessboardSetsModal'
+import ChessboardSetsModal from '../documents/ChessboardSetsModal'
 import ChessboardOptimized from '../../components/ChessboardOptimized'
 import { DropdownPortalManager } from '../../components/DropdownPortalManager'
+import { MLNomenclatureSelect } from '@/entities/ml'
 
 const { Text } = Typography
 
@@ -1107,8 +1108,6 @@ export default function Chessboard() {
       // Фильтрацию будем делать на уровне приложения, а не в запросе БД
       const mappingJoin = 'chessboard_mapping!left'
       console.log('🔍 DB QUERY - Using left join for chessboard_mapping to avoid losing new records') // LOG: тип join для маппинга
-      console.log('🔧 FIX APPLIED - Added .limit(10000) to overcome default 1000 record limit') // LOG: исправление лимита записей
-      console.log('🔧 FIX APPLIED - Using explicit foreign key references in SELECT for proper data loading') // LOG: исправление foreign keys
 
       // Всегда используем left join для документации, чтобы получать все записи
       // Фильтрацию по документам делаем отдельными условиями where
@@ -1118,10 +1117,10 @@ export default function Chessboard() {
         .from('chessboard')
         .select(
           `
-          id, material, materials!chessboard_material_fkey(name), unit_id, color, units!chessboard_unit_id_fkey(name),
-          chessboard_nomenclature_mapping!left(nomenclature_id, supplier_name, nomenclature!chessboard_nomenclature_mapping_nomenclature_id_fkey(name)),
-          ${mappingJoin}(block_id, blocks!chessboard_mapping_block_id_fkey(name), cost_category_id, cost_categories!chessboard_mapping_cost_category_id_fkey(name), cost_type_id, detail_cost_categories!chessboard_mapping_cost_type_id_fkey(name), location_id, location!chessboard_mapping_location_id_fkey(name)),
-          chessboard_rates_mapping!left(rate_id, rates!chessboard_rates_mapping_rate_id_fkey(work_name)),
+          id, material, materials(name), unit_id, color, units(name),
+          chessboard_nomenclature_mapping!left(nomenclature_id, supplier_name, nomenclature(name)),
+          ${mappingJoin}(block_id, blocks(name), cost_category_id, cost_type_id, location_id, cost_categories(name), detail_cost_categories(name), location(name)),
+          chessboard_rates_mapping!left(rate_id, rates(work_name)),
           chessboard_documentation_mapping!left(version_id, documentation_versions(id, version_number, documentation_id, documentations(id, code, tag_id, stage, project_name, tag:documentation_tags(id, name, tag_number))))
         `,
         )
@@ -1135,11 +1134,9 @@ export default function Chessboard() {
       // Это позволяет получить все записи и правильно выбрать нужную версию документа
 
       // 🚀 СТАБИЛЬНАЯ СОРТИРОВКА: добавляем вторичную сортировку по ID для одинаковых created_at
-      // 🔧 ИСПРАВЛЕНИЕ ЛИМИТА: добавляем limit для получения всех записей (по умолчанию Supabase возвращает только 1000)
       const { data, error } = await query
         .order('created_at', { ascending: false })
         .order('id', { ascending: false }) // Вторичная сортировка для стабильного порядка
-        .limit(50000) // Значительно увеличиваем лимит для получения всех записей проекта
       if (error) {
         console.error('❌ Query Error:', error)
 
@@ -1155,12 +1152,6 @@ export default function Chessboard() {
 
         throw new Error(errorMessage)
       }
-
-      console.log('🔍 DB DATA SAMPLE - Проверяем структуру загруженных данных:', data?.[0]) // LOG: проверка структуры данных после SQL запроса
-      console.log('🔍 DB DATA UNITS - Проверяем units данные:', data?.[0]?.units) // LOG: проверка units данных
-      console.log('🔍 DB DATA MATERIALS - Проверяем materials данные:', data?.[0]?.materials) // LOG: проверка materials данных
-      console.log('🔍 DB DATA MAPPING - Проверяем mapping данные:', data?.[0]?.chessboard_mapping) // LOG: проверка chessboard_mapping данных
-      console.log('🔍 DB DATA NOMENCLATURE - Проверяем nomenclature данные:', data?.[0]?.chessboard_nomenclature_mapping) // LOG: проверка nomenclature mapping данных
 
       // Загружаем этажи для всех записей
       const chessboardIds = ((data as unknown as DbRow[] | null | undefined) ?? []).map(
@@ -1394,13 +1385,7 @@ export default function Chessboard() {
     }
 
     const filteredRows = (tableData ?? [])
-      .map((item, index) => {
-        // LOG: Отладка сырых данных для первой записи перед обработкой
-        if (index === 0) {
-          console.log('🔍 RAW ITEM BEFORE PROCESSING - units:', item.units) // LOG: детальные units данные
-          console.log('🔍 RAW ITEM BEFORE PROCESSING - chessboard_mapping:', item.chessboard_mapping) // LOG: детальные mapping данные
-          console.log('🔍 RAW ITEM BEFORE PROCESSING - nomenclature_mapping:', item.chessboard_nomenclature_mapping) // LOG: детальные nomenclature данные
-        }
+      .map((item) => {
         // Если есть выбранные версии из модального окна, нужно найти правильную версию
         let version = item.chessboard_documentation_mapping?.documentation_versions
         let documentation = version?.documentations
@@ -1497,11 +1482,6 @@ export default function Chessboard() {
           }) // LOG: детальная отладка маппинга данных для новой записи
         }
 
-        // LOG: Проверяем, доходим ли мы до создания row объекта
-        if (index === 0) {
-          console.log('🔍 ABOUT TO CREATE ROW - Начинаем создание row объекта для index:', index) // LOG: начало создания row
-        }
-
         return {
           key: item.id,
           materialId: item.material ?? '',
@@ -1551,27 +1531,6 @@ export default function Chessboard() {
             undefined,
           comments: commentsMap.get(item.id) || [],
         }
-
-        // LOG: Специфичная отладка данных в проблемных столбцах для первой записи
-        if (index === 0) {
-          console.log('🔍 COLUMN DATA DEBUG - Первая запись:', {
-            unit: row.unit,
-            costCategory: row.costCategory,
-            costType: row.costType,
-            location: row.location,
-            nomenclature: row.nomenclature
-          }) // LOG: отладка данных столбцов
-          console.log('🔍 RAW MAPPING DATA - chessboard_mapping:', item.chessboard_mapping) // LOG: сырые данные mapping
-          console.log('🔍 RAW UNITS DATA - units:', item.units) // LOG: сырые данные units
-          console.log('🔍 RAW NOMENCLATURE DATA - nomenclature_mapping:', item.chessboard_nomenclature_mapping) // LOG: сырые данные nomenclature
-        }
-
-        // LOG: Финальная проверка - доходим ли мы до создания row объекта
-        if (index === 0) {
-          console.log('🔍 FINAL ROW CHECK - Финальный row объект создан, index:', index) // LOG: проверка создания row объекта
-        }
-
-        return row
       })
       .filter((row) => {
         // Сначала фильтруем по документам/тегам
@@ -1649,9 +1608,6 @@ export default function Chessboard() {
     documentations,
     documentVersions,
     selectedVersions,
-    costCategories,
-    costTypes,
-    locations,
   ])
 
   // Извлекаем видимые строки и общее количество с проверкой на существование
@@ -1669,10 +1625,11 @@ export default function Chessboard() {
     })
   }, [])
 
-  const tableRows = useMemo<TableRow[]>(
-    () => [
-      // ИСПРАВЛЕНИЕ: Добавляем строки из editingRows для отображения новых строк без смены режима
-      ...Object.values(editingRows).map((r) => ({
+  const tableRows = useMemo<TableRow[]>(() => {
+    // ИСПРАВЛЕНИЕ: Новые строки (только с ключами new-row-*) добавляем в начало
+    const newRows = Object.values(editingRows)
+      .filter(r => r.key.startsWith('new-row-'))
+      .map((r) => ({
         ...r,
         // Обеспечиваем fallback для projectName если он пустой
         projectName:
@@ -1680,17 +1637,26 @@ export default function Chessboard() {
           (r.projectCode &&
             documentations?.find((d) => d.project_code === r.projectCode)?.project_name) ||
           r.projectName,
-      })),
-      ...rows.map((r) => ({
-        ...r,
+      }))
+
+    // ИСПРАВЛЕНИЕ: Существующие строки из rows с применением editingRows если есть
+    const existingRowsFromRows = rows.map((r) => {
+      const editingData = editingRows[r.key]
+      return {
+        ...(editingData || r), // Используем данные из editingRows если есть
         // Обеспечиваем fallback для projectName если он пустой
         projectName:
-          r.projectName ||
-          (r.projectCode &&
-            documentations?.find((d) => d.project_code === r.projectCode)?.project_name) ||
-          r.projectName,
-      })),
-      ...viewRows.map((v) => ({
+          (editingData || r).projectName ||
+          ((editingData || r).projectCode &&
+            documentations?.find((d) => d.project_code === (editingData || r).projectCode)?.project_name) ||
+          (editingData || r).projectName,
+      }
+    })
+
+    // ИСПРАВЛЕНИЕ: Существующие строки из viewRows с применением editingRows если есть
+    const existingRowsFromViewRows = viewRows.map((v) => {
+      const editingData = editingRows[v.key]
+      const baseRow = {
         key: v.key,
         material: v.material,
         materialId: v.materialId,
@@ -1711,13 +1677,20 @@ export default function Chessboard() {
         tagName: v.tagName,
         tagNumber: v.tagNumber,
         projectCode: v.projectCode,
-        projectName: v.projectName, // Добавляем projectName
+        projectName: v.projectName,
         versionNumber: v.versionNumber,
-        isExisting: mode !== 'add', // В режиме добавления показываем кнопки
-      })),
-    ],
-    [editingRows, rows, viewRows, documentations, mode], // ВАЖНО: добавляем editingRows и mode в зависимости
-  )
+        isExisting: true,
+      }
+
+      return editingData ? { ...baseRow, ...editingData } : baseRow
+    })
+
+    return [
+      ...newRows,
+      ...existingRowsFromRows,
+      ...existingRowsFromViewRows,
+    ]
+  }, [editingRows, rows, viewRows, documentations])
 
   // LOG: Логирование изменений tableRows для отслеживания подсчета строк
   useEffect(() => {
@@ -4781,33 +4754,51 @@ export default function Chessboard() {
               )
             case 'nomenclatureId':
               return (
-                <AutoComplete
-                  style={{ width: 250 }}
-                  popupMatchSelectWidth={nomenclatureDropdownWidth}
-                  options={(() => {
-                    const allNomenclature = [...(nomenclatures || [])]
-                    if (record.nomenclatureId && record.nomenclature && !allNomenclature.some(n => n.id === record.nomenclatureId)) {
-                      allNomenclature.push({ id: record.nomenclatureId, name: record.nomenclature })
-                    }
-                    return allNomenclature.map(n => ({ value: n.id, label: n.name }))
-                  })()}
-                  value={record.nomenclature}
-                  onSelect={(value, option) => {
-                    handleRowChange(record.key, 'nomenclature', String(option?.label))
-                    handleRowChange(record.key, 'nomenclatureId', String(value))
-                    loadSupplierOptions(String(value), record.key)
-                    handleRowChange(record.key, 'supplier', '')
-                  }}
-                  onChange={(value) => {
-                    handleRowChange(record.key, 'nomenclature', value)
-                    handleRowChange(record.key, 'nomenclatureId', '')
-                  }}
-                  filterOption={(input, option) => {
-                    const text = (option?.label ?? '').toString()
-                    return text.toLowerCase().includes(input.toLowerCase())
-                  }}
-                  allowClear
-                />
+                <div style={{ position: 'relative', width: '250px', minHeight: '32px' }}>
+                  <MLNomenclatureSelect
+                    style={{ width: '100%' }}
+                    materialName={record.material || ''}
+                    context={{
+                      projectId: appliedFilters?.projectId,
+                      categoryId: record.costCategoryId,
+                      typeId: record.costTypeId
+                    }}
+                    options={(() => {
+                      const allNomenclature = [...(nomenclatures || [])]
+                      if (record.nomenclatureId && record.nomenclature && !allNomenclature.some(n => n.id === record.nomenclatureId)) {
+                        allNomenclature.push({ id: record.nomenclatureId, name: record.nomenclature })
+                      }
+                      return allNomenclature.map(n => ({ value: n.id, label: n.name }))
+                    })()}
+                    value={record.nomenclature}
+                    onChange={(value, option) => {
+                      if (option) {
+                        // Обычный выбор из списка или ML предложение
+                        handleRowChange(record.key, 'nomenclature', String(option?.label || option?.children?.props?.children?.[0] || value))
+                        handleRowChange(record.key, 'nomenclatureId', String(value))
+                        loadSupplierOptions(String(value), record.key)
+                        handleRowChange(record.key, 'supplier', '')
+                      } else {
+                        // Ручной ввод
+                        handleRowChange(record.key, 'nomenclature', value)
+                        handleRowChange(record.key, 'nomenclatureId', '')
+                      }
+                    }}
+                    onMLSuggestionSelect={(suggestion) => {
+                      console.log('🤖 ML suggestion selected:', suggestion) // LOG: выбор ML предложения в шахматке
+                      handleRowChange(record.key, 'nomenclature', suggestion.name)
+                      handleRowChange(record.key, 'nomenclatureId', suggestion.id)
+                      loadSupplierOptions(suggestion.id, record.key)
+                      handleRowChange(record.key, 'supplier', '')
+                    }}
+                    filterOption={(input, option) => {
+                      const text = (option?.label ?? '').toString()
+                      return text.toLowerCase().includes(input.toLowerCase())
+                    }}
+                    allowClear
+                    placeholder="ML-подбор номенклатуры по материалу..."
+                  />
+                </div>
               )
             case 'supplier':
               return (
@@ -5449,33 +5440,51 @@ export default function Chessboard() {
               )
             case 'nomenclature':
               return (
-                <AutoComplete
-                  style={{ width: 250 }}
-                  popupMatchSelectWidth={nomenclatureDropdownWidth}
-                  options={(() => {
-                    const allNomenclature = [...(nomenclatures || [])]
-                    if (edit.nomenclatureId && record.nomenclature && !allNomenclature.some(n => n.id === edit.nomenclatureId)) {
-                      allNomenclature.push({ id: edit.nomenclatureId, name: record.nomenclature })
-                    }
-                    return allNomenclature.map(n => ({ value: n.id, label: n.name }))
-                  })()}
-                  value={edit.nomenclature}
-                  onSelect={(value, option) => {
-                    handleEditChange(record.key, 'nomenclature', String(option?.label))
-                    handleEditChange(record.key, 'nomenclatureId', String(value))
-                    loadSupplierOptions(String(value), record.key)
-                    handleEditChange(record.key, 'supplier', '')
-                  }}
-                  onChange={(value) => {
-                    handleEditChange(record.key, 'nomenclature', value)
-                    handleEditChange(record.key, 'nomenclatureId', '')
-                  }}
-                  filterOption={(input, option) => {
-                    const text = (option?.label ?? '').toString()
-                    return text.toLowerCase().includes(input.toLowerCase())
-                  }}
-                  allowClear
-                />
+                <div style={{ position: 'relative', width: '250px', minHeight: '32px' }}>
+                  <MLNomenclatureSelect
+                    style={{ width: '100%' }}
+                    materialName={edit.material || ''}
+                    context={{
+                      projectId: appliedFilters?.projectId,
+                      categoryId: edit.costCategoryId,
+                      typeId: edit.costTypeId
+                    }}
+                    options={(() => {
+                      const allNomenclature = [...(nomenclatures || [])]
+                      if (edit.nomenclatureId && record.nomenclature && !allNomenclature.some(n => n.id === edit.nomenclatureId)) {
+                        allNomenclature.push({ id: edit.nomenclatureId, name: record.nomenclature })
+                      }
+                      return allNomenclature.map(n => ({ value: n.id, label: n.name }))
+                    })()}
+                    value={edit.nomenclature}
+                    onChange={(value, option) => {
+                      if (option) {
+                        // Обычный выбор из списка или ML предложение
+                        handleEditChange(record.key, 'nomenclature', String(option?.label || option?.children?.props?.children?.[0] || value))
+                        handleEditChange(record.key, 'nomenclatureId', String(value))
+                        loadSupplierOptions(String(value), record.key)
+                        handleEditChange(record.key, 'supplier', '')
+                      } else {
+                        // Ручной ввод
+                        handleEditChange(record.key, 'nomenclature', value)
+                        handleEditChange(record.key, 'nomenclatureId', '')
+                      }
+                    }}
+                    onMLSuggestionSelect={(suggestion) => {
+                      console.log('🤖 ML suggestion selected in edit mode:', suggestion) // LOG: выбор ML предложения в режиме редактирования
+                      handleEditChange(record.key, 'nomenclature', suggestion.name)
+                      handleEditChange(record.key, 'nomenclatureId', suggestion.id)
+                      loadSupplierOptions(suggestion.id, record.key)
+                      handleEditChange(record.key, 'supplier', '')
+                    }}
+                    filterOption={(input, option) => {
+                      const text = (option?.label ?? '').toString()
+                      return text.toLowerCase().includes(input.toLowerCase())
+                    }}
+                    allowClear
+                    placeholder="ML-подбор номенклатуры по материалу..."
+                  />
+                </div>
               )
             case 'supplier':
               return (
@@ -5660,27 +5669,13 @@ export default function Chessboard() {
       {
         title: '',
         dataIndex: 'color',
-        width: Object.keys(editingRows).length > 0 || mode === 'add' ? 35 : 5,
+        width: Object.keys(editingRows).length > 0 ? 35 : 5,
         render: (_: unknown, record: ViewRow) => {
           const edit = editingRows[record.key]
-          // В режиме добавления для новых строк показываем color picker
-          const showColorPicker = edit || (mode === 'add' && !record.key.includes('existing'))
-
-          if (mode === 'add' && showColorPicker) {
-            console.log('🎨 COLOR FIX APPLIED - Showing color picker for new row in add mode:', record.key) // LOG: исправление отображения color picker
-          }
-
-          return showColorPicker ? (
+          return edit ? (
             <RowColorPicker
-              value={edit?.color || record.color}
-              onChange={(c) => {
-                if (edit) {
-                  handleEditChange(record.key, 'color', c)
-                } else if (mode === 'add') {
-                  // В режиме добавления используем handleRowChange для обновления строк
-                  handleRowChange(record.key, 'color', c)
-                }
-              }}
+              value={edit.color}
+              onChange={(c) => handleEditChange(record.key, 'color', c)}
             />
           ) : (
             <div
@@ -5700,30 +5695,9 @@ export default function Chessboard() {
         width: 100,
         render: (_: unknown, record: ViewRow) => {
           const isEditing = !!editingRows[record.key]
-          const isNewRow = mode === 'add' && !record.key.includes('existing')
-
-
           return (
             <Space>
-              {mode === 'add' && (
-                <>
-                  <Button
-                    type="text"
-                    icon={<PlusOutlined />}
-                    onClick={handleAddRow}
-                    title="Добавить строку"
-                  />
-                  {!isNewRow && (
-                    <Button
-                      type="text"
-                      icon={<CopyOutlined />}
-                      onClick={() => handleCopyRow(record)}
-                      title="Копировать строку"
-                    />
-                  )}
-                </>
-              )}
-              {mode === 'view' && !isEditing && (
+              {!isEditing && (
                 <Button type="text" icon={<EditOutlined />} onClick={() => startEdit(record.key)} />
               )}
               <SimpleDeleteConfirm
@@ -6122,11 +6096,40 @@ export default function Chessboard() {
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-
           position: 'relative',
           minHeight: 0,
         }}
       >
+        {/* ML Шахматка заголовок */}
+        <div style={{
+          marginBottom: '16px',
+          padding: '12px 20px',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          borderRadius: '8px',
+          color: 'white',
+          boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
+            <span style={{ fontSize: '18px', fontWeight: 'bold' }}>🤖 ML Шахматка</span>
+            <span style={{
+              fontSize: '10px',
+              background: 'rgba(255,255,255,0.25)',
+              padding: '2px 8px',
+              borderRadius: '12px',
+              fontWeight: '600'
+            }}>
+              ЭКСПЕРИМЕНТ
+            </span>
+            <span style={{ fontSize: '13px', marginLeft: 'auto', opacity: 0.95 }}>
+              Умный подбор номенклатуры по материалам
+            </span>
+          </div>
+
+          <div style={{ fontSize: '11px', opacity: 0.9, lineHeight: '1.3' }}>
+            <strong>ML-стек:</strong> Levenshtein Distance + PostgreSQL ILIKE + многоэтапный поиск (точное → по словам → fallback) |
+            <strong> Архитектура:</strong> FSD + TanStack Query + React Hooks, confidence 0.25-0.95, кэш 30с
+          </div>
+        </div>
       {/* Индикатор ошибки загрузки данных */}
       {isError && tableDataError && (
         <div

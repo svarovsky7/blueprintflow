@@ -15,6 +15,7 @@ import {
   FundOutlined,
   PieChartOutlined,
   MonitorOutlined,
+  ExperimentOutlined,
 } from '@ant-design/icons'
 import Dashboard from './pages/Dashboard'
 import Documents from './pages/Documents'
@@ -35,6 +36,8 @@ import Admin from './pages/Admin'
 import DocumentationTags from './pages/admin/DocumentationTags'
 import Statuses from './pages/admin/Statuses'
 import Disk from './pages/admin/Disk'
+import Experiments from './pages/experiments'
+import ChessboardML from './pages/experiments/ChessboardML'
 import PortalHeader from './components/PortalHeader'
 import TestTableStructure from './pages/TestTableStructure'
 import PortalSettings from './pages/admin/PortalSettings'
@@ -320,6 +323,12 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             { key: 'rates', label: <Link to="/references/rates">Расценки</Link> },
             { key: 'nomenclature', label: <Link to="/references/nomenclature">Номенклатура</Link> },
           ],
+    },
+    {
+      key: 'experiments',
+      icon: <ExperimentOutlined />,
+      label: collapsed ? '' : 'Эксперименты',
+      onClick: () => navigate('/experiments'),
     },
     {
       key: 'admin',
@@ -673,7 +682,9 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                                           ? 'disk'
                                           : location.pathname.startsWith('/admin/portal-settings')
                                             ? 'portal-settings'
-                                            : location.pathname,
+                                            : location.pathname.startsWith('/experiments')
+                                              ? 'experiments'
+                                              : location.pathname,
             ]}
             openKeys={openKeys}
             onOpenChange={setOpenKeys}
@@ -720,6 +731,8 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                   <Route path="disk" element={<Disk />} />
                   <Route path="portal-settings" element={<PortalSettings />} />
                 </Route>
+                <Route path="/experiments" element={<Experiments />} />
+                <Route path="/experiments/chessboard-ml" element={<ChessboardML />} />
                 <Route path="/test-table" element={<TestTableStructure />} />
               </Routes>
             </div>
