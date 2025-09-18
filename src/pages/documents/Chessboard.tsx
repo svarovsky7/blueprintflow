@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useEffect, useDeferredValue, startTransition, type Key } from 'react'
+import { useCallback, useMemo, useState, useEffect, useDeferredValue, startTransition, useRef, type Key } from 'react'
 import { useLocation } from 'react-router-dom'
 import {
   App,
@@ -56,6 +56,7 @@ import { normalizeColorToHex } from '@/shared/constants/statusColors'
 import { useScale } from '@/shared/contexts/ScaleContext'
 import ChessboardSetsModal from './ChessboardSetsModal'
 import ChessboardOptimized from '../../components/ChessboardOptimized'
+import { DropdownPortalManager } from '../../components/DropdownPortalManager'
 
 const { Text } = Typography
 
@@ -473,11 +474,9 @@ export default function Chessboard() {
   const [rowsPerPage, setRowsPerPage] = useState<number>(() => {
     const saved = localStorage.getItem('chessboard-rows-per-page')
     const parsed = saved ? parseInt(saved, 10) : 200
-    console.log('🔍 rowsPerPage initialization:', { saved, parsed })
 
     // Защита от некорректных значений - принудительно используем 200 если значение слишком мало
     if (parsed < 10) {
-      console.log('🔍 rowsPerPage too small, using 200 instead of:', parsed)
       localStorage.setItem('chessboard-rows-per-page', '200')
       return 200
     }
@@ -487,13 +486,11 @@ export default function Chessboard() {
 
   // Обработчик изменения количества строк с сохранением в localStorage
   const handleRowsPerPageChange = useCallback((value: number) => {
-    console.log('🔍 handleRowsPerPageChange called with:', value, 'current rowsPerPage:', rowsPerPage)
     if (value > 0) {
       setRowsPerPage(value)
       localStorage.setItem('chessboard-rows-per-page', value.toString())
-      console.log('🔍 rowsPerPage updated to:', value)
     } else {
-      console.warn('🔍 Invalid rowsPerPage value:', value)
+      console.warn('Invalid rowsPerPage value:', value)
     }
   }, [rowsPerPage])
 
@@ -618,7 +615,6 @@ export default function Chessboard() {
       return data as NomenclatureOption[]
     },
   })
-  const [nomenclatureOptions, setNomenclatureOptions] = useState<NomenclatureOption[]>([])
 
   // Обработка URL параметров при загрузке страницы
   useEffect(() => {
@@ -677,9 +673,6 @@ export default function Chessboard() {
     }
   }, [location.search])
 
-  useEffect(() => {
-    setNomenclatureOptions(nomenclatures ?? [])
-  }, [nomenclatures])
   const nomenclatureDropdownWidth = useMemo(() => {
     if (typeof document === 'undefined') return 200
     const canvas = document.createElement('canvas')
@@ -687,32 +680,15 @@ export default function Chessboard() {
     if (!context) return 200
     context.font = getComputedStyle(document.body).font || '14px'
     let max = 0
-    for (const n of nomenclatureOptions) {
-      const width = context.measureText(n.name).width
-      if (width > max) max = width
+    if (nomenclatures) {
+      for (const n of nomenclatures) {
+        const width = context.measureText(n.name).width
+        if (width > max) max = width
+      }
     }
     return Math.min(500, Math.ceil(max) + 64)
-  }, [nomenclatureOptions])
-  const handleNomenclatureSearch = async (value: string) => {
-    if (!supabase) return
-    const { data, error } = await supabase
-      .from('nomenclature')
-      .select('id, name')
-      .ilike('name', `%${value}%`)
-      .limit(50)
-    if (!error && data) setNomenclatureOptions(data as NomenclatureOption[])
-  }
+  }, [nomenclatures])
 
-  const getNomenclatureSelectOptions = useCallback(
-    (currentId?: string, currentName?: string) => {
-      const opts = [...nomenclatureOptions]
-      if (currentId && currentName && !opts.some((n) => n.id === currentId)) {
-        opts.push({ id: currentId, name: currentName })
-      }
-      return opts.map((n) => ({ value: n.id, label: n.name }))
-    },
-    [nomenclatureOptions],
-  )
 
   const [supplierOptions, setSupplierOptions] = useState<
     Record<string, { value: string; label: string }[]>
@@ -1161,7 +1137,10 @@ export default function Chessboard() {
       // НЕ фильтруем по версиям в запросе - делаем это на уровне данных
       // Это позволяет получить все записи и правильно выбрать нужную версию документа
 
-      const { data, error } = await query.order('created_at', { ascending: false })
+      // 🚀 СТАБИЛЬНАЯ СОРТИРОВКА: добавляем вторичную сортировку по ID для одинаковых created_at
+      const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false }) // Вторичная сортировка для стабильного порядка
       if (error) {
         console.error('❌ Query Error:', error)
 
@@ -1779,6 +1758,9 @@ export default function Chessboard() {
   }, [])
 
   const handleDeleteSelected = useCallback(async () => {
+    const deleteStartTime = performance.now()
+    console.log(`⏱️ [PERFORMANCE] Начало удаления ${selectedRows.size} строк`)
+
     if (!supabase || selectedRows.size === 0) return
 
     const idsToDelete = Array.from(selectedRows)
@@ -1792,6 +1774,10 @@ export default function Chessboard() {
       })
 
       await Promise.all(deletePromises)
+      const deleteEndTime = performance.now()
+      const deleteDuration = (deleteEndTime - deleteStartTime).toFixed(2)
+      console.log(`⏱️ [PERFORMANCE] Удаление завершено за ${deleteDuration}ms (${idsToDelete.length} строк)`)
+
       message.success(`Удалено строк: ${idsToDelete.length}`)
       setSelectedRows(new Set())
       setDeleteMode(false)
@@ -1843,18 +1829,15 @@ export default function Chessboard() {
     [],
   )
 
-  // Состояние для принудительного перерендера таблицы
-  const [forceRerenderKey, setForceRerenderKey] = useState(0)
+
 
   const handleEditChange = useCallback(
     (key: string, field: keyof RowData, value: string | number | null) => {
-      console.log('🔧 EDIT CHANGE - key:', key, 'field:', field, 'value:', value)
       setEditingRows((prev) => {
         const updated = { ...prev[key], [field]: value }
         if (field === 'quantityPd' || field === 'quantitySpec' || field === 'quantityRd') {
           delete updated.floorQuantities
         }
-        console.log('🔧 EDIT CHANGE - updated editingRows:', { ...prev, [key]: updated })
         // Убираем принудительный перерендер - теперь React.memo правильно работает
         return { ...prev, [key]: updated }
       })
@@ -2640,32 +2623,28 @@ export default function Chessboard() {
     findMatchingSet()
   }, [appliedFilters, selectedVersions])
 
-  // Отслеживание изменений editingRows для отладки
-  useEffect(() => {
-    console.log('🔧 EDIT STATE - editingRows updated:', Object.keys(editingRows).length > 0 ? editingRows : 'empty')
-  }, [editingRows])
+
 
   const startEdit = useCallback(
     (id: string) => {
-      console.log('🔧 EDIT INIT - startEdit called with id:', id)
-      console.log('🔧 EDIT INIT - Current editingRows before:', Object.keys(editingRows))
-      console.log('🔧 EDIT INIT - tableData length:', tableData?.length)
+      // Сохраняем текущую позицию скролла
+      const scrollContainer = document.querySelector('.ant-table-body')
+      const savedScrollLeft = scrollContainer?.scrollLeft || 0
+
+      console.log('💾 Сохраняем позицию скролла:', savedScrollLeft)
+
       const dbRow = tableData?.find((r) => r.id === id)
       if (!dbRow) {
-        console.log('🔧 EDIT INIT - No dbRow found for id:', id)
         return
       }
-      console.log('🔧 EDIT INIT - Found dbRow for id:', id)
       const mapping = getNomenclatureMapping(dbRow.chessboard_nomenclature_mapping)
       const nomenclatureId = mapping?.nomenclature_id ?? ''
       const nomenclatureName = mapping?.nomenclature?.name ?? ''
       const supplierName = mapping?.supplier_name ?? ''
       setEditingRows((prev) => {
         if (prev[id]) {
-          console.log('🔧 EDIT INIT - Row already being edited:', id)
           return prev
         }
-        console.log('🔧 EDIT INIT - Starting edit for row:', id)
         return {
           ...prev,
           [id]: {
@@ -2732,7 +2711,6 @@ export default function Chessboard() {
               // Сначала пробуем из маппинга (будет работать после миграции)
               const mappingTagId = dbRow.chessboard_documentation_mapping?.tag_id
               if (mappingTagId) {
-                console.log('🔧 EDIT INIT - Found mapping tagId:', mappingTagId, 'for row:', id)
                 return String(mappingTagId)
               }
 
@@ -2741,7 +2719,6 @@ export default function Chessboard() {
                 dbRow.chessboard_documentation_mapping?.documentation_versions?.documentations
                   ?.tag_id
               if (docTagId) {
-                console.log('🔧 EDIT INIT - Found doc tagId:', docTagId, 'for row:', id)
                 return String(docTagId)
               }
 
@@ -2780,13 +2757,6 @@ export default function Chessboard() {
                 return String(sortedDocumentationTags[0].id)
               }
 
-              console.log('🔧 EDIT INIT - No tagId found for row:', id, {
-                mappingTagId,
-                docTagId,
-                appliedFiltersTagId: appliedFilters?.tagId,
-                appliedFiltersTagIdLength: appliedFilters?.tagId?.length,
-                availableTagsCount: sortedDocumentationTags?.length,
-              })
               return ''
             })(),
             tagName: (() => {
@@ -2893,9 +2863,23 @@ export default function Chessboard() {
           },
         }
       })
-      console.log('🔧 EDIT INIT - Edit object created for row:', id)
-      console.log('🔧 EDIT INIT - editingRows state will be updated')
-      console.log('🔧 EDIT INIT - About to call loadSupplierOptions for:', { nomenclatureId, id, supplierName })
+
+      // Восстанавливаем позицию скролла после обновления состояния
+      const restoreScroll = () => {
+        const container = document.querySelector('.ant-table-body')
+        if (container && savedScrollLeft > 0) {
+          console.log('🔄 Восстанавливаем позицию скролла:', savedScrollLeft)
+          container.scrollLeft = savedScrollLeft
+        }
+      }
+
+      // Используем requestAnimationFrame для более точного восстановления
+      requestAnimationFrame(() => {
+        restoreScroll()
+        // Дополнительная проверка через небольшой интервал
+        setTimeout(restoreScroll, 10)
+      })
+
       void loadSupplierOptions(nomenclatureId, id, supplierName)
     },
     [
@@ -3169,6 +3153,9 @@ export default function Chessboard() {
   }, [appliedFilters, costTypes, selectedVersions])
 
   const handleImport = useCallback(async () => {
+    const importStartTime = performance.now()
+    console.log('⏱️ [PERFORMANCE] Начало импорта Excel файла')
+
     if (!supabase || !importFile || !importState.projectId) {
       message.error('Выберите проект и файл')
       return
@@ -3671,6 +3658,10 @@ export default function Chessboard() {
       setImportState({})
 
       // Затем показываем модальное окно с результатами
+      const importEndTime = performance.now()
+      const importDuration = (importEndTime - importStartTime).toFixed(2)
+      console.log(`⏱️ [PERFORMANCE] Импорт завершен за ${importDuration}ms (${inserted.length} строк)`)
+
       const hasErrors = Object.keys(importErrors).length > 0
       const totalErrors = Object.values(importErrors).reduce((sum, count) => sum + count, 0)
 
@@ -3796,6 +3787,9 @@ export default function Chessboard() {
   ])
 
   const handleSave = async () => {
+    const performanceStart = performance.now()
+    console.log('⏱️ [PERFORMANCE] Начало сохранения данных')
+
     if (!supabase || !appliedFilters) return
     const payload = await Promise.all(
       rows.map(async (r) => {
@@ -3989,6 +3983,11 @@ export default function Chessboard() {
       }
     }
     await refetchMaterials()
+
+    const performanceEnd = performance.now()
+    const duration = (performanceEnd - performanceStart).toFixed(2)
+    console.log(`⏱️ [PERFORMANCE] Сохранение завершено за ${duration}ms (${rows.length} строк)`)
+
     message.success('Данные успешно сохранены')
     setMode('view')
     setRows([])
@@ -4370,24 +4369,31 @@ export default function Chessboard() {
               )
             case 'nomenclatureId':
               return (
-                <Select
+                <AutoComplete
                   style={{ width: 250 }}
                   popupMatchSelectWidth={nomenclatureDropdownWidth}
-                  value={record.nomenclatureId}
-                  onChange={(value, option) => {
-                    handleRowChange(record.key, 'nomenclatureId', value)
-                    handleRowChange(
-                      record.key,
-                      'nomenclature',
-                      (option as { label?: string })?.label || '',
-                    )
-                    loadSupplierOptions(value, record.key)
+                  options={(() => {
+                    const allNomenclature = [...(nomenclatures || [])]
+                    if (record.nomenclatureId && record.nomenclature && !allNomenclature.some(n => n.id === record.nomenclatureId)) {
+                      allNomenclature.push({ id: record.nomenclatureId, name: record.nomenclature })
+                    }
+                    return allNomenclature.map(n => ({ value: n.id, label: n.name }))
+                  })()}
+                  value={record.nomenclature}
+                  onSelect={(value, option) => {
+                    handleRowChange(record.key, 'nomenclature', String(option?.label))
+                    handleRowChange(record.key, 'nomenclatureId', String(value))
+                    loadSupplierOptions(String(value), record.key)
                     handleRowChange(record.key, 'supplier', '')
                   }}
-                  options={getNomenclatureSelectOptions(record.nomenclatureId, record.nomenclature)}
-                  showSearch
-                  onSearch={handleNomenclatureSearch}
-                  filterOption={false}
+                  onChange={(value) => {
+                    handleRowChange(record.key, 'nomenclature', value)
+                    handleRowChange(record.key, 'nomenclatureId', '')
+                  }}
+                  filterOption={(input, option) => {
+                    const text = (option?.label ?? '').toString()
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }}
                   allowClear
                 />
               )
@@ -4654,9 +4660,9 @@ export default function Chessboard() {
     supplierOptions,
     supplierDropdownWidths,
     loadSupplierOptions,
-    getNomenclatureSelectOptions,
     materialOptions,
     handleMaterialBlur,
+    documentVersions,
   ])
 
   const viewColumns: ColumnsType<ViewRow> = useMemo(() => {
@@ -4738,7 +4744,6 @@ export default function Chessboard() {
 
         const render: ColumnType<ViewRow>['render'] = (_, record): React.ReactNode => {
           const edit = editingRows[record.key]
-          console.log('🔧 RENDER CHECK - record.key:', record.key, 'edit exists:', !!edit, 'editingRows keys:', Object.keys(editingRows))
           if (!edit) {
             if (col.dataIndex === 'comments') {
               const rowComments = record.comments || []
@@ -4802,14 +4807,12 @@ export default function Chessboard() {
           }
           switch (col.dataIndex) {
             case 'tagName':
-              console.log('🎯 SELECT RENDER - tagName field for record:', record.key, '| edit.tagId:', edit.tagId, '| edit.tagName:', edit.tagName, '| available options count:', sortedDocumentationTags.length)
               return (
                 <Select
                   key={`select-tagName-${record.key}`}
                   style={{ minWidth: 120, width: 'auto' }}
                   value={edit.tagId}
                   onChange={(value) => {
-                    console.log('🎯 SELECT onChange - tagName - value:', value)
                     handleEditChange(record.key, 'tagId', value)
                     const tag = sortedDocumentationTags.find((t) => String(t.id) === value)
                     handleEditChange(record.key, 'tagName', tag?.name ?? '')
@@ -4877,20 +4880,6 @@ export default function Chessboard() {
                   const actualTagId = docTagId || (doc.tag ? doc.tag.id : null)
                   return actualTagId === selectedTagId
                 })
-                console.log('🔧 EDIT mode - ProjectCode dropdown:', {
-                  searchingForTagId: edit.tagId,
-                  searchingForTagIdNum: Number(edit.tagId),
-                  totalDocs: documentations.length,
-                  first5DocsTagInfo: tagIds,
-                  filteredDocsCount: filteredDocs.length,
-                  firstFilteredDoc: filteredDocs[0]
-                    ? {
-                        code: filteredDocs[0].project_code,
-                        tag_id: filteredDocs[0].tag_id,
-                        tag: filteredDocs[0].tag,
-                      }
-                    : null,
-                })
               }
               return (
                 <Select
@@ -4942,17 +4931,7 @@ export default function Chessboard() {
                         const actualTagId = docTagId || (doc.tag ? doc.tag.id : null)
                         const matches = actualTagId === selectedTagId
 
-                        if (!matches) {
-                          console.log('🔧 EDIT filter - Doc does not match:', {
-                            docId: doc.id,
-                            docCode: doc.project_code,
-                            docTagId,
-                            actualTagId,
-                            selectedTagId,
-                            editTagId: edit.tagId,
-                            matches,
-                          })
-                        }
+                        // Skip non-matching documents
 
                         return matches
                       })
@@ -5058,24 +5037,31 @@ export default function Chessboard() {
               )
             case 'nomenclature':
               return (
-                <Select
+                <AutoComplete
                   style={{ width: 250 }}
                   popupMatchSelectWidth={nomenclatureDropdownWidth}
-                  value={edit.nomenclatureId}
-                  onChange={(value, option) => {
-                    handleEditChange(record.key, 'nomenclatureId', value)
-                    handleEditChange(
-                      record.key,
-                      'nomenclature',
-                      (option as { label?: string })?.label || '',
-                    )
-                    loadSupplierOptions(value, record.key)
+                  options={(() => {
+                    const allNomenclature = [...(nomenclatures || [])]
+                    if (edit.nomenclatureId && record.nomenclature && !allNomenclature.some(n => n.id === edit.nomenclatureId)) {
+                      allNomenclature.push({ id: edit.nomenclatureId, name: record.nomenclature })
+                    }
+                    return allNomenclature.map(n => ({ value: n.id, label: n.name }))
+                  })()}
+                  value={edit.nomenclature}
+                  onSelect={(value, option) => {
+                    handleEditChange(record.key, 'nomenclature', String(option?.label))
+                    handleEditChange(record.key, 'nomenclatureId', String(value))
+                    loadSupplierOptions(String(value), record.key)
                     handleEditChange(record.key, 'supplier', '')
                   }}
-                  options={getNomenclatureSelectOptions(edit.nomenclatureId, record.nomenclature)}
-                  showSearch
-                  onSearch={handleNomenclatureSearch}
-                  filterOption={false}
+                  onChange={(value) => {
+                    handleEditChange(record.key, 'nomenclature', value)
+                    handleEditChange(record.key, 'nomenclatureId', '')
+                  }}
+                  filterOption={(input, option) => {
+                    const text = (option?.label ?? '').toString()
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }}
                   allowClear
                 />
               )
@@ -5233,6 +5219,7 @@ export default function Chessboard() {
                   }
                 />
               )
+              break
             default: {
               if (col.dataIndex === 'comments') return null
               const value = record[col.dataIndex as keyof ViewRow]
@@ -5261,7 +5248,8 @@ export default function Chessboard() {
       {
         title: '',
         dataIndex: 'color',
-        width: Object.keys(editingRows).length > 0 ? 35 : 5,
+        width: 35, // Фиксированная ширина для предотвращения прыжков скролла
+        fixed: 'left' as const, // Закрепляем столбец и предотвращаем изменение размеров
         render: (_: unknown, record: ViewRow) => {
           const edit = editingRows[record.key]
           return edit ? (
@@ -5334,10 +5322,10 @@ export default function Chessboard() {
     supplierOptions,
     supplierDropdownWidths,
     loadSupplierOptions,
-    getNomenclatureSelectOptions,
     materialOptions,
     handleMaterialBlur,
     openCommentsModal,
+    documentVersions,
   ])
 
   // Инициализация порядка и видимости столбцов
@@ -5682,16 +5670,17 @@ export default function Chessboard() {
   }, [viewRows, allColumns])
 
   return (
-    <div
-      style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
+    <DropdownPortalManager>
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
 
-        position: 'relative',
-        minHeight: 0,
-      }}
-    >
+          position: 'relative',
+          minHeight: 0,
+        }}
+      >
       {/* Индикатор ошибки загрузки данных */}
       {isError && tableDataError && (
         <div
@@ -6152,7 +6141,6 @@ export default function Chessboard() {
               rowsPerPage={rowsPerPage}
               onRowsPerPageChange={handleRowsPerPageChange}
               editingRows={editingRows}
-              forceRerenderKey={forceRerenderKey}
             />
           )}
         </div>
@@ -6711,6 +6699,7 @@ export default function Chessboard() {
           </div>
         </Space>
       </Modal>
-    </div>
+      </div>
+    </DropdownPortalManager>
   )
 }
