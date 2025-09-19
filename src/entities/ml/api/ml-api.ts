@@ -555,3 +555,248 @@ export const searchNomenclature = async (searchTerm: string, limit: number = 50)
     return []
   }
 }
+
+/**
+ * НОВАЯ ФУНКЦИЯ: ML предсказание поставщиков по названию материала
+ */
+export const predictSuppliers = async (
+  request: MLPredictionRequest
+): Promise<MLPredictionResponse> => {
+  const startTime = Date.now()
+  const config = await getMLConfig()
+
+  if (!config.enabled) {
+    return {
+      suggestions: [],
+      processingTime: Date.now() - startTime,
+      modelUsed: 'fallback (ML disabled)'
+    }
+  }
+
+  try {
+    // Ищем поставщиков по названию материала
+    const suggestions = await getSupplierBasedSuggestions(request)
+
+    if (suggestions.length > 0) {
+      return {
+        suggestions: suggestions.slice(0, config.maxSuggestions),
+        processingTime: Date.now() - startTime,
+        modelUsed: 'supplier-similarity'
+      }
+    }
+
+    return {
+      suggestions: [],
+      processingTime: Date.now() - startTime,
+      modelUsed: 'fallback (no matches)'
+    }
+
+  } catch (error) {
+    console.error('ML supplier prediction error:', error)
+    return {
+      suggestions: [],
+      processingTime: Date.now() - startTime,
+      modelUsed: 'fallback (error)'
+    }
+  }
+}
+
+/**
+ * НОВАЯ ФУНКЦИЯ: Получение номенклатуры по выбранному поставщику
+ */
+export const getNomenclatureBySupplier = async (supplierId: string): Promise<any[]> => {
+  if (!supabase) throw new Error('Supabase not initialized')
+
+  try {
+    console.log('🔍 ML: Getting nomenclature for supplier:', supplierId) // LOG: получение номенклатуры по поставщику
+
+    const { data, error } = await supabase
+      .from('nomenclature_supplier_mapping')
+      .select(`
+        nomenclature:nomenclature!inner(
+          id,
+          name
+        )
+      `)
+      .eq('supplier_id', supplierId)
+
+    if (error) {
+      console.error('🔍 Error fetching nomenclature by supplier:', error)
+      return []
+    }
+
+    // Возвращаем уникальные номенклатуры
+    const uniqueNomenclatures = new Map()
+    data?.forEach(item => {
+      const nom = item.nomenclature
+      if (nom && !uniqueNomenclatures.has(nom.id)) {
+        uniqueNomenclatures.set(nom.id, nom)
+      }
+    })
+
+    const result = Array.from(uniqueNomenclatures.values())
+    console.log('🔍 ML: Found nomenclatures for supplier:', result.length) // LOG: найдено номенклатур
+
+    return result
+
+  } catch (error) {
+    console.error('🔍 Exception in getNomenclatureBySupplier:', error)
+    return []
+  }
+}
+
+/**
+ * НОВАЯ ФУНКЦИЯ: ML поиск поставщиков с настройками точности
+ */
+const getSupplierBasedSuggestions = async (
+  request: MLPredictionRequest
+): Promise<NomenclatureSuggestion[]> => {
+  if (!supabase) throw new Error('Supabase not initialized')
+
+  const { materialName } = request
+  const searchTerm = materialName.toLowerCase().trim()
+  const config = await getMLConfig()
+
+  if (searchTerm.length < 2) return []
+
+  console.log('🔍 ML: Starting supplier search for:', searchTerm, 'with algorithm:', config.algorithm) // LOG: начало поиска поставщиков
+
+  // УЛУЧШЕННЫЙ поиск поставщиков: ищем как по полному термину, так и по ключевым словам
+  const supplierSearchWords = searchTerm.split(/[\s\-.,()]+/).filter(word => word.length >= 2)
+  console.log('🔍 ML: Supplier search words extracted:', supplierSearchWords) // LOG: извлеченные слова для поиска поставщиков
+
+  // Стратегия 1: Точный поиск по полному термину
+  let { data: matches, error } = await supabase
+    .from('supplier_names')
+    .select('id, name')
+    .ilike('name', `%${searchTerm}%`)
+    .limit(100)
+
+  console.log('🔍 ML: Exact supplier search results:', matches?.length || 0) // LOG: результаты точного поиска поставщиков
+
+  // Стратегия 2: Если точный поиск не дал результатов, ищем по ключевым словам
+  if ((!matches || matches.length === 0) && supplierSearchWords.length > 0) {
+    console.log('🔍 ML: Trying supplier keyword-based search...') // LOG: поиск поставщиков по ключевым словам
+
+    const mainMaterial = supplierSearchWords[0]
+    const { data: keywordMatches, error: keywordError } = await supabase
+      .from('supplier_names')
+      .select('id, name')
+      .ilike('name', `%${mainMaterial}%`)
+      .limit(200)
+
+    console.log(`🔍 ML: Supplier keyword search for "${mainMaterial}":`, keywordMatches?.length || 0) // LOG: результаты поиска поставщиков по ключевому слову
+
+    if (keywordMatches && keywordMatches.length > 0) {
+      matches = keywordMatches
+      error = keywordError
+    }
+  }
+
+  // Стратегия 3: Поиск по синонимам для материалов
+  if ((!matches || matches.length === 0)) {
+    console.log('🔍 ML: Trying supplier synonyms search...') // LOG: поиск поставщиков по синонимам
+
+    if (searchTerm.includes('пенопо') || searchTerm.includes('псб') || searchTerm.includes('пенопласт')) {
+      const { data: synonymMatches, error: synonymError } = await supabase
+        .from('supplier_names')
+        .select('id, name')
+        .or(`name.ilike.%пенопласт%,name.ilike.%пенополистирол%,name.ilike.%полистирол%`)
+        .limit(150)
+
+      console.log(`🔍 ML: Supplier synonym search results:`, synonymMatches?.length || 0) // LOG: результаты поиска поставщиков по синонимам
+
+      if (synonymMatches && synonymMatches.length > 0) {
+        matches = synonymMatches
+        error = synonymError
+      }
+    }
+  }
+
+  if (error) {
+    console.error('🔍 ML: Supplier search failed:', error) // LOG: поиск поставщиков не удался
+    return []
+  }
+
+  if (!matches || matches.length === 0) {
+    console.log('🔍 ML: No supplier matches found for:', searchTerm) // LOG: совпадений поставщиков не найдено
+    return []
+  }
+
+  console.log('🔍 ML: Found supplier matches:', matches.length) // LOG: найдено совпадений поставщиков
+
+  // Очищаем поисковый термин от игнорируемых терминов
+  const cleanedSearchTerm = cleanTermForMatching(searchTerm, config.ignoredTerms)
+  const cleanedSearchWords = cleanedSearchTerm.split(/\s+/).filter(word => word.length >= config.minWordLength)
+
+  console.log('🔍 ML: Original term:', searchTerm) // LOG: оригинальный поисковый термин
+  console.log('🔍 ML: Cleaned search term:', cleanedSearchTerm, 'words:', cleanedSearchWords) // LOG: очищенный поисковый термин
+
+  const effectiveSearchTerm = cleanedSearchTerm.length < 3 ? searchTerm : cleanedSearchTerm
+  console.log('🔍 ML: Effective search term:', effectiveSearchTerm) // LOG: эффективный поисковый термин
+
+  // Вычисляем similarity с учетом настроек для поставщиков
+  const suggestions = matches.map((supplier, index) => {
+    const supplierLower = supplier.name.toLowerCase()
+    const cleanedSupplierName = cleanTermForMatching(supplierLower, config.ignoredTerms)
+
+    // Базовый similarity score с помощью Levenshtein
+    const rawSimilarity = calculateStringSimilarity(effectiveSearchTerm, cleanedSupplierName)
+    const similarity = rawSimilarity * config.similarityWeight
+
+    let totalBonus = 0
+    let bonusBreakdown = []
+
+    // Бонус за точное совпадение префикса
+    if (cleanedSupplierName.startsWith(effectiveSearchTerm) || supplierLower.startsWith(searchTerm)) {
+      totalBonus += config.prefixBonus
+      bonusBreakdown.push(`prefix:${Math.round(config.prefixBonus * 100)}%`)
+    }
+
+    // Бонус за точное вхождение
+    if (cleanedSupplierName.includes(effectiveSearchTerm) || supplierLower.includes(searchTerm)) {
+      totalBonus += config.exactMatchBonus
+      bonusBreakdown.push(`exact:${Math.round(config.exactMatchBonus * 100)}%`)
+    }
+
+    // Расширенный анализ ключевых слов для материалов в названиях поставщиков
+    const keywordScore = calculateKeywordScore(supplierSearchWords, cleanedSupplierName, config)
+    const keywordBonus = keywordScore * config.keywordBonus
+    totalBonus += keywordBonus
+    bonusBreakdown.push(`keywords:${Math.round(keywordScore * 100)}%*${Math.round(config.keywordBonus * 100)}%=${Math.round(keywordBonus * 100)}%`)
+
+    // Применяем алгоритм настройки точности
+    let finalScore = similarity + totalBonus
+    const beforeAlgorithm = finalScore
+    finalScore = applyAlgorithmSettings(finalScore, config.algorithm)
+
+    const finalConfidence = Math.max(0.1, Math.min(0.95, finalScore))
+
+    const algorithmAdjustment = finalScore - beforeAlgorithm
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`🔍 ML: Supplier "${supplier.name}" (${index + 1}/${matches.length}):`, {
+        similarity: Math.round(similarity * 100) + '%',
+        bonuses: bonusBreakdown.join(' + '),
+        algorithm: config.algorithm + (algorithmAdjustment !== 0 ? ` (${algorithmAdjustment > 0 ? '+' : ''}${Math.round(algorithmAdjustment * 100)}%)` : ''),
+        confidence: Math.round(finalConfidence * 100) + '%'
+      })
+    }
+
+    return {
+      id: supplier.id,
+      name: supplier.name,
+      confidence: finalConfidence,
+      reasoning: `${Math.round(similarity * 100)}% similarity + [${bonusBreakdown.join(', ')}] via ${config.algorithm} algorithm`
+    }
+  })
+
+  // Фильтруем по порогу уверенности и сортируем
+  const filteredSuggestions = suggestions
+    .filter(s => s.confidence >= config.confidenceThreshold)
+    .sort((a, b) => b.confidence - a.confidence)
+
+  console.log('🔍 ML: Supplier suggestions above threshold:', filteredSuggestions.length) // LOG: предложений поставщиков выше порога
+
+  return filteredSuggestions
+}

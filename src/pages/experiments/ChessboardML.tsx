@@ -57,7 +57,7 @@ import { useScale } from '@/shared/contexts/ScaleContext'
 import ChessboardSetsModal from '../documents/ChessboardSetsModal'
 import ChessboardOptimized from '../../components/ChessboardOptimized'
 import { DropdownPortalManager } from '../../components/DropdownPortalManager'
-import { MLNomenclatureSelect, MLConfigPanel } from '@/entities/ml'
+import { MLNomenclatureSelect, MLSupplierSelect, MLConfigPanel, getNomenclatureBySupplier } from '@/entities/ml'
 
 const { Text } = Typography
 
@@ -748,6 +748,7 @@ export default function Chessboard() {
     },
     [],
   )
+
 
   // Функция для создания многострочного заголовка
   const createMultilineTitle = useCallback((title: string): React.ReactNode => {
@@ -1665,14 +1666,15 @@ export default function Chessboard() {
         quantitySpec: v.quantitySpec,
         quantityRd: v.quantityRd,
         nomenclatureId: v.nomenclatureId,
+        nomenclature: v.nomenclature, // ✅ ИСПРАВЛЕНО: добавляем nomenclature
         supplier: v.supplier,
-        unitId: v.unit,
+        unit: v.unit, // ✅ ИСПРАВЛЕНО: изменено с unitId на unit
         blockId: v.blockId,
         block: v.block,
-        costCategoryId: v.costCategory,
-        costTypeId: v.costType,
-        locationId: v.location,
-        rateId: v.workName,
+        costCategory: v.costCategory, // ✅ ИСПРАВЛЕНО: изменено с costCategoryId на costCategory
+        costType: v.costType, // ✅ ИСПРАВЛЕНО: изменено с costTypeId на costType
+        location: v.location, // ✅ ИСПРАВЛЕНО: изменено с locationId на location
+        workName: v.workName, // ✅ ИСПРАВЛЕНО: изменено с rateId на workName
         floors: v.floors,
         color: v.color,
         tagName: v.tagName,
@@ -1932,6 +1934,42 @@ export default function Chessboard() {
     },
     [],
   )
+
+  // НОВАЯ ФУНКЦИЯ: Обработчик выбора поставщика через ML
+  const handleMLSupplierSelect = useCallback(async (
+    rowKey: string,
+    supplierId: string,
+    supplierName: string,
+    isEditMode: boolean = false
+  ) => {
+    console.log('🤖 ML: Supplier selected:', { supplierId, supplierName, rowKey }) // LOG: выбор поставщика через ML
+
+    // Обновляем поставщика
+    const handleChange = isEditMode ? handleEditChange : handleRowChange
+    handleChange(rowKey, 'supplier', supplierName)
+
+    // Получаем номенклатуру для выбранного поставщика
+    try {
+      const nomenclatures = await getNomenclatureBySupplier(supplierId)
+      console.log('🤖 ML: Found nomenclatures for supplier:', nomenclatures.length) // LOG: найдено номенклатур для поставщика
+
+      if (nomenclatures.length > 0) {
+        // Берем первую номенклатуру (можно усложнить логику выбора)
+        const selectedNomenclature = nomenclatures[0]
+        handleChange(rowKey, 'nomenclatureId', selectedNomenclature.id)
+        handleChange(rowKey, 'nomenclature', selectedNomenclature.name)
+
+        console.log('🤖 ML: Auto-filled nomenclature:', selectedNomenclature.name) // LOG: автозаполнение номенклатуры
+      } else {
+        // Очищаем номенклатуру если для поставщика нет связанной номенклатуры
+        handleChange(rowKey, 'nomenclatureId', '')
+        handleChange(rowKey, 'nomenclature', '')
+        console.log('🤖 ML: No nomenclature found for supplier, cleared fields') // LOG: номенклатура не найдена
+      }
+    } catch (error) {
+      console.error('🤖 ML: Error getting nomenclature for supplier:', error) // LOG: ошибка получения номенклатуры
+    }
+  }, [handleRowChange, handleEditChange])
 
   const handleMaterialBlur = useCallback(
     async (key: string, name: string, isEdit = false) => {
@@ -4803,17 +4841,29 @@ export default function Chessboard() {
               )
             case 'supplier':
               return (
-                <Select
-                  style={{ width: 250 }}
-                  popupMatchSelectWidth={supplierDropdownWidths[record.key] ?? 250}
-                  value={record.supplier || undefined}
-                  onChange={(value) => handleRowChange(record.key, 'supplier', value)}
-                  options={supplierOptions[record.key] ?? []}
-                  disabled={!record.nomenclatureId}
-                  showSearch
-                  optionFilterProp="label"
-                  allowClear
-                />
+                <div style={{ position: 'relative', width: '250px', minHeight: '32px' }}>
+                  <MLSupplierSelect
+                    style={{ width: '100%' }}
+                    value={record.supplier || undefined}
+                    onChange={(value) => handleRowChange(record.key, 'supplier', value)}
+                    materialName={record.material || ''}
+                    context={{
+                      projectId: appliedFilters?.projectId,
+                      categoryId: record.costCategoryId,
+                      typeId: record.costTypeId
+                    }}
+                    onSupplierSelect={(supplierId, supplierName) => {
+                      handleMLSupplierSelect(record.key, supplierId, supplierName, false)
+                    }}
+                    placeholder="Кликните для ML-подбора поставщика..."
+                    allowClear
+                    showSearch
+                    filterOption={(input, option) => {
+                      const text = (option?.label ?? '').toString()
+                      return text.toLowerCase().includes(input.toLowerCase())
+                    }}
+                  />
+                </div>
               )
             case 'unitId':
               return (
@@ -5489,18 +5539,30 @@ export default function Chessboard() {
               )
             case 'supplier':
               return (
-                <Select
-                  key={`select-supplier-${record.key}`}
-                  style={{ width: 250 }}
-                  popupMatchSelectWidth={supplierDropdownWidths[record.key] ?? 250}
-                  value={edit.supplier || undefined}
-                  onChange={(value) => handleEditChange(record.key, 'supplier', value)}
-                  options={supplierOptions[record.key] ?? []}
-                  disabled={!edit.nomenclatureId}
-                  showSearch
-                  optionFilterProp="label"
-                  allowClear
-                />
+                <div style={{ position: 'relative', width: '250px', minHeight: '32px' }}>
+                  <MLSupplierSelect
+                    key={`ml-supplier-${record.key}`}
+                    style={{ width: '100%' }}
+                    value={edit.supplier || undefined}
+                    onChange={(value) => handleEditChange(record.key, 'supplier', value)}
+                    materialName={edit.material || record.material || ''}
+                    context={{
+                      projectId: appliedFilters?.projectId,
+                      categoryId: edit.costCategoryId || record.costCategoryId,
+                      typeId: edit.costTypeId || record.costTypeId
+                    }}
+                    onSupplierSelect={(supplierId, supplierName) => {
+                      handleMLSupplierSelect(record.key, supplierId, supplierName, true)
+                    }}
+                    placeholder="Кликните для ML-подбора поставщика..."
+                    allowClear
+                    showSearch
+                    filterOption={(input, option) => {
+                      const text = (option?.label ?? '').toString()
+                      return text.toLowerCase().includes(input.toLowerCase())
+                    }}
+                  />
+                </div>
               )
             case 'unit':
               return (

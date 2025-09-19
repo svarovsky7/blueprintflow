@@ -14,6 +14,8 @@ export type {
 // API functions
 export {
   predictNomenclature,
+  predictSuppliers,
+  getNomenclatureBySupplier,
   getMLConfig,
   saveMLConfig,
   getMLMetrics,
@@ -23,5 +25,7 @@ export {
 
 // React hooks and components
 export { useMLNomenclature } from './lib/useMLNomenclature'
+export { useMLSuppliers } from './lib/useMLSuppliers'
 export { MLNomenclatureSelect } from './lib/MLNomenclatureSelect'
+export { MLSupplierSelect } from './lib/MLSupplierSelect'
 export { MLConfigPanel } from './lib/MLConfigPanel'

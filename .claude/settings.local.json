@@ -40,7 +40,11 @@
       "Read(//c//**)",
       "Bash(start http://localhost:5175/experiments/chessboard-ml)",
       "Bash(start http://localhost:5175/temp/test-db-connection.html)",
-      "Bash(start http://localhost:5173/experiments/chessboard-ml)"
+      "Bash(start http://localhost:5173/experiments/chessboard-ml)",
+      "Bash(start http://localhost:5176/experiments/chessboard-ml)",
+      "Bash(start http://localhost:5176/temp/test-new-ml-logic.html)",
+      "Bash(/bashes)",
+      "Bash(wmic process where:*)"
     ],
     "deny": [],
     "ask": []

@@ -232,6 +232,7 @@ From technical specification (`tech_task.md`):
 ### MUST DO
 - **КРИТИЧЕСКИ ВАЖНО**: Перед любой работой с БД используй MCP сервер для проверки актуальной схемы
 - **КРИТИЧЕСКИ ВАЖНО**: При добавлении кода для логирования ОБЯЗАТЕЛЬНО указывать в комментариях, что строки относятся к логгированию (например: `// LOG: отладочная информация`, `// DEBUG LOG: проверка состояния`, `console.log('🔍 Loading data...') // LOG`). Это необходимо для безопасного удаления логов без случайного удаления рабочего кода
+- **КРИТИЧЕСКИ ВАЖНО**: Максимальный размер файла 600 строк - разбивай большие файлы на компоненты, хуки, утилиты и модули
 - Run `npm run lint` before committing
 - Run `npm run format` for consistent code style
 - Handle all TypeScript strict mode requirements
@@ -298,6 +299,17 @@ From technical specification (`tech_task.md`):
 - Data fetching via TanStack Query
 - Auth state via Zustand store
 - Follow existing patterns in codebase
+- **Maximum file size**: 600 lines per file - break large files into smaller components and modules
+
+### File Size Management
+- **600 lines maximum** per file for optimal maintainability and performance
+- **Decomposition strategies**:
+  - Split large components into smaller sub-components
+  - Extract custom hooks for complex logic
+  - Move utility functions to separate modules
+  - Create dedicated types files for complex interfaces
+  - Use composition pattern instead of inheritance
+  - Extract constants and configuration to separate files
 
 ### Code Style Configuration
 - **Print width**: 100 characters
