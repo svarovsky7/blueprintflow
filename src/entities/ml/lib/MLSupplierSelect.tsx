@@ -39,6 +39,7 @@ export const MLSupplierSelect: React.FC<MLSupplierSelectProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = React.useState('')
   const [isOpen, setIsOpen] = React.useState(false)
+  const [lastRequestTime, setLastRequestTime] = React.useState(0) // Защита от дублирования запросов
 
   const {
     suggestions,
@@ -57,23 +58,48 @@ export const MLSupplierSelect: React.FC<MLSupplierSelectProps> = ({
     minQueryLength: 2
   })
 
+  // LOG: Детальная диагностика состояния компонента MLSupplierSelect
+  React.useEffect(() => {
+    console.log('🔍 MLSupplierSelect Component State:', {
+      materialName,
+      hasOptions: options.length,
+      hasContext: !!context,
+      disabled,
+      isOpen,
+      isLoading,
+      suggestionsCount: suggestions.length
+    })
+  }, [materialName, options.length, context, disabled, isOpen, isLoading, suggestions.length])
+
+  // Функция для выполнения ML предсказания с защитой от дублирования
+  const triggerPrediction = React.useCallback((source: string) => {
+    const now = Date.now()
+    const timeSinceLastRequest = now - lastRequestTime
+
+    // Если прошло менее 2 секунд с последнего запроса - игнорируем (защита от дублирования)
+    if (timeSinceLastRequest < 2000) {
+      console.log(`🤖 ML Supplier: ${source} prediction ignored (duplicate within ${timeSinceLastRequest}ms)`) // LOG: игнорирование дублирующего запроса
+      return
+    }
+
+    if (materialName && materialName.length >= 2 && config?.enabled) {
+      console.log(`🤖 ML Supplier: ${source} triggered prediction for:`, materialName) // LOG: ML предсказание поставщиков
+      setLastRequestTime(now)
+      predictNow(materialName, context)
+    }
+  }, [materialName, context, predictNow, config?.enabled, lastRequestTime])
+
   // Обработчик фокуса - запускаем ML предсказание и открываем dropdown
   const handleFocus = React.useCallback(() => {
     setIsOpen(true)
-    if (materialName && materialName.length >= 2 && config?.enabled) {
-      console.log('🤖 ML Supplier: Focus triggered prediction for:', materialName) // LOG: ML предсказание поставщиков по фокусу
-      predictNow(materialName, context)
-    }
-  }, [materialName, context, predictNow, config?.enabled])
+    triggerPrediction('Focus')
+  }, [triggerPrediction])
 
   // Обработчик клика - также запускаем ML предсказание
   const handleClick = React.useCallback(() => {
     setIsOpen(true)
-    if (materialName && materialName.length >= 2 && config?.enabled) {
-      console.log('🤖 ML Supplier: Click triggered prediction for:', materialName) // LOG: ML предсказание поставщиков по клику
-      predictNow(materialName, context)
-    }
-  }, [materialName, context, predictNow, config?.enabled])
+    triggerPrediction('Click')
+  }, [triggerPrediction])
 
   // Обработчик изменения поискового запроса
   const handleSearch = React.useCallback((searchValue: string) => {
@@ -89,11 +115,11 @@ export const MLSupplierSelect: React.FC<MLSupplierSelectProps> = ({
     }
   }, [])
 
-  // Стабилизируем массивы для предотвращения избыточных перерендеров
-  const stableSuggestions = React.useMemo(() => suggestions, [JSON.stringify(suggestions)])
-  const stableOptions = React.useMemo(() => options, [JSON.stringify(options)])
+  // Стабилизируем массивы для предотвращения избыточных перерендеров (ИСПРАВЛЕНО)
+  const stableSuggestions = React.useMemo(() => suggestions, [suggestions.length, suggestions.map(s => s.id).join(',')])
+  const stableOptions = React.useMemo(() => options, [options.length, options.map(o => o.value).join(',')])
 
-  // Объединяем ML предложения с обычными опциями
+  // Объединяем ML предложения с обычными опциями (стабилизировано)
   const allOptions = React.useMemo(() => {
     // LOG: пересборка опций поставщиков (только при реальных изменениях)
     if (process.env.NODE_ENV === 'development') {
@@ -142,7 +168,7 @@ export const MLSupplierSelect: React.FC<MLSupplierSelectProps> = ({
 
     // Порядок: ML предложения -> Статические опции
     return [...mlOptions, ...staticOptions]
-  }, [stableSuggestions, stableOptions, searchQuery])
+  }, [stableSuggestions, stableOptions]) // Убрал searchQuery из зависимостей - он не влияет на состав опций
 
   const handleSelect = (selectedValue: string, option: any) => {
     console.log('🤖 ML Supplier: Option selected:', { // LOG: выбор опции поставщика в ML AutoComplete
@@ -193,7 +219,6 @@ export const MLSupplierSelect: React.FC<MLSupplierSelectProps> = ({
           return scrollContainer as HTMLElement
         }}
         popupMatchSelectWidth={false}
-        dropdownMatchSelectWidth={false}
         loading={isLoading}
         notFoundContent={
           isLoading ? (

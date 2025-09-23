@@ -120,26 +120,72 @@ export const MLNomenclatureSelect: React.FC<MLNomenclatureSelectProps> = ({
     const mlOptions = stableSuggestions.map(suggestion => ({
       value: suggestion.id,
       label: (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>{suggestion.name}</span>
-          <Space size="small">
-            <Badge
-              count={`${Math.round(suggestion.confidence * 100)}%`}
-              style={{
-                backgroundColor: suggestion.confidence > 0.7 ? '#52c41a' :
-                                suggestion.confidence > 0.5 ? '#faad14' : '#ff7875',
-                fontSize: '10px',
-                height: '16px',
-                lineHeight: '16px',
-                borderRadius: '8px'
-              }}
-            />
-            <RobotOutlined style={{ color: '#1890ff', fontSize: '12px' }} />
-          </Space>
-        </div>
+        <Tooltip
+          title={
+            <div style={{ maxWidth: '300px' }}>
+              <div><strong>📋 {suggestion.tooltip_info || suggestion.name}</strong></div>
+              {suggestion.supplier_name && (
+                <div>🏢 Поставщик: {suggestion.supplier_name}</div>
+              )}
+              {suggestion.quality_score && (
+                <div>⭐ Качество: {suggestion.quality_score}/10</div>
+              )}
+              {suggestion.price_analysis && (
+                <div>💰 Цена: {suggestion.price_analysis}</div>
+              )}
+              <div style={{ marginTop: '8px', fontSize: '12px', opacity: 0.8 }}>
+                {suggestion.reasoning}
+              </div>
+            </div>
+          }
+          placement="left"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <div style={{ fontWeight: 'bold' }}>{suggestion.name}</div>
+              {suggestion.supplier_name && (
+                <div style={{ fontSize: '11px', color: '#666', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  🏢 {suggestion.supplier_name}
+                </div>
+              )}
+            </div>
+            <Space size="small">
+              {suggestion.quality_score && (
+                <Badge
+                  count={`⭐${suggestion.quality_score}`}
+                  style={{
+                    backgroundColor: suggestion.quality_score >= 8 ? '#52c41a' :
+                                    suggestion.quality_score >= 6 ? '#faad14' : '#ff7875',
+                    fontSize: '9px',
+                    height: '16px',
+                    lineHeight: '16px',
+                    borderRadius: '8px'
+                  }}
+                />
+              )}
+              <Badge
+                count={`${Math.round(suggestion.confidence * 100)}%`}
+                style={{
+                  backgroundColor: suggestion.confidence > 0.7 ? '#52c41a' :
+                                  suggestion.confidence > 0.5 ? '#faad14' : '#ff7875',
+                  fontSize: '10px',
+                  height: '16px',
+                  lineHeight: '16px',
+                  borderRadius: '8px'
+                }}
+              />
+              <RobotOutlined style={{ color: '#1890ff', fontSize: '12px' }} />
+            </Space>
+          </div>
+        </Tooltip>
       ),
       confidence: suggestion.confidence,
       reasoning: suggestion.reasoning,
+      // ДОПОЛНИТЕЛЬНЫЕ ПОЛЯ ОТ DEEPSEEK
+      tooltip_info: suggestion.tooltip_info,
+      price_analysis: suggestion.price_analysis,
+      quality_score: suggestion.quality_score,
+      supplier_name: suggestion.supplier_name,
       isMLSuggestion: true
     }))
 
@@ -181,7 +227,12 @@ export const MLNomenclatureSelect: React.FC<MLNomenclatureSelectProps> = ({
         id: selectedValue,
         name: option.children?.props?.children?.[0] || option.label,
         confidence: option.confidence,
-        reasoning: option.reasoning
+        reasoning: option.reasoning,
+        // РАСШИРЕННАЯ ИНФОРМАЦИЯ ОТ DEEPSEEK
+        tooltip_info: option.tooltip_info,
+        price_analysis: option.price_analysis,
+        quality_score: option.quality_score,
+        supplier_name: option.supplier_name
       })
     }
 
@@ -223,7 +274,7 @@ export const MLNomenclatureSelect: React.FC<MLNomenclatureSelectProps> = ({
           return scrollContainer as HTMLElement
         }}
         popupMatchSelectWidth={false} // Отключаем автоматическое совпадение ширины
-        dropdownMatchSelectWidth={false} // Отключаем автоматическое совпадение ширины
+        popupMatchSelectWidth={false} // Отключаем автоматическое совпадение ширины
         loading={isLoading || isSearching}
         notFoundContent={
           (isLoading || isSearching) ? (

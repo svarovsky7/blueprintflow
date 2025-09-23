@@ -19,6 +19,7 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
   const [form] = Form.useForm()
   const [config, setConfig] = useState<MLConfig | null>(null)
   const [loading, setLoading] = useState(false)
+  const [formValues, setFormValues] = useState<Partial<MLConfig>>({})
   const queryClient = useQueryClient()
 
   // Загружаем текущую конфигурацию при открытии
@@ -32,6 +33,7 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
     try {
       const currentConfig = await getMLConfig()
       setConfig(currentConfig)
+      setFormValues(currentConfig)
       form.setFieldsValue(currentConfig)
     } catch (error) {
       console.error('Failed to load ML config:', error)
@@ -78,6 +80,7 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
 
       await saveMLConfig(defaultConfig)
       setConfig(defaultConfig)
+      setFormValues(defaultConfig)
       form.setFieldsValue(defaultConfig)
 
       // КРИТИЧНО: Инвалидируем кэши при сбросе настроек
@@ -137,6 +140,7 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
         form={form}
         layout="vertical"
         initialValues={config}
+        onValuesChange={(_, allValues) => setFormValues(allValues)}
       >
         {/* Основные настройки */}
         <Form.Item name="enabled" valuePropName="checked" label="ML поиск">
@@ -171,7 +175,7 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
           name="confidenceThreshold"
           label={
             <Tooltip title="Минимальная уверенность для показа предложения">
-              Порог уверенности: {form.getFieldValue('confidenceThreshold') ? Math.round(form.getFieldValue('confidenceThreshold') * 100) : 30}%
+              Порог уверенности: {formValues.confidenceThreshold ? Math.round(formValues.confidenceThreshold * 100) : 30}%
             </Tooltip>
           }
         >
@@ -222,7 +226,7 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
           name="similarityWeight"
           label={
             <Tooltip title="Влияние алгоритма Levenshtein Distance">
-              Вес схожести: {form.getFieldValue('similarityWeight') ? Math.round(form.getFieldValue('similarityWeight') * 100) : 60}%
+              Вес схожести: {formValues.similarityWeight ? Math.round(formValues.similarityWeight * 100) : 60}%
             </Tooltip>
           }
         >
@@ -242,7 +246,7 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
           name="keywordBonus"
           label={
             <Tooltip title="Бонус за совпадение ключевых слов">
-              Бонус за слова: {form.getFieldValue('keywordBonus') ? Math.round(form.getFieldValue('keywordBonus') * 100) : 30}%
+              Бонус за слова: {formValues.keywordBonus ? Math.round(formValues.keywordBonus * 100) : 30}%
             </Tooltip>
           }
         >
@@ -262,7 +266,7 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
           name="exactMatchBonus"
           label={
             <Tooltip title="Бонус за точное вхождение">
-              Бонус за вхождение: {form.getFieldValue('exactMatchBonus') ? Math.round(form.getFieldValue('exactMatchBonus') * 100) : 20}%
+              Бонус за вхождение: {formValues.exactMatchBonus ? Math.round(formValues.exactMatchBonus * 100) : 20}%
             </Tooltip>
           }
         >
@@ -282,7 +286,7 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
           name="prefixBonus"
           label={
             <Tooltip title="Бонус за совпадение в начале строки">
-              Бонус за префикс: {form.getFieldValue('prefixBonus') ? Math.round(form.getFieldValue('prefixBonus') * 100) : 25}%
+              Бонус за префикс: {formValues.prefixBonus ? Math.round(formValues.prefixBonus * 100) : 25}%
             </Tooltip>
           }
         >

@@ -128,7 +128,7 @@ export const useServerPagination = ({
     queryKey: [
       'server-pagination',
       table,
-      filters,
+      JSON.stringify(filters), // ИСПРАВЛЕНИЕ: стабилизируем объект filters
       pagination.page,
       pagination.pageSize,
       pagination.sortField,

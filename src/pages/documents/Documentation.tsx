@@ -355,7 +355,7 @@ export default function Documentation() {
 
   // Загрузка данных - только если выбран проект
   const { data: documentation = [], isLoading } = useQuery({
-    queryKey: ['documentation', appliedFilters],
+    queryKey: ['documentation', JSON.stringify(appliedFilters)], // ИСПРАВЛЕНИЕ: стабилизируем объект appliedFilters
     queryFn: () => documentationApi.getDocumentation(appliedFilters),
     enabled: !!appliedFilters.project_id, // Загружаем только если выбран проект
   })

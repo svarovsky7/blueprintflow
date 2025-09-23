@@ -1,12 +1,29 @@
 import React, { useMemo, memo, useState, useCallback, useEffect } from 'react'
-import { Table, Button, Space, Tooltip } from 'antd'
-import { EditOutlined, DeleteOutlined, CopyOutlined, PlusOutlined, BgColorsOutlined } from '@ant-design/icons'
+import { Table, Button, Space, Tooltip, Input, Select, AutoComplete, InputNumber } from 'antd'
+import { EditOutlined, DeleteOutlined, CopyOutlined, PlusOutlined, BgColorsOutlined, RobotOutlined } from '@ant-design/icons'
 import type { ColumnsType, ColumnType } from 'antd/es/table'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabase'
 import { RowColorPicker } from './RowColorPicker'
 import { CommentsCell } from './CommentsCell'
 import { FloorQuantitiesModal } from './FloorQuantitiesModal'
+import { AIAnalysisModal } from '@/entities/ml/lib/AIAnalysisModal'
 import type { RowData, TableMode, RowColor, FloorModalRow, FloorModalInfo } from '../types'
-import { COLUMN_KEYS, TABLE_SCROLL_CONFIG } from '../utils/constants'
+import { COLUMN_KEYS, TABLE_SCROLL_CONFIG, LARGE_TABLE_CONFIG } from '../utils/constants'
+
+// ОПТИМИЗАЦИЯ: константы стилей для предотвращения создания новых объектов на каждом рендере
+const STABLE_STYLES = {
+  fullWidth: { width: '100%' } as const,
+  fullWidthFlex: { width: '100%', flex: 1 } as const,
+  floorButton: { flexShrink: 0 } as const,
+  aiButton: { color: '#1677ff' } as const,
+  compactSpace: { width: '100%' } as const,
+  dropdownStyle: {
+    zIndex: 10000,
+    maxHeight: '200px',
+    overflowY: 'auto' as const
+  } as const,
+} as const
 
 // CSS стили для заголовков таблицы - ИСПРАВЛЕННОЕ РЕШЕНИЕ для правильных переносов
 const headerStyles = `
@@ -48,7 +65,7 @@ table.ant-table thead tr th {
   font-weight: 500 !important;
   /* КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: переносы ТОЛЬКО по пробелам */
   word-break: keep-all !important;
-  overflow-wrap: anywhere !important;
+  overflow-wrap: break-word !important;
   /* Предотвращаем разбивание по буквам - только по пробелам */
   word-spacing: normal !important;
   hyphens: none !important;
@@ -130,6 +147,136 @@ table.ant-table thead tr th {
   max-height: 52px !important;
 }
 
+/* Столбец "Ед.изм." - НЕ переносить вообще */
+#root .chessboard-table .ant-table-thead > tr > th.unit-header,
+.chessboard-table .ant-table-thead > tr > th.unit-header {
+  font-size: 10px !important;
+  line-height: 14px !important;
+  padding: 4px 8px !important;
+  min-width: 70px !important;
+  max-width: 70px !important;
+  width: 70px !important;
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+  hyphens: none !important;
+  text-overflow: ellipsis !important;
+  overflow: hidden !important;
+}
+
+/* ЦВЕТОВАЯ СХЕМА СТРОК - Раскраска всей строки при выборе цвета */
+.chessboard-table .ant-table-tbody > tr.row-color-green > td {
+  background-color: #d9f7be !important;
+}
+
+.chessboard-table .ant-table-tbody > tr.row-color-yellow > td {
+  background-color: #fff1b8 !important;
+}
+
+.chessboard-table .ant-table-tbody > tr.row-color-blue > td {
+  background-color: #e6f7ff !important;
+}
+
+.chessboard-table .ant-table-tbody > tr.row-color-red > td {
+  background-color: #ffa39e !important;
+}
+
+/* Hover эффект для цветных строк */
+.chessboard-table .ant-table-tbody > tr.row-color-green:hover > td {
+  background-color: #b7eb8f !important;
+}
+
+.chessboard-table .ant-table-tbody > tr.row-color-yellow:hover > td {
+  background-color: #ffe58f !important;
+}
+
+.chessboard-table .ant-table-tbody > tr.row-color-blue:hover > td {
+  background-color: #bae7ff !important;
+}
+
+.chessboard-table .ant-table-tbody > tr.row-color-red:hover > td {
+  background-color: #ff7875 !important;
+}
+
+/* ГЛОБАЛЬНЫЕ правила переносов для ВСЕХ ячеек таблицы - только по пробелам */
+.chessboard-table .ant-table-tbody > tr > td {
+  word-break: keep-all !important;
+  overflow-wrap: break-word !important;
+  hyphens: none !important;
+  white-space: normal !important;
+}
+
+/* Дополнительные правила для всего содержимого ячеек */
+.chessboard-table .ant-table-tbody > tr > td * {
+  word-break: keep-all !important;
+  overflow-wrap: break-word !important;
+  hyphens: none !important;
+  white-space: normal !important;
+}
+
+/* Супер-высокоспецифичные правила для проблемных ячеек */
+#root .chessboard-table .ant-table-tbody > tr > td,
+table.ant-table tbody tr td {
+  word-break: keep-all !important;
+  overflow-wrap: break-word !important;
+  word-wrap: break-word !important;
+  hyphens: none !important;
+  -webkit-hyphens: none !important;
+  -moz-hyphens: none !important;
+  -ms-hyphens: none !important;
+}
+
+/* Специальное правило для столбца Корпус - компактный и динамический */
+.chessboard-table .ant-table-thead > tr > th.block-header {
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+  min-width: 60px !important;
+  max-width: 120px !important;
+  width: auto !important;
+  padding: 2px 4px !important;
+  font-size: 10px !important;
+  display: table-cell !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Принудительные правила для отображения столбца Корпус по содержимому ячеек */
+.chessboard-table .ant-table-thead > tr > th[data-block-column],
+.chessboard-table .ant-table-tbody > tr > td[data-block-column] {
+  display: table-cell !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-width: 60px !important;
+  max-width: 120px !important;
+  width: auto !important;
+  padding: 2px 4px !important;
+  font-size: 11px !important;
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+  text-overflow: ellipsis !important;
+  overflow: hidden !important;
+}
+
+/* СУПЕР-ПРИНУДИТЕЛЬНОЕ правило для столбца Корпус по позиции (6-й столбец) */
+.chessboard-table .ant-table-thead > tr > th:nth-child(6),
+.chessboard-table .ant-table-tbody > tr > td:nth-child(6) {
+  display: table-cell !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-width: 60px !important;
+  max-width: 120px !important;
+  width: auto !important;
+  padding: 2px 4px !important;
+  font-size: 11px !important;
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+  text-overflow: ellipsis !important;
+  overflow: hidden !important;
+}
+
 /* Устаревшие правила для nth-child (оставлены для совместимости) */
 #root .chessboard-table .ant-table-thead > tr > th[style*="40px"],
 .chessboard-table .ant-table-thead > tr > th:nth-child(13),
@@ -161,7 +308,7 @@ body[style*="scale(0.7)"] .chessboard-table .ant-table-thead > tr > th:nth-child
   width: auto !important;
   /* Сохраняем правильные переносы - ТОЛЬКО ПО ПРОБЕЛАМ */
   word-break: keep-all !important;
-  overflow-wrap: anywhere !important;
+  overflow-wrap: break-word !important;
   white-space: pre-line !important;
   letter-spacing: normal !important;
   word-spacing: normal !important;
@@ -191,7 +338,7 @@ table.ant-table thead tr th .ant-table-column-title {
   justify-content: center !important;
   /* ИСПРАВЛЕНИЕ: правильные настройки переносов ТОЛЬКО ПО ПРОБЕЛАМ */
   word-break: keep-all !important;
-  overflow-wrap: anywhere !important;
+  overflow-wrap: break-word !important;
   hyphens: none !important;
   white-space: pre-line !important;
   text-align: center !important;
@@ -326,6 +473,8 @@ const forceHeaderHeight = () => {
     const isFloorsColumn = th.classList.contains('floors-header')
     const isQuantitySpecColumn = th.classList.contains('quantity-spec-header')
     const isQuantityRdColumn = th.classList.contains('quantity-rd-header')
+    const isUnitColumn = th.classList.contains('unit-header')
+    const isBlockColumn = th.classList.contains('block-header')
     const isQuantityColumn = isQuantitySpecColumn || isQuantityRdColumn
 
     // Базовые стили для всех заголовков
@@ -346,9 +495,31 @@ const forceHeaderHeight = () => {
       th.style.setProperty('overflow-wrap', 'normal', 'important')
       th.style.setProperty('hyphens', 'none', 'important')
       th.style.setProperty('text-overflow', 'ellipsis', 'important')
-      th.style.setProperty('min-width', '80px', 'important')
-      th.style.setProperty('max-width', '80px', 'important')
-      th.style.setProperty('width', '80px', 'important')
+      th.style.setProperty('min-width', '120px', 'important')
+      th.style.setProperty('max-width', '120px', 'important')
+      th.style.setProperty('width', '120px', 'important')
+    } else if (isUnitColumn) {
+      // Столбец "Ед.изм." - НЕ переносить вообще
+      th.style.setProperty('white-space', 'nowrap', 'important')
+      th.style.setProperty('word-break', 'keep-all', 'important')
+      th.style.setProperty('overflow-wrap', 'normal', 'important')
+      th.style.setProperty('hyphens', 'none', 'important')
+      th.style.setProperty('text-overflow', 'ellipsis', 'important')
+      th.style.setProperty('min-width', '100px', 'important')
+      th.style.setProperty('max-width', '100px', 'important')
+      th.style.setProperty('width', '100px', 'important')
+    } else if (isBlockColumn) {
+      // Столбец "Корпус" - компактный и динамический
+      th.style.setProperty('white-space', 'nowrap', 'important')
+      th.style.setProperty('word-break', 'keep-all', 'important')
+      th.style.setProperty('overflow-wrap', 'normal', 'important')
+      th.style.setProperty('hyphens', 'none', 'important')
+      th.style.setProperty('text-overflow', 'ellipsis', 'important')
+      th.style.setProperty('overflow', 'hidden', 'important')
+      th.style.setProperty('min-width', '60px', 'important')
+      th.style.setProperty('max-width', '120px', 'important')
+      th.style.setProperty('width', 'auto', 'important')
+      th.style.setProperty('padding', '2px 4px', 'important')
     } else if (isQuantityColumn) {
       // Столбцы количества - переносы ТОЛЬКО по \n
       th.style.setProperty('white-space', 'pre-line', 'important')
@@ -378,6 +549,15 @@ const forceHeaderHeight = () => {
       th.style.setProperty('font-size', '10px', 'important')
       th.style.setProperty('line-height', '14px', 'important')
       th.style.setProperty('padding', '4px 8px', 'important')
+    } else if (isUnitColumn) {
+      th.style.setProperty('font-size', '10px', 'important')
+      th.style.setProperty('line-height', '14px', 'important')
+      th.style.setProperty('padding', '4px 8px', 'important')
+    } else if (isBlockColumn) {
+      th.style.setProperty('font-size', '10px', 'important')
+      th.style.setProperty('line-height', '12px', 'important')
+      th.style.setProperty('padding', '2px 4px', 'important')
+      th.style.setProperty('font-weight', '500', 'important')
     } else if (isQuantityColumn) {
       if (currentScale <= 0.7) {
         th.style.setProperty('font-size', '7px', 'important')
@@ -408,13 +588,13 @@ interface ChessboardTableProps {
   loading: boolean
   tableMode: TableMode
   visibleColumns: string[]
+  currentProjectId?: string
   onSelectionChange: (selectedRowKeys: React.Key[]) => void
   onRowUpdate: (rowId: string, updates: Partial<RowData>) => void
   onRowCopy: (rowId: string) => void
   onRowDelete: (rowId: string) => void
   onRowColorChange: (rowId: string, color: RowColor) => void
   onStartEditing: (rowId: string) => void
-  onCommentUpdate?: (rowId: string, comment: string) => void
 }
 
 export const ChessboardTable = memo(({
@@ -422,14 +602,192 @@ export const ChessboardTable = memo(({
   loading,
   tableMode,
   visibleColumns,
+  currentProjectId,
   onSelectionChange,
   onRowUpdate,
   onRowCopy,
   onRowDelete,
   onRowColorChange,
   onStartEditing,
-  onCommentUpdate,
 }: ChessboardTableProps) => {
+
+  // Загрузка данных справочников для селектов
+  const { data: materialsData = [] } = useQuery({
+    queryKey: ['materials-autocomplete'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('materials')
+        .select('name')
+        .order('name')
+      if (error) throw error
+      return data.map(item => item.name).filter(Boolean)
+    },
+  })
+
+  const { data: costCategoriesData = [] } = useQuery({
+    queryKey: ['cost-categories-select'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('cost_categories')
+        .select('id, name')
+        .order('name')
+      if (error) throw error
+      return data.map(item => ({ value: item.id, label: item.name }))
+    },
+  })
+
+  // Оставляем для обратной совместимости
+  const { data: costTypesData = [] } = useQuery({
+    queryKey: ['detail-cost-categories-select'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('detail_cost_categories')
+        .select('id, name')
+        .order('name')
+      if (error) throw error
+      return data.map(item => ({ value: item.id, label: item.name }))
+    },
+  })
+
+  const { data: unitsData = [] } = useQuery({
+    queryKey: ['units-select'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('units')
+        .select('id, name')
+        .order('name')
+      if (error) throw error
+      return data.map(item => ({ value: item.id, label: item.name }))
+    },
+  })
+
+  // Корпуса для выбранного проекта через projects_blocks
+  const { data: blocksData = [] } = useQuery({
+    queryKey: ['blocks-select', currentProjectId],
+    queryFn: async () => {
+      if (!currentProjectId) {
+        return []
+      }
+
+      const { data, error } = await supabase
+        .from('blocks')
+        .select(`
+          id,
+          name,
+          projects_blocks!inner(
+            project_id
+          )
+        `)
+        .eq('projects_blocks.project_id', currentProjectId)
+        .not('name', 'is', null)
+        .neq('name', '')
+        .order('name')
+
+      if (error) throw error
+      return data.map(item => ({ value: item.id, label: item.name })).filter(item => item.label && item.label.trim())
+    },
+    enabled: !!currentProjectId,
+  })
+
+  const { data: nomenclatureData = [] } = useQuery({
+    queryKey: ['nomenclature-select'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('nomenclature')
+        .select('id, name')
+        .order('name')
+      if (error) throw error
+      return data.map(item => ({ value: item.id, label: item.name }))
+    },
+  })
+
+  const { data: suppliersData = [] } = useQuery({
+    queryKey: ['supplier-names-select'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('supplier_names')
+        .select('id, name')
+        .order('name')
+      if (error) throw error
+      return data.map(item => ({ value: item.id, label: item.name }))
+    },
+  })
+
+  const { data: locationsData = [] } = useQuery({
+    queryKey: ['locations-select'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('location')
+        .select('id, name')
+        .order('name')
+      if (error) throw error
+      return data.map(item => ({ value: item.id, label: item.name }))
+    },
+  })
+
+  // Данные для документации - Раздел (Тэги проекта)
+  const { data: documentationTagsData = [] } = useQuery({
+    queryKey: ['documentation-tags-select'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('documentation_tags')
+        .select('id, name')
+        .order('name')
+      if (error) throw error
+      return data.map(item => ({ value: item.id, label: item.name }))
+    },
+  })
+
+  // Данные для документации - Шифр проекта (Документация) с каскадной фильтрацией по проекту
+  const { data: documentationData = [] } = useQuery({
+    queryKey: ['documentations-select', currentProjectId],
+    queryFn: async () => {
+      if (!currentProjectId) {
+        return []
+      }
+
+      const { data, error } = await supabase
+        .from('documentations')
+        .select(`
+          id,
+          code,
+          project_name,
+          tag_id,
+          documentations_projects_mapping!inner(
+            project_id
+          )
+        `)
+        .eq('documentations_projects_mapping.project_id', currentProjectId)
+        .order('code')
+
+      if (error) throw error
+      return data.map(item => ({
+        value: item.id,
+        label: item.code,
+        projectName: item.project_name,
+        tagId: item.tag_id
+      }))
+    },
+    enabled: !!currentProjectId,
+  })
+
+  // Данные для видов затрат с каскадной фильтрацией
+  const { data: allCostTypesData = [] } = useQuery({
+    queryKey: ['detail-cost-categories-with-category'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('detail_cost_categories')
+        .select('id, name, cost_category_id')
+        .order('name')
+      if (error) throw error
+      return data.map(item => ({
+        value: item.id,
+        label: item.name,
+        categoryId: item.cost_category_id
+      }))
+    },
+  })
+
   // ИСПРАВЛЕННАЯ принудительная фиксация высоты заголовков после рендера
   useEffect(() => {
     // Однократный вызов при изменении данных для применения исправлений переносов
@@ -453,55 +811,176 @@ export const ChessboardTable = memo(({
     unit: '',
   })
   const [floorModalIsEdit, setFloorModalIsEdit] = useState(false)
+  const [floorModalCurrentRowId, setFloorModalCurrentRowId] = useState<string>('')
 
-  // Функция для открытия модального окна этажей
-  const openFloorModal = useCallback((record: RowData, isEdit: boolean = false) => {
+  // Состояние для модального окна AI анализа
+  const [aiModalOpen, setAiModalOpen] = useState(false)
+  const [aiModalMaterial, setAiModalMaterial] = useState('')
+
+
+  // Функция для открытия модального окна этажей по ID записи (с принудительной очисткой)
+  const openFloorModalById = async (recordId: string, isEdit: boolean = false) => {
+    // Ищем актуальную запись в data
+    const record = data.find(item => item.id === recordId)
+    if (!record) {
+      return
+    }
+
+    // Сначала закрываем модальное окно и очищаем данные
+    setFloorModalOpen(false)
+    setFloorModalData([])
+    setFloorModalInfo({
+      projectCode: '',
+      projectName: '',
+      workName: '',
+      material: '',
+      unit: '',
+    })
+
+    // Даем время на применение состояния
+    await new Promise(resolve => setTimeout(resolve, 50))
+
     // Формируем данные для модального окна из floorQuantities
     const floorData: FloorModalRow[] = []
     if (record.floorQuantities) {
       Object.entries(record.floorQuantities).forEach(([floor, quantities]) => {
-        floorData.push({
+        const floorItem = {
           floor: Number(floor),
           quantityPd: quantities.quantityPd,
           quantitySpec: quantities.quantitySpec,
           quantityRd: quantities.quantityRd,
-        })
+        }
+        floorData.push(floorItem)
       })
     }
 
     // Если нет данных этажей, но есть общие количества, создаем одну запись
     if (floorData.length === 0) {
-      floorData.push({
+      const fallbackData = {
         floor: 1,
         quantityPd: record.quantityPd,
         quantitySpec: record.quantitySpec,
         quantityRd: record.quantityRd,
-      })
+      }
+      floorData.push(fallbackData)
     }
 
-    setFloorModalData(floorData)
-    setFloorModalInfo({
+    const newModalInfo = {
       projectCode: record.documentationCode,
       projectName: record.documentationProjectName,
       workName: record.workName,
       material: record.material,
       unit: record.unit,
-    })
+    }
+
+    // Устанавливаем новые данные и открываем модальное окно
+    setFloorModalData(floorData)
+    setFloorModalInfo(newModalInfo)
     setFloorModalIsEdit(isEdit)
+    setFloorModalCurrentRowId(recordId)
     setFloorModalOpen(true)
-  }, [])
+  }
 
   const closeFloorModal = useCallback(() => {
     setFloorModalOpen(false)
     setFloorModalData([])
     setFloorModalIsEdit(false)
+    setFloorModalCurrentRowId('')
   }, [])
 
   const saveFloorModal = useCallback((floors: FloorModalRow[]) => {
-    // TODO: реализовать сохранение данных этажей
-    console.log('Saving floor data:', floors) // LOG
+    if (!floorModalCurrentRowId) {
+      closeFloorModal()
+      return
+    }
+
+    // Конвертируем данные этажей в формат floorQuantities
+    const floorQuantities: Record<number, any> = {}
+
+    // Рассчитываем суммы для всех типов количества
+    let totalQuantityPd = 0
+    let totalQuantitySpec = 0
+    let totalQuantityRd = 0
+
+    floors.forEach(floorData => {
+      if (floorData.floor && floorData.floor > 0) {
+        floorQuantities[floorData.floor] = {
+          quantityPd: floorData.quantityPd || '0',
+          quantitySpec: floorData.quantitySpec || '0',
+          quantityRd: floorData.quantityRd || '0'
+        }
+
+        // Суммируем для обновления основных полей
+        totalQuantityPd += parseFloat(floorData.quantityPd || '0')
+        totalQuantitySpec += parseFloat(floorData.quantitySpec || '0')
+        totalQuantityRd += parseFloat(floorData.quantityRd || '0')
+      }
+    })
+
+    // Обновляем запись с новыми данными
+    onRowUpdate(floorModalCurrentRowId, {
+      floorQuantities,
+      quantityPd: totalQuantityPd,
+      quantitySpec: totalQuantitySpec,
+      quantityRd: totalQuantityRd
+    })
+
     closeFloorModal()
-  }, [closeFloorModal])
+  }, [floorModalCurrentRowId, onRowUpdate, closeFloorModal])
+
+  // Функции для AI модального окна
+  const openAiModal = useCallback((materialName: string) => {
+    setAiModalMaterial(materialName)
+    setAiModalOpen(true)
+  }, [])
+
+  const closeAiModal = useCallback(() => {
+    setAiModalOpen(false)
+    setAiModalMaterial('')
+  }, [])
+
+  const handleAiResultSelect = useCallback((result: string) => {
+    // TODO: здесь можно обновить поле supplier в записи
+  }, [])
+
+  // Функция для проверки, есть ли у записи множественные этажи
+  const hasMultipleFloors = useCallback((record: RowData) => {
+    if (!record.floors) return false
+
+    // Проверяем, содержит ли строка этажей диапазон (например: "1-5") или список (например: "1,2,3")
+    const floorsStr = record.floors.toString()
+    return floorsStr.includes('-') || floorsStr.includes(',')
+  }, [])
+
+  // ОПТИМИЗАЦИЯ: стабильные обработчики событий (ИСПРАВЛЕНО: убираем циклические зависимости)
+  const handleStartEditing = useCallback((recordId: string) => () => onStartEditing(recordId), [onStartEditing])
+  const handleRowDelete = useCallback((recordId: string) => () => onRowDelete(recordId), [onRowDelete])
+  const handleRowCopy = useCallback((recordId: string) => () => onRowCopy(recordId), [onRowCopy])
+  const handleOpenFloorModal = useCallback((recordId: string) => () => openFloorModalById(recordId, true), [openFloorModalById])
+  const handleOpenAiModal = useCallback((materialName: string) => () => openAiModal(materialName), [openAiModal])
+
+  // ОПТИМИЗАЦИЯ DOM: динамическая конфигурация для больших таблиц
+  const isLargeDataset = useMemo(() => data.length > LARGE_TABLE_CONFIG.virtualThreshold, [data.length])
+
+  const tableScrollConfig = useMemo(() => {
+    if (isLargeDataset) {
+      // Для больших данных используем оптимизированную конфигурацию
+      return LARGE_TABLE_CONFIG.scroll
+    }
+    return { x: 'max-content' as const }
+  }, [isLargeDataset])
+
+  // Логирование для мониторинга производительности больших таблиц
+  React.useEffect(() => {
+    if (process.env.NODE_ENV === 'development' && isLargeDataset) {
+      console.log('🔍 Large dataset detected in ChessboardTable:', {
+        dataLength: data.length,
+        threshold: LARGE_TABLE_CONFIG.virtualThreshold,
+        usingOptimizedConfig: true
+      }) // LOG: обнаружение больших данных в таблице
+    }
+  }, [isLargeDataset, data.length])
+
   // Базовые столбцы таблицы
   const allColumns: ColumnsType<RowData> = useMemo(() => [
     // Служебный столбец с действиями
@@ -522,7 +1001,7 @@ export const ChessboardTable = memo(({
       }),
       render: (_, record) => (
         <Space size="small">
-          {tableMode.mode === 'view' && (
+          {(tableMode.mode === 'view' || tableMode.mode === 'edit') && (
             <>
               <Tooltip title="Цвет строки">
                 <RowColorPicker
@@ -531,21 +1010,25 @@ export const ChessboardTable = memo(({
                 />
               </Tooltip>
               <Tooltip title="Редактировать">
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<EditOutlined />}
-                  onClick={() => onStartEditing(record.id)}
-                />
+                <div>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<EditOutlined />}
+                    onClick={handleStartEditing(record.id)}
+                  />
+                </div>
               </Tooltip>
               <Tooltip title="Удалить">
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<DeleteOutlined />}
-                  danger
-                  onClick={() => onRowDelete(record.id)}
-                />
+                <div>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    danger
+                    onClick={handleRowDelete(record.id)}
+                  />
+                </div>
               </Tooltip>
             </>
           )}
@@ -558,37 +1041,45 @@ export const ChessboardTable = memo(({
                 />
               </Tooltip>
               <Tooltip title="Редактировать">
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<EditOutlined />}
-                  onClick={() => onStartEditing(record.id)}
-                />
+                <div>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<EditOutlined />}
+                    onClick={handleStartEditing(record.id)}
+                  />
+                </div>
               </Tooltip>
               <Tooltip title="Добавить строку">
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<PlusOutlined />}
-                  onClick={() => {/* TODO: добавить новую строку */}}
-                />
+                <div>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<PlusOutlined />}
+                    onClick={() => {/* TODO: добавить новую строку */}}
+                  />
+                </div>
               </Tooltip>
               <Tooltip title="Скопировать">
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<CopyOutlined />}
-                  onClick={() => onRowCopy(record.id)}
-                />
+                <div>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<CopyOutlined />}
+                    onClick={handleRowCopy(record.id)}
+                  />
+                </div>
               </Tooltip>
               <Tooltip title="Удалить">
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<DeleteOutlined />}
-                  danger
-                  onClick={() => onRowDelete(record.id)}
-                />
+                <div>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    danger
+                    onClick={handleRowDelete(record.id)}
+                  />
+                </div>
               </Tooltip>
             </>
           )}
@@ -601,6 +1092,9 @@ export const ChessboardTable = memo(({
       title: 'Раздел',
       key: COLUMN_KEYS.DOCUMENTATION_SECTION,
       dataIndex: 'documentationSection',
+      width: 'auto',
+      minWidth: 30,
+      maxWidth: 60,
       filterMode: 'tree' as const,
       filterSearch: true,
       onFilter: (value, record) => record.documentationSection.includes(value as string),
@@ -614,6 +1108,43 @@ export const ChessboardTable = memo(({
           padding: '4px 8px',
         },
       }),
+      render: (value, record) => {
+        const isEditing = (record as any).isEditing
+        if (isEditing) {
+          return (
+            <Select
+              value={value || undefined}
+              onChange={(newValue) => {
+                const selectedTag = documentationTagsData.find(tag => tag.value === newValue)
+                onRowUpdate(record.id, {
+                  documentationSection: selectedTag ? selectedTag.label : '',
+                  documentationSectionId: newValue,
+                  // Сброс зависимых полей при изменении раздела
+                  documentationCode: '',
+                  documentationCodeId: '',
+                  documentationProjectName: ''
+                })
+              }}
+              options={documentationTagsData}
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              }
+              placeholder="Выберите раздел"
+              size="small"
+              style={{ width: '100%' }}
+              dropdownStyle={{
+                minWidth: '300px',
+                maxWidth: '500px',
+                zIndex: 9999
+              }}
+              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+            />
+          )
+        }
+        return value
+      },
     },
 
     // Шифр проекта (из справочника Документация)
@@ -621,6 +1152,9 @@ export const ChessboardTable = memo(({
       title: 'Шифр проекта',
       key: COLUMN_KEYS.DOCUMENTATION_CODE,
       dataIndex: 'documentationCode',
+      width: 'auto',
+      minWidth: 60,
+      maxWidth: 120,
       filterMode: 'tree' as const,
       filterSearch: true,
       onFilter: (value, record) => record.documentationCode.includes(value as string),
@@ -634,6 +1168,44 @@ export const ChessboardTable = memo(({
           padding: '4px 8px',
         },
       }),
+      render: (value, record) => {
+        const isEditing = (record as any).isEditing
+        if (isEditing) {
+          return (
+            <Select
+              value={value || undefined}
+              onChange={(newValue) => {
+                const selectedDoc = documentationData.find(doc => doc.value === newValue)
+                onRowUpdate(record.id, {
+                  documentationCode: selectedDoc ? selectedDoc.label : '',
+                  documentationCodeId: newValue,
+                  documentationProjectName: selectedDoc ? selectedDoc.projectName : ''
+                })
+              }}
+              // Фильтрация по выбранному разделу
+              options={documentationData.filter(doc => {
+                const currentSection = (record as any).documentationSectionId
+                return !currentSection || doc.tagId === currentSection
+              })}
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              }
+              placeholder="Выберите шифр проекта"
+              size="small"
+              style={{ width: '100%' }}
+              dropdownStyle={{
+                minWidth: '300px',
+                maxWidth: '500px',
+                zIndex: 9999
+              }}
+              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+            />
+          )
+        }
+        return value
+      },
     },
 
     // Наименование проекта (подтягивается зависимое от Шифра проекта)
@@ -684,15 +1256,46 @@ export const ChessboardTable = memo(({
       filterSearch: true,
       onFilter: (value, record) => record.block.includes(value as string),
       onHeaderCell: () => ({
-        className: 'chessboard-header-cell',
+        className: 'chessboard-header-cell block-header',
+        'data-block-column': 'true',
         style: {
-          whiteSpace: 'pre-line',
+          whiteSpace: 'nowrap',
           textAlign: 'center',
           verticalAlign: 'middle',
           lineHeight: '20px',
           padding: '4px 8px',
         },
       }),
+      onCell: () => ({
+        'data-block-column': 'true',
+      }),
+      render: (value, record) => {
+        const isEditing = (record as any).isEditing
+        if (isEditing) {
+          return (
+            <Select
+              value={value || undefined}
+              onChange={(newValue) => onRowUpdate(record.id, { block: newValue })}
+              options={blocksData}
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              }
+              placeholder="Выберите корпус"
+              size="small"
+              style={{ width: '100%' }}
+              dropdownStyle={{
+                minWidth: '300px',
+                maxWidth: '500px',
+                zIndex: 9999
+              }}
+              placement="bottomLeft"
+            />
+          )
+        }
+        return value
+      },
     },
 
     // Этажи
@@ -700,7 +1303,7 @@ export const ChessboardTable = memo(({
       title: 'Этажи',
       key: COLUMN_KEYS.FLOORS,
       dataIndex: 'floors',
-      width: 80, // Фиксированная ширина для предотвращения сжатия
+      width: 100, // Уменьшена ширина, кнопка + перенесена
       onHeaderCell: () => ({
         className: 'chessboard-header-cell floors-header',
         style: {
@@ -709,9 +1312,9 @@ export const ChessboardTable = memo(({
           verticalAlign: 'middle',
           lineHeight: '20px',
           padding: '4px 8px',
-          minWidth: '80px', // Увеличенная минимальная ширина
-          maxWidth: '80px', // Максимальная ширина
-          width: '80px', // Фиксированная ширина
+          minWidth: '100px', // Уменьшенная минимальная ширина
+          maxWidth: '100px', // Максимальная ширина
+          width: '100px', // Фиксированная ширина
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           wordBreak: 'keep-all', // Не разрывать слова
@@ -722,10 +1325,25 @@ export const ChessboardTable = memo(({
         style: {
           whiteSpace: 'nowrap', // НЕ переносить содержимое ячеек "Этажи"
           textAlign: 'center',
-          minWidth: '80px',
-          maxWidth: '80px',
+          minWidth: '100px',
+          maxWidth: '100px',
         },
       }),
+      render: (value, record) => {
+        const isEditing = (record as any).isEditing
+        if (isEditing) {
+          return (
+            <Input
+              value={value || ''}
+              onChange={(e) => onRowUpdate(record.id, { floors: e.target.value })}
+              size="small"
+              placeholder="1,2,3 или 1-5"
+              style={{ width: '100%' }}
+            />
+          )
+        }
+        return value
+      },
     },
 
     // Категория затрат
@@ -747,6 +1365,42 @@ export const ChessboardTable = memo(({
           padding: '4px 8px',
         },
       }),
+      render: (value, record) => {
+        const isEditing = (record as any).isEditing
+        if (isEditing) {
+          return (
+            <Select
+              value={value || undefined}
+              onChange={(newValue) => {
+                const selectedCategory = costCategoriesData.find(cat => cat.value === newValue)
+                onRowUpdate(record.id, {
+                  costCategory: selectedCategory ? selectedCategory.label : '',
+                  costCategoryId: newValue,
+                  // Сброс зависимых полей при смене категории затрат
+                  costType: '',
+                  costTypeId: ''
+                })
+              }}
+              options={costCategoriesData}
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              }
+              placeholder="Выберите категорию"
+              size="small"
+              style={{ width: '100%' }}
+              dropdownStyle={{
+                minWidth: '300px',
+                maxWidth: '500px',
+                zIndex: 9999
+              }}
+              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+            />
+          )
+        }
+        return value
+      },
     },
 
     // Вид затрат
@@ -768,6 +1422,57 @@ export const ChessboardTable = memo(({
           padding: '4px 8px',
         },
       }),
+      render: (value, record) => {
+        const isEditing = (record as any).isEditing
+        if (isEditing) {
+          return (
+            <Select
+              value={value || undefined}
+              onChange={(newValue) => {
+                const selectedCostType = allCostTypesData.find(type => type.value === newValue)
+                onRowUpdate(record.id, {
+                  costType: selectedCostType ? selectedCostType.label : '',
+                  costTypeId: newValue
+                })
+              }}
+              // Фильтрация по выбранной категории затрат
+              options={(() => {
+                const currentCategory = (record as any).costCategoryId
+
+                if (!currentCategory) {
+                  // Если категория не выбрана, показываем все виды затрат
+                  return allCostTypesData
+                }
+
+                return allCostTypesData.filter(type => {
+                  const categoryId = currentCategory.toString()
+                  const typeCategoryId = type.categoryId ? type.categoryId.toString() : null
+                  return typeCategoryId === categoryId
+                })
+              })()}
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              }
+              placeholder="Выберите вид затрат"
+              size="small"
+              style={{
+                width: '100%',
+                minHeight: 'auto',
+                height: 'auto'
+              }}
+              dropdownStyle={{
+                minWidth: '300px',
+                maxWidth: '500px',
+                zIndex: 9999
+              }}
+              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+            />
+          )
+        }
+        return value
+      },
     },
 
     // Наименование работ
@@ -775,6 +1480,9 @@ export const ChessboardTable = memo(({
       title: 'Наименование\nработ',
       key: COLUMN_KEYS.WORK_NAME,
       dataIndex: 'workName',
+      width: 'auto',
+      minWidth: 60,
+      maxWidth: 200,
       filterMode: 'tree' as const,
       filterSearch: true,
       onFilter: (value, record) => record.workName.includes(value as string),
@@ -788,6 +1496,20 @@ export const ChessboardTable = memo(({
           padding: '4px 8px',
         },
       }),
+      render: (value, record) => {
+        const isEditing = (record as any).isEditing
+        if (isEditing) {
+          return (
+            <Input
+              value={value || ''}
+              onChange={(e) => onRowUpdate(record.id, { workName: e.target.value })}
+              size="small"
+              style={{ width: '100%' }}
+            />
+          )
+        }
+        return <span>{value || ''}</span>
+      },
     },
 
     // Локализация
@@ -795,19 +1517,59 @@ export const ChessboardTable = memo(({
       title: 'Локализация',
       key: COLUMN_KEYS.LOCATION,
       dataIndex: 'location',
+      width: 'auto',
+      minWidth: 60,
+      maxWidth: 120,
       filterMode: 'tree' as const,
       filterSearch: true,
       onFilter: (value, record) => record.location.includes(value as string),
       onHeaderCell: () => ({
         className: 'chessboard-header-cell',
         style: {
-          whiteSpace: 'pre-line',
+          whiteSpace: 'nowrap', // НЕ переносить заголовок "Локализация"
           textAlign: 'center',
           verticalAlign: 'middle',
           lineHeight: '20px',
           padding: '4px 8px',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          wordBreak: 'keep-all', // Не разрывать слова
+          overflowWrap: 'normal', // Стандартная обработка переносов
         },
       }),
+      onCell: () => ({
+        style: {
+          whiteSpace: 'nowrap', // НЕ переносить содержимое ячеек "Локализация"
+          textAlign: 'center',
+        },
+      }),
+      render: (value, record) => {
+        const isEditing = (record as any).isEditing
+        if (isEditing) {
+          return (
+            <Select
+              value={value || undefined}
+              onChange={(newValue) => onRowUpdate(record.id, { location: newValue })}
+              options={locationsData}
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              }
+              placeholder="Выберите локализацию"
+              size="small"
+              style={{ width: '100%' }}
+              dropdownStyle={{
+                minWidth: '300px',
+                maxWidth: '500px',
+                zIndex: 9999
+              }}
+              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+            />
+          )
+        }
+        return value
+      },
     },
 
     // Материал
@@ -828,6 +1590,34 @@ export const ChessboardTable = memo(({
           padding: '4px 8px',
         },
       }),
+      render: (value, record) => {
+        const isEditing = (record as any).isEditing
+
+        if (isEditing) {
+          return (
+            <AutoComplete
+              value={value || ''}
+              onChange={(newValue) => {
+                onRowUpdate(record.id, { material: newValue })
+              }}
+              options={materialsData.map(material => ({ value: material, label: material }))}
+              filterOption={(inputValue, option) =>
+                option?.value?.toString().toUpperCase().indexOf(inputValue.toUpperCase()) !== -1
+              }
+              size="small"
+              style={{ width: '100%' }}
+              placeholder="Введите материал..."
+              dropdownStyle={{
+                minWidth: '300px',
+                maxWidth: '500px',
+                zIndex: 9999
+              }}
+              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+            />
+          )
+        }
+        return <span>{value || ''}</span>
+      },
     },
 
     // Кол-во по ПД
@@ -835,7 +1625,7 @@ export const ChessboardTable = memo(({
       title: 'Кол-во\nпо ПД',
       key: COLUMN_KEYS.QUANTITY_PD,
       dataIndex: 'quantityPd',
-      width: 60,
+      width: 80,
       onHeaderCell: () => ({
         className: 'chessboard-header-cell',
         style: {
@@ -845,22 +1635,106 @@ export const ChessboardTable = memo(({
           lineHeight: '12px',
           padding: '2px 4px',
           wordBreak: 'keep-all',
-          overflowWrap: 'anywhere',
-          minWidth: '60px',
+          overflowWrap: 'break-word',
+          minWidth: '80px',
           maxHeight: '52px',
           overflow: 'hidden',
         },
       }),
-      render: (value, record) => (
-        <Button
-          type="text"
-          size="small"
-          style={{ padding: 0, height: 'auto', color: record.floorQuantities ? '#1677ff' : 'inherit' }}
-          onClick={() => openFloorModal(record, false)}
-        >
-          {value || '0'}
-        </Button>
-      ),
+      render: (value, record) => {
+        const isMultipleFloors = hasMultipleFloors(record)
+        const isEditing = (record as any).isEditing
+
+        if (isEditing) {
+          if (isMultipleFloors) {
+            return (
+              <Space.Compact style={{ width: '100%' }}>
+                <InputNumber
+                  value={value || 0}
+                  onChange={(newValue) => {
+                    const quantity = newValue || 0
+                    onRowUpdate(record.id, { quantityPd: quantity })
+
+                    // Если есть этажи, распределяем количество равномерно
+                    if (record.floors) {
+                      const floors = record.floors.toString().split(',').map(f => f.trim()).filter(Boolean)
+                      if (floors.length > 1) {
+                        const quantityPerFloor = quantity / floors.length
+                        const floorQuantities = floors.reduce((acc, floor) => {
+                          const floorNum = parseInt(floor)
+                          const existing = record.floorQuantities?.[floorNum] || {}
+                          acc[floorNum] = {
+                            ...existing,
+                            quantityPd: quantityPerFloor.toString()
+                          }
+                          return acc
+                        }, {})
+                        onRowUpdate(record.id, { floorQuantities })
+                      }
+                    }
+                  }}
+                  size="small"
+                  style={{ width: '100%', flex: 1 }}
+                  min={0}
+                  precision={2}
+                  formatter={(val) => {
+                    if (val === null || val === undefined) return ''
+                    const num = Number(val)
+                    return num % 1 === 0 ? num.toString() : num.toString()
+                  }}
+                />
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<PlusOutlined />}
+                  onClick={handleOpenFloorModal(record.id)}
+                  title="Редактировать по этажам"
+                  style={STABLE_STYLES.floorButton}
+                />
+              </Space.Compact>
+            )
+          } else {
+            return (
+              <InputNumber
+                value={value || 0}
+                onChange={(newValue) => {
+                  const quantity = newValue || 0
+                  onRowUpdate(record.id, { quantityPd: quantity })
+
+                  // Если есть этажи, распределяем количество равномерно
+                  if (record.floors) {
+                    const floors = record.floors.toString().split(',').map(f => f.trim()).filter(Boolean)
+                    if (floors.length > 1) {
+                      const quantityPerFloor = quantity / floors.length
+                      const floorQuantities = floors.reduce((acc, floor) => {
+                        const floorNum = parseInt(floor)
+                        const existing = record.floorQuantities?.[floorNum] || {}
+                        acc[floorNum] = {
+                          ...existing,
+                          quantityPd: quantityPerFloor.toString()
+                        }
+                        return acc
+                      }, {})
+                      onRowUpdate(record.id, { floorQuantities })
+                    }
+                  }
+                }}
+                size="small"
+                style={{ width: '100%' }}
+                min={0}
+                precision={2}
+                formatter={(val) => {
+                  if (val === null || val === undefined) return ''
+                  const num = Number(val)
+                  return num % 1 === 0 ? num.toString() : num.toString()
+                }}
+              />
+            )
+          }
+        } else {
+          return <span>{value || '0'}</span>
+        }
+      },
     },
 
     // Кол-во по спецификации РД
@@ -887,16 +1761,100 @@ export const ChessboardTable = memo(({
           overflow: 'hidden',
         },
       }),
-      render: (value, record) => (
-        <Button
-          type="text"
-          size="small"
-          style={{ padding: 0, height: 'auto', color: record.floorQuantities ? '#1677ff' : 'inherit' }}
-          onClick={() => openFloorModal(record, false)}
-        >
-          {value || '0'}
-        </Button>
-      ),
+      render: (value, record) => {
+        const isMultipleFloors = hasMultipleFloors(record)
+        const isEditing = (record as any).isEditing
+
+        if (isEditing) {
+          if (isMultipleFloors) {
+            return (
+              <Space.Compact style={{ width: '100%' }}>
+                <InputNumber
+                  value={value || 0}
+                  onChange={(newValue) => {
+                    const quantity = newValue || 0
+                    onRowUpdate(record.id, { quantitySpec: quantity })
+
+                    // Если есть этажи, распределяем количество равномерно
+                    if (record.floors) {
+                      const floors = record.floors.toString().split(',').map(f => f.trim()).filter(Boolean)
+                      if (floors.length > 1) {
+                        const quantityPerFloor = quantity / floors.length
+                        const floorQuantities = floors.reduce((acc, floor) => {
+                          const floorNum = parseInt(floor)
+                          const existing = record.floorQuantities?.[floorNum] || {}
+                          acc[floorNum] = {
+                            ...existing,
+                            quantitySpec: quantityPerFloor.toString()
+                          }
+                          return acc
+                        }, {})
+                        onRowUpdate(record.id, { floorQuantities })
+                      }
+                    }
+                  }}
+                  size="small"
+                  style={{ width: '100%', flex: 1 }}
+                  min={0}
+                  precision={2}
+                  formatter={(val) => {
+                    if (val === null || val === undefined) return ''
+                    const num = Number(val)
+                    return num % 1 === 0 ? num.toString() : num.toString()
+                  }}
+                />
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<PlusOutlined />}
+                  onClick={handleOpenFloorModal(record.id)}
+                  title="Редактировать по этажам"
+                  style={STABLE_STYLES.floorButton}
+                />
+              </Space.Compact>
+            )
+          } else {
+            return (
+              <InputNumber
+                value={value || 0}
+                onChange={(newValue) => {
+                  const quantity = newValue || 0
+                  onRowUpdate(record.id, { quantitySpec: quantity })
+
+                  // Если есть этажи, распределяем количество равномерно
+                  if (record.floors) {
+                    const floors = record.floors.toString().split(',').map(f => f.trim()).filter(Boolean)
+                    if (floors.length > 1) {
+                      const quantityPerFloor = quantity / floors.length
+                      const floorQuantities = floors.reduce((acc, floor) => {
+                        const floorNum = parseInt(floor)
+                        const existing = record.floorQuantities?.[floorNum] || {}
+                        acc[floorNum] = {
+                          ...existing,
+                          quantitySpec: quantityPerFloor.toString()
+                        }
+                        return acc
+                      }, {})
+                      onRowUpdate(record.id, { floorQuantities })
+                    }
+                  }
+                }}
+                size="small"
+                style={{ width: '100%' }}
+                min={0}
+                precision={2}
+                formatter={(val) => {
+                  if (val === null || val === undefined) return ''
+                  const num = Number(val)
+                  return num % 1 === 0 ? num.toString() : num.toString()
+                }}
+              />
+            )
+          }
+        } else {
+          return <span>{value || '0'}</span>
+        }
+      },
     },
 
     // Кол-во по пересчету РД
@@ -923,16 +1881,100 @@ export const ChessboardTable = memo(({
           overflow: 'hidden',
         },
       }),
-      render: (value, record) => (
-        <Button
-          type="text"
-          size="small"
-          style={{ padding: 0, height: 'auto', color: record.floorQuantities ? '#1677ff' : 'inherit' }}
-          onClick={() => openFloorModal(record, false)}
-        >
-          {value || '0'}
-        </Button>
-      ),
+      render: (value, record) => {
+        const isMultipleFloors = hasMultipleFloors(record)
+        const isEditing = (record as any).isEditing
+
+        if (isEditing) {
+          if (isMultipleFloors) {
+            return (
+              <Space.Compact style={{ width: '100%' }}>
+                <InputNumber
+                  value={value || 0}
+                  onChange={(newValue) => {
+                    const quantity = newValue || 0
+                    onRowUpdate(record.id, { quantityRd: quantity })
+
+                    // Если есть этажи, распределяем количество равномерно
+                    if (record.floors) {
+                      const floors = record.floors.toString().split(',').map(f => f.trim()).filter(Boolean)
+                      if (floors.length > 1) {
+                        const quantityPerFloor = quantity / floors.length
+                        const floorQuantities = floors.reduce((acc, floor) => {
+                          const floorNum = parseInt(floor)
+                          const existing = record.floorQuantities?.[floorNum] || {}
+                          acc[floorNum] = {
+                            ...existing,
+                            quantityRd: quantityPerFloor.toString()
+                          }
+                          return acc
+                        }, {})
+                        onRowUpdate(record.id, { floorQuantities })
+                      }
+                    }
+                  }}
+                  size="small"
+                  style={{ width: '100%', flex: 1 }}
+                  min={0}
+                  precision={2}
+                  formatter={(val) => {
+                    if (val === null || val === undefined) return ''
+                    const num = Number(val)
+                    return num % 1 === 0 ? num.toString() : num.toString()
+                  }}
+                />
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<PlusOutlined />}
+                  onClick={handleOpenFloorModal(record.id)}
+                  title="Редактировать по этажам"
+                  style={STABLE_STYLES.floorButton}
+                />
+              </Space.Compact>
+            )
+          } else {
+            return (
+              <InputNumber
+                value={value || 0}
+                onChange={(newValue) => {
+                  const quantity = newValue || 0
+                  onRowUpdate(record.id, { quantityRd: quantity })
+
+                  // Если есть этажи, распределяем количество равномерно
+                  if (record.floors) {
+                    const floors = record.floors.toString().split(',').map(f => f.trim()).filter(Boolean)
+                    if (floors.length > 1) {
+                      const quantityPerFloor = quantity / floors.length
+                      const floorQuantities = floors.reduce((acc, floor) => {
+                        const floorNum = parseInt(floor)
+                        const existing = record.floorQuantities?.[floorNum] || {}
+                        acc[floorNum] = {
+                          ...existing,
+                          quantityRd: quantityPerFloor.toString()
+                        }
+                        return acc
+                      }, {})
+                      onRowUpdate(record.id, { floorQuantities })
+                    }
+                  }
+                }}
+                size="small"
+                style={{ width: '100%' }}
+                min={0}
+                precision={2}
+                formatter={(val) => {
+                  if (val === null || val === undefined) return ''
+                  const num = Number(val)
+                  return num % 1 === 0 ? num.toString() : num.toString()
+                }}
+              />
+            )
+          }
+        } else {
+          return <span>{value || '0'}</span>
+        }
+      },
     },
 
     // Номенклатура
@@ -954,6 +1996,44 @@ export const ChessboardTable = memo(({
           padding: '4px 8px',
         },
       }),
+      render: (value, record) => {
+        const isEditing = (record as any).isEditing
+        if (isEditing) {
+          return (
+            <Select
+              value={value || undefined}
+              onChange={(newValue) => {
+                const selectedNomenclature = nomenclatureData.find(nom => nom.value === newValue)
+                onRowUpdate(record.id, {
+                  nomenclature: selectedNomenclature ? selectedNomenclature.label : '',
+                  nomenclatureId: newValue
+                })
+              }}
+              // Показываем всю номенклатуру
+              options={nomenclatureData}
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              }
+              placeholder="Выберите номенклатуру"
+              size="small"
+              style={{
+                width: '100%',
+                minHeight: 'auto',
+                height: 'auto'
+              }}
+              dropdownStyle={{
+                minWidth: '500px',
+                maxWidth: '500px',
+                zIndex: 9999
+              }}
+              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+            />
+          )
+        }
+        return value
+      },
     },
 
     // Наименование поставщика
@@ -975,6 +2055,75 @@ export const ChessboardTable = memo(({
           padding: '4px 8px',
         },
       }),
+      render: (value, record) => {
+        const isEditing = (record as any).isEditing
+        if (isEditing) {
+          return (
+            <Select
+              value={value || undefined}
+              onChange={(newValue) => {
+                const selectedSupplier = suppliersData.find(sup => sup.value === newValue)
+                onRowUpdate(record.id, {
+                  supplier: selectedSupplier ? selectedSupplier.label : '',
+                  // Сброс зависимой номенклатуры при смене поставщика
+                  nomenclature: '',
+                  nomenclatureId: ''
+                })
+              }}
+              options={suppliersData}
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              }
+              placeholder="Выберите поставщика"
+              size="small"
+              style={{
+                width: '100%',
+                minHeight: 'auto',
+                height: 'auto'
+              }}
+              dropdownStyle={{
+                minWidth: '500px',
+                maxWidth: '500px',
+                zIndex: 9999
+              }}
+              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+            />
+          )
+        }
+        return value
+      },
+    },
+
+    // AI Анализ материалов
+    {
+      title: 'AI',
+      key: COLUMN_KEYS.AI_ANALYSIS,
+      width: 50,
+      onHeaderCell: () => ({
+        className: 'chessboard-header-cell',
+        style: {
+          whiteSpace: 'nowrap',
+          textAlign: 'center',
+          verticalAlign: 'middle',
+          lineHeight: '20px',
+          padding: '4px 8px',
+        },
+      }),
+      render: (_, record) => (
+        <Tooltip title="AI анализ материала">
+          <div>
+            <Button
+              type="text"
+              size="small"
+              icon={<RobotOutlined />}
+              onClick={handleOpenAiModal(record.material)}
+              style={STABLE_STYLES.aiButton}
+            />
+          </div>
+        </Tooltip>
+      ),
     },
 
     // Ед.изм.
@@ -982,19 +2131,48 @@ export const ChessboardTable = memo(({
       title: 'Ед.изм.',
       key: COLUMN_KEYS.UNIT,
       dataIndex: 'unit',
+      width: 100, // Увеличена ширина для Select
       filterMode: 'tree' as const,
       filterSearch: true,
       onFilter: (value, record) => record.unit.includes(value as string),
       onHeaderCell: () => ({
-        className: 'chessboard-header-cell',
+        className: 'chessboard-header-cell unit-header',
         style: {
-          whiteSpace: 'pre-line',
+          whiteSpace: 'nowrap', // НЕ переносить заголовок "Ед.изм."
           textAlign: 'center',
           verticalAlign: 'middle',
           lineHeight: '20px',
           padding: '4px 8px',
+          minWidth: '100px',
+          maxWidth: '100px',
+          width: '100px',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          wordBreak: 'keep-all', // Не разрывать слова
+          overflowWrap: 'normal', // Стандартная обработка переносов
         },
       }),
+      render: (value, record) => {
+        const isEditing = (record as any).isEditing
+        if (isEditing) {
+          return (
+            <Select
+              value={value || undefined}
+              onChange={(newValue) => onRowUpdate(record.id, { unit: newValue })}
+              options={unitsData}
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              }
+              placeholder="Ед.изм."
+              size="small"
+              style={{ width: '100%' }}
+            />
+          )
+        }
+        return value
+      },
     },
 
     // Комментарии
@@ -1015,14 +2193,12 @@ export const ChessboardTable = memo(({
       }),
       render: (value, record) => (
         <CommentsCell
-          value={value}
           rowId={record.id}
-          onCommentUpdate={onCommentUpdate}
           mode={tableMode.mode}
         />
       ),
     },
-  ], [tableMode, onRowColorChange, onStartEditing, onRowDelete, onRowCopy, onCommentUpdate, openFloorModal])
+  ], [tableMode, onRowColorChange, handleStartEditing, handleRowDelete, handleRowCopy, handleOpenFloorModal, hasMultipleFloors, handleOpenAiModal])
 
   // Фильтрация столбцов по видимости
   const visibleColumnsData = useMemo(() => {
@@ -1062,7 +2238,7 @@ export const ChessboardTable = memo(({
         rowSelection={rowSelection}
         rowClassName={rowClassName}
         sticky={true}
-        scroll={{ x: 'max-content' }}
+        scroll={tableScrollConfig}
         pagination={{
           position: ['bottomCenter'],
           defaultPageSize: 100,
@@ -1082,6 +2258,13 @@ export const ChessboardTable = memo(({
         isEdit={floorModalIsEdit}
         onClose={closeFloorModal}
         onSave={saveFloorModal}
+      />
+
+      <AIAnalysisModal
+        visible={aiModalOpen}
+        onClose={closeAiModal}
+        materialName={aiModalMaterial}
+        onResultSelect={handleAiResultSelect}
       />
     </>
   )

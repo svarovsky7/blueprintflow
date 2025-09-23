@@ -15,8 +15,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 # Development
 npm install           # Install dependencies
-npm run dev          # Start dev server (http://localhost:5173)
+npm run dev          # Start dev server (http://192.168.8.85:5173, доступен по локальной сети)
+npm run dev:local    # Start local dev server (http://localhost:5173, только localhost)
 npm run preview      # Preview production build
+
+# Multiple Dev Servers (одновременно)
+# Terminal 1:
+npm run dev          # Network accessible: http://192.168.8.85:5173
+# Terminal 2:
+npm run dev:local    # Localhost only: http://localhost:5173
 
 # Build & Quality
 npm run build        # TypeScript check + Vite build (MUST pass before commit)
@@ -46,7 +53,7 @@ npx playwright test --debug             # Run in debug mode
 ## Architecture Overview
 
 ### Tech Stack
-- **Frontend**: React 18.3, TypeScript 5.8+ (strict mode), Vite 7.0
+- **Frontend**: React 18.3, TypeScript ~5.8.3 (strict mode), Vite 7.0
 - **UI Library**: Ant Design 5.20+ with Ant Design Charts 2.6+ for visualization
 - **State Management**: TanStack Query 5.59+ (server state), Zustand 5.0+ (auth state)
 - **Backend**: Supabase 2.47+ (PostgreSQL, Auth, Storage, Edge Functions, Realtime WebSocket)
@@ -72,7 +79,7 @@ src/
 └── components/   # Legacy UI components (ConflictResolutionDialog, DataTable, FileUpload, etc.)
 ```
 
-**Note**: The project is in transition to FSD architecture. Current entities include: chessboard, disk, documentation, documentation-tags, materials, rates, and statuses.
+**Note**: The project is in transition to FSD architecture. Current entities include: api-settings, chessboard, comments, disk, documentation, documentation-tags, materials, ml, projects, rates, and statuses.
 
 ### Key Patterns
 - **Public API**: Each slice exposes through `index.ts`
@@ -89,11 +96,11 @@ src/
 - **Error Handling**: All Supabase queries must include error handling
 
 ### Key Directories
-- `src/entities/` - Domain entities (chessboard, disk, documentation, documentation-tags, materials, rates, statuses)
-- `src/pages/` - Main application pages organized by sections (admin/, documents/, references/, reports/)
+- `src/entities/` - Domain entities (api-settings, chessboard, comments, disk, documentation, documentation-tags, materials, ml, projects, rates, statuses)
+- `src/pages/` - Main application pages organized by sections (admin/, documents/, references/, reports/, experiments/)
 - `src/features/auth/` - Authentication logic using Supabase
 - `src/shared/contexts/` - React contexts for global state (LogoContext, ScaleContext)
-- `src/lib/supabase.ts` - Supabase client configuration  
+- `src/lib/supabase.ts` - Supabase client configuration
 - `src/components/` - Legacy UI components being migrated to FSD structure
 
 ## Core Features
@@ -233,6 +240,7 @@ From technical specification (`tech_task.md`):
 - **КРИТИЧЕСКИ ВАЖНО**: Перед любой работой с БД используй MCP сервер для проверки актуальной схемы
 - **КРИТИЧЕСКИ ВАЖНО**: При добавлении кода для логирования ОБЯЗАТЕЛЬНО указывать в комментариях, что строки относятся к логгированию (например: `// LOG: отладочная информация`, `// DEBUG LOG: проверка состояния`, `console.log('🔍 Loading data...') // LOG`). Это необходимо для безопасного удаления логов без случайного удаления рабочего кода
 - **КРИТИЧЕСКИ ВАЖНО**: Максимальный размер файла 600 строк - разбивай большие файлы на компоненты, хуки, утилиты и модули
+- **КРИТИЧЕСКИ ВАЖНО**: Все SQL файлы ОБЯЗАТЕЛЬНО сохранять в папку `sql/` - НИКОГДА не размещай SQL файлы в корневой папке или других директориях
 - Run `npm run lint` before committing
 - Run `npm run format` for consistent code style
 - Handle all TypeScript strict mode requirements
@@ -513,9 +521,11 @@ From technical specification (`tech_task.md`):
 - **Base URL**: http://localhost:5174 (different from dev server port 5173)
 - **Test directory**: `./tests`
 - **Browsers**: Chromium, Firefox, WebKit
-- **Auto-start dev server**: Configured in `playwright.config.js`
+- **Auto-start dev server**: Uses `npm run dev` command with 120s timeout
+- **Web server URL**: http://localhost:5174 (auto-configured in playwright.config.js)
 - **Reporters**: HTML report with screenshots and videos on failure
 - **Parallel execution**: Enabled for faster test runs
+- **Retry logic**: 2 retries on CI, 0 retries locally
 
 ## Application Structure Notes
 

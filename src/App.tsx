@@ -1,20 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Layout, Menu, Switch, Select } from 'antd'
-import { Link, Route, Routes, useNavigate, useLocation } from 'react-router-dom'
+import { Link, Navigate, Route, Routes, useNavigate, useLocation } from 'react-router-dom'
 import {
   MoonOutlined,
-  DashboardOutlined,
   FileTextOutlined,
   BarChartOutlined,
   DatabaseOutlined,
   SettingOutlined,
-  // Альтернативные иконки для Dashboard
-  HomeOutlined,
-  AppstoreOutlined,
-  ControlOutlined,
-  FundOutlined,
   PieChartOutlined,
-  MonitorOutlined,
   ExperimentOutlined,
 } from '@ant-design/icons'
 import Dashboard from './pages/Dashboard'
@@ -35,7 +28,7 @@ import ProjectAnalysis from './pages/reports/ProjectAnalysis'
 import Admin from './pages/Admin'
 import DocumentationTags from './pages/admin/DocumentationTags'
 import Statuses from './pages/admin/Statuses'
-import Disk from './pages/admin/Disk'
+import ApiSettings from './pages/admin/ApiSettings'
 import Experiments from './pages/experiments'
 import ChessboardML from './pages/experiments/ChessboardML'
 import PortalHeader from './components/PortalHeader'
@@ -102,9 +95,10 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
       // Глобальный поиск всех tooltip элементов для скрытия
       const tooltips = document.querySelectorAll('[role="tooltip"], .ant-tooltip, .tooltip')
       tooltips.forEach((tooltip) => {
-        tooltip.style.display = 'none !important'
-        tooltip.style.opacity = '0'
-        tooltip.style.visibility = 'hidden'
+        const el = tooltip as HTMLElement
+        el.style.display = 'none'
+        el.style.opacity = '0'
+        el.style.visibility = 'hidden'
       })
     }
 
@@ -341,7 +335,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               path: '/admin/documentation-tags',
             },
             { key: 'statuses', label: 'Статусы', path: '/admin/statuses' },
-            { key: 'disk', label: 'Диск', path: '/admin/disk' },
+            { key: 'api-settings', label: 'API', path: '/admin/api-settings' },
             { key: 'portal-settings', label: 'Настройка портала', path: '/admin/portal-settings' },
           ])}
         >
@@ -363,8 +357,8 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               label: <Link to="/admin/statuses">Статусы</Link>,
             },
             {
-              key: 'disk',
-              label: <Link to="/admin/disk">Диск</Link>,
+              key: 'api-settings',
+              label: <Link to="/admin/api-settings">API</Link>,
             },
             {
               key: 'portal-settings',
@@ -678,8 +672,8 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                                       ? 'documentation-tags'
                                       : location.pathname.startsWith('/admin/statuses')
                                         ? 'statuses'
-                                        : location.pathname.startsWith('/admin/disk')
-                                          ? 'disk'
+                                        : location.pathname.startsWith('/admin/api-settings')
+                                          ? 'api-settings'
                                           : location.pathname.startsWith('/admin/portal-settings')
                                             ? 'portal-settings'
                                             : location.pathname.startsWith('/experiments')
@@ -728,8 +722,10 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                 <Route path="/admin" element={<Admin />}>
                   <Route path="documentation-tags" element={<DocumentationTags />} />
                   <Route path="statuses" element={<Statuses />} />
-                  <Route path="disk" element={<Disk />} />
+                  <Route path="api-settings" element={<ApiSettings />} />
                   <Route path="portal-settings" element={<PortalSettings />} />
+                  {/* ОБРАТНАЯ СОВМЕСТИМОСТЬ: старый маршрут /admin/disk перенаправляет на /admin/api-settings */}
+                  <Route path="disk" element={<Navigate to="/admin/api-settings" replace />} />
                 </Route>
                 <Route path="/experiments" element={<Experiments />} />
                 <Route path="/experiments/chessboard-ml" element={<ChessboardML />} />
@@ -930,7 +926,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                   path: '/admin/documentation-tags',
                 },
                 { key: 'statuses', label: 'Статусы', path: '/admin/statuses' },
-                { key: 'disk', label: 'Диск', path: '/admin/disk' },
+                { key: 'api-settings', label: 'API', path: '/admin/api-settings' },
                 {
                   key: 'portal-settings',
                   label: 'Настройка портала',

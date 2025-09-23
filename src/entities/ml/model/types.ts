@@ -3,6 +3,12 @@ export interface NomenclatureSuggestion {
   name: string
   confidence: number // 0-1, где 1 = 100% уверенности
   reasoning?: string // Объяснение, почему этот вариант подходит
+
+  // РАСШИРЕННЫЕ ПОЛЯ ДЛЯ AI АНАЛИЗА (Deepseek)
+  tooltip_info?: string // Краткая справка для показа при наведении
+  price_analysis?: string // Анализ цен и выгоды
+  quality_score?: number // Оценка качества (1-10)
+  supplier_name?: string // Рекомендуемый поставщик
 }
 
 export interface MLPredictionRequest {
@@ -17,7 +23,7 @@ export interface MLPredictionRequest {
 export interface MLPredictionResponse {
   suggestions: NomenclatureSuggestion[]
   processingTime: number // время обработки в мс
-  modelUsed: 'similarity' | 'embedding' | 'llm' | 'fallback'
+  modelUsed: 'similarity' | 'embedding' | 'llm' | 'deepseek' | 'fallback'
   fallbackReason?: string // причина использования fallback
 }
 

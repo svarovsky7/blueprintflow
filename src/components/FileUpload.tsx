@@ -15,7 +15,7 @@ import {
 import type { UploadProps } from 'antd/es/upload'
 import type { MenuProps } from 'antd'
 import type { LocalFile } from '@/entities/documentation'
-import { diskApi } from '@/entities/disk'
+import { diskApi } from '@/entities/api-settings'
 import { transliterate } from '@/lib/transliterate'
 
 const { Text } = Typography

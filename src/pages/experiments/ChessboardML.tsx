@@ -15,6 +15,7 @@ import {
   Modal,
   Select,
   Space,
+  Switch,
   Table,
   Typography,
   Upload,
@@ -37,6 +38,8 @@ import {
   CaretUpFilled,
   CaretDownFilled,
   UploadOutlined,
+  RobotOutlined,
+  ExperimentOutlined,
 } from '@ant-design/icons'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as XLSX from 'xlsx'
@@ -57,7 +60,8 @@ import { useScale } from '@/shared/contexts/ScaleContext'
 import ChessboardSetsModal from '../documents/ChessboardSetsModal'
 import ChessboardOptimized from '../../components/ChessboardOptimized'
 import { DropdownPortalManager } from '../../components/DropdownPortalManager'
-import { MLNomenclatureSelect, MLSupplierSelect, MLConfigPanel, getNomenclatureBySupplier } from '@/entities/ml'
+import { MLNomenclatureSelect, MLSupplierSelect, MLConfigPanel, AIAnalysisModal, getNomenclatureBySupplier } from '@/entities/ml'
+import { mlModeApi, type MLMode } from '@/entities/api-settings'
 
 const { Text } = Typography
 
@@ -404,6 +408,54 @@ export default function Chessboard() {
   const queryClient = useQueryClient()
   const location = useLocation()
 
+  // ===============================
+  // AI/ML РЕЖИМ УПРАВЛЕНИЯ
+  // ===============================
+  // ПАТТЕРН ДЛЯ КОПИРОВАНИЯ: Управление режимом AI/ML для других страниц
+  const [mlMode, setMLMode] = useState<MLMode>('local') // 'local' = обычный ML, 'deepseek' = Deepseek AI
+  const [deepseekAvailable, setDeepseekAvailable] = useState(false) // Доступность Deepseek API
+
+  // Загрузка текущего режима ML при инициализации компонента
+  useEffect(() => {
+    const loadMLMode = async () => {
+      try {
+        const config = await mlModeApi.getCurrentMode()
+        setMLMode(config.mode)
+
+        // Проверяем доступность Deepseek
+        const available = await mlModeApi.isDeepseekAvailable()
+        setDeepseekAvailable(available)
+
+        console.log('🔄 ML Mode: Загружен режим', config.mode, 'Deepseek доступен:', available)
+      } catch (error) {
+        console.error('❌ ML Mode: Ошибка загрузки режима:', error)
+      }
+    }
+    loadMLMode()
+  }, [])
+
+  // Обработчик переключения режима AI/ML
+  const handleMLModeChange = async (newMode: MLMode) => {
+    try {
+      // Если переключаемся на Deepseek, но он недоступен - показываем ошибку
+      if (newMode === 'deepseek' && !deepseekAvailable) {
+        message.warning('Deepseek API недоступен. Проверьте настройки в разделе Администрирование → API')
+        return
+      }
+
+      await mlModeApi.setMode({ mode: newMode })
+      setMLMode(newMode)
+
+      const modeLabel = newMode === 'deepseek' ? 'Deepseek AI' : 'Локальный ML'
+      message.success(`Переключено на ${modeLabel}`)
+
+      console.log('🔄 ML Mode: Режим изменен на', newMode)
+    } catch (error) {
+      console.error('❌ ML Mode: Ошибка переключения режима:', error)
+      message.error('Не удалось переключить режим')
+    }
+  }
+
   const [filters, setFilters] = useState<{
     projectId?: string
     blockId?: string[]
@@ -441,6 +493,7 @@ export default function Chessboard() {
   const [deleteMode, setDeleteMode] = useState(false)
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [mlConfigOpen, setMLConfigOpen] = useState(false) // Состояние для панели настроек ML
+  const [aiTestModalOpen, setAITestModalOpen] = useState(false) // Состояние для модального окна тестирования AI
   const [importOpen, setImportOpen] = useState(false)
   const [importFile, setImportFile] = useState<File | null>(null)
   const [isImporting, setIsImporting] = useState(false)
@@ -4847,6 +4900,7 @@ export default function Chessboard() {
                     value={record.supplier || undefined}
                     onChange={(value) => handleRowChange(record.key, 'supplier', value)}
                     materialName={record.material || ''}
+                    options={supplierOptions[record.key] || []}
                     context={{
                       projectId: appliedFilters?.projectId,
                       categoryId: record.costCategoryId,
@@ -5546,6 +5600,7 @@ export default function Chessboard() {
                     value={edit.supplier || undefined}
                     onChange={(value) => handleEditChange(record.key, 'supplier', value)}
                     materialName={edit.material || record.material || ''}
+                    options={supplierOptions[record.key] || []}
                     context={{
                       projectId: appliedFilters?.projectId,
                       categoryId: edit.costCategoryId || record.costCategoryId,
@@ -6186,6 +6241,48 @@ export default function Chessboard() {
             <span style={{ fontSize: '13px', marginLeft: 'auto', opacity: 0.95 }}>
               Умный подбор номенклатуры по материалам
             </span>
+
+            {/* ПАТТЕРН ДЛЯ КОПИРОВАНИЯ: Переключатель AI/ML режимов */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: 'rgba(255,255,255,0.15)',
+              padding: '4px',
+              borderRadius: '8px',
+              border: '1px solid rgba(255,255,255,0.2)'
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '11px',
+                fontWeight: '600'
+              }}>
+                <ExperimentOutlined style={{ fontSize: '12px' }} />
+                <span>ML</span>
+              </div>
+              <Switch
+                size="small"
+                checked={mlMode === 'deepseek'}
+                onChange={(checked) => handleMLModeChange(checked ? 'deepseek' : 'local')}
+                disabled={!deepseekAvailable && mlMode === 'local'}
+                style={{
+                  backgroundColor: mlMode === 'deepseek' ? '#722ed1' : 'rgba(255,255,255,0.3)'
+                }}
+              />
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '11px',
+                fontWeight: '600'
+              }}>
+                <RobotOutlined style={{ fontSize: '12px' }} />
+                <span>AI</span>
+              </div>
+            </div>
+
             <button
               onClick={() => setMLConfigOpen(true)}
               style={{
@@ -6207,7 +6304,9 @@ export default function Chessboard() {
           </div>
 
           <div style={{ fontSize: '11px', opacity: 0.9, lineHeight: '1.3' }}>
-            <strong>ML-стек:</strong> Levenshtein Distance + PostgreSQL ILIKE + многоэтапный поиск (точное → по словам → fallback) |
+            <strong>{mlMode === 'deepseek' ? 'AI-стек:' : 'ML-стек:'}</strong> {mlMode === 'deepseek'
+              ? 'Deepseek AI + контекстный анализ + семантический поиск материалов'
+              : 'Levenshtein Distance + PostgreSQL ILIKE + многоэтапный поиск (точное → по словам → fallback)'} |
             <strong> Архитектура:</strong> FSD + TanStack Query + React Hooks, confidence 0.25-0.95, кэш 30с
           </div>
         </div>
@@ -6442,6 +6541,12 @@ export default function Chessboard() {
                   </Space.Compact>
                   <Button type="primary" icon={<PlusOutlined />} onClick={startAdd}>
                     Добавить
+                  </Button>
+                  <Button
+                    icon={<RobotOutlined />}
+                    onClick={() => setAITestModalOpen(true)}
+                  >
+                    Тестирование AI
                   </Button>
                 </>
               )}
@@ -7246,6 +7351,13 @@ export default function Chessboard() {
           // Можно добавить дополнительную логику обновления UI здесь
         }}
       />
+
+      {/* Модальное окно тестирования AI */}
+      <AIAnalysisModal
+        open={aiTestModalOpen}
+        onClose={() => setAITestModalOpen(false)}
+      />
+
       </div>
     </DropdownPortalManager>
   )

@@ -1,6 +1,7 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { predictNomenclature, getMLConfig, updateMLMetrics } from '../api/ml-api'
+import { mlModeApi } from '@/entities/api-settings'
 import type { MLPredictionRequest, NomenclatureSuggestion, MLConfig } from '../model/types'
 
 interface UseMLNomenclatureOptions {
@@ -35,6 +36,7 @@ export const useMLNomenclature = (options: UseMLNomenclatureOptions = {}): UseML
   } = options
 
   const [currentRequest, setCurrentRequest] = useState<MLPredictionRequest | null>(null)
+  const [mlMode, setMLMode] = useState<string>('local') // Текущий режим ML/AI
   const [lastResponse, setLastResponse] = useState<{
     confidence: number
     processingTime: number
@@ -55,6 +57,23 @@ export const useMLNomenclature = (options: UseMLNomenclatureOptions = {}): UseML
     gcTime: 30 * 1000, // 30 секунд в памяти
   })
 
+  // Загружаем режим ML/AI (без кэша для актуальности)
+  const { data: modeConfig } = useQuery({
+    queryKey: ['ml-mode-config'],
+    queryFn: () => mlModeApi.getCurrentMode(),
+    staleTime: 0, // Всегда свежие данные
+    gcTime: 1000, // Минимальное время в памяти
+    refetchOnMount: true, // Перезагружать при монтировании
+  })
+
+  // Обновляем режим ML при изменении конфигурации
+  useEffect(() => {
+    if (modeConfig) {
+      setMLMode(modeConfig.mode)
+      console.log('🔄 useMLNomenclature: Режим обновлен на', modeConfig.mode) // LOG: обновление режима
+    }
+  }, [modeConfig])
+
   // Основной запрос для получения предсказаний
   const {
     data: response,
@@ -62,7 +81,7 @@ export const useMLNomenclature = (options: UseMLNomenclatureOptions = {}): UseML
     error,
     refetch
   } = useQuery({
-    queryKey: ['ml-nomenclature-predictions', currentRequest, config],
+    queryKey: ['ml-nomenclature-predictions', currentRequest, config, mlMode], // Включаем режим ML в ключ кэша
     queryFn: async () => {
       if (!currentRequest) return null
 
@@ -115,9 +134,10 @@ export const useMLNomenclature = (options: UseMLNomenclatureOptions = {}): UseML
     }
 
     console.log('🤖 ML: Executing immediate prediction request:', request) // LOG: мгновенное выполнение ML запроса
+    console.log('🔍 DEBUG: Текущий режим ML в useMLNomenclature:', mlMode) // DEBUG LOG: текущий режим
 
     setCurrentRequest(request)
-  }, [minQueryLength])
+  }, [minQueryLength, mlMode])
 
   // Функция для запуска предсказания с debounce (только если включено автопредсказание)
   const predict = useCallback((materialName: string, context?: MLPredictionRequest['context']) => {
