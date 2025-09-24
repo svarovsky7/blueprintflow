@@ -140,4 +140,55 @@ export const ratesApi = {
       throw error
     }
   },
+
+  // Получение работ по виду затрат через rates_detail_cost_categories_mapping
+  async getWorksByCategory(costTypeId?: string, costCategoryId?: string): Promise<{ value: string; label: string }[]> {
+    if (!supabase) throw new Error('Supabase is not configured')
+
+    // Если не указан ни вид затрат, ни категория затрат - возвращаем пустой список
+    if (!costTypeId && !costCategoryId) {
+      return []
+    }
+
+    console.log('🔍 getWorksByCategory called with:', { costTypeId, costCategoryId }) // LOG: отладочная информация
+
+    // Запрос: получаем расценки с их категориями затрат (как в backup файле)
+    const { data, error } = await supabase
+      .from('rates')
+      .select(`
+        id,
+        work_name,
+        rates_detail_cost_categories_mapping(detail_cost_category_id)
+      `)
+
+    console.log('📊 SQL результат:', { data, error }) // LOG: отладочная информация
+
+    if (error) {
+      console.error('Failed to get works by category:', error)
+      throw error
+    }
+
+    if (!data || data.length === 0) {
+      console.log('⚠️ Нет данных для costTypeId:', costTypeId) // LOG: отладочная информация
+      return []
+    }
+
+    // Фильтруем расценки по виду затрат (как в backup файле)
+    const filteredRates = data.filter(rate => {
+      const categoryIds = rate.rates_detail_cost_categories_mapping?.map((m) => m.detail_cost_category_id.toString()) ?? []
+      return categoryIds.includes(costTypeId || '')
+    })
+
+    // Преобразуем результат в нужный формат и сортируем по названию работы
+    const result = filteredRates
+      .filter(rate => rate.work_name) // Только записи с валидными работами
+      .map(rate => ({
+        value: rate.id.toString(), // ID расценки для сохранения в chessboard_rates_mapping
+        label: rate.work_name      // Название работы для отображения
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label)) // Сортировка по названию работы
+
+    console.log('✅ Результат обработки:', result) // LOG: отладочная информация
+    return result
+  },
 }

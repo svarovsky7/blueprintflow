@@ -2051,3 +2051,292 @@ export async function testSearchSupplierNames(
     }
   }
 }
+
+/**
+ * ===============================
+ * ФУНКЦИЯ ПОИСКА НОМЕНКЛАТУРЫ ПОСТАВЩИКА ПО МАТЕРИАЛУ
+ * ===============================
+ * Адаптированная функция для поиска номенклатуры поставщика по названию материала
+ * Использует тот же движок, что и predictSuppliers, но работает с таблицей supplier_names
+ * Возвращает 30 наиболее релевантных вариантов номенклатуры поставщика
+ */
+export const predictNomenclatureSuppliers = async (
+  request: MLPredictionRequest,
+  signal?: AbortSignal
+): Promise<MLPredictionResponse> => {
+  const startTime = Date.now()
+  const config = await getMLConfig()
+
+  console.log('🔍 ML NomenclatureSuppliers DEBUG: AbortSignal status:', {
+    hasSignal: !!signal,
+    aborted: signal?.aborted || false,
+    materialName: request.materialName
+  })
+
+  if (!config.enabled) {
+    return getFallbackNomenclatureSuppliersResults(request, startTime)
+  }
+
+  try {
+    // Выбор между AI и ML режимами
+    const mlModeConfig = await mlModeApi.getCurrentMode()
+    const currentMode = mlModeConfig.mode
+
+    console.log('🔄 ML NomenclatureSuppliers: Режим', currentMode, 'для материала:', request.materialName)
+
+    // Если выбран Deepseek AI режим
+    if (currentMode === 'deepseek') {
+      const deepseekAvailable = await mlModeApi.isDeepseekAvailable()
+
+      if (deepseekAvailable) {
+        console.log('🤖 ML NomenclatureSuppliers: Используем Deepseek AI для поиска номенклатуры поставщика')
+        return await predictNomenclatureSuppliersWithDeepseek(request, signal)
+      } else {
+        console.log('🤖 ML NomenclatureSuppliers: Deepseek недоступен, переключаемся на локальный ML')
+      }
+    }
+
+    // Локальный ML режим для номенклатуры поставщика
+    console.log('🧠 ML NomenclatureSuppliers: Используем локальный ML алгоритм для поиска номенклатуры поставщика')
+    const suggestions = await getNomenclatureSupplierSuggestions(request, config)
+
+    return {
+      suggestions,
+      processingTime: Date.now() - startTime,
+      modelUsed: 'local-nomenclature-suppliers'
+    }
+
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.log('🤖 ML NomenclatureSuppliers: Запрос отменен (AbortError)')
+    } else {
+      console.error('🤖 ML NomenclatureSuppliers: Ошибка предсказания:', error)
+    }
+    throw error
+  }
+}
+
+/**
+ * Локальный ML алгоритм для поиска номенклатуры поставщика
+ * Адаптирован из getSupplierBasedSuggestions для работы с supplier_names
+ */
+const getNomenclatureSupplierSuggestions = async (
+  request: MLPredictionRequest,
+  config: MLConfig
+): Promise<NomenclatureSuggestion[]> => {
+  if (!supabase) throw new Error('Supabase is not configured')
+
+  console.log('🔍 ML NomenclatureSuppliers: Поиск в supplier_names для материала:', request.materialName)
+
+  // Получаем все записи из supplier_names (номенклатура поставщика)
+  const { data: supplierNames, error } = await supabase
+    .from('supplier_names')
+    .select('id, name')
+    .limit(3000) // Увеличенный лимит для лучшего поиска
+
+  if (error) {
+    console.error('Ошибка получения supplier_names:', error)
+    throw error
+  }
+
+  if (!supplierNames || supplierNames.length === 0) {
+    console.log('Таблица supplier_names пуста')
+    return []
+  }
+
+  console.log(`🔍 ML NomenclatureSuppliers: Загружено ${supplierNames.length} записей номенклатуры поставщика`)
+
+  // Адаптированный алгоритм поиска для номенклатуры поставщика
+  const searchTerm = request.materialName.toLowerCase().trim()
+  const supplierSearchWords = searchTerm
+    .replace(/[^\wа-яё\s]/g, ' ')
+    .split(/\s+/)
+    .filter(word => word.length >= config.minWordLength)
+    .filter(word => !config.ignoredTerms.includes(word))
+
+  console.log('🔍 ML NomenclatureSuppliers: Поисковые слова:', supplierSearchWords)
+
+  if (supplierSearchWords.length === 0) {
+    console.log('Нет значимых слов для поиска номенклатуры поставщика')
+    return []
+  }
+
+  const effectiveSearchTerm = supplierSearchWords.join(' ')
+
+  // Фильтрация и ранжирование номенклатуры поставщика
+  const matches = supplierNames.filter(supplier => {
+    const supplierLower = supplier.name.toLowerCase()
+    return supplierSearchWords.some(word => supplierLower.includes(word))
+  })
+
+  console.log(`🔍 ML NomenclatureSuppliers: Найдено ${matches.length} совпадений`)
+
+  // Создаем предложения с расчетом уверенности
+  const suggestions = matches.map((supplier, index) => {
+    const supplierLower = supplier.name.toLowerCase()
+    const cleanedSupplierName = cleanTermForMatching(supplierLower, config.ignoredTerms)
+
+    // Базовый similarity score
+    const rawSimilarity = calculateStringSimilarity(effectiveSearchTerm, cleanedSupplierName)
+    const similarity = rawSimilarity * config.similarityWeight
+
+    let totalBonus = 0
+    const bonusBreakdown = []
+
+    // Бонус за точное совпадение префикса
+    if (cleanedSupplierName.startsWith(effectiveSearchTerm) || supplierLower.startsWith(searchTerm)) {
+      totalBonus += config.prefixBonus
+      bonusBreakdown.push(`prefix:${Math.round(config.prefixBonus * 100)}%`)
+    }
+
+    // Бонус за точное вхождение
+    if (cleanedSupplierName.includes(effectiveSearchTerm) || supplierLower.includes(searchTerm)) {
+      totalBonus += config.exactMatchBonus
+      bonusBreakdown.push(`exact:${Math.round(config.exactMatchBonus * 100)}%`)
+    }
+
+    // Расширенный анализ ключевых слов
+    const keywordScore = calculateKeywordScore(supplierSearchWords, cleanedSupplierName, config)
+    const keywordBonus = keywordScore * config.keywordBonus
+    totalBonus += keywordBonus
+    bonusBreakdown.push(`keywords:${Math.round(keywordScore * 100)}%*${Math.round(config.keywordBonus * 100)}%=${Math.round(keywordBonus * 100)}%`)
+
+    // Применяем алгоритм настройки точности
+    let finalScore = similarity + totalBonus
+    const beforeAlgorithm = finalScore
+    finalScore = applyAlgorithmSettings(finalScore, config.algorithm)
+
+    const finalConfidence = Math.max(0.1, Math.min(0.95, finalScore))
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`🔍 ML NomenclatureSuppliers: "${supplier.name}" (${index + 1}/${matches.length}):`, {
+        similarity: Math.round(similarity * 100) + '%',
+        bonuses: bonusBreakdown.join(' + '),
+        algorithm: config.algorithm,
+        confidence: Math.round(finalConfidence * 100) + '%'
+      })
+    }
+
+    return {
+      id: supplier.id,
+      name: supplier.name,
+      confidence: finalConfidence,
+      reasoning: `${Math.round(similarity * 100)}% similarity + [${bonusBreakdown.join(', ')}] via ${config.algorithm} algorithm`
+    }
+  })
+
+  // Фильтруем по порогу уверенности и сортируем
+  const filteredSuggestions = suggestions
+    .filter(s => s.confidence >= config.confidenceThreshold)
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 30) // Ограничиваем 30 результатами
+
+  console.log('🔍 ML NomenclatureSuppliers: Финальных предложений:', filteredSuggestions.length)
+
+  return filteredSuggestions
+}
+
+/**
+ * Deepseek AI для поиска номенклатуры поставщика
+ */
+async function predictNomenclatureSuppliersWithDeepseek(
+  request: MLPredictionRequest,
+  externalSignal?: AbortSignal
+): Promise<MLPredictionResponse> {
+  console.log('🤖 Deepseek NomenclatureSuppliers: Начало анализа материала:', request.materialName)
+
+  try {
+    const mlConfig = await getMLConfig()
+    const maxSuggestions = Math.min(30, mlConfig?.maxSuggestions || 15) // Ограничиваем 30
+
+    // Формируем запрос для Deepseek
+    const deepseekRequest: DeepseekMaterialRequest = {
+      material_name: request.materialName,
+      context: request.context ? {
+        project_type: request.context.projectId ? 'строительный' : undefined,
+        cost_category: request.context.categoryId,
+        cost_type: request.context.typeId,
+        location: undefined
+      } : undefined,
+      preferences: {
+        prefer_eco_friendly: false,
+        budget_conscious: true,
+        quality_priority: true,
+        max_suggestions: maxSuggestions
+      }
+    }
+
+    console.log('🤖 Deepseek NomenclatureSuppliers: Отправляем запрос:', deepseekRequest)
+
+    const deepseekResponse = await deepseekApi.analyzeMaterial(deepseekRequest, externalSignal)
+
+    console.log('🤖 Deepseek NomenclatureSuppliers: Получен ответ с', deepseekResponse.recommendations.length, 'рекомендациями')
+
+    // Преобразуем ответ Deepseek в формат ML
+    const suggestions: NomenclatureSuggestion[] = deepseekResponse.recommendations.map((rec, index) => {
+      // Используем supplier_name как основное название (номенклатура поставщика)
+      const nomenclatureSupplierName = rec.supplier_name || rec.nomenclature_name || 'Не указано'
+
+      // Проверяем на fallback тексты
+      const fallbackTexts = [
+        'Требуется уточнение поставщика',
+        'Не указано',
+        'Уточняется',
+        'Материал не найден'
+      ]
+
+      let finalName = nomenclatureSupplierName
+      if (fallbackTexts.some(fallback => nomenclatureSupplierName.includes(fallback))) {
+        finalName = request.materialName
+      }
+
+      // Формируем расширенное обоснование
+      let enhancedReasoning = `AI: ${rec.reasoning}`
+      if (rec.price_analysis) enhancedReasoning += `\n💰 Цена: ${rec.price_analysis}`
+      if (rec.quality_score) enhancedReasoning += `\n⭐ Качество: ${rec.quality_score}/10`
+
+      return {
+        id: rec.nomenclature_id || `ai-nomenclature-supplier-${index}`,
+        name: finalName,
+        confidence: Math.max(0.1, Math.min(0.95, rec.confidence)),
+        reasoning: enhancedReasoning,
+        tooltip_info: rec.tooltip_info,
+        price_analysis: rec.price_analysis,
+        quality_score: rec.quality_score,
+        supplier_name: rec.supplier_name
+      }
+    })
+
+    console.log('🤖 Deepseek NomenclatureSuppliers: Преобразованы предложения:', suggestions.length)
+
+    return {
+      suggestions,
+      processingTime: deepseekResponse.usage_stats.processing_time_ms,
+      modelUsed: 'deepseek-nomenclature-suppliers'
+    }
+
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.log('🤖 Deepseek NomenclatureSuppliers: Запрос отменен пользователем (AbortError)')
+    } else {
+      console.error('🤖 Deepseek NomenclatureSuppliers: Ошибка анализа материала:', error)
+    }
+    throw error
+  }
+}
+
+/**
+ * Fallback результаты для номенклатуры поставщика
+ */
+const getFallbackNomenclatureSuppliersResults = async (
+  request: MLPredictionRequest,
+  startTime: number
+): Promise<MLPredictionResponse> => {
+  console.log('🔄 ML NomenclatureSuppliers: Возвращаем fallback результаты (ML отключен)')
+
+  return {
+    suggestions: [],
+    processingTime: Date.now() - startTime,
+    modelUsed: 'fallback-nomenclature-suppliers'
+  }
+}

@@ -91,7 +91,7 @@ export default function Projects() {
       const allProjectBlocks = projectBlocksData?.map((pb) => pb.blocks).filter(Boolean) || []
 
       // 2. Загружаем диапазоны этажей для всех блоков проекта
-      const blockIds = allProjectBlocks.map((b) => b.id)
+      const blockIds = allProjectBlocks.flat().map((b) => b.id)
       const { data: floorData, error: floorError } = await supabase
         .from('block_floor_mapping')
         .select('block_id, floor_number, type_blocks')
@@ -102,7 +102,7 @@ export default function Projects() {
       // Создаем диапазоны этажей для каждого блока
       const blockFloorRanges: Record<
         string,
-        { bottom_floor: number; top_floor: number; isStylebate: boolean }
+        { bottom_floor: number; top_floor: number; isStylebate: boolean; technicalFloors: number[] }
       > = {}
       const stylobateBlockIds = new Set()
 
@@ -116,6 +116,7 @@ export default function Projects() {
             bottom_floor: f.floor_number,
             top_floor: f.floor_number,
             isStylebate: f.type_blocks === 'Стилобат',
+            technicalFloors: f.type_blocks === 'Типовой корпус.Тех.этаж' ? [f.floor_number] : [],
           }
         } else {
           blockFloorRanges[f.block_id].bottom_floor = Math.min(
@@ -129,17 +130,21 @@ export default function Projects() {
           if (f.type_blocks === 'Стилобат') {
             blockFloorRanges[f.block_id].isStylebate = true
           }
+          if (f.type_blocks === 'Типовой корпус.Тех.этаж') {
+            blockFloorRanges[f.block_id].technicalFloors.push(f.floor_number)
+          }
         }
       })
 
       // 3. Разделяем блоки на обычные корпуса и стилобаты
-      const regularBlocks = allProjectBlocks.filter((block) =>
+      const flatBlocks = allProjectBlocks.flat()
+      const regularBlocks = flatBlocks.filter((block) =>
         // Fallback: если type_blocks не указан, используем старую логику по типам этажей
         block.type_blocks
           ? block.type_blocks === 'Типовой корпус'
           : !stylobateBlockIds.has(block.id),
       )
-      const stylobateBlocks = allProjectBlocks.filter((block) =>
+      const stylobateBlocks = flatBlocks.filter((block) =>
         block.type_blocks ? block.type_blocks === 'Стилобат' : stylobateBlockIds.has(block.id),
       )
 
@@ -165,73 +170,42 @@ export default function Projects() {
         blockIdMapping[block.id] = index + 1
       })
 
-      // 6. Создаем структуру стилобатов с правильным позиционированием
-      const stylobates = stylobateBlocks.map((stylobateBlock, index) => {
-        // Попробуем несколько способов найти соединения для стилобата:
+      // 6. Создаем структуру стилобатов на основе соединений между корпусами
+      const stylobateConnections = connections?.filter((c) => c.connection_type === 'Стилобат') || []
 
-        // Способ 1: Стилобат как участник соединения (from_block_id или to_block_id)
-        let stylobateConnections =
-          connections?.filter(
-            (c) =>
-              c.connection_type === 'Стилобат' &&
-              (c.from_block_id === stylobateBlock.id || c.to_block_id === stylobateBlock.id),
-          ) || []
 
-        // Способ 2: Поиск соединений типа "Стилобат" между обычными корпусами
-        if (stylobateConnections.length === 0) {
-          const stylobateTypeConnections =
-            connections?.filter((c) => c.connection_type === 'Стилобат') || []
+      const stylobates = stylobateConnections.map((connection, index) => {
+        // Находим локальные ID корпусов
+        const fromBlockId = blockIdMapping[connection.from_block_id] || 0
+        const toBlockId = blockIdMapping[connection.to_block_id] || 0
 
-          // Если есть соединения типа "Стилобат", берем соответствующее по индексу
-          if (stylobateTypeConnections.length > index) {
-            stylobateConnections = [stylobateTypeConnections[index]]
-          }
+        // Находим соответствующий блок стилобата по названию или берем первый доступный
+        let stylobateBlock = stylobateBlocks.find(block =>
+          block.name.includes(regularBlocks.find(b => b.id === connection.from_block_id)?.name || '') &&
+          block.name.includes(regularBlocks.find(b => b.id === connection.to_block_id)?.name || '')
+        )
+
+        // Если не нашли по названию, берем по индексу
+        if (!stylobateBlock && stylobateBlocks[index]) {
+          stylobateBlock = stylobateBlocks[index]
         }
 
-        let fromBlockId = 0,
-          toBlockId = 0
+        const floorInfo = stylobateBlock ? blockFloorRanges[stylobateBlock.id] : null
+        const fromBlockName = regularBlocks.find(b => b.id === connection.from_block_id)?.name || 'unknown'
+        const toBlockName = regularBlocks.find(b => b.id === connection.to_block_id)?.name || 'unknown'
 
-        if (stylobateConnections.length > 0) {
-          // Находим корпуса, участвующие в соединении
-          const connectedBlockIds = new Set()
-          stylobateConnections.forEach((conn) => {
-            connectedBlockIds.add(conn.from_block_id)
-            if (conn.to_block_id) connectedBlockIds.add(conn.to_block_id)
-          })
-
-          // Исключаем сам стилобат из списка связанных блоков
-          connectedBlockIds.delete(stylobateBlock.id)
-
-          const connectedRegularBlocks = regularBlocks.filter((b) => connectedBlockIds.has(b.id))
-
-          if (connectedRegularBlocks.length >= 2) {
-            // Стилобат между двумя корпусами
-            fromBlockId = blockIdMapping[connectedRegularBlocks[0].id] || 0
-            toBlockId = blockIdMapping[connectedRegularBlocks[1].id] || 0
-          } else if (connectedRegularBlocks.length === 1) {
-            // Стилобат примыкает к одному корпусу
-            fromBlockId = blockIdMapping[connectedRegularBlocks[0].id] || 0
-            toBlockId = fromBlockId + 1
-          }
-        }
-
-        // Способ 3: Fallback - размещаем между первыми двумя корпусами
-        if (fromBlockId === 0 && toBlockId === 0 && regularBlocks.length >= 2) {
-          fromBlockId = 1
-          toBlockId = 2
-        }
-
-        const floorInfo = blockFloorRanges[stylobateBlock.id]
-
-        return {
+        const result = {
           id: `stylobate-${index + 1}`,
-          name: stylobateBlock.name,
+          name: stylobateBlock?.name || `Стилобат ${fromBlockName}-${toBlockName}`,
           fromBlockId,
           toBlockId,
-          floors: floorInfo ? floorInfo.top_floor - floorInfo.bottom_floor + 1 : 1,
+          floors: connection.floors_count || (floorInfo ? floorInfo.top_floor - floorInfo.bottom_floor + 1 : 1),
           x: 0,
           y: 0,
         }
+
+
+        return result
       })
 
       // 7. Создаем структуру подземной парковки
@@ -287,6 +261,7 @@ export default function Projects() {
             topFloor: floorInfo?.top_floor ?? 0,
             x: 0,
             y: 0,
+            technicalFloors: floorInfo?.technicalFloors || [],
           }
         }),
         stylobates,
@@ -706,27 +681,46 @@ export default function Projects() {
         if (projectError) throw projectError
         projectId = currentProject.id
 
-        // Удаляем все существующие данные проекта для пересоздания
-        console.log('🗑️ Cleaning up existing project data for re-creation')
+        console.log('🗑️ Полная очистка данных проекта для пересоздания') // LOG
 
-        // Удаляем связи блоков
+        // Получаем все существующие блоки проекта для полной очистки
+        const { data: existingProjectBlocks } = await supabase
+          .from('projects_blocks')
+          .select('block_id')
+          .eq('project_id', currentProject.id)
+
+        const allExistingBlockIds = existingProjectBlocks?.map(b => b.block_id) || []
+        console.log('🔍 Найдено блоков для удаления:', allExistingBlockIds.length) // LOG
+
+        // 1. Удаляем связи блоков (connections)
         await supabase
           .from('block_connections_mapping')
           .delete()
           .eq('project_id', currentProject.id)
 
-        // Удаляем этажи блоков
-        if (existingBlockIds.length) {
-          await supabase.from('block_floor_mapping').delete().in('block_id', existingBlockIds)
+        // 2. Удаляем этажи всех блоков
+        if (allExistingBlockIds.length) {
+          await supabase
+            .from('block_floor_mapping')
+            .delete()
+            .in('block_id', allExistingBlockIds)
         }
 
-        // Удаляем связи блоков с проектом
-        await supabase.from('projects_blocks').delete().eq('project_id', currentProject.id)
+        // 3. Удаляем связи блоков с проектом
+        await supabase
+          .from('projects_blocks')
+          .delete()
+          .eq('project_id', currentProject.id)
 
-        // Удаляем блоки
-        if (existingBlockIds.length) {
-          await supabase.from('blocks').delete().in('id', existingBlockIds)
+        // 4. Удаляем сами блоки
+        if (allExistingBlockIds.length) {
+          await supabase
+            .from('blocks')
+            .delete()
+            .in('id', allExistingBlockIds)
         }
+
+        console.log('✅ Очистка завершена, создаем новые блоки') // LOG
       } else {
         return
       }
@@ -745,11 +739,13 @@ export default function Projects() {
         // Добавляем этажи к блоку
         const floors = []
         for (let floor = block.bottomFloor; floor <= block.topFloor; floor++) {
-          let blockType: 'Подземный паркинг' | 'Типовой корпус' | 'Стилобат' | 'Кровля'
+          let blockType: 'Подземный паркинг' | 'Типовой корпус' | 'Стилобат' | 'Кровля' | 'Типовой корпус.Тех.этаж'
 
           // Определяем тип этажа
           if (floor === 0) {
             blockType = 'Кровля'
+          } else if (block.technicalFloors?.includes(floor)) {
+            blockType = 'Типовой корпус.Тех.этаж'
           } else if (floor > 0) {
             blockType = 'Типовой корпус'
           } else {
@@ -764,30 +760,40 @@ export default function Projects() {
         await blocksApi.addFloorsToBlock(createdBlock.id, floors)
       }
 
-      // 2. Создаем стилобаты
+      // 2. Создаем стилобаты как отдельные блоки
       for (const stylobate of cardData.stylobates) {
         const fromBlockDbId = createdBlocks[stylobate.fromBlockId]
         const toBlockDbId = createdBlocks[stylobate.toBlockId]
 
         if (fromBlockDbId && toBlockDbId) {
+
+          // Создаем блок стилобата с правильным типом
+          const stylobateBlock = await blocksApi.createBlock(stylobate.name, 'Стилобат')
+
+          // Привязываем стилобат к проекту
+          await blocksApi.linkBlockToProject(projectId, stylobateBlock.id)
+
+          // Определяем этажность стилобата
+          const bottomFloor = stylobate.bottomFloor ?? 1
+          const topFloor = stylobate.topFloor ?? stylobate.floors
+
+          // Добавляем этажи к стилобату
+          const floors: Array<{ floor_number: number; type_blocks: BlockType }> = []
+          for (let floor = bottomFloor; floor <= topFloor; floor++) {
+            floors.push({ floor_number: floor, type_blocks: 'Стилобат' as BlockType })
+          }
+          await blocksApi.addFloorsToBlock(stylobateBlock.id, floors)
+
+          // НЕ добавляем стилобат в createdBlocks мапинг, чтобы не перезаписать корпуса
+
+          // Создаем одно соединение между корпусами через стилобат
           await blockConnectionsApi.createBlockConnection(
             projectId,
             fromBlockDbId,
             toBlockDbId,
             'Стилобат',
-            stylobate.floors,
+            stylobate.floors
           )
-
-          // Создаем блок стилобата в таблице blocks
-          const stylobateBlock = await blocksApi.createBlock(stylobate.name, 'Стилобат')
-          await blocksApi.linkBlockToProject(projectId, stylobateBlock.id)
-
-          // Добавляем этажи стилобата
-          const stylobateFloors = []
-          for (let floor = 1; floor <= stylobate.floors; floor++) {
-            stylobateFloors.push({ floor_number: floor, type_blocks: 'Стилобат' as const })
-          }
-          await blocksApi.addFloorsToBlock(stylobateBlock.id, stylobateFloors)
         }
       }
 
@@ -1331,7 +1337,7 @@ export default function Projects() {
               </Space>
             ))}
 
-            {modalMode !== 'view' && (
+            {(modalMode === 'add' || modalMode === 'edit') && (
               <div style={{ marginTop: 24, textAlign: 'left' }}>
                 <Button type="default" onClick={handleShowProjectCard}>
                   Карточка

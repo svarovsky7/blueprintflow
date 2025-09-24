@@ -366,6 +366,7 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
 
       const rateMapping = ratesMappingIndex.get(row.id)
       const workName = rateMapping?.rates?.work_name || ''
+      const rateId = rateMapping?.rates?.id || ''
 
       // ОПТИМИЗАЦИЯ: агрегируем количества и формируем данные этажей в одном проходе
       let totalQuantityPd = 0
@@ -418,6 +419,7 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
         costTypeId: String(mapping?.cost_type_id || ''),
 
         workName: workName,
+        rateId: String(rateId || ''), // ID расценки для сохранения в mapping
         location: mapping?.location?.name || '',
         locationId: String(mapping?.location_id || ''),
 
@@ -426,6 +428,9 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
         quantityPd: String(totalQuantityPd || 0),
         quantitySpec: String(totalQuantitySpec || 0),
         quantityRd: String(totalQuantityRd || 0),
+
+        // Этажи для отображения ссылок
+        floors: floorsRange,
 
         // Номенклатура и поставщик из реальных маппингов
         nomenclature: nomenclatureMapping?.nomenclature?.name || '',

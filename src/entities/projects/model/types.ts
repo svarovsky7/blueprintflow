@@ -23,7 +23,7 @@ export interface BlockFloorMapping {
   id: string
   block_id: string
   floor_number: number
-  type_blocks: 'Подземный паркинг' | 'Типовой корпус' | 'Стилобат' | 'Кровля'
+  type_blocks: 'Подземный паркинг' | 'Типовой корпус' | 'Стилобат' | 'Кровля' | 'Типовой корпус.Тех.этаж'
   created_at: string
   updated_at: string
 }
@@ -47,6 +47,7 @@ export interface UIBlock {
   topFloor: number
   x: number
   y: number
+  technicalFloors?: number[] // Список номеров технических этажей
 }
 
 export interface UIStylobate {
@@ -57,6 +58,8 @@ export interface UIStylobate {
   floors: number
   x: number
   y: number
+  bottomFloor?: number
+  topFloor?: number
 }
 
 export interface UIUndergroundParking {
@@ -70,4 +73,4 @@ export interface ProjectCardData {
   undergroundParking: UIUndergroundParking
 }
 
-export type BlockType = 'Подземный паркинг' | 'Типовой корпус' | 'Стилобат' | 'Кровля'
+export type BlockType = 'Подземный паркинг' | 'Типовой корпус' | 'Стилобат' | 'Кровля' | 'Типовой корпус.Тех.этаж'

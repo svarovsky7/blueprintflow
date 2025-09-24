@@ -46,19 +46,32 @@ export const chessboardApi = {
   async update(id: string, updates: Partial<ChessboardRow>) {
     if (!supabase) throw new Error('Supabase is not configured')
 
+    console.log('🔍 chessboardApi.update - входные данные:', { id, updates })
+
     const {
       quantityPd: _quantityPd,
       quantitySpec: _quantitySpec,
       quantityRd: _quantityRd,
+      workName: _workName,
       ...rest
     } = updates as Record<string, unknown>
     void _quantityPd
     void _quantitySpec
     void _quantityRd
+    void _workName
+
+    console.log('📊 chessboardApi.update - данные для отправки:', rest)
+
     const { data, error } = await supabase.from('chessboard').update(rest).eq('id', id).select()
 
     if (error) {
-      console.error('Failed to update chessboard row:', error)
+      console.error('❌ Failed to update chessboard row:', error)
+      console.error('📊 Детали ошибки:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      })
       throw error
     }
 

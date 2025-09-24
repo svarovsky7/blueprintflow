@@ -191,7 +191,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
   // Создаем простое всплывающее меню без Popover
   const createHoverMenu = (
     menuKey: string,
-    menuItems: Array<{ key: string; label: React.ReactNode; path: string }>,
+    _menuItems: Array<{ key: string; label: React.ReactNode; path: string }>,
   ) => {
     const handleMouseEnter = (e: React.MouseEvent) => {
       // Отменяем предыдущий таймер сокрытия

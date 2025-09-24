@@ -1,10 +1,11 @@
-import { useCallback, memo } from 'react'
+import { useCallback, memo, useState } from 'react'
 import { Button, Select, Space, Input, Badge } from 'antd'
-import { FilterOutlined, CaretUpFilled, CaretDownFilled, SettingOutlined } from '@ant-design/icons'
+import { FilterOutlined, CaretUpFilled, CaretDownFilled, SettingOutlined, RobotOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { documentationApi } from '@/entities/documentation'
 import { documentationTagsApi } from '@/entities/documentation-tags'
+import { MLConfigPanel } from '@/entities/ml'
 import { ChessboardActionButtons } from './ChessboardActionButtons'
 import type { ChessboardFilters, ProjectOption, BlockOption, CostCategoryOption, CostTypeOption, TableMode } from '../types'
 
@@ -54,6 +55,9 @@ export const ChessboardFilters = memo(({
   onDeleteSelected,
   onAddRow,
 }: ChessboardFiltersProps) => {
+  // Состояние для панели настроек ML
+  const [mlConfigOpen, setMLConfigOpen] = useState(false)
+
   // Обработчик применения фильтров с автосворачиванием
   const handleApplyFilters = useCallback(() => {
     onApplyFilters()
@@ -325,16 +329,37 @@ export const ChessboardFilters = memo(({
 
             </Space>
 
-            {/* Кнопка настройки столбцов */}
-            <Button
-              icon={<SettingOutlined />}
-              onClick={onOpenColumnSettings}
-            >
-              Настройка столбцов
-            </Button>
+            {/* Кнопки управления */}
+            <Space>
+              {/* Кнопка настроек ML */}
+              <Button
+                icon={<RobotOutlined />}
+                onClick={() => setMLConfigOpen(true)}
+                title="ML настройки поиска номенклатуры поставщика"
+              >
+                ML
+              </Button>
+
+              {/* Кнопка настройки столбцов */}
+              <Button
+                icon={<SettingOutlined />}
+                onClick={onOpenColumnSettings}
+              >
+                Настройка столбцов
+              </Button>
+            </Space>
           </div>
         </div>
       )}
+
+      {/* Панель настроек ML */}
+      <MLConfigPanel
+        open={mlConfigOpen}
+        onClose={() => setMLConfigOpen(false)}
+        onConfigUpdate={(newConfig) => {
+          console.log('🤖 ML Config updated:', newConfig) // LOG: обновление конфигурации ML
+        }}
+      />
     </div>
   )
 })

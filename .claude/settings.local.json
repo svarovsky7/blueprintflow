@@ -67,7 +67,10 @@
       "Bash(start http://localhost:5180/documents/chessboard)",
       "Bash(start:*)",
       "Bash(rm:*)",
-      "Bash(timeout 10 npm run dev)"
+      "Bash(timeout 10 npm run dev)",
+      "Bash(del temp/test-rates-api.js)",
+      "Bash(timeout 15 npm run dev)",
+      "Bash(del:*)"
     ],
     "deny": [],
     "ask": []

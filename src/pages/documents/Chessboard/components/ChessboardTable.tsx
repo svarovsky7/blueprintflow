@@ -4,12 +4,15 @@ import { EditOutlined, DeleteOutlined, CopyOutlined, PlusOutlined, BgColorsOutli
 import type { ColumnsType, ColumnType } from 'antd/es/table'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { ratesApi } from '@/entities/rates/api/rates-api'
 import { RowColorPicker } from './RowColorPicker'
 import { CommentsCell } from './CommentsCell'
 import { FloorQuantitiesModal } from './FloorQuantitiesModal'
-import { AIAnalysisModal } from '@/entities/ml/lib/AIAnalysisModal'
+import { AIAnalysisModal, MLNomenclatureSupplierSelect } from '@/entities/ml'
 import type { RowData, TableMode, RowColor, FloorModalRow, FloorModalInfo } from '../types'
 import { COLUMN_KEYS, TABLE_SCROLL_CONFIG, LARGE_TABLE_CONFIG } from '../utils/constants'
+import { useNomenclatureSupplierCascade } from '../hooks/useNomenclatureSupplierCascade'
+import { chessboardCascadeApi } from '@/entities/chessboard'
 
 // ОПТИМИЗАЦИЯ: константы стилей для предотвращения создания новых объектов на каждом рендере
 const STABLE_STYLES = {
@@ -24,6 +27,42 @@ const STABLE_STYLES = {
     overflowY: 'auto' as const
   } as const,
 } as const
+
+// Компонент для каскадного выбора работ - ИСПРАВЛЕНИЕ Rules of Hooks
+interface WorkNameSelectProps {
+  value: string
+  costTypeId: string | undefined
+  costCategoryId: string | undefined
+  onChange: (value: string) => void
+}
+
+const WorkNameSelect: React.FC<WorkNameSelectProps> = ({ value, costTypeId, costCategoryId, onChange }) => {
+  // Хук всегда вызывается на верхнем уровне компонента
+  const { data: workOptions = [] } = useQuery({
+    queryKey: ['works-by-category', costTypeId, costCategoryId].filter(Boolean),
+    queryFn: () => ratesApi.getWorksByCategory(costTypeId, costCategoryId),
+    enabled: !!(costTypeId || costCategoryId), // Запрос только если есть вид или категория затрат
+  })
+
+  return (
+    <Select
+      value={value || undefined}
+      placeholder="Выберите работу"
+      onChange={onChange}
+      allowClear
+      showSearch
+      size="small"
+      style={STABLE_STYLES.fullWidth}
+      filterOption={(input, option) => {
+        const text = option?.label?.toString() || ""
+        return text.toLowerCase().includes(input.toLowerCase())
+      }}
+      options={workOptions}
+      disabled={!costTypeId && !costCategoryId} // Отключаем если нет ни вида, ни категории затрат
+      notFoundContent={costTypeId || costCategoryId ? 'Работы не найдены' : 'Выберите вид или категорию затрат'}
+    />
+  )
+}
 
 // CSS стили для заголовков таблицы - ИСПРАВЛЕННОЕ РЕШЕНИЕ для правильных переносов
 const headerStyles = `
@@ -611,16 +650,21 @@ export const ChessboardTable = memo(({
   onStartEditing,
 }: ChessboardTableProps) => {
 
+  // Каскадная зависимость номенклатуры и поставщиков
+  const cascadeHook = useNomenclatureSupplierCascade({
+    enableCascade: true
+  })
+
   // Загрузка данных справочников для селектов
   const { data: materialsData = [] } = useQuery({
     queryKey: ['materials-autocomplete'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('materials')
-        .select('name')
+        .select('uuid, name')
         .order('name')
       if (error) throw error
-      return data.map(item => item.name).filter(Boolean)
+      return data.map(item => ({ value: item.uuid, label: item.name })).filter(Boolean)
     },
   })
 
@@ -689,29 +733,16 @@ export const ChessboardTable = memo(({
     enabled: !!currentProjectId,
   })
 
-  const { data: nomenclatureData = [] } = useQuery({
-    queryKey: ['nomenclature-select'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('nomenclature')
-        .select('id, name')
-        .order('name')
-      if (error) throw error
-      return data.map(item => ({ value: item.id, label: item.name }))
-    },
-  })
+  // Данные из каскадного хука (заменяют старые запросы номенклатуры и поставщиков)
+  const nomenclatureData = cascadeHook.nomenclatureOptions.map(item => ({
+    value: item.id,
+    label: item.name
+  }))
 
-  const { data: suppliersData = [] } = useQuery({
-    queryKey: ['supplier-names-select'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('supplier_names')
-        .select('id, name')
-        .order('name')
-      if (error) throw error
-      return data.map(item => ({ value: item.id, label: item.name }))
-    },
-  })
+  const suppliersData = cascadeHook.allSupplierOptions.map(item => ({
+    value: item.name, // Используем name как value для обратной совместимости
+    label: item.name
+  }))
 
   const { data: locationsData = [] } = useQuery({
     queryKey: ['locations-select'],
@@ -1499,12 +1530,23 @@ export const ChessboardTable = memo(({
       render: (value, record) => {
         const isEditing = (record as any).isEditing
         if (isEditing) {
+          const costTypeId = (record as RowData).costTypeId
+          const costCategoryId = (record as RowData).costCategoryId
+          const currentRateId = (record as RowData).rateId
+
           return (
-            <Input
-              value={value || ''}
-              onChange={(e) => onRowUpdate(record.id, { workName: e.target.value })}
-              size="small"
-              style={{ width: '100%' }}
+            <WorkNameSelect
+              value={currentRateId || ''} // Используем rateId как value
+              costTypeId={costTypeId}
+              costCategoryId={costCategoryId}
+              onChange={(selectedRateId, option) => {
+                // selectedRateId - это ID расценки, option.label - это название работы
+                const selectedWorkName = option?.label || ''
+                onRowUpdate(record.id, {
+                  workName: selectedWorkName,
+                  rateId: selectedRateId
+                })
+              }}
             />
           )
         }
@@ -1546,10 +1588,18 @@ export const ChessboardTable = memo(({
       render: (value, record) => {
         const isEditing = (record as any).isEditing
         if (isEditing) {
+          const currentLocationId = (record as RowData).locationId
           return (
             <Select
-              value={value || undefined}
-              onChange={(newValue) => onRowUpdate(record.id, { location: newValue })}
+              value={currentLocationId || undefined} // Используем locationId как value
+              onChange={(newValue, option) => {
+                // newValue - это ID локализации, option.label - это название локализации
+                const selectedLocationName = option?.label || ''
+                onRowUpdate(record.id, {
+                  location: selectedLocationName,
+                  locationId: newValue
+                })
+              }}
               options={locationsData}
               allowClear
               showSearch
@@ -1594,15 +1644,23 @@ export const ChessboardTable = memo(({
         const isEditing = (record as any).isEditing
 
         if (isEditing) {
+          // Находим UUID материала для отредактированной строки или используем исходный
+          const currentMaterialUuid = record.materialId || record.material
+          // Находим название материала по UUID для отображения
+          const currentMaterialName = materialsData.find(m => m.value === currentMaterialUuid)?.label || value || ''
+
           return (
             <AutoComplete
-              value={value || ''}
+              value={currentMaterialName}
               onChange={(newValue) => {
-                onRowUpdate(record.id, { material: newValue })
+                // Ищем UUID материала по введенному названию
+                const selectedMaterial = materialsData.find(m => m.label === newValue)
+                const materialUuid = selectedMaterial?.value || newValue // Если не найден UUID, используем введенный текст
+                onRowUpdate(record.id, { material: materialUuid })
               }}
-              options={materialsData.map(material => ({ value: material, label: material }))}
+              options={materialsData}
               filterOption={(inputValue, option) =>
-                option?.value?.toString().toUpperCase().indexOf(inputValue.toUpperCase()) !== -1
+                option?.label?.toString().toUpperCase().indexOf(inputValue.toUpperCase()) !== -1
               }
               size="small"
               style={{ width: '100%' }}
@@ -1732,6 +1790,18 @@ export const ChessboardTable = memo(({
             )
           }
         } else {
+          // В режиме просмотра для множественных этажей показываем ссылку
+          if (isMultipleFloors && value) {
+            return (
+              <Button
+                type="link"
+                style={{ padding: 0 }}
+                onClick={() => handleOpenFloorModal(record.id)()}
+              >
+                {value || '0'}
+              </Button>
+            )
+          }
           return <span>{value || '0'}</span>
         }
       },
@@ -1852,6 +1922,18 @@ export const ChessboardTable = memo(({
             )
           }
         } else {
+          // В режиме просмотра для множественных этажей показываем ссылку
+          if (isMultipleFloors && value) {
+            return (
+              <Button
+                type="link"
+                style={{ padding: 0 }}
+                onClick={() => handleOpenFloorModal(record.id)()}
+              >
+                {value || '0'}
+              </Button>
+            )
+          }
           return <span>{value || '0'}</span>
         }
       },
@@ -1972,6 +2054,18 @@ export const ChessboardTable = memo(({
             )
           }
         } else {
+          // В режиме просмотра для множественных этажей показываем ссылку
+          if (isMultipleFloors && value) {
+            return (
+              <Button
+                type="link"
+                style={{ padding: 0 }}
+                onClick={() => handleOpenFloorModal(record.id)()}
+              >
+                {value || '0'}
+              </Button>
+            )
+          }
           return <span>{value || '0'}</span>
         }
       },
@@ -2001,15 +2095,28 @@ export const ChessboardTable = memo(({
         if (isEditing) {
           return (
             <Select
-              value={value || undefined}
+              value={record.nomenclatureId || undefined}
               onChange={(newValue) => {
                 const selectedNomenclature = nomenclatureData.find(nom => nom.value === newValue)
-                onRowUpdate(record.id, {
-                  nomenclature: selectedNomenclature ? selectedNomenclature.label : '',
-                  nomenclatureId: newValue
+
+                // Используем каскадную логику для обработки изменения номенклатуры
+                cascadeHook.handleNomenclatureChange(newValue, () => {
+                  // Очищаем поставщика при изменении номенклатуры
+                  onRowUpdate(record.id, {
+                    nomenclature: selectedNomenclature ? selectedNomenclature.label : '',
+                    nomenclatureId: newValue,
+                    supplier: '', // Очищаем поставщика для каскадного обновления
+                  })
                 })
+
+                // Обновляем только номенклатуру если каскад отключен
+                if (!newValue) {
+                  onRowUpdate(record.id, {
+                    nomenclature: '',
+                    nomenclatureId: '',
+                  })
+                }
               }}
-              // Показываем всю номенклатуру
               options={nomenclatureData}
               allowClear
               showSearch
@@ -2038,7 +2145,7 @@ export const ChessboardTable = memo(({
 
     // Наименование поставщика
     {
-      title: 'Наименование\nпоставщика',
+      title: 'Наименование\nноменклатуры\nпоставщика',
       key: COLUMN_KEYS.SUPPLIER,
       dataIndex: 'supplier',
       width: 250,
@@ -2059,25 +2166,112 @@ export const ChessboardTable = memo(({
         const isEditing = (record as any).isEditing
         if (isEditing) {
           return (
-            <Select
-              value={value || undefined}
-              onChange={(newValue) => {
-                const selectedSupplier = suppliersData.find(sup => sup.value === newValue)
+            <MLNomenclatureSupplierSelect
+              value={record.supplier || undefined}
+              disableML={!!record.nomenclatureId} // Отключаем ML если номенклатура выбрана
+              onChange={(newValue, option) => {
+                // Немедленно обновляем UI для отзывчивости
                 onRowUpdate(record.id, {
-                  supplier: selectedSupplier ? selectedSupplier.label : '',
-                  // Сброс зависимой номенклатуры при смене поставщика
-                  nomenclature: '',
-                  nomenclatureId: ''
+                  supplier: newValue || '',
                 })
+
+                // ВАЖНО: Каскадная логика НЕ срабатывает для ML выборов - они обрабатываются через onNomenclatureSupplierSelect
+                if (newValue && !option?.isMLSuggestion) {
+                  // Обычный выбор из статических опций - запускаем каскадную логику
+                  const isMLMode = !record.nomenclatureId
+                  if (isMLMode) {
+                    cascadeHook.handleSupplierChange(newValue, (nomenclatureId) => {
+                      // Автоматически подставляем номенклатуру если поставщик выбран первым в ML режиме
+                      const selectedNomenclature = nomenclatureData.find(nom => nom.value === nomenclatureId)
+                      onRowUpdate(record.id, {
+                        nomenclature: selectedNomenclature ? selectedNomenclature.label : record.nomenclature,
+                        nomenclatureId: nomenclatureId || record.nomenclatureId
+                      })
+                      console.log('🤖 Standard: Автоподстановка номенклатуры:', { nomenclatureId, nomenclatureName: selectedNomenclature?.label }) // LOG: стандартная автоподстановка номенклатуры
+                    }).catch(error => {
+                      console.error('🔗 Cascade: Ошибка каскадной логики:', error) // LOG: ошибка каскадной логики
+                    })
+                  }
+
+                  // Сохранение маппинга (только для каскадного выбора)
+                  if (record.nomenclatureId) {
+                    cascadeHook.saveMappingToDatabase(record.nomenclatureId, newValue)
+                      .then(saved => {
+                        if (saved) {
+                          console.log('✅ Cascade: Связь номенклатура-поставщик сохранена в БД:', { nomenclatureId: record.nomenclatureId, supplier: newValue }) // LOG: сохранение связи номенклатура-поставщик в БД
+                        }
+                      })
+                      .catch(error => {
+                        console.error('🔗 Cascade: Ошибка сохранения связи в БД:', error) // LOG: ошибка сохранения связи в БД
+                      })
+                  }
+                }
               }}
-              options={suppliersData}
+              onNomenclatureSupplierSelect={(nomenclatureSupplierId, nomenclatureSupplierName) => {
+                console.log('🤖 ML: Nomenclature supplier selected:', { nomenclatureSupplierId, nomenclatureSupplierName, rowId: record.id }) // LOG: выбор номенклатуры поставщика через ML
+
+                // ML выбор - обрабатываем полностью здесь, onChange НЕ должен дублировать логику
+                const isMLMode = !record.nomenclatureId
+                if (isMLMode) {
+                  // Сразу делаем API запрос по supplierId, не полагаясь на allSupplierOptions
+                  chessboardCascadeApi.getNomenclatureBySupplier(nomenclatureSupplierId)
+                    .then(nomenclature => {
+                      if (nomenclature) {
+                        // Автоматически подставляем номенклатуру в ML режиме
+                        const selectedNomenclature = nomenclatureData.find(nom => nom.value === nomenclature.id)
+                        onRowUpdate(record.id, {
+                          nomenclature: selectedNomenclature ? selectedNomenclature.label : nomenclature.name,
+                          nomenclatureId: nomenclature.id
+                        })
+                        console.log('🤖 ML: Автоподстановка номенклатуры через прямой API запрос:', { nomenclatureId: nomenclature.id, nomenclatureName: selectedNomenclature?.label || nomenclature.name }) // LOG: ML автоподстановка номенклатуры через прямой API
+                      } else {
+                        console.log('🤖 ML: Номенклатура не найдена для поставщика:', nomenclatureSupplierId) // LOG: номенклатура не найдена для ML поставщика
+                      }
+                    })
+                    .catch(error => {
+                      console.error('🔗 Cascade: Ошибка прямого API запроса номенклатуры в ML режиме:', error) // LOG: ошибка прямого API запроса номенклатуры
+                    })
+                }
+              }}
+              materialName={(() => {
+                // Получаем название материала по UUID или используем исходное значение (как в столбце "Материал")
+                const currentMaterialUuid = record.materialId || record.material
+                // Сначала пробуем найти по UUID, потом используем value как fallback
+                const currentMaterialName = materialsData.find(m => m.value === currentMaterialUuid)?.label || record.material || ''
+                console.log('🤖 ML NomenclatureSupplier: Material resolution:', { // LOG: разрешение материала для ML номенклатуры поставщика
+                  materialId: record.materialId,
+                  material: record.material,
+                  currentMaterialUuid,
+                  currentMaterialName,
+                  materialsDataLength: materialsData.length
+                })
+                return currentMaterialName
+              })()}
+              context={{
+                projectId: record.projectId,
+                blockId: record.blockId
+              }}
+              options={record.nomenclatureId
+                ? cascadeHook.filteredSupplierOptions.map(item => ({ value: item.name, label: item.name }))
+                : [] // При выбранной номенклатуре - каскадные поставщики, без номенклатуры - только ML
+              }
               allowClear
               showSearch
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
-              placeholder="Выберите поставщика"
-              size="small"
+              placeholder={(() => {
+                const currentMaterialUuid = record.materialId || record.material
+                const currentMaterialName = materialsData.find(m => m.value === currentMaterialUuid)?.label || ''
+
+                if (record.nomenclatureId) {
+                  return "Поставщики для выбранной номенклатуры"
+                }
+
+                return currentMaterialName
+                  ? "ML-подбор номенклатуры поставщика по материалу..."
+                  : "Выберите материал для ML-поиска"
+              })()}
               style={{
                 width: '100%',
                 minHeight: 'auto',
@@ -2157,8 +2351,8 @@ export const ChessboardTable = memo(({
         if (isEditing) {
           return (
             <Select
-              value={value || undefined}
-              onChange={(newValue) => onRowUpdate(record.id, { unit: newValue })}
+              value={record.unitId || undefined}
+              onChange={(newValue) => onRowUpdate(record.id, { unitId: newValue })}
               options={unitsData}
               allowClear
               showSearch
