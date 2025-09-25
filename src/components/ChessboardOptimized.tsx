@@ -114,9 +114,7 @@ const ChessboardOptimized: React.FC<ChessboardOptimizedProps> = ({
 
   // console.log('🔧 SmartTableOptimizer props editingRows:', Object.keys(smartTableProps.editingRows || {}).length > 0 ? Object.keys(smartTableProps.editingRows) : 'empty')
 
-  return (
-    <SmartTableOptimizer {...smartTableProps} />
-  )
+  return <SmartTableOptimizer {...smartTableProps} />
 
   // Временно отключено - используем виртуализированную таблицу
   // return (

@@ -70,7 +70,10 @@
       "Bash(timeout 10 npm run dev)",
       "Bash(del temp/test-rates-api.js)",
       "Bash(timeout 15 npm run dev)",
-      "Bash(del:*)"
+      "Bash(del:*)",
+      "WebFetch(domain:localhost)",
+      "WebFetch(domain:tanstack.com)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

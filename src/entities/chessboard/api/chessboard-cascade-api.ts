@@ -25,12 +25,14 @@ export const chessboardCascadeApi = {
 
     const { data, error } = await supabase
       .from('nomenclature_supplier_mapping')
-      .select(`
+      .select(
+        `
         supplier_names!inner(
           id,
           name
         )
-      `)
+      `,
+      )
       .eq('nomenclature_id', nomenclatureId)
 
     if (error) {
@@ -39,17 +41,18 @@ export const chessboardCascadeApi = {
     }
 
     // Преобразуем данные и убираем дубликаты
-    const suppliers = data
-      ?.map(item => item.supplier_names)
-      .filter(Boolean)
-      .reduce((acc, supplier) => {
-        // Убираем дубликаты по ID
-        if (!acc.find(s => s.id === supplier.id)) {
-          acc.push(supplier)
-        }
-        return acc
-      }, [] as SupplierOption[])
-      .sort((a, b) => a.name.localeCompare(b.name)) || []
+    const suppliers =
+      data
+        ?.map((item) => item.supplier_names)
+        .filter(Boolean)
+        .reduce((acc, supplier) => {
+          // Убираем дубликаты по ID
+          if (!acc.find((s) => s.id === supplier.id)) {
+            acc.push(supplier)
+          }
+          return acc
+        }, [] as SupplierOption[])
+        .sort((a, b) => a.name.localeCompare(b.name)) || []
 
     console.log('🔗 Cascade API: Найдено поставщиков:', suppliers.length) // LOG: количество найденных поставщиков
 
@@ -67,12 +70,14 @@ export const chessboardCascadeApi = {
 
     const { data, error } = await supabase
       .from('nomenclature_supplier_mapping')
-      .select(`
+      .select(
+        `
         nomenclature!inner(
           id,
           name
         )
-      `)
+      `,
+      )
       .eq('supplier_id', supplierId)
       .limit(1)
 
@@ -87,6 +92,7 @@ export const chessboardCascadeApi = {
 
     return nomenclature
   },
+
 
   /**
    * Получить все доступные номенклатуры
@@ -135,7 +141,7 @@ export const chessboardCascadeApi = {
 
       // Небольшая задержка для предотвращения rate limiting
       if (page < totalPages - 1) {
-        await new Promise(resolve => setTimeout(resolve, 50))
+        await new Promise((resolve) => setTimeout(resolve, 50))
       }
     }
 
@@ -191,7 +197,7 @@ export const chessboardCascadeApi = {
 
       // Небольшая задержка для предотвращения rate limiting
       if (page < totalPages - 1) {
-        await new Promise(resolve => setTimeout(resolve, 50))
+        await new Promise((resolve) => setTimeout(resolve, 50))
       }
     }
 
@@ -225,14 +231,23 @@ export const chessboardCascadeApi = {
   /**
    * Создать связь между номенклатурой и поставщиком
    */
-  async createNomenclatureSupplierMapping(nomenclatureId: string, supplierId: string): Promise<boolean> {
+  async createNomenclatureSupplierMapping(
+    nomenclatureId: string,
+    supplierId: string,
+  ): Promise<boolean> {
     if (!supabase) throw new Error('Supabase is not configured')
     if (!nomenclatureId || !supplierId) {
-      console.error('🔗 Cascade API: Некорректные параметры для создания связи:', { nomenclatureId, supplierId })
+      console.error('🔗 Cascade API: Некорректные параметры для создания связи:', {
+        nomenclatureId,
+        supplierId,
+      })
       return false
     }
 
-    console.log('🔗 Cascade API: Создаем связь номенклатура-поставщик:', { nomenclatureId, supplierId }) // LOG: создание связи номенклатура-поставщик
+    console.log('🔗 Cascade API: Создаем связь номенклатура-поставщик:', {
+      nomenclatureId,
+      supplierId,
+    }) // LOG: создание связи номенклатура-поставщик
 
     // Сначала проверим, не существует ли уже такая связь
     const existingLink = await this.isNomenclatureSupplierLinked(nomenclatureId, supplierId)
@@ -242,12 +257,12 @@ export const chessboardCascadeApi = {
     }
 
     try {
-      const { error } = await supabase
-        .from('nomenclature_supplier_mapping')
-        .insert([{
+      const { error } = await supabase.from('nomenclature_supplier_mapping').insert([
+        {
           nomenclature_id: nomenclatureId,
-          supplier_id: supplierId
-        }])
+          supplier_id: supplierId,
+        },
+      ])
 
       if (error) {
         console.error('🔗 Cascade API: Ошибка создания связи номенклатуры и поставщика:', error)
@@ -256,10 +271,74 @@ export const chessboardCascadeApi = {
 
       console.log('✅ Cascade API: Связь номенклатура-поставщик успешно создана') // LOG: связь создана
       return true
-
     } catch (error) {
       console.error('🔗 Cascade API: Исключение при создании связи:', error)
       return false
     }
-  }
+  },
+
+  /**
+   * Найти номенклатуру по названию поставщика (для ML автозаполнения)
+   */
+  async getNomenclatureBySupplierName(supplierName: string): Promise<NomenclatureOption | null> {
+    if (!supabase) throw new Error('Supabase is not configured')
+    if (!supplierName) {
+      console.error('🔗 Cascade API: Пустое название поставщика для поиска номенклатуры')
+      return null
+    }
+
+    console.log('🔗 Cascade API: Поиск номенклатуры по названию поставщика:', supplierName) // LOG: поиск номенклатуры по названию поставщика
+
+    try {
+      // Шаг 1: Найти supplier_id по названию в таблице supplier_names
+      const { data: supplierData, error: supplierError } = await supabase
+        .from('supplier_names')
+        .select('id')
+        .eq('name', supplierName)
+        .limit(1)
+        .single()
+
+      if (supplierError || !supplierData) {
+        console.log('🔗 Cascade API: Поставщик не найден в supplier_names:', supplierName) // LOG: поставщик не найден
+        return null
+      }
+
+      console.log('🔗 Cascade API: Найден supplier_id:', supplierData.id) // LOG: найден supplier_id
+
+      // Шаг 2: Найти номенклатуру через mapping таблицу
+      const { data: mappingData, error: mappingError } = await supabase
+        .from('nomenclature_supplier_mapping')
+        .select(`
+          nomenclature_id,
+          nomenclature!inner(
+            id,
+            name
+          )
+        `)
+        .eq('supplier_id', supplierData.id)
+        .limit(1)
+        .single()
+
+      if (mappingError || !mappingData) {
+        console.log('🔗 Cascade API: Номенклатура не найдена для поставщика:', supplierName) // LOG: номенклатура не найдена
+        return null
+      }
+
+      const nomenclature = mappingData.nomenclature as { id: string; name: string }
+      console.log('✅ Cascade API: Найдена номенклатура по названию поставщика:', {
+        nomenclatureId: nomenclature.id,
+        nomenclatureName: nomenclature.name,
+        supplierName
+      }) // LOG: найдена номенклатура
+
+      return {
+        value: nomenclature.id,
+        label: nomenclature.name
+      }
+
+    } catch (error) {
+      console.error('🔗 Cascade API: Ошибка поиска номенклатуры по названию поставщика:', error)
+      return null
+    }
+  },
 }

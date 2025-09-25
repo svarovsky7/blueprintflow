@@ -13,10 +13,17 @@ export default function Experiments() {
       </h1>
 
       <p style={{ marginBottom: '24px', color: '#666' }}>
-        Раздел для тестирования новых функций и ML-алгоритмов без влияния на основной функционал портала.
+        Раздел для тестирования новых функций и ML-алгоритмов без влияния на основной функционал
+        портала.
       </p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+          gap: '16px',
+        }}
+      >
         <Card
           title="ML Шахматка"
           extra={<TableOutlined />}
@@ -28,12 +35,17 @@ export default function Experiments() {
               key="open"
             >
               Открыть
-            </Button>
+            </Button>,
           ]}
         >
-          <p>Тестовая версия Шахматки с интегрированным ML-модулем для автоматического подбора номенклатуры по названию материала.</p>
+          <p>
+            Тестовая версия Шахматки с интегрированным ML-модулем для автоматического подбора
+            номенклатуры по названию материала.
+          </p>
           <Space direction="vertical" size="small">
-            <div><strong>Функции:</strong></div>
+            <div>
+              <strong>Функции:</strong>
+            </div>
             <div>• ML-powered автокомплит номенклатуры</div>
             <div>• Семантический поиск материалов</div>
             <div>• Confidence score для предложений</div>
@@ -41,11 +53,7 @@ export default function Experiments() {
           </Space>
         </Card>
 
-        <Card
-          title="Будущие эксперименты"
-          extra={<ExperimentOutlined />}
-          style={{ opacity: 0.6 }}
-        >
+        <Card title="Будущие эксперименты" extra={<ExperimentOutlined />} style={{ opacity: 0.6 }}>
           <p>Здесь будут добавляться новые экспериментальные функции по мере их разработки.</p>
         </Card>
       </div>

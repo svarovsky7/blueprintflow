@@ -12,7 +12,7 @@ export type {
   MLMode,
   MLModeConfig,
   // Обратная совместимость
-  DiskSettings
+  DiskSettings,
 } from './types'
 
 // Экспорт API функций

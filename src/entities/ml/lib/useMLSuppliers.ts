@@ -29,12 +29,7 @@ interface UseMLSuppliersResult {
  * Хук для ML-предсказания поставщиков по названию материала
  */
 export const useMLSuppliers = (options: UseMLSuppliersOptions = {}): UseMLSuppliersResult => {
-  const {
-    enabled = true,
-    debounceMs = 300,
-    minQueryLength = 2,
-    autoPredict = false
-  } = options
+  const { enabled = true, debounceMs = 300, minQueryLength = 2, autoPredict = false } = options
 
   const [currentRequest, setCurrentRequest] = useState<MLPredictionRequest | null>(null)
   const [mlMode, setMLMode] = useState<string>('local') // Текущий режим ML/AI
@@ -45,7 +40,7 @@ export const useMLSuppliers = (options: UseMLSuppliersOptions = {}): UseMLSuppli
   }>({
     confidence: 0,
     processingTime: 0,
-    modelUsed: 'none'
+    modelUsed: 'none',
   })
 
   const debounceRef = useRef<NodeJS.Timeout>()
@@ -67,55 +62,73 @@ export const useMLSuppliers = (options: UseMLSuppliersOptions = {}): UseMLSuppli
     refetchOnMount: true, // Перезагружать при монтировании
   })
 
-  // Обновляем режим ML при изменении конфигурации (стабилизируем зависимость)
+  // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обновляем режим ML при изменении конфигурации
   useEffect(() => {
     if (modeConfig?.mode && modeConfig.mode !== mlMode) {
       setMLMode(modeConfig.mode)
-      console.log('🔄 useMLSuppliers: Режим обновлен на', modeConfig.mode) // LOG: обновление режима
+      if (import.meta.env.DEV) {
+        console.log('🔄 useMLSuppliers: Режим обновлен с', mlMode, 'на', modeConfig.mode) // LOG: обновление режима
+      }
     }
-  }, [modeConfig?.mode, mlMode])
+  }, [modeConfig?.mode]) // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: убрали mlMode из зависимостей
 
   // Стабилизируем значения конфигурации для предотвращения бесконечных рендеров
   const stableConfigEnabled = useMemo(() => config?.enabled, [config?.enabled])
   const stableConfigMode = useMemo(() => config?.mode, [config?.mode])
 
-  // Отслеживание изменений ключа запроса (только для диагностики в dev режиме)
+  // Стабилизируем материалы и ID для query key (только значения, не объекты) - ДОЛЖНО БЫТЬ ПЕРЕД useEffect!
+  const stableMaterialName = useMemo(
+    () => currentRequest?.materialName || '',
+    [currentRequest?.materialName],
+  )
+  const stableRequestId = useMemo(() => currentRequest?.id || '', [currentRequest?.id])
+  const stableProjectId = useMemo(
+    () => currentRequest?.context?.projectId || 'no-project',
+    [currentRequest?.context?.projectId],
+  )
+  const stableBlockId = useMemo(
+    () => currentRequest?.context?.blockId || 'no-block',
+    [currentRequest?.context?.blockId],
+  )
+
+  // Отслеживание изменений ключа запроса (упрощено для предотвращения бесконечного цикла)
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🔍 useMLSuppliers Query Key Changed:', {
-        enabled: enabled && stableConfigEnabled && !!currentRequest,
-        currentRequestMaterial: currentRequest?.materialName || 'none',
-        currentRequestId: currentRequest?.id || 'none',
-        configEnabled: stableConfigEnabled,
-        configMode: stableConfigMode,
-        mlMode
-      }) // LOG: диагностика изменений queryKey
+    if (process.env.NODE_ENV === 'development' && stableMaterialName) {
+      console.log('🔍 useMLSuppliers Query Key Stabilized:', {
+        material: stableMaterialName,
+        requestId: stableRequestId,
+        enabled: enabled && stableConfigEnabled,
+      }) // LOG: диагностика стабилизированного queryKey
     }
-  }, [currentRequest?.materialName, currentRequest?.id, stableConfigEnabled, stableConfigMode, mlMode, enabled])
+  }, [stableMaterialName, stableRequestId, stableConfigEnabled, stableConfigMode, mlMode, enabled])
 
   // Стабилизируем query key для предотвращения бесконечных запросов
   const stableQueryKey = useMemo(() => {
-    if (!currentRequest) return ['ml-supplier-predictions', 'no-request']
+    if (!stableMaterialName) return ['ml-supplier-predictions', 'no-request']
 
     return [
       'ml-supplier-predictions',
-      currentRequest.materialName,
-      currentRequest.context?.projectId || 'no-project',
-      currentRequest.context?.blockId || 'no-block',
+      stableMaterialName,
+      stableProjectId,
+      stableBlockId,
       mlMode,
-      stableConfigEnabled ? 'enabled' : 'disabled'
+      stableConfigEnabled ? 'enabled' : 'disabled',
     ]
-  }, [currentRequest?.materialName, currentRequest?.context?.projectId, currentRequest?.context?.blockId, mlMode, stableConfigEnabled])
+  }, [stableMaterialName, stableProjectId, stableBlockId, mlMode, stableConfigEnabled])
 
   // Основной запрос для получения предсказаний поставщиков
   const {
     data: response,
     isLoading,
     error,
-    refetch
+    refetch,
   } = useQuery({
     queryKey: stableQueryKey,
-    enabled: enabled && stableConfigEnabled && !!currentRequest,
+    enabled:
+      enabled &&
+      stableConfigEnabled &&
+      !!stableMaterialName &&
+      stableMaterialName.length >= minQueryLength,
     staleTime: 3 * 60 * 1000, // 3 минуты - дольше чем таймаут Deepseek (90 сек)
     gcTime: 10 * 60 * 1000, // 10 минут в памяти
     // Увеличиваем таймаут до 60 секунд для Deepseek запросов
@@ -128,28 +141,31 @@ export const useMLSuppliers = (options: UseMLSuppliersOptions = {}): UseMLSuppli
       console.log('🔍 ML Suppliers React Query signal:', {
         hasSignal: !!signal,
         aborted: signal?.aborted || false,
-        reason: signal?.reason
+        reason: signal?.reason,
       })
 
       try {
         // ИСПРАВЛЕНИЕ AbortError: Передаем signal в ML API
         const result = await predictSuppliers(currentRequest, signal)
 
-        console.log('🤖 ML: Supplier prediction completed:', { // LOG: завершение ML предсказания поставщиков
+        console.log('🤖 ML: Supplier prediction completed:', {
+          // LOG: завершение ML предсказания поставщиков
           suggestionsCount: result.suggestions.length,
           processingTime: result.processingTime,
-          modelUsed: result.modelUsed
+          modelUsed: result.modelUsed,
         })
 
         // Сохраняем информацию о последнем ответе (стабилизируем вычисления)
-        const avgConfidence = result.suggestions.length > 0
-          ? result.suggestions.reduce((sum, s) => sum + s.confidence, 0) / result.suggestions.length
-          : 0
+        const avgConfidence =
+          result.suggestions.length > 0
+            ? result.suggestions.reduce((sum, s) => sum + s.confidence, 0) /
+              result.suggestions.length
+            : 0
 
         setLastResponse({
           confidence: avgConfidence,
           processingTime: result.processingTime,
-          modelUsed: result.modelUsed
+          modelUsed: result.modelUsed,
         })
 
         return result
@@ -162,7 +178,7 @@ export const useMLSuppliers = (options: UseMLSuppliersOptions = {}): UseMLSuppli
             errorMessage: error.message,
             signalAborted: signal?.aborted || false,
             signalReason: signal?.reason,
-            source: 'useMLSuppliers.queryFn'
+            source: 'useMLSuppliers.queryFn',
           })
           throw error // Пробрасываем AbortError для правильной обработки React Query
         }
@@ -185,8 +201,8 @@ export const useMLSuppliers = (options: UseMLSuppliersOptions = {}): UseMLSuppli
     meta: {
       // Метаданные для отслеживания запросов
       queryType: 'ml-suppliers',
-      material: currentRequest?.materialName
-    }
+      material: currentRequest?.materialName,
+    },
   })
 
   // Отслеживание состояния React Query (только для диагностики в dev режиме)
@@ -197,67 +213,73 @@ export const useMLSuppliers = (options: UseMLSuppliersOptions = {}): UseMLSuppli
         hasError: !!error,
         hasData: !!response,
         errorType: error?.name,
-        suggestionsCount: response?.suggestions?.length || 0
+        suggestionsCount: response?.suggestions?.length || 0,
       })
     }
   }, [isLoading, error, response])
 
   // Функция для мгновенного предсказания без debounce (стабилизировано)
-  const predictNow = useCallback((materialName: string, context?: MLPredictionRequest['context']) => {
-    // Очищаем предыдущий таймер
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current)
-    }
-
-    // Проверяем минимальную длину запроса
-    if (materialName.length < minQueryLength) {
-      setCurrentRequest(null)
-      return
-    }
-
-    const request: MLPredictionRequest = {
-      materialName: materialName.trim(),
-      context
-    }
-
-    console.log('🤖 ML: Executing immediate supplier prediction request:', request) // LOG: мгновенное выполнение ML запроса поставщиков
-    console.log('🔍 DEBUG: Текущий режим ML в useMLSuppliers:', mlMode) // DEBUG LOG: текущий режим
-
-    setCurrentRequest(request)
-  }, [minQueryLength]) // Удаляем mlMode из зависимостей - он уже используется в queryKey
-
-  // Функция для запуска предсказания с debounce (только если включено автопредсказание) - стабилизировано
-  const predict = useCallback((materialName: string, context?: MLPredictionRequest['context']) => {
-    if (!autoPredict) {
-      console.log('🤖 ML: Auto-predict disabled for suppliers, skipping prediction') // LOG: автопредсказание поставщиков отключено
-      return
-    }
-
-    // Очищаем предыдущий таймер
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current)
-    }
-
-    // Проверяем минимальную длину запроса
-    if (materialName.length < minQueryLength) {
-      setCurrentRequest(null)
-      return
-    }
-
-    console.log('🤖 ML: Scheduling supplier prediction with debounce:', materialName) // LOG: планирование ML предсказания поставщиков
-
-    // Устанавливаем новый таймер
-    debounceRef.current = setTimeout(() => {
-      const request: MLPredictionRequest = {
-        materialName: materialName.trim(),
-        context
+  const predictNow = useCallback(
+    (materialName: string, context?: MLPredictionRequest['context']) => {
+      // Очищаем предыдущий таймер
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
       }
 
-      console.log('🤖 ML: Executing supplier prediction request:', request) // LOG: выполнение ML запроса поставщиков
+      // Проверяем минимальную длину запроса
+      if (materialName.length < minQueryLength) {
+        setCurrentRequest(null)
+        return
+      }
+
+      const request: MLPredictionRequest = {
+        materialName: materialName.trim(),
+        context,
+      }
+
+      console.log('🤖 ML: Executing immediate supplier prediction request:', request) // LOG: мгновенное выполнение ML запроса поставщиков
+      console.log('🔍 DEBUG: Текущий режим ML в useMLSuppliers:', mlMode) // DEBUG LOG: текущий режим
 
       setCurrentRequest(request)
-    }, debounceMs)
-  }, [debounceMs, minQueryLength, autoPredict]) // Удаляем mlMode из зависимостей
+    },
+    [minQueryLength],
+  ) // Удаляем mlMode из зависимостей - он уже используется в queryKey
+
+  // Функция для запуска предсказания с debounce (только если включено автопредсказание) - стабилизировано
+  const predict = useCallback(
+    (materialName: string, context?: MLPredictionRequest['context']) => {
+      if (!autoPredict) {
+        console.log('🤖 ML: Auto-predict disabled for suppliers, skipping prediction') // LOG: автопредсказание поставщиков отключено
+        return
+      }
+
+      // Очищаем предыдущий таймер
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+      }
+
+      // Проверяем минимальную длину запроса
+      if (materialName.length < minQueryLength) {
+        setCurrentRequest(null)
+        return
+      }
+
+      console.log('🤖 ML: Scheduling supplier prediction with debounce:', materialName) // LOG: планирование ML предсказания поставщиков
+
+      // Устанавливаем новый таймер
+      debounceRef.current = setTimeout(() => {
+        const request: MLPredictionRequest = {
+          materialName: materialName.trim(),
+          context,
+        }
+
+        console.log('🤖 ML: Executing supplier prediction request:', request) // LOG: выполнение ML запроса поставщиков
+
+        setCurrentRequest(request)
+      }, debounceMs)
+    },
+    [debounceMs, minQueryLength, autoPredict],
+  ) // Удаляем mlMode из зависимостей
 
   // Функция для очистки предложений
   const clearSuggestions = useCallback(() => {
@@ -270,7 +292,7 @@ export const useMLSuppliers = (options: UseMLSuppliersOptions = {}): UseMLSuppli
     setLastResponse({
       confidence: 0,
       processingTime: 0,
-      modelUsed: 'none'
+      modelUsed: 'none',
     })
   }, [])
 
@@ -285,7 +307,7 @@ export const useMLSuppliers = (options: UseMLSuppliersOptions = {}): UseMLSuppli
     if (!response?.suggestions) return []
 
     const threshold = config?.confidenceThreshold || 0.3
-    return response.suggestions.filter(suggestion => suggestion.confidence >= threshold)
+    return response.suggestions.filter((suggestion) => suggestion.confidence >= threshold)
   }, [response?.suggestions, config?.confidenceThreshold])
 
   return {
@@ -299,6 +321,6 @@ export const useMLSuppliers = (options: UseMLSuppliersOptions = {}): UseMLSuppli
     confidence: lastResponse.confidence,
     processingTime: lastResponse.processingTime,
     modelUsed: lastResponse.modelUsed,
-    getNomenclatureForSupplier
+    getNomenclatureForSupplier,
   }
 }

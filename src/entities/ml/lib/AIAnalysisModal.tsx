@@ -1,13 +1,16 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import { Modal, Input, Button, Card, Spin, message, Space, Alert } from 'antd'
-import { RobotOutlined, ThunderboltOutlined, SearchOutlined, ReloadOutlined, EditOutlined } from '@ant-design/icons'
+import {
+  RobotOutlined,
+  ThunderboltOutlined,
+  SearchOutlined,
+  ReloadOutlined,
+  EditOutlined,
+} from '@ant-design/icons'
 import { useMLSuppliers } from './useMLSuppliers'
 import { deepseekApi } from '@/entities/api-settings'
 import type { DeepseekMaterialRequest } from '@/entities/api-settings'
-import {
-  editingModeSearchSupplierNames,
-  testSearchSupplierNames
-} from '../api/ml-api'
+import { editingModeSearchSupplierNames, testSearchSupplierNames } from '../api/ml-api'
 
 const { TextArea } = Input
 
@@ -46,10 +49,7 @@ const DEFAULT_PROMPT = `Ты - эксперт по строительным ма
 - Сортируй по убыванию процента соответствия
 - В рекомендациях анализируй качество найденных результатов поиска`
 
-export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
-  open,
-  onClose
-}) => {
+export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({ open, onClose }) => {
   const [materialName, setMaterialName] = useState('')
   const [customPrompt, setCustomPrompt] = useState(DEFAULT_PROMPT)
   const [mlResults, setMLResults] = useState<string>('')
@@ -63,86 +63,91 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
     suggestions: supplierSuggestions,
     isLoading: isMLLoading,
     predictNow: predictSuppliers,
-    clearSuggestions
+    clearSuggestions,
   } = useMLSuppliers({
     enabled: true,
-    autoPredict: false
+    autoPredict: false,
   })
 
   // AI анализ с использованием кастомного промта
-  const handleAIAnalysis = useCallback(async (searchResultsText?: string) => {
-    try {
-      console.log('🤖 Начинаем AI анализ материала с кастомным промтом:', materialName) // LOG: запуск AI анализа
+  const handleAIAnalysis = useCallback(
+    async (searchResultsText?: string) => {
+      try {
+        console.log('🤖 Начинаем AI анализ материала с кастомным промтом:', materialName) // LOG: запуск AI анализа
 
-      // Получаем настройки Deepseek
-      const settings = await deepseekApi.getSettings()
+        // Получаем настройки Deepseek
+        const settings = await deepseekApi.getSettings()
 
-      if (!settings.enabled) {
-        throw new Error('Deepseek не включен в настройках')
-      }
+        if (!settings.enabled) {
+          throw new Error('Deepseek не включен в настройках')
+        }
 
-      if (!settings.api_key) {
-        throw new Error('API ключ Deepseek не настроен')
-      }
+        if (!settings.api_key) {
+          throw new Error('API ключ Deepseek не настроен')
+        }
 
-      // Подготавливаем кастомный промт с подстановкой названия материала
-      let finalPrompt = customPrompt.replace('{material_name}', materialName.trim())
+        // Подготавливаем кастомный промт с подстановкой названия материала
+        let finalPrompt = customPrompt.replace('{material_name}', materialName.trim())
 
-      // Добавляем результаты поиска от 4 алгоритмов к промту
-      const resultsToUse = searchResultsText || mlResults
-      if (resultsToUse && resultsToUse.length > 0) {
-        finalPrompt += '\n\n=== РЕЗУЛЬТАТЫ ПОИСКА ИЗ БАЗЫ ДАННЫХ ===\n'
-        finalPrompt += resultsToUse
-        finalPrompt += '\n=== КОНЕЦ РЕЗУЛЬТАТОВ ПОИСКА ===\n\n'
-        finalPrompt += 'ВАЖНО: Используй эти результаты поиска для создания рекомендаций. Анализируй найденных поставщиков и их соответствие запрашиваемому материалу.'
+        // Добавляем результаты поиска от 4 алгоритмов к промту
+        const resultsToUse = searchResultsText || mlResults
+        if (resultsToUse && resultsToUse.length > 0) {
+          finalPrompt += '\n\n=== РЕЗУЛЬТАТЫ ПОИСКА ИЗ БАЗЫ ДАННЫХ ===\n'
+          finalPrompt += resultsToUse
+          finalPrompt += '\n=== КОНЕЦ РЕЗУЛЬТАТОВ ПОИСКА ===\n\n'
+          finalPrompt +=
+            'ВАЖНО: Используй эти результаты поиска для создания рекомендаций. Анализируй найденных поставщиков и их соответствие запрашиваемому материалу.'
 
-        console.log('🔍 Добавили результаты поиска в промт для AI анализа') // LOG: добавление результатов поиска
-      } else {
-        console.log('⚠️ Результаты поиска отсутствуют, отправляем только базовый промт') // LOG: отсутствие результатов поиска
-      }
+          console.log('🔍 Добавили результаты поиска в промт для AI анализа') // LOG: добавление результатов поиска
+        } else {
+          console.log('⚠️ Результаты поиска отсутствуют, отправляем только базовый промт') // LOG: отсутствие результатов поиска
+        }
 
-      console.log('🤖 Отправляем кастомный промт + результаты поиска к Deepseek API') // LOG: отправка кастомного промта
+        console.log('🤖 Отправляем кастомный промт + результаты поиска к Deepseek API') // LOG: отправка кастомного промта
 
-      // Прямой запрос к Deepseek API с кастомным промтом
-      const response = await fetch(`${settings.base_url}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${settings.api_key}`
-        },
-        body: JSON.stringify({
-          model: settings.model,
-          messages: [
-            {
-              role: 'user',
-              content: finalPrompt
-            }
-          ],
-          temperature: settings.temperature,
-          max_tokens: settings.max_tokens
+        // Прямой запрос к Deepseek API с кастомным промтом
+        const response = await fetch(`${settings.base_url}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${settings.api_key}`,
+          },
+          body: JSON.stringify({
+            model: settings.model,
+            messages: [
+              {
+                role: 'user',
+                content: finalPrompt,
+              },
+            ],
+            temperature: settings.temperature,
+            max_tokens: settings.max_tokens,
+          }),
         })
-      })
 
-      if (!response.ok) {
-        throw new Error(`Deepseek API error: ${response.status} ${response.statusText}`)
+        if (!response.ok) {
+          throw new Error(`Deepseek API error: ${response.status} ${response.statusText}`)
+        }
+
+        const data = await response.json()
+        const aiResponse = data.choices?.[0]?.message?.content || 'Пустой ответ от AI'
+
+        setAIResponse(aiResponse)
+
+        console.log('🤖 AI анализ завершен успешно') // LOG: AI анализ завершен
+        message.success('AI анализ завершен!')
+      } catch (error) {
+        console.error('Ошибка AI анализа:', error) // LOG: ошибка AI
+        setAIResponse(
+          `Ошибка AI анализа: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`,
+        )
+        message.error('Не удалось выполнить AI анализ')
+      } finally {
+        setIsProcessing(false)
       }
-
-      const data = await response.json()
-      const aiResponse = data.choices?.[0]?.message?.content || 'Пустой ответ от AI'
-
-      setAIResponse(aiResponse)
-
-      console.log('🤖 AI анализ завершен успешно') // LOG: AI анализ завершен
-      message.success('AI анализ завершен!')
-
-    } catch (error) {
-      console.error('Ошибка AI анализа:', error) // LOG: ошибка AI
-      setAIResponse(`Ошибка AI анализа: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`)
-      message.error('Не удалось выполнить AI анализ')
-    } finally {
-      setIsProcessing(false)
-    }
-  }, [materialName, customPrompt, mlResults])
+    },
+    [materialName, customPrompt, mlResults],
+  )
 
   // Отслеживаем изменения в результатах ML (только для старого "Отправить запрос", НЕ для "Подбор ML")
   useEffect(() => {
@@ -161,14 +166,18 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
             `   • ID поставщика: ${suggestion.id}`,
             suggestion.price ? `   • Цена: ${suggestion.price}` : '',
             suggestion.supplier ? `   • Поставщик: ${suggestion.supplier}` : '',
-            suggestion.characteristics ? `   • Характеристики: ${suggestion.characteristics}` : ''
-          ].filter(Boolean).join('\n')
+            suggestion.characteristics ? `   • Характеристики: ${suggestion.characteristics}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n')
 
           return details
         })
         .join('\n\n')
 
-      setMLResults(`🎯 ML поиск завершен! Найдено ${supplierSuggestions.length} релевантных записей из таблицы supplier_names:\n\n${mlResultsText}`)
+      setMLResults(
+        `🎯 ML поиск завершен! Найдено ${supplierSuggestions.length} релевантных записей из таблицы supplier_names:\n\n${mlResultsText}`,
+      )
       setWaitingForML(false)
 
       // Запускаем AI анализ только если это НЕ режим только ML
@@ -180,7 +189,9 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
       }
     } else if (waitingForML && !isMLLoading && supplierSuggestions.length === 0) {
       console.log('🔍 ML поиск завершен без результатов') // LOG: ML поиск без результатов
-      setMLResults('❌ ML поиск не дал результатов\n\nВозможные причины:\n• Материал не найден в базе поставщиков\n• Слишком специфичное название\n• Требуется уточнение запроса')
+      setMLResults(
+        '❌ ML поиск не дал результатов\n\nВозможные причины:\n• Материал не найден в базе поставщиков\n• Слишком специфичное название\n• Требуется уточнение запроса',
+      )
       setWaitingForML(false)
 
       if (!mlOnlyMode) {
@@ -233,12 +244,15 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
       // Шаг 2: Устанавливаем результаты поиска
       setMLResults(searchResults.formattedText)
 
-      const totalResults = (searchResults.vectorResults?.length || 0) +
-                         (searchResults.keywordResults?.length || 0) +
-                         (searchResults.editingResults?.length || 0) +
-                         (searchResults.adaptiveResults?.length || 0)
+      const totalResults =
+        (searchResults.vectorResults?.length || 0) +
+        (searchResults.keywordResults?.length || 0) +
+        (searchResults.editingResults?.length || 0) +
+        (searchResults.adaptiveResults?.length || 0)
 
-      console.log(`🎯 Комбинированный поиск завершен: найдено ${totalResults} результатов (векторный=${searchResults.vectorResults?.length || 0}, семантический=${searchResults.keywordResults?.length || 0}, редактирование=${searchResults.editingResults?.length || 0}, гибридный=${searchResults.adaptiveResults?.length || 0}), запускаем AI анализ`) // LOG: комбинированный поиск завершен
+      console.log(
+        `🎯 Комбинированный поиск завершен: найдено ${totalResults} результатов (векторный=${searchResults.vectorResults?.length || 0}, семантический=${searchResults.keywordResults?.length || 0}, редактирование=${searchResults.editingResults?.length || 0}, гибридный=${searchResults.adaptiveResults?.length || 0}), запускаем AI анализ`,
+      ) // LOG: комбинированный поиск завершен
 
       // Шаг 3: Запускаем AI анализ с найденными результатами
       setWaitingForML(false)
@@ -250,7 +264,6 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
       } else {
         message.warning('Поставщики не найдены, но AI анализ выполнен')
       }
-
     } catch (error) {
       console.error('Ошибка комбинированного анализа:', error) // LOG: ошибка комбинированного анализа
       message.error('Произошла ошибка при выполнении анализа')
@@ -284,10 +297,11 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
       setWaitingForML(false)
       setMLOnlyMode(false)
 
-      const totalResults = (searchResults.vectorResults?.length || 0) +
-                         (searchResults.keywordResults?.length || 0) +
-                         (searchResults.editingResults?.length || 0) +
-                         (searchResults.adaptiveResults?.length || 0)
+      const totalResults =
+        (searchResults.vectorResults?.length || 0) +
+        (searchResults.keywordResults?.length || 0) +
+        (searchResults.editingResults?.length || 0) +
+        (searchResults.adaptiveResults?.length || 0)
       if (totalResults > 0) {
         message.success(`Поиск завершен! Найдено поставщиков: ${totalResults}`)
       } else {
@@ -295,10 +309,11 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
       }
 
       console.log('🎯 Прямой поиск в supplier_names завершен') // LOG: прямой поиск завершен
-
     } catch (error) {
       console.error('Ошибка прямого поиска в supplier_names:', error) // LOG: ошибка прямого поиска
-      setMLResults(`❌ Ошибка поиска: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`)
+      setMLResults(
+        `❌ Ошибка поиска: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`,
+      )
       message.error('Произошла ошибка при поиске в supplier_names')
       setWaitingForML(false)
       setMLOnlyMode(false)
@@ -322,11 +337,16 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
 
       const editingResults = await editingModeSearchSupplierNames(materialName.trim())
 
-      const resultsText = editingResults.length > 0
-        ? editingResults.map((r, index) => `   ${index + 1}. ${r.name} (${Math.round(r.confidence * 100)}%)`).join('\n')
-        : 'Результатов не найдено'
+      const resultsText =
+        editingResults.length > 0
+          ? editingResults
+              .map((r, index) => `   ${index + 1}. ${r.name} (${Math.round(r.confidence * 100)}%)`)
+              .join('\n')
+          : 'Результатов не найдено'
 
-      setMLResults(`⚙️ РЕЖИМ РЕДАКТИРОВАНИЯ (${editingResults.length} результатов):\n${resultsText}`)
+      setMLResults(
+        `⚙️ РЕЖИМ РЕДАКТИРОВАНИЯ (${editingResults.length} результатов):\n${resultsText}`,
+      )
       setWaitingForML(false)
       setMLOnlyMode(false)
 
@@ -337,11 +357,12 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
       }
 
       console.log('🎯 Поиск режимом редактирования завершен успешно') // LOG: завершение поиска режимом редактирования
-
     } catch (error) {
       console.error('Ошибка поиска режимом редактирования:', error) // LOG: ошибка поиска режимом редактирования
       message.error('Ошибка поиска режимом редактирования')
-      setMLResults(`❌ Ошибка поиска: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`)
+      setMLResults(
+        `❌ Ошибка поиска: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`,
+      )
       setWaitingForML(false)
       setMLOnlyMode(false)
     }
@@ -363,8 +384,8 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
         body: {
           height: 'calc(95vh - 110px)',
           overflow: 'auto',
-          padding: '24px'
-        }
+          padding: '24px',
+        },
       }}
       footer={[
         <Button
@@ -397,20 +418,15 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
         >
           Режим редактирования
         </Button>,
-        <Button
-          key="reset-prompt"
-          icon={<ReloadOutlined />}
-          onClick={handleResetPrompt}
-        >
+        <Button key="reset-prompt" icon={<ReloadOutlined />} onClick={handleResetPrompt}>
           По умолчанию
         </Button>,
         <Button key="close" onClick={onClose}>
           ОК
-        </Button>
+        </Button>,
       ]}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', height: '100%' }}>
-
         {/* Поле 1: Ввод наименования материала */}
         <Card title="1. Наименование материала" size="small">
           <Input
@@ -430,26 +446,34 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
             <Space>
               {(isMLLoading || waitingForML) && <Spin size="small" />}
               <span style={{ fontSize: '12px', color: '#666' }}>
-                {waitingForML ? 'Поиск ML...' :
-                 supplierSuggestions.length > 0 ? `${supplierSuggestions.length} результатов` :
-                 mlResults ? 'Завершено' : 'Ожидание'}
+                {waitingForML
+                  ? 'Поиск ML...'
+                  : supplierSuggestions.length > 0
+                    ? `${supplierSuggestions.length} результатов`
+                    : mlResults
+                      ? 'Завершено'
+                      : 'Ожидание'}
               </span>
             </Space>
           }
         >
           <TextArea
-            value={mlResults || (waitingForML ? '🔍 Выполняется поиск в таблице supplier_names...\n\n📊 Векторный поиск - анализ текстового сходства\n🔍 Семантический поиск - интеллектуальный анализ с синонимами\n⚙️ Режим редактирования - ML алгоритм с 3 стратегиями поиска\n🤖 Гибридный режим - адаптивная классификация с токенизацией' : '')}
+            value={
+              mlResults ||
+              (waitingForML
+                ? '🔍 Выполняется поиск в таблице supplier_names...\n\n📊 Векторный поиск - анализ текстового сходства\n🔍 Семантический поиск - интеллектуальный анализ с синонимами\n⚙️ Режим редактирования - ML алгоритм с 3 стратегиями поиска\n🤖 Гибридный режим - адаптивная классификация с токенизацией'
+                : '')
+            }
             readOnly
             placeholder="Результаты появятся здесь:\n\n1. ВЕКТОРНЫЙ ПОИСК - текстовое сходство\n2. СЕМАНТИЧЕСКИЙ ПОИСК - синонимы + морфология\n3. РЕЖИМ РЕДАКТИРОВАНИЯ - алгоритм из столбца 'Наименование поставщика'\n4. ГИБРИДНЫЙ РЕЖИМ - адаптивная классификация + токенизация\n\nВарианты тестирования:\n• 'Подбор ML' - все 4 алгоритма сразу\n• 'Режим редактирования' - только 3-й алгоритм"
             style={{
               height: '200px',
               fontSize: '12px',
               backgroundColor: waitingForML ? '#f0f8ff' : '#fafafa',
-              fontFamily: 'Consolas, Monaco, monospace'
+              fontFamily: 'Consolas, Monaco, monospace',
             }}
           />
         </Card>
-
 
         {/* Поле 3: Редактируемый промт */}
         <Card title="3. Промт для Deepseek API" size="small">
@@ -483,7 +507,7 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
               height: '300px',
               fontSize: '11px',
               fontFamily: 'monospace',
-              backgroundColor: '#f5f5f5'
+              backgroundColor: '#f5f5f5',
             }}
           />
         </Card>
@@ -512,15 +536,22 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
             message="Инструкция по использованию"
             description={
               <div>
-                <p><strong>• Подбор ML</strong> - все 4 алгоритма поиска в supplier_names:</p>
+                <p>
+                  <strong>• Подбор ML</strong> - все 4 алгоритма поиска в supplier_names:
+                </p>
                 <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
                   <li>1. Векторный анализ текстового сходства (60 результатов)</li>
                   <li>2. Семантический поиск с синонимами (60 результатов)</li>
                   <li>3. Режим редактирования с ML настройками (минимум 60 результатов)</li>
                   <li>4. Гибридный режим с адаптивной классификацией (60 результатов)</li>
                 </ul>
-                <p><strong>• Режим редактирования</strong> - только 3-й алгоритм (как в столбце поставщиков)</p>
-                <p><strong>• Отправить запрос</strong> - поиск по всем 4 алгоритмам + AI анализ</p>
+                <p>
+                  <strong>• Режим редактирования</strong> - только 3-й алгоритм (как в столбце
+                  поставщиков)
+                </p>
+                <p>
+                  <strong>• Отправить запрос</strong> - поиск по всем 4 алгоритмам + AI анализ
+                </p>
               </div>
             }
             type="info"
@@ -534,7 +565,6 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
             Очистить все поля
           </Button>
         </div>
-
       </div>
     </Modal>
   )

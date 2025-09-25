@@ -13,7 +13,7 @@ import type {
   DeepseekMaterialRequest,
   DeepseekMaterialResponse,
   MLMode,
-  MLModeConfig
+  MLModeConfig,
 } from '../types'
 
 /**
@@ -36,7 +36,6 @@ const DEEPSEEK_CONFIG = {
  * Управляет конфигурацией AI модели и статистикой использования
  */
 export const deepseekApi = {
-
   /**
    * ===============================
    * УПРАВЛЕНИЕ НАСТРОЙКАМИ
@@ -55,7 +54,9 @@ export const deepseekApi = {
       // Используем явный список полей вместо * для совместимости с БД без system_prompt
       const { data, error } = await supabase
         .from('deepseek_settings')
-        .select('id, api_key, base_url, model, enabled, temperature, max_tokens, created_at, updated_at')
+        .select(
+          'id, api_key, base_url, model, enabled, temperature, max_tokens, created_at, updated_at',
+        )
         .single()
 
       if (error && error.code !== 'PGRST116') {
@@ -85,7 +86,7 @@ export const deepseekApi = {
 
       return {
         ...data,
-        system_prompt: systemPrompt
+        system_prompt: systemPrompt,
       } as DeepseekSettings
     } catch (error) {
       console.error('Error getting Deepseek settings:', error)
@@ -102,10 +103,7 @@ export const deepseekApi = {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     try {
-      const { data: existing } = await supabase
-        .from('deepseek_settings')
-        .select('id')
-        .single()
+      const { data: existing } = await supabase.from('deepseek_settings').select('id').single()
 
       // Исключаем system_prompt из данных для сохранения (если поле не существует в БД)
       const { system_prompt, ...inputWithoutPrompt } = input
@@ -113,16 +111,19 @@ export const deepseekApi = {
       // Добавляем timestamp обновления
       const dataToSave = {
         ...inputWithoutPrompt,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       }
 
       const query = supabase.from('deepseek_settings')
       const { data, error } = existing
         ? await query.update(dataToSave).eq('id', existing.id).select().single()
-        : await query.insert({
-            ...dataToSave,
-            created_at: new Date().toISOString()
-          }).select().single()
+        : await query
+            .insert({
+              ...dataToSave,
+              created_at: new Date().toISOString(),
+            })
+            .select()
+            .single()
 
       if (error) {
         console.error('Failed to upsert Deepseek settings:', error)
@@ -138,7 +139,7 @@ export const deepseekApi = {
       // Возвращаем данные с system_prompt = undefined (поле отсутствует в БД)
       return {
         ...data,
-        system_prompt: undefined
+        system_prompt: undefined,
       } as DeepseekSettings
     } catch (error) {
       console.error('Error upserting Deepseek settings:', error)
@@ -157,7 +158,11 @@ export const deepseekApi = {
    * Проверяет валидность API ключа и доступность сервиса
    * Возвращает объект с результатом проверки и дополнительной информацией
    */
-  async testConnection(apiKey: string, baseUrl?: string, externalSignal?: AbortSignal): Promise<{
+  async testConnection(
+    apiKey: string,
+    baseUrl?: string,
+    externalSignal?: AbortSignal,
+  ): Promise<{
     success: boolean
     error?: string
     model_info?: any
@@ -173,10 +178,10 @@ export const deepseekApi = {
       const response = await fetch(`${baseUrl || DEEPSEEK_CONFIG.BASE_URL}/v1/models`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        signal: combinedSignal // ИСПРАВЛЕНИЕ: Используем объединенный signal
+        signal: combinedSignal, // ИСПРАВЛЕНИЕ: Используем объединенный signal
       })
 
       const latency = Date.now() - startTime
@@ -186,7 +191,7 @@ export const deepseekApi = {
         return {
           success: false,
           error: `HTTP ${response.status}: ${errorText}`,
-          latency_ms: latency
+          latency_ms: latency,
         }
       }
 
@@ -195,14 +200,14 @@ export const deepseekApi = {
       return {
         success: true,
         model_info: data,
-        latency_ms: latency
+        latency_ms: latency,
       }
     } catch (error) {
       const latency = Date.now() - startTime
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
-        latency_ms: latency
+        latency_ms: latency,
       }
     }
   },
@@ -220,7 +225,10 @@ export const deepseekApi = {
    * ПАТТЕРН ДЛЯ КОПИРОВАНИЯ: Этот блок можно копировать на другие страницы
    * для интеграции Deepseek в любые компоненты, работающие с материалами
    */
-  async analyzeMaterial(request: DeepseekMaterialRequest, externalSignal?: AbortSignal): Promise<DeepseekMaterialResponse> {
+  async analyzeMaterial(
+    request: DeepseekMaterialRequest,
+    externalSignal?: AbortSignal,
+  ): Promise<DeepseekMaterialResponse> {
     // Получаем текущие настройки Deepseek
     const settings = await this.getSettings()
 
@@ -247,7 +255,7 @@ export const deepseekApi = {
       hasExternalSignal: !!externalSignal,
       externalAborted: externalSignal?.aborted || false,
       timeoutMs: DEEPSEEK_CONFIG.TIMEOUT_MS,
-      combinedAborted: combinedSignal.aborted
+      combinedAborted: combinedSignal.aborted,
     })
 
     try {
@@ -265,20 +273,20 @@ export const deepseekApi = {
       const response = await fetch(`${settings.base_url}/chat/completions`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${settings.api_key}`,
+          Authorization: `Bearer ${settings.api_key}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           model: settings.model,
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
+            { role: 'user', content: userPrompt },
           ],
           temperature: settings.temperature,
           max_tokens: settings.max_tokens,
-          stream: false
+          stream: false,
         }),
-        signal: combinedSignal // ИСПРАВЛЕНИЕ: Используем объединенный signal
+        signal: combinedSignal, // ИСПРАВЛЕНИЕ: Используем объединенный signal
       })
 
       // LOG: завершение замера времени выполнения
@@ -313,23 +321,31 @@ export const deepseekApi = {
       const isLargeResponse = contentLengthValue > 5000000 // 5MB threshold для больших ответов
 
       if (isLargeResponse) {
-        console.log(`🔍 Deepseek: Большой ответ ${contentLengthValue} байт, используем потоковое чтение`) // LOG: потоковое чтение
+        console.log(
+          `🔍 Deepseek: Большой ответ ${contentLengthValue} байт, используем потоковое чтение`,
+        ) // LOG: потоковое чтение
 
         // Используем ArrayBuffer для больших ответов (более эффективно)
         const buffer = await response.arrayBuffer()
         text = new TextDecoder('utf-8').decode(buffer)
         textReadTime = Date.now() - jsonStartTime
-        console.log(`🔍 Deepseek: ArrayBuffer прочитан за ${textReadTime}мс, размер: ${text.length} символов`) // LOG: чтение ArrayBuffer
+        console.log(
+          `🔍 Deepseek: ArrayBuffer прочитан за ${textReadTime}мс, размер: ${text.length} символов`,
+        ) // LOG: чтение ArrayBuffer
       } else {
         // КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Для маленьких ответов используем ArrayBuffer напрямую
-        console.log(`🔍 Deepseek: Маленький ответ ${contentLengthValue || 'unknown'} байт, используем ArrayBuffer для надежности`) // LOG: оптимизированное чтение
+        console.log(
+          `🔍 Deepseek: Маленький ответ ${contentLengthValue || 'unknown'} байт, используем ArrayBuffer для надежности`,
+        ) // LOG: оптимизированное чтение
 
         try {
           // ИСПРАВЛЕНИЕ: Используем ArrayBuffer вместо text() чтобы избежать browser bugs
           const buffer = await response.arrayBuffer()
           text = new TextDecoder('utf-8').decode(buffer)
           textReadTime = Date.now() - jsonStartTime
-          console.log(`🔍 Deepseek: ArrayBuffer прочитан за ${textReadTime}мс, размер: ${text.length} символов`) // LOG: чтение ArrayBuffer
+          console.log(
+            `🔍 Deepseek: ArrayBuffer прочитан за ${textReadTime}мс, размер: ${text.length} символов`,
+          ) // LOG: чтение ArrayBuffer
         } catch (bufferError) {
           console.error(`🔍 Deepseek: Ошибка чтения ArrayBuffer:`, bufferError) // LOG: ошибка чтения
           throw new Error(`Не удалось прочитать ответ: ${bufferError.message}`)
@@ -345,7 +361,7 @@ export const deepseekApi = {
           error: jsonError,
           textLength: text.length,
           firstChars: text.substring(0, 500),
-          lastChars: text.substring(text.length - 500)
+          lastChars: text.substring(text.length - 500),
         })
         throw new Error(`Ошибка парсинга JSON ответа Deepseek: ${jsonError.message}`)
       }
@@ -372,7 +388,7 @@ export const deepseekApi = {
       const usageStats = {
         tokens_input: data.usage?.prompt_tokens || 0,
         tokens_output: data.usage?.completion_tokens || 0,
-        processing_time_ms: processingTime
+        processing_time_ms: processingTime,
       }
 
       // LOG: начало обновления статистики
@@ -385,7 +401,7 @@ export const deepseekApi = {
         material: request.material_name,
         recommendations_count: analysisResult.recommendations.length,
         found_online: analysisResult.material_analysis?.found_online,
-        processing_time: processingTime
+        processing_time: processingTime,
       })
 
       // ОТЛАДКА: Сохраняем ответ в debug таблицу для анализа
@@ -407,7 +423,7 @@ export const deepseekApi = {
           recommendationsCount: analysisResult.recommendations.length,
           processingTimeMs: processingTime,
           success: true,
-          mlMode: 'deepseek'
+          mlMode: 'deepseek',
         })
       } catch (debugError) {
         console.warn('Ошибка сохранения debug данных:', debugError) // LOG: ошибка debug сохранения
@@ -416,9 +432,8 @@ export const deepseekApi = {
       return {
         material_analysis: analysisResult.material_analysis,
         recommendations: analysisResult.recommendations,
-        usage_stats: usageStats
+        usage_stats: usageStats,
       }
-
     } catch (error) {
       const processingTime = Date.now() - startTime
 
@@ -434,7 +449,7 @@ export const deepseekApi = {
           processingTimeMs: processingTime,
           success: false,
           errorMessage: error instanceof Error ? error.message : 'Unknown error',
-          mlMode: 'deepseek'
+          mlMode: 'deepseek',
         })
       } catch (debugError) {
         console.warn('Ошибка сохранения debug ошибки:', debugError) // LOG: ошибка debug сохранения ошибки
@@ -449,7 +464,7 @@ export const deepseekApi = {
           processingTime,
           externalSignalAborted: externalSignal?.aborted || false,
           combinedSignalAborted: combinedSignal.aborted,
-          reason: externalSignal?.aborted ? 'React Query cancellation' : 'Timeout (30s)'
+          reason: externalSignal?.aborted ? 'React Query cancellation' : 'Timeout (30s)',
         })
         throw error // Передаем AbortError без дополнительной обработки
       }
@@ -553,9 +568,14 @@ export const deepseekApi = {
    * УЛУЧШЕННАЯ ML ВЕКТОРИЗАЦИЯ ДЛЯ ОТБОРА РЕЛЕВАНТНЫХ ЗАПИСЕЙ
    * Реализует этап 1: ML векторный отбор наиболее подходящих записей из supplier_names
    */
-  async selectRelevantSuppliers(materialName: string, targetCount: number = 300): Promise<string[]> {
+  async selectRelevantSuppliers(
+    materialName: string,
+    targetCount: number = 300,
+  ): Promise<string[]> {
     try {
-      console.log(`🔍 ML Векторизация: Отбор ${targetCount} релевантных поставщиков для: ${materialName}`)
+      console.log(
+        `🔍 ML Векторизация: Отбор ${targetCount} релевантных поставщиков для: ${materialName}`,
+      )
 
       // Извлекаем ключевые слова для векторного анализа
       const keywords = this.extractMaterialKeywords(materialName)
@@ -581,20 +601,20 @@ export const deepseekApi = {
             .limit(Math.max(20, limit))
 
           return { data: data || [], keyword, weight }
-        })
+        }),
       )
 
       // Этап 3: Векторное объединение с учетом весов
       const relevanceMap = new Map<string, number>()
 
       // Добавляем точные совпадения с максимальным весом
-      exactMatches?.forEach(item => {
+      exactMatches?.forEach((item) => {
         relevanceMap.set(item.name, 1.0)
       })
 
       // Добавляем результаты по ключевым словам с весами
       keywordResults.forEach(({ data, keyword, weight }) => {
-        data.forEach(item => {
+        data.forEach((item) => {
           const currentWeight = relevanceMap.get(item.name) || 0
           const newWeight = Math.max(currentWeight, weight * 0.7) // Максимум от текущего веса
           relevanceMap.set(item.name, newWeight)
@@ -607,7 +627,9 @@ export const deepseekApi = {
         .slice(0, targetCount)
         .map(([name]) => name)
 
-      console.log(`🎯 ML Векторизация: Отобрано ${sortedSuppliers.length} записей с весами релевантности`)
+      console.log(
+        `🎯 ML Векторизация: Отобрано ${sortedSuppliers.length} записей с весами релевантности`,
+      )
 
       // Если недостаточно записей, добавляем дополнительные
       if (sortedSuppliers.length < targetCount * 0.7) {
@@ -622,15 +644,14 @@ export const deepseekApi = {
         if (additionalSuppliers) {
           const existingNames = new Set(sortedSuppliers)
           const newSuppliers = additionalSuppliers
-            .map(s => s.name)
-            .filter(name => !existingNames.has(name))
+            .map((s) => s.name)
+            .filter((name) => !existingNames.has(name))
 
           sortedSuppliers.push(...newSuppliers)
         }
       }
 
       return sortedSuppliers.slice(0, targetCount)
-
     } catch (error) {
       console.error('🔴 ML Векторизация: Ошибка отбора релевантных поставщиков:', error)
 
@@ -640,7 +661,7 @@ export const deepseekApi = {
         .select('name')
         .limit(targetCount)
 
-      return fallbackSuppliers?.map(s => s.name) || []
+      return fallbackSuppliers?.map((s) => s.name) || []
     }
   },
 
@@ -650,14 +671,17 @@ export const deepseekApi = {
    */
   async buildUserPrompt(request: DeepseekMaterialRequest): Promise<string> {
     const maxSuggestions = request.preferences?.max_suggestions || 5
-    console.log(`🔍 Deepseek: Формируем промпт с предотобранными записями для ${maxSuggestions} результатов`)
+    console.log(
+      `🔍 Deepseek: Формируем промпт с предотобранными записями для ${maxSuggestions} результатов`,
+    )
 
     let prompt = `Материал для анализа: "${request.material_name}"\n\n`
 
     if (request.context) {
       prompt += 'Контекст проекта:\n'
       if (request.context.project_type) prompt += `- Тип проекта: ${request.context.project_type}\n`
-      if (request.context.cost_category) prompt += `- Категория затрат: ${request.context.cost_category}\n`
+      if (request.context.cost_category)
+        prompt += `- Категория затрат: ${request.context.cost_category}\n`
       if (request.context.cost_type) prompt += `- Тип затрат: ${request.context.cost_type}\n`
       if (request.context.location) prompt += `- Местоположение: ${request.context.location}\n`
       prompt += '\n'
@@ -684,11 +708,14 @@ export const deepseekApi = {
       const targetSupplierCount = Math.min(500, Math.max(100, maxSuggestions * 20))
 
       // Этап 1: ML векторный отбор наиболее релевантных записей
-      const relevantSuppliers = await this.selectRelevantSuppliers(request.material_name, targetSupplierCount)
+      const relevantSuppliers = await this.selectRelevantSuppliers(
+        request.material_name,
+        targetSupplierCount,
+      )
 
       if (relevantSuppliers.length > 0) {
         prompt += `ПРЕДОТОБРАННЫЕ ML ВЕКТОРИЗАЦИЕЙ РЕЛЕВАНТНЫЕ ПОСТАВЩИКИ (${relevantSuppliers.length} записей):\n`
-        prompt += relevantSuppliers.map(name => `- ${name}`).join('\n')
+        prompt += relevantSuppliers.map((name) => `- ${name}`).join('\n')
         prompt += '\n\n'
         console.log(`🎯 Deepseek: Используем ${relevantSuppliers.length} предотобранных ML записей`)
       }
@@ -702,10 +729,9 @@ export const deepseekApi = {
 
       if (nomenclature && nomenclature.length > 0) {
         prompt += 'РЕФЕРЕНСНАЯ НОМЕНКЛАТУРА ДЛЯ СРАВНЕНИЯ:\n'
-        prompt += nomenclature.map(n => `- ${n.name}`).join('\n')
+        prompt += nomenclature.map((n) => `- ${n.name}`).join('\n')
         prompt += '\n\n'
       }
-
     } catch (error) {
       console.error('🔴 Deepseek: Ошибка ML векторизации, используем fallback:', error)
 
@@ -717,12 +743,13 @@ export const deepseekApi = {
 
       if (fallbackSuppliers && fallbackSuppliers.length > 0) {
         prompt += 'ДОСТУПНЫЕ ПОСТАВЩИКИ (fallback режим):\n'
-        prompt += fallbackSuppliers.map(s => `- ${s.name}`).join('\n')
+        prompt += fallbackSuppliers.map((s) => `- ${s.name}`).join('\n')
         prompt += '\n\n'
       }
     }
 
-    prompt += 'ЗАДАЧА: Проанализируй запрашиваемый материал и подбери наиболее подходящие варианты ТОЛЬКО из предоставленного списка предотобранных поставщиков. Не изобретай новые названия - используй точные названия из списка выше.'
+    prompt +=
+      'ЗАДАЧА: Проанализируй запрашиваемый материал и подбери наиболее подходящие варианты ТОЛЬКО из предоставленного списка предотобранных поставщиков. Не изобретай новые названия - используй точные названия из списка выше.'
 
     return prompt
   },
@@ -733,55 +760,176 @@ export const deepseekApi = {
    */
   extractMaterialKeywords(materialName: string): string[] {
     // Очищаем название от служебных символов и приводим к нижнему регистру
-    const cleaned = materialName.toLowerCase()
+    const cleaned = materialName
+      .toLowerCase()
       .replace(/[^\w\sа-яё]/g, ' ') // Убираем все кроме букв, цифр и пробелов
       .replace(/\s+/g, ' ') // Убираем лишние пробелы
       .trim()
 
     // УЛУЧШЕННЫЙ список стоп-слов (общие слова, которые не помогают в поиске)
     const stopWords = new Set([
-      'и', 'в', 'на', 'с', 'по', 'для', 'от', 'до', 'из', 'к', 'о', 'у', 'за', 'под', 'над', 'при', 'без',
-      'мм', 'см', 'м', 'кг', 'г', 'шт', 'л', 'м2', 'м3', 'кв', 'куб', 'штук', 'литр', 'метр', 'мета',
-      'гост', 'ту', 'сту', 'дин', 'din', 'iso', 'производства', 'серия', 'артикул', 'код', 'тип', 'типа',
-      'класс', 'марка', 'размер', 'длина', 'ширина', 'высота', 'толщина', 'диаметр'
+      'и',
+      'в',
+      'на',
+      'с',
+      'по',
+      'для',
+      'от',
+      'до',
+      'из',
+      'к',
+      'о',
+      'у',
+      'за',
+      'под',
+      'над',
+      'при',
+      'без',
+      'мм',
+      'см',
+      'м',
+      'кг',
+      'г',
+      'шт',
+      'л',
+      'м2',
+      'м3',
+      'кв',
+      'куб',
+      'штук',
+      'литр',
+      'метр',
+      'мета',
+      'гост',
+      'ту',
+      'сту',
+      'дин',
+      'din',
+      'iso',
+      'производства',
+      'серия',
+      'артикул',
+      'код',
+      'тип',
+      'типа',
+      'класс',
+      'марка',
+      'размер',
+      'длина',
+      'ширина',
+      'высота',
+      'толщина',
+      'диаметр',
     ])
 
     // Разбиваем на слова и фильтруем
-    const words = cleaned.split(' ')
-      .filter(word => word.length >= 3) // Минимум 3 символа
-      .filter(word => !stopWords.has(word)) // Убираем стоп-слова
-      .filter(word => !/^\d+$/.test(word)) // Убираем чисто числовые значения
+    const words = cleaned
+      .split(' ')
+      .filter((word) => word.length >= 3) // Минимум 3 символа
+      .filter((word) => !stopWords.has(word)) // Убираем стоп-слова
+      .filter((word) => !/^\d+$/.test(word)) // Убираем чисто числовые значения
 
     // РАСШИРЕННЫЙ список важных категорий материалов для лучшего поиска
     const materialCategories = [
       // Основные конструкционные материалы
-      'арматура', 'бетон', 'железобетон', 'кирпич', 'блок', 'плита', 'панель', 'профиль', 'труба', 'лист',
-      'балка', 'ригель', 'колонна', 'плиты', 'сваи', 'фундамент', 'перекрытие',
+      'арматура',
+      'бетон',
+      'железобетон',
+      'кирпич',
+      'блок',
+      'плита',
+      'панель',
+      'профиль',
+      'труба',
+      'лист',
+      'балка',
+      'ригель',
+      'колонна',
+      'плиты',
+      'сваи',
+      'фундамент',
+      'перекрытие',
 
       // Изоляционные материалы
-      'теплоизоляция', 'утеплитель', 'изоляция', 'гидроизоляция', 'пароизоляция', 'звукоизоляция',
-      'минвата', 'пенопласт', 'пенополистирол', 'базальт', 'стекловата', 'эковата',
+      'теплоизоляция',
+      'утеплитель',
+      'изоляция',
+      'гидроизоляция',
+      'пароизоляция',
+      'звукоизоляция',
+      'минвата',
+      'пенопласт',
+      'пенополистирол',
+      'базальт',
+      'стекловата',
+      'эковата',
 
       // Связующие и отделочные материалы
-      'цемент', 'раствор', 'смесь', 'клей', 'герметик', 'краска', 'грунт', 'шпаклевка', 'штукатурка',
-      'мастика', 'затирка', 'шпатлевка', 'эмаль', 'лак', 'пропитка',
+      'цемент',
+      'раствор',
+      'смесь',
+      'клей',
+      'герметик',
+      'краска',
+      'грунт',
+      'шпаклевка',
+      'штукатурка',
+      'мастика',
+      'затирка',
+      'шпатлевка',
+      'эмаль',
+      'лак',
+      'пропитка',
 
       // Кровельные материалы
-      'кровля', 'черепица', 'мембрана', 'рубероид', 'битум', 'ондулин', 'металлочерепица',
-      'профнастил', 'шифер', 'гибкая', 'фальцевая',
+      'кровля',
+      'черепица',
+      'мембрана',
+      'рубероид',
+      'битум',
+      'ондулин',
+      'металлочерепица',
+      'профнастил',
+      'шифер',
+      'гибкая',
+      'фальцевая',
 
       // Столярные изделия
-      'стекло', 'окно', 'дверь', 'рама', 'створка', 'фурнитура', 'стеклопакет', 'подоконник',
-      'наличник', 'откос', 'порог', 'коробка', 'полотно',
+      'стекло',
+      'окно',
+      'дверь',
+      'рама',
+      'створка',
+      'фурнитура',
+      'стеклопакет',
+      'подоконник',
+      'наличник',
+      'откос',
+      'порог',
+      'коробка',
+      'полотно',
 
       // Материалы по типу
-      'сталь', 'алюминий', 'пластик', 'дерево', 'металл', 'композит', 'полимер', 'керамика',
-      'стеклопластик', 'фиброцемент', 'гипсокартон', 'осб', 'дсп', 'мдф', 'фанера'
+      'сталь',
+      'алюминий',
+      'пластик',
+      'дерево',
+      'металл',
+      'композит',
+      'полимер',
+      'керамика',
+      'стеклопластик',
+      'фиброцемент',
+      'гипсокартон',
+      'осб',
+      'дсп',
+      'мдф',
+      'фанера',
     ]
 
     // Добавляем найденные категории с повышенным приоритетом
-    const categories = words.filter(word =>
-      materialCategories.some(cat => word.includes(cat) || cat.includes(word))
+    const categories = words.filter((word) =>
+      materialCategories.some((cat) => word.includes(cat) || cat.includes(word)),
     )
 
     // Объединяем обычные слова и категории, убираем дубли
@@ -797,16 +945,19 @@ export const deepseekApi = {
    *
    * ПАТТЕРН ДЛЯ КОПИРОВАНИЯ: Обработка расширенного AI анализа с интернет-поиском
    */
-  async parseAIResponse(aiResponse: string, originalMaterial: string): Promise<{
-    material_analysis?: DeepseekMaterialResponse['material_analysis'],
-    recommendations: DeepseekMaterialResponse['recommendations'],
+  async parseAIResponse(
+    aiResponse: string,
+    originalMaterial: string,
+  ): Promise<{
+    material_analysis?: DeepseekMaterialResponse['material_analysis']
+    recommendations: DeepseekMaterialResponse['recommendations']
     debugInfo?: {
-      cleanedResponse: string,
-      cleanedResponseLength: number,
-      jsonExtractionMethod: string,
-      jsonFixApplied: boolean,
-      jsonErrorPosition?: number,
-      jsonErrorMessage?: string,
+      cleanedResponse: string
+      cleanedResponseLength: number
+      jsonExtractionMethod: string
+      jsonFixApplied: boolean
+      jsonErrorPosition?: number
+      jsonErrorMessage?: string
       fallbackUsed: boolean
     }
   }> {
@@ -816,7 +967,7 @@ export const deepseekApi = {
       cleanedResponseLength: 0,
       jsonExtractionMethod: 'direct',
       jsonFixApplied: false,
-      fallbackUsed: false
+      fallbackUsed: false,
     }
 
     try {
@@ -825,7 +976,7 @@ export const deepseekApi = {
         totalLength: aiResponse.length,
         firstChars: aiResponse.substring(0, 100),
         lastChars: aiResponse.substring(aiResponse.length - 100),
-        containsBraces: aiResponse.includes('{') && aiResponse.includes('}')
+        containsBraces: aiResponse.includes('{') && aiResponse.includes('}'),
       })
 
       // Очищаем ответ от markdown блоков и лишних символов
@@ -846,7 +997,7 @@ export const deepseekApi = {
         originalLength: aiResponse.length,
         cleanedLength: cleanResponse.length,
         startsWithBrace: cleanResponse.startsWith('{'),
-        endsWithBrace: cleanResponse.endsWith('}')
+        endsWithBrace: cleanResponse.endsWith('}'),
       })
 
       // Пытаемся извлечь JSON из очищенного ответа
@@ -866,7 +1017,7 @@ export const deepseekApi = {
       console.log('🔍 Extracted JSON string:', {
         length: jsonString.length,
         preview: jsonString.substring(0, 200) + '...',
-        ending: jsonString.substring(jsonString.length - 200)
+        ending: jsonString.substring(jsonString.length - 200),
       })
 
       // УЛУЧШЕННАЯ ОБРАБОТКА НЕПОЛНОГО JSON
@@ -990,7 +1141,7 @@ export const deepseekApi = {
 
       console.log('🔧 JSON после минимальной очистки:', {
         length: jsonString.length,
-        lastChars: jsonString.substring(jsonString.length - 100)
+        lastChars: jsonString.substring(jsonString.length - 100),
       })
 
       // Проверяем на очевидные проблемы с JSON перед парсингом
@@ -1016,7 +1167,7 @@ export const deepseekApi = {
         console.error('🤖 Deepseek: Ошибка парсинга JSON:', {
           error: jsonError,
           jsonLength: jsonString.length,
-          lastChars: jsonString.substring(jsonString.length - 100)
+          lastChars: jsonString.substring(jsonString.length - 100),
         })
 
         // УЛУЧШЕННАЯ FALLBACK ЛОГИКА
@@ -1034,21 +1185,27 @@ export const deepseekApi = {
             const supplierMatches = recText.match(/"supplier_name":\s*"([^"]+)"/g) || []
             const confidenceMatches = recText.match(/"confidence":\s*([0-9.]+)/g) || []
 
-            const maxRecs = Math.min(Math.max(nomenclatureMatches.length, supplierMatches.length), 5)
+            const maxRecs = Math.min(
+              Math.max(nomenclatureMatches.length, supplierMatches.length),
+              5,
+            )
             for (let i = 0; i < maxRecs; i++) {
-              const nomenclature = nomenclatureMatches[i]?.match(/"([^"]+)"/)?.[1] || `${originalMaterial} (вариант ${i + 1})`
-              const supplier = supplierMatches[i]?.match(/"([^"]+)"/)?.[1] || "Требуется уточнение поставщика"
-              const confidence = parseFloat(confidenceMatches[i]?.match(/([0-9.]+)/)?.[1] || "0.5")
+              const nomenclature =
+                nomenclatureMatches[i]?.match(/"([^"]+)"/)?.[1] ||
+                `${originalMaterial} (вариант ${i + 1})`
+              const supplier =
+                supplierMatches[i]?.match(/"([^"]+)"/)?.[1] || 'Требуется уточнение поставщика'
+              const confidence = parseFloat(confidenceMatches[i]?.match(/([0-9.]+)/)?.[1] || '0.5')
 
               partialRecommendations.push({
-                "nomenclature_name": nomenclature,
-                "supplier_name": supplier,
-                "confidence": confidence,
-                "reasoning": "Частично восстановлено из поврежденного JSON",
-                "price_analysis": "Цена уточняется",
-                "quality_score": 6.0,
-                "characteristics_match": "Частичное соответствие",
-                "tooltip_info": `${nomenclature} (${supplier})`
+                nomenclature_name: nomenclature,
+                supplier_name: supplier,
+                confidence: confidence,
+                reasoning: 'Частично восстановлено из поврежденного JSON',
+                price_analysis: 'Цена уточняется',
+                quality_score: 6.0,
+                characteristics_match: 'Частичное соответствие',
+                tooltip_info: `${nomenclature} (${supplier})`,
               })
             }
           }
@@ -1058,27 +1215,29 @@ export const deepseekApi = {
 
         // Если не удалось извлечь ничего, создаем базовый fallback
         if (partialRecommendations.length === 0) {
-          partialRecommendations = [{
-            "nomenclature_name": originalMaterial,
-            "supplier_name": "Требуется уточнение поставщика",
-            "confidence": 0.5,
-            "reasoning": "Исходный материал из запроса",
-            "price_analysis": "Цена уточняется",
-            "quality_score": 5.0,
-            "characteristics_match": "Соответствует запросу",
-            "tooltip_info": `Материал: ${originalMaterial}`
-          }]
+          partialRecommendations = [
+            {
+              nomenclature_name: originalMaterial,
+              supplier_name: 'Требуется уточнение поставщика',
+              confidence: 0.5,
+              reasoning: 'Исходный материал из запроса',
+              price_analysis: 'Цена уточняется',
+              quality_score: 5.0,
+              characteristics_match: 'Соответствует запросу',
+              tooltip_info: `Материал: ${originalMaterial}`,
+            },
+          ]
         }
 
         // Создаем улучшенную fallback структуру
         const simpleFallback = {
-          "material_analysis": {
-            "found_online": false,
-            "characteristics": "Анализ прерван из-за ошибки парсинга ответа AI",
-            "applications": originalMaterial,
-            "market_price_range": "Требуется уточнение"
+          material_analysis: {
+            found_online: false,
+            characteristics: 'Анализ прерван из-за ошибки парсинга ответа AI',
+            applications: originalMaterial,
+            market_price_range: 'Требуется уточнение',
           },
-          "recommendations": partialRecommendations
+          recommendations: partialRecommendations,
         }
 
         console.log('🔧 Используем fallback JSON структуру с исходным материалом')
@@ -1090,12 +1249,15 @@ export const deepseekApi = {
       }
 
       // Извлекаем анализ материала (опционально)
-      const materialAnalysis = parsed.material_analysis ? {
-        found_online: Boolean(parsed.material_analysis.found_online),
-        characteristics: parsed.material_analysis.characteristics || 'Характеристики не найдены',
-        applications: parsed.material_analysis.applications || 'Сферы применения не определены',
-        market_price_range: parsed.material_analysis.market_price_range || 'Цены не найдены'
-      } : undefined
+      const materialAnalysis = parsed.material_analysis
+        ? {
+            found_online: Boolean(parsed.material_analysis.found_online),
+            characteristics:
+              parsed.material_analysis.characteristics || 'Характеристики не найдены',
+            applications: parsed.material_analysis.applications || 'Сферы применения не определены',
+            market_price_range: parsed.material_analysis.market_price_range || 'Цены не найдены',
+          }
+        : undefined
 
       // Валидируем и дополняем рекомендации с расширенными полями
       const recommendations = parsed.recommendations.map((rec: any, index: number) => ({
@@ -1107,34 +1269,36 @@ export const deepseekApi = {
         // РАСШИРЕННЫЕ ПОЛЯ ДЛЯ AI АНАЛИЗА
         price_analysis: rec.price_analysis || 'Анализ цен недоступен',
         quality_score: rec.quality_score ? Math.max(1, Math.min(10, rec.quality_score)) : undefined,
-        characteristics_match: rec.characteristics_match || 'Соответствие характеристик не определено',
+        characteristics_match:
+          rec.characteristics_match || 'Соответствие характеристик не определено',
         reasoning: rec.reasoning || 'Рекомендация от AI',
         tooltip_info: rec.tooltip_info || rec.nomenclature_name, // Fallback на название
 
-        alternative_names: Array.isArray(rec.alternative_names) ? rec.alternative_names : []
+        alternative_names: Array.isArray(rec.alternative_names) ? rec.alternative_names : [],
       }))
 
       return {
         material_analysis: materialAnalysis,
         recommendations,
-        debugInfo
+        debugInfo,
       }
-
     } catch (error) {
       console.error('🤖 Deepseek: Ошибка парсинга ответа AI:', error)
 
       // Fallback: возвращаем базовую рекомендацию
       debugInfo.fallbackUsed = true
       return {
-        recommendations: [{
-          nomenclature_id: `fallback-${Date.now()}`,
-          nomenclature_name: originalMaterial,
-          confidence: 0.3,
-          reasoning: 'Не удалось обработать ответ AI, возвращен исходный материал',
-          tooltip_info: `Материал: ${originalMaterial}`,
-          alternative_names: []
-        }],
-        debugInfo
+        recommendations: [
+          {
+            nomenclature_id: `fallback-${Date.now()}`,
+            nomenclature_name: originalMaterial,
+            confidence: 0.3,
+            reasoning: 'Не удалось обработать ответ AI, возвращен исходный материал',
+            tooltip_info: `Материал: ${originalMaterial}`,
+            alternative_names: [],
+          },
+        ],
+        debugInfo,
       }
     }
   },
@@ -1153,10 +1317,7 @@ export const deepseekApi = {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     try {
-      const { data, error } = await supabase
-        .from('deepseek_usage_stats')
-        .select('*')
-        .single()
+      const { data, error } = await supabase.from('deepseek_usage_stats').select('*').single()
 
       if (error && error.code !== 'PGRST116') {
         console.error('Failed to fetch Deepseek usage stats:', error)
@@ -1174,20 +1335,21 @@ export const deepseekApi = {
    * ОБНОВЛЕНИЕ СТАТИСТИКИ ИСПОЛЬЗОВАНИЯ
    * Увеличивает счетчики токенов, запросов и рассчитывает стоимость
    */
-  async updateUsageStats(inputTokens: number, outputTokens: number, success: boolean): Promise<void> {
+  async updateUsageStats(
+    inputTokens: number,
+    outputTokens: number,
+    success: boolean,
+  ): Promise<void> {
     if (!supabase) return
 
     try {
       // Примерная стоимость Deepseek (нужно уточнить актуальные тарифы)
-      const INPUT_TOKEN_COST = 0.00014 / 1000  // $0.14 per 1K tokens
+      const INPUT_TOKEN_COST = 0.00014 / 1000 // $0.14 per 1K tokens
       const OUTPUT_TOKEN_COST = 0.00028 / 1000 // $0.28 per 1K tokens
 
-      const requestCost = (inputTokens * INPUT_TOKEN_COST) + (outputTokens * OUTPUT_TOKEN_COST)
+      const requestCost = inputTokens * INPUT_TOKEN_COST + outputTokens * OUTPUT_TOKEN_COST
 
-      const { data: existing } = await supabase
-        .from('deepseek_usage_stats')
-        .select('*')
-        .single()
+      const { data: existing } = await supabase.from('deepseek_usage_stats').select('*').single()
 
       const now = new Date().toISOString()
 
@@ -1200,27 +1362,27 @@ export const deepseekApi = {
             tokens_input: existing.tokens_input + inputTokens,
             tokens_output: existing.tokens_output + outputTokens,
             total_cost: existing.total_cost + requestCost,
-            successful_requests: success ? existing.successful_requests + 1 : existing.successful_requests,
+            successful_requests: success
+              ? existing.successful_requests + 1
+              : existing.successful_requests,
             failed_requests: success ? existing.failed_requests : existing.failed_requests + 1,
             last_request_at: now,
-            updated_at: now
+            updated_at: now,
           })
           .eq('id', existing.id)
       } else {
         // Создаем новую запись статистики
-        await supabase
-          .from('deepseek_usage_stats')
-          .insert({
-            requests_count: 1,
-            tokens_input: inputTokens,
-            tokens_output: outputTokens,
-            total_cost: requestCost,
-            successful_requests: success ? 1 : 0,
-            failed_requests: success ? 0 : 1,
-            last_request_at: now,
-            created_at: now,
-            updated_at: now
-          })
+        await supabase.from('deepseek_usage_stats').insert({
+          requests_count: 1,
+          tokens_input: inputTokens,
+          tokens_output: outputTokens,
+          total_cost: requestCost,
+          successful_requests: success ? 1 : 0,
+          failed_requests: success ? 0 : 1,
+          last_request_at: now,
+          created_at: now,
+          updated_at: now,
+        })
       }
     } catch (error) {
       console.error('Error updating Deepseek usage stats:', error)
@@ -1236,10 +1398,7 @@ export const deepseekApi = {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     try {
-      const { data: existing } = await supabase
-        .from('deepseek_usage_stats')
-        .select('id')
-        .single()
+      const { data: existing } = await supabase.from('deepseek_usage_stats').select('id').single()
 
       if (existing) {
         await supabase
@@ -1251,7 +1410,7 @@ export const deepseekApi = {
             total_cost: 0,
             successful_requests: 0,
             failed_requests: 0,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
           .eq('id', existing.id)
       }
@@ -1294,9 +1453,13 @@ export const deepseekApi = {
       }, timeoutMs)
 
       // Очищаем таймаут при abort
-      controller.signal.addEventListener('abort', () => {
-        clearTimeout(timeoutId)
-      }, { once: true })
+      controller.signal.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(timeoutId)
+        },
+        { once: true },
+      )
 
       return controller.signal
     }
@@ -1324,10 +1487,14 @@ export const deepseekApi = {
     }, timeoutMs)
 
     // Очищаем ресурсы при отмене
-    controller.signal.addEventListener('abort', () => {
-      clearTimeout(timeoutId)
-      externalSignal.removeEventListener('abort', externalAbortHandler)
-    }, { once: true })
+    controller.signal.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timeoutId)
+        externalSignal.removeEventListener('abort', externalAbortHandler)
+      },
+      { once: true },
+    )
 
     return controller.signal
   },
@@ -1372,13 +1539,15 @@ export const deepseekApi = {
 
       if (debugData.success && debugData.parsedRecommendations.length > 0) {
         // Простая оценка качества на основе соответствия ключевых слов
-        const materialKeywords = debugData.materialName.toLowerCase().split(' ')
-          .filter(word => word.length >= 3)
+        const materialKeywords = debugData.materialName
+          .toLowerCase()
+          .split(' ')
+          .filter((word) => word.length >= 3)
 
         let relevantCount = 0
         for (const rec of debugData.parsedRecommendations) {
           const recName = (rec.nomenclature_name || rec.supplier_name || '').toLowerCase()
-          const hasRelevantKeywords = materialKeywords.some(keyword => recName.includes(keyword))
+          const hasRelevantKeywords = materialKeywords.some((keyword) => recName.includes(keyword))
           if (hasRelevantKeywords) relevantCount++
         }
 
@@ -1386,31 +1555,29 @@ export const deepseekApi = {
         relevanceNotes = `${relevantCount}/${debugData.parsedRecommendations.length} рекомендаций релевантны`
       }
 
-      const { error } = await supabase
-        .from('ai_debug_responses')
-        .insert({
-          material_name: debugData.materialName,
-          max_suggestions: debugData.maxSuggestions,
-          ml_mode: debugData.mlMode,
-          raw_response: debugData.rawResponse,
-          raw_response_length: debugData.rawResponseLength,
-          cleaned_response: debugData.cleanedResponse,
-          cleaned_response_length: debugData.cleanedResponseLength,
-          json_extraction_method: debugData.jsonExtractionMethod,
-          json_fix_applied: debugData.jsonFixApplied,
-          json_error_position: debugData.jsonErrorPosition,
-          json_error_message: debugData.jsonErrorMessage,
-          fallback_used: debugData.fallbackUsed,
-          prompt_size: debugData.promptSize,
-          response_time_ms: debugData.responseTimeMs,
-          parsed_recommendations: debugData.parsedRecommendations,
-          recommendations_count: debugData.recommendationsCount,
-          processing_time_ms: debugData.processingTimeMs,
-          success: debugData.success,
-          error_message: debugData.errorMessage,
-          quality_score: qualityScore,
-          relevance_notes: relevanceNotes
-        })
+      const { error } = await supabase.from('ai_debug_responses').insert({
+        material_name: debugData.materialName,
+        max_suggestions: debugData.maxSuggestions,
+        ml_mode: debugData.mlMode,
+        raw_response: debugData.rawResponse,
+        raw_response_length: debugData.rawResponseLength,
+        cleaned_response: debugData.cleanedResponse,
+        cleaned_response_length: debugData.cleanedResponseLength,
+        json_extraction_method: debugData.jsonExtractionMethod,
+        json_fix_applied: debugData.jsonFixApplied,
+        json_error_position: debugData.jsonErrorPosition,
+        json_error_message: debugData.jsonErrorMessage,
+        fallback_used: debugData.fallbackUsed,
+        prompt_size: debugData.promptSize,
+        response_time_ms: debugData.responseTimeMs,
+        parsed_recommendations: debugData.parsedRecommendations,
+        recommendations_count: debugData.recommendationsCount,
+        processing_time_ms: debugData.processingTimeMs,
+        success: debugData.success,
+        error_message: debugData.errorMessage,
+        quality_score: qualityScore,
+        relevance_notes: relevanceNotes,
+      })
 
       if (error) {
         console.warn('Ошибка сохранения debug данных:', error) // LOG: ошибка сохранения debug
@@ -1419,13 +1586,13 @@ export const deepseekApi = {
           material: debugData.materialName,
           success: debugData.success,
           recommendations: debugData.recommendationsCount,
-          quality: qualityScore
+          quality: qualityScore,
         }) // LOG: успешное сохранение debug данных
       }
     } catch (error) {
       console.warn('Исключение при сохранении debug данных:', error) // LOG: исключение debug
     }
-  }
+  },
 }
 
 /**
@@ -1439,7 +1606,6 @@ export const deepseekApi = {
  * Позволяет переключаться между локальным ML и Deepseek AI
  */
 export const mlModeApi = {
-
   /**
    * ПОЛУЧЕНИЕ ТЕКУЩЕГО РЕЖИМА ML
    * Загружает настройки из localStorage
@@ -1458,7 +1624,7 @@ export const mlModeApi = {
     return {
       mode: 'local',
       auto_fallback: true,
-      cache_deepseek_results: true
+      cache_deepseek_results: true,
     }
   },
 
@@ -1491,5 +1657,5 @@ export const mlModeApi = {
       console.error('Error checking Deepseek availability:', error)
       return false
     }
-  }
+  },
 }

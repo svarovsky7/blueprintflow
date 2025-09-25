@@ -52,14 +52,17 @@ const DebouncedCommentModal: React.FC<DebouncedCommentModalProps> = ({
         }, 200)
       }
     })(),
-    []
+    [],
   )
 
-  const handleCommentChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value
-    setLocalComment(value)
-    debouncedSetComment(value)
-  }, [debouncedSetComment])
+  const handleCommentChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const value = e.target.value
+      setLocalComment(value)
+      debouncedSetComment(value)
+    },
+    [debouncedSetComment],
+  )
 
   const handleAddComment = useCallback(async () => {
     if (!newComment.trim()) {
@@ -81,59 +84,65 @@ const DebouncedCommentModal: React.FC<DebouncedCommentModalProps> = ({
     }
   }, [newComment, onAddComment])
 
-  const handleDeleteComment = useCallback(async (commentId: string) => {
-    setDeletingIds(prev => new Set(prev).add(commentId))
-    try {
-      await onDeleteComment(commentId)
-      message.success('Комментарий удален')
-    } catch (error) {
-      console.error('Ошибка удаления комментария:', error)
-      message.error('Не удалось удалить комментарий')
-    } finally {
-      setDeletingIds(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(commentId)
-        return newSet
-      })
-    }
-  }, [onDeleteComment])
+  const handleDeleteComment = useCallback(
+    async (commentId: string) => {
+      setDeletingIds((prev) => new Set(prev).add(commentId))
+      try {
+        await onDeleteComment(commentId)
+        message.success('Комментарий удален')
+      } catch (error) {
+        console.error('Ошибка удаления комментария:', error)
+        message.error('Не удалось удалить комментарий')
+      } finally {
+        setDeletingIds((prev) => {
+          const newSet = new Set(prev)
+          newSet.delete(commentId)
+          return newSet
+        })
+      }
+    },
+    [onDeleteComment],
+  )
 
   // Мемоизированный список комментариев
-  const commentsList = useMemo(() => (
-    <List
-      dataSource={comments}
-      size="small"
-      locale={{ emptyText: 'Комментариев нет' }}
-      renderItem={(comment) => (
-        <List.Item
-          key={comment.id}
-          actions={[
-            <Button
-              key="delete"
-              type="text"
-              icon={<DeleteOutlined />}
-              onClick={() => handleDeleteComment(comment.id)}
-              loading={deletingIds.has(comment.id)}
-              size="small"
-              danger
+  const commentsList = useMemo(
+    () => (
+      <List
+        dataSource={comments}
+        size="small"
+        locale={{ emptyText: 'Комментариев нет' }}
+        renderItem={(comment) => (
+          <List.Item
+            key={comment.id}
+            actions={[
+              <Button
+                key="delete"
+                type="text"
+                icon={<DeleteOutlined />}
+                onClick={() => handleDeleteComment(comment.id)}
+                loading={deletingIds.has(comment.id)}
+                size="small"
+                danger
+              />,
+            ]}
+          >
+            <List.Item.Meta
+              title={
+                <Space size="small">
+                  <Text strong>{comment.author}</Text>
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    {new Date(comment.created_at).toLocaleString('ru-RU')}
+                  </Text>
+                </Space>
+              }
+              description={comment.comment_text}
             />
-          ]}
-        >
-          <List.Item.Meta
-            title={
-              <Space size="small">
-                <Text strong>{comment.author}</Text>
-                <Text type="secondary" style={{ fontSize: '12px' }}>
-                  {new Date(comment.created_at).toLocaleString('ru-RU')}
-                </Text>
-              </Space>
-            }
-            description={comment.comment_text}
-          />
-        </List.Item>
-      )}
-    />
-  ), [comments, deletingIds, handleDeleteComment])
+          </List.Item>
+        )}
+      />
+    ),
+    [comments, deletingIds, handleDeleteComment],
+  )
 
   const handleCancel = useCallback(() => {
     setNewComment('')
@@ -152,9 +161,7 @@ const DebouncedCommentModal: React.FC<DebouncedCommentModalProps> = ({
     >
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
         {/* Список существующих комментариев */}
-        <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-          {commentsList}
-        </div>
+        <div style={{ maxHeight: '300px', overflowY: 'auto' }}>{commentsList}</div>
 
         {/* Добавление нового комментария */}
         <Space.Compact direction="vertical" style={{ width: '100%' }}>

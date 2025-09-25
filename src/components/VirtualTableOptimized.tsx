@@ -41,8 +41,11 @@ const VirtualTableOptimized: React.FC<VirtualTableOptimizedProps> = ({
 
   React.useEffect(() => {
     const renderTime = performance.now() - renderStartTime.current
-    if (renderTime > 100 && process.env.NODE_ENV === 'development') { // Только действительно медленные рендеры
-      console.warn(`⚠️ VirtualTableOptimized slow render: ${Math.round(renderTime)}ms for ${dataSource.length} total rows`)
+    if (renderTime > 100 && process.env.NODE_ENV === 'development') {
+      // Только действительно медленные рендеры
+      console.warn(
+        `⚠️ VirtualTableOptimized slow render: ${Math.round(renderTime)}ms for ${dataSource.length} total rows`,
+      )
     }
   })
 
@@ -52,7 +55,7 @@ const VirtualTableOptimized: React.FC<VirtualTableOptimizedProps> = ({
     getScrollElement: () => scrollElement,
     estimateSize: () => itemHeight,
     overscan: bufferSize, // Буферизация ±20 строк
-    measureElement: element => {
+    measureElement: (element) => {
       // Автоматическое измерение высоты для динамического контента
       const height = element?.getBoundingClientRect().height
       return height || itemHeight
@@ -63,10 +66,13 @@ const VirtualTableOptimized: React.FC<VirtualTableOptimizedProps> = ({
   const virtualItems = virtualizer.getVirtualItems()
 
   // Обработчик скролла с дебаунсом
-  const handleScroll = useCallback((e: React.UIEvent<HTMLElement>) => {
-    const target = e.target as HTMLElement
-    onScroll?.(target.scrollTop)
-  }, [onScroll])
+  const handleScroll = useCallback(
+    (e: React.UIEvent<HTMLElement>) => {
+      const target = e.target as HTMLElement
+      onScroll?.(target.scrollTop)
+    },
+    [onScroll],
+  )
 
   // Мемоизированные столбцы для виртуализации
   const virtualizedColumns = useMemo(() => {
@@ -204,22 +210,25 @@ const VirtualTableOptimized: React.FC<VirtualTableOptimizedProps> = ({
 
       {/* Информация о виртуализации в dev mode */}
       {process.env.NODE_ENV === 'development' && (
-        <div style={{
-          position: 'fixed',
-          bottom: 10,
-          right: 10,
-          background: 'rgba(0,0,0,0.8)',
-          color: 'white',
-          padding: '8px 12px',
-          borderRadius: 4,
-          fontSize: 12,
-          zIndex: 9999
-        }}>
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 10,
+            right: 10,
+            background: 'rgba(0,0,0,0.8)',
+            color: 'white',
+            padding: '8px 12px',
+            borderRadius: 4,
+            fontSize: 12,
+            zIndex: 9999,
+          }}
+        >
           Виртуализация: {virtualItems.length} из {dataSource.length} строк
           <br />
           Буфер: ±{bufferSize} строк
           <br />
-          Диапазон: {virtualItems[0]?.index || 0} - {virtualItems[virtualItems.length - 1]?.index || 0}
+          Диапазон: {virtualItems[0]?.index || 0} -{' '}
+          {virtualItems[virtualItems.length - 1]?.index || 0}
         </div>
       )}
     </div>

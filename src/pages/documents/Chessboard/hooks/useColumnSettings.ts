@@ -40,51 +40,54 @@ export const useColumnSettings = () => {
   const saveSettings = useCallback((settings: ColumnSettings) => {
     localStorage.setItem(
       STORAGE_KEYS.COLUMN_VISIBILITY,
-      JSON.stringify(Array.from(settings.hiddenColumns))
+      JSON.stringify(Array.from(settings.hiddenColumns)),
     )
-    localStorage.setItem(
-      STORAGE_KEYS.COLUMN_ORDER,
-      JSON.stringify(settings.columnOrder)
-    )
+    localStorage.setItem(STORAGE_KEYS.COLUMN_ORDER, JSON.stringify(settings.columnOrder))
   }, [])
 
   // Переключение видимости колонки
-  const toggleColumnVisibility = useCallback((columnKey: string) => {
-    setColumnSettings(prev => {
-      const newHiddenColumns = new Set(prev.hiddenColumns)
+  const toggleColumnVisibility = useCallback(
+    (columnKey: string) => {
+      setColumnSettings((prev) => {
+        const newHiddenColumns = new Set(prev.hiddenColumns)
 
-      if (newHiddenColumns.has(columnKey)) {
-        newHiddenColumns.delete(columnKey)
-      } else {
-        newHiddenColumns.add(columnKey)
-      }
+        if (newHiddenColumns.has(columnKey)) {
+          newHiddenColumns.delete(columnKey)
+        } else {
+          newHiddenColumns.add(columnKey)
+        }
 
-      const newSettings = {
-        ...prev,
-        hiddenColumns: newHiddenColumns,
-      }
+        const newSettings = {
+          ...prev,
+          hiddenColumns: newHiddenColumns,
+        }
 
-      saveSettings(newSettings)
-      return newSettings
-    })
-  }, [saveSettings])
+        saveSettings(newSettings)
+        return newSettings
+      })
+    },
+    [saveSettings],
+  )
 
   // Перемещение колонки
-  const moveColumn = useCallback((fromIndex: number, toIndex: number) => {
-    setColumnSettings(prev => {
-      const newOrder = [...prev.columnOrder]
-      const [movedColumn] = newOrder.splice(fromIndex, 1)
-      newOrder.splice(toIndex, 0, movedColumn)
+  const moveColumn = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      setColumnSettings((prev) => {
+        const newOrder = [...prev.columnOrder]
+        const [movedColumn] = newOrder.splice(fromIndex, 1)
+        newOrder.splice(toIndex, 0, movedColumn)
 
-      const newSettings = {
-        ...prev,
-        columnOrder: newOrder,
-      }
+        const newSettings = {
+          ...prev,
+          columnOrder: newOrder,
+        }
 
-      saveSettings(newSettings)
-      return newSettings
-    })
-  }, [saveSettings])
+        saveSettings(newSettings)
+        return newSettings
+      })
+    },
+    [saveSettings],
+  )
 
   // Сброс настроек к значениям по умолчанию
   const resetToDefault = useCallback(() => {
@@ -98,39 +101,45 @@ export const useColumnSettings = () => {
   }, [saveSettings])
 
   // Выделить все / снять выделение
-  const toggleAllColumns = useCallback((visible: boolean) => {
-    setColumnSettings(prev => {
-      const newHiddenColumns = visible
-        ? new Set<string>() // Показать все колонки
-        : new Set(prev.columnOrder.filter(col =>
-            !['color', 'actions'].includes(col) // Служебные колонки всегда видимы
-          ))
+  const toggleAllColumns = useCallback(
+    (visible: boolean) => {
+      setColumnSettings((prev) => {
+        const newHiddenColumns = visible
+          ? new Set<string>() // Показать все колонки
+          : new Set(
+              prev.columnOrder.filter(
+                (col) => !['color', 'actions'].includes(col), // Служебные колонки всегда видимы
+              ),
+            )
 
-      const newSettings = {
-        ...prev,
-        hiddenColumns: newHiddenColumns,
-      }
+        const newSettings = {
+          ...prev,
+          hiddenColumns: newHiddenColumns,
+        }
 
-      saveSettings(newSettings)
-      return newSettings
-    })
-  }, [saveSettings])
+        saveSettings(newSettings)
+        return newSettings
+      })
+    },
+    [saveSettings],
+  )
 
   // Проверка видимости колонки
-  const isColumnVisible = useCallback((columnKey: string) => {
-    return !columnSettings.hiddenColumns.has(columnKey)
-  }, [columnSettings.hiddenColumns])
+  const isColumnVisible = useCallback(
+    (columnKey: string) => {
+      return !columnSettings.hiddenColumns.has(columnKey)
+    },
+    [columnSettings.hiddenColumns],
+  )
 
   // Получение видимых колонок в правильном порядке
   const getVisibleColumns = useCallback(() => {
-    return columnSettings.columnOrder.filter(columnKey =>
-      isColumnVisible(columnKey)
-    )
+    return columnSettings.columnOrder.filter((columnKey) => isColumnVisible(columnKey))
   }, [columnSettings.columnOrder, isColumnVisible])
 
   // Получение всех колонок с информацией о видимости
   const getAllColumnsWithVisibility = useCallback(() => {
-    return columnSettings.columnOrder.map(columnKey => ({
+    return columnSettings.columnOrder.map((columnKey) => ({
       key: columnKey,
       visible: isColumnVisible(columnKey),
       isService: ['color', 'actions'].includes(columnKey), // Служебные колонки

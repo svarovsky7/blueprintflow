@@ -34,16 +34,16 @@ export const useFiltersState = () => {
   }, [])
 
   // Обновление конкретного фильтра
-  const updateFilter = useCallback(<K extends keyof ChessboardFilters>(
-    key: K,
-    value: ChessboardFilters[K]
-  ) => {
-    setFilters(prev => {
-      const newFilters = { ...prev, [key]: value }
-      saveFilters(newFilters)
-      return newFilters
-    })
-  }, [saveFilters])
+  const updateFilter = useCallback(
+    <K extends keyof ChessboardFilters>(key: K, value: ChessboardFilters[K]) => {
+      setFilters((prev) => {
+        const newFilters = { ...prev, [key]: value }
+        saveFilters(newFilters)
+        return newFilters
+      })
+    },
+    [saveFilters],
+  )
 
   // Сброс всех фильтров
   const resetFilters = useCallback(() => {
@@ -54,27 +54,27 @@ export const useFiltersState = () => {
   }, [saveFilters])
 
   // Каскадные изменения фильтров
-  const updateCascadingFilter = useCallback(<K extends keyof ChessboardFilters>(
-    key: K,
-    value: ChessboardFilters[K]
-  ) => {
-    setFilters(prev => {
-      const newFilters = { ...prev, [key]: value }
+  const updateCascadingFilter = useCallback(
+    <K extends keyof ChessboardFilters>(key: K, value: ChessboardFilters[K]) => {
+      setFilters((prev) => {
+        const newFilters = { ...prev, [key]: value }
 
-      // Каскадная логика: при изменении проекта сбрасываем корпуса
-      if (key === 'project') {
-        newFilters.block = []
-      }
+        // Каскадная логика: при изменении проекта сбрасываем корпуса
+        if (key === 'project') {
+          newFilters.block = []
+        }
 
-      // Каскадная логика: при изменении категорий затрат сбрасываем виды затрат
-      if (key === 'costCategory') {
-        newFilters.costType = []
-      }
+        // Каскадная логика: при изменении категорий затрат сбрасываем виды затрат
+        if (key === 'costCategory') {
+          newFilters.costType = []
+        }
 
-      saveFilters(newFilters)
-      return newFilters
-    })
-  }, [saveFilters])
+        saveFilters(newFilters)
+        return newFilters
+      })
+    },
+    [saveFilters],
+  )
 
   // Применение фильтров (преобразование UI фильтров в API фильтры)
   const applyFilters = useCallback(() => {

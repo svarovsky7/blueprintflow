@@ -1,5 +1,10 @@
 import { supabase } from '@/lib/supabase'
-import type { Comment, CreateCommentData, UpdateCommentData, EntityCommentMapping } from '../model/types'
+import type {
+  Comment,
+  CreateCommentData,
+  UpdateCommentData,
+  EntityCommentMapping,
+} from '../model/types'
 
 export const commentsApi = {
   // Получить все комментарии для конкретной сущности
@@ -8,14 +13,16 @@ export const commentsApi = {
 
     const { data, error } = await supabase
       .from('comments')
-      .select(`
+      .select(
+        `
         *,
         entity_comments_mapping!inner(
           entity_type,
           entity_id,
           comment_id
         )
-      `)
+      `,
+      )
       .eq('entity_comments_mapping.entity_type', entityType)
       .eq('entity_comments_mapping.entity_id', entityId)
       .order('created_at', { ascending: false })
@@ -35,14 +42,16 @@ export const commentsApi = {
 
     const { data, error } = await supabase
       .from('comments')
-      .select(`
+      .select(
+        `
         *,
         entity_comments_mapping!inner(
           entity_type,
           entity_id,
           comment_id
         )
-      `)
+      `,
+      )
       .eq('entity_comments_mapping.entity_type', entityType)
       .in('entity_comments_mapping.entity_id', entityIds)
       .order('created_at', { ascending: false })
@@ -100,10 +109,7 @@ export const commentsApi = {
   async delete(commentId: string): Promise<void> {
     if (!supabase) throw new Error('Supabase is not configured')
 
-    const { error } = await supabase
-      .from('comments')
-      .delete()
-      .eq('id', commentId)
+    const { error } = await supabase.from('comments').delete().eq('id', commentId)
 
     if (error) {
       console.error('Failed to delete comment:', error)
@@ -115,13 +121,11 @@ export const commentsApi = {
   async linkToEntity(commentId: string, entityType: string, entityId: string): Promise<void> {
     if (!supabase) throw new Error('Supabase is not configured')
 
-    const { error } = await supabase
-      .from('entity_comments_mapping')
-      .insert({
-        comment_id: commentId,
-        entity_type: entityType,
-        entity_id: entityId,
-      })
+    const { error } = await supabase.from('entity_comments_mapping').insert({
+      comment_id: commentId,
+      entity_type: entityType,
+      entity_id: entityId,
+    })
 
     if (error) {
       console.error('Failed to link comment to entity:', error)
@@ -150,7 +154,7 @@ export const commentsApi = {
   async createAndLink(
     commentData: CreateCommentData,
     entityType: string,
-    entityId: string
+    entityId: string,
   ): Promise<Comment> {
     if (!supabase) throw new Error('Supabase is not configured')
 
@@ -187,7 +191,7 @@ export const chessboardCommentsApi = {
   // Создать комментарий для записи chessboard
   async createForChessboard(
     chessboardId: string,
-    commentData: CreateCommentData
+    commentData: CreateCommentData,
   ): Promise<Comment> {
     return commentsApi.createAndLink(commentData, 'chessboard', chessboardId)
   },

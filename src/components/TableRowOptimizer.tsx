@@ -50,11 +50,8 @@ const TableRowOptimizer: React.FC<TableRowOptimizerProps> = memo(
     }
 
     // Обычное сравнение
-    return (
-      prevProps.record === nextProps.record &&
-      prevProps.columns === nextProps.columns
-    )
-  }
+    return prevProps.record === nextProps.record && prevProps.columns === nextProps.columns
+  },
 )
 
 TableRowOptimizer.displayName = 'TableRowOptimizer'

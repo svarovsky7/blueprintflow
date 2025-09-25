@@ -15,31 +15,31 @@ export interface RowData {
   project: string
   projectId: string
   // Данные из документации
-  documentationSection: string  // Раздел (из справочника Тэги проекта)
-  documentationCode: string     // Шифр проекта (из справочника Документация)
+  documentationSection: string // Раздел (из справочника Тэги проекта)
+  documentationCode: string // Шифр проекта (из справочника Документация)
   documentationProjectName: string // Наименование проекта (зависимое от Шифра проекта)
-  documentationVersion: string  // Версия проекта
+  documentationVersion: string // Версия проекта
   // Данные из маппингов
   block: string
   blockId: string
-  floors: string               // Этажи
+  floors: string // Этажи
   costCategory: string
   costCategoryId: string
   costType: string
   costTypeId: string
-  workName: string            // Наименование работ
-  location: string            // Локализация
+  workName: string // Наименование работ
+  location: string // Локализация
   locationId: string
   material: string
-  quantityPd: string          // Кол-во по ПД
-  quantitySpec: string        // Кол-во по спеке РД
-  quantityRd: string          // Кол-во по пересчету РД
-  nomenclature: string        // Номенклатура
+  quantityPd: string // Кол-во по ПД
+  quantitySpec: string // Кол-во по спеке РД
+  quantityRd: string // Кол-во по пересчету РД
+  nomenclature: string // Номенклатура
   nomenclatureId: string
-  supplier: string            // Наименование поставщика
-  unit: string                // Ед.изм.
+  supplier: string // Наименование поставщика
+  unit: string // Ед.изм.
   unitId: string
-  comments: string            // Комментарии
+  comments: string // Комментарии
   color: RowColor
   // Данные этажей для модального окна
   floorQuantities?: FloorQuantities
@@ -193,32 +193,32 @@ export type HiddenColKey = 'block' | 'costCategory' | 'costType' | 'location'
 
 export interface ChessboardFilters {
   // Постоянные фильтры
-  project: string                     // Проект
-  documentationSection: string[]      // Раздел (Тэги проекта)
-  documentationCode: string[]         // Шифр проекта (Документация)
+  project: string // Проект
+  documentationSection: string[] // Раздел (Тэги проекта)
+  documentationCode: string[] // Шифр проекта (Документация)
 
   // Сворачиваемые фильтры
-  block: string[]                     // Корпус
-  costCategory: string[]              // Категория затрат
-  costType: string[]                  // Вид затрат
+  block: string[] // Корпус
+  costCategory: string[] // Категория затрат
+  costType: string[] // Вид затрат
 
   // Дополнительные фильтры
-  material: string                    // Поиск по материалам
+  material: string // Поиск по материалам
 }
 
 export interface AppliedFilters {
   // Постоянные фильтры
-  project_id: string                        // ID выбранного проекта
-  documentation_section_ids: string[]       // ID выбранных разделов (Тэги проекта)
-  documentation_code_ids: string[]          // ID выбранных шифров проектов (Документация)
+  project_id: string // ID выбранного проекта
+  documentation_section_ids: string[] // ID выбранных разделов (Тэги проекта)
+  documentation_code_ids: string[] // ID выбранных шифров проектов (Документация)
 
   // Сворачиваемые фильтры
-  block_ids: string[]                       // ID выбранных корпусов
-  cost_category_ids: string[]               // ID выбранных категорий затрат
-  detail_cost_category_ids: string[]        // ID выбранных видов затрат
+  block_ids: string[] // ID выбранных корпусов
+  cost_category_ids: string[] // ID выбранных категорий затрат
+  detail_cost_category_ids: string[] // ID выбранных видов затрат
 
   // Дополнительные фильтры
-  material_search: string                   // Поиск по материалам
+  material_search: string // Поиск по материалам
 }
 
 export interface ColumnSettings {

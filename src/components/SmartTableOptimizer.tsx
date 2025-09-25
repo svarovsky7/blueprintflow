@@ -1,4 +1,11 @@
-import React, { useMemo, useCallback, useState, useRef, useLayoutEffect, useDeferredValue } from 'react'
+import React, {
+  useMemo,
+  useCallback,
+  useState,
+  useRef,
+  useLayoutEffect,
+  useDeferredValue,
+} from 'react'
 import { Table } from 'antd'
 import { useTableHeight } from '../hooks/useTableHeight'
 
@@ -65,20 +72,37 @@ const deepMemoColumns = (() => {
       filterDropdown: undefined,
       filterIcon: undefined,
       // Упрощаем сортировку только для базовых типов
-      sorter: (col.sorter === true || typeof col.sorter === 'function') ? true : false,
+      sorter: col.sorter === true || typeof col.sorter === 'function' ? true : false,
       // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Сохраняем render функции для Select полей + критические
-      render: (['actions', 'comments', 'checkbox', 'tagName', 'unit', 'costCategory', 'costType', 'location', 'workName', 'material'].includes(col.dataIndex) || col.key === 'actions')
-        ? col.render
-        : undefined,
+      render:
+        [
+          'actions',
+          'comments',
+          'checkbox',
+          'tagName',
+          'unit',
+          'costCategory',
+          'costType',
+          'location',
+          'workName',
+          'material',
+        ].includes(col.dataIndex) || col.key === 'actions'
+          ? col.render
+          : undefined,
     }))
 
     if (columnsCache.has(columns)) {
       const cached = columnsCache.get(columns)!
       // Безопасное сравнение без JSON.stringify для избежания циклических ссылок
-      if (cached.length === optimized.length &&
-          cached.every((col, i) => col.dataIndex === optimized[i]?.dataIndex &&
-                                   col.title === optimized[i]?.title &&
-                                   col.width === optimized[i]?.width)) {
+      if (
+        cached.length === optimized.length &&
+        cached.every(
+          (col, i) =>
+            col.dataIndex === optimized[i]?.dataIndex &&
+            col.title === optimized[i]?.title &&
+            col.width === optimized[i]?.width,
+        )
+      ) {
         return cached
       }
     }
@@ -139,8 +163,10 @@ const SmartTableOptimizer: React.FC<SmartTableOptimizerProps> = ({
   const limitedData = useMemo(() => {
     // ОПТИМИЗАЦИЯ: Логируем только значительные изменения (>100 строк) для уменьшения спама
     if (Math.abs(deferredData.length - previousDataRef.current.length) > 100) {
-      if (process.env.NODE_ENV === 'development') { // LOG: условное логирование для отладки
-        console.log('🔍 SmartTableOptimizer значительное изменение данных:', { // LOG: большое изменение количества строк
+      if (process.env.NODE_ENV === 'development') {
+        // LOG: условное логирование для отладки
+        console.log('🔍 SmartTableOptimizer значительное изменение данных:', {
+          // LOG: большое изменение количества строк
           старо: previousDataRef.current.length,
           новое: deferredData.length,
           displayLimit,
@@ -176,7 +202,9 @@ const SmartTableOptimizer: React.FC<SmartTableOptimizerProps> = ({
         filterDropdown: undefined,
         filterIcon: undefined,
         sorter: col.sorter === true ? true : false,
-        render: ['actions', 'comments', 'checkbox'].includes(col.dataIndex) ? col.render : undefined,
+        render: ['actions', 'comments', 'checkbox'].includes(col.dataIndex)
+          ? col.render
+          : undefined,
       }))
     }
 
@@ -190,9 +218,17 @@ const SmartTableOptimizer: React.FC<SmartTableOptimizerProps> = ({
     if (record === prevRecord) return false
 
     // Проверяем только ключевые поля, которые влияют на отображение
-    const keyFields = ['id', 'material', 'quantityPd', 'quantitySpec', 'quantityRd', 'unit', 'updated_at']
+    const keyFields = [
+      'id',
+      'material',
+      'quantityPd',
+      'quantitySpec',
+      'quantityRd',
+      'unit',
+      'updated_at',
+    ]
 
-    return keyFields.some(field => record[field] !== prevRecord[field])
+    return keyFields.some((field) => record[field] !== prevRecord[field])
   }, [])
 
   // Оптимизация 4: Стабильная функция rowKey (без deprecated index)
@@ -201,15 +237,18 @@ const SmartTableOptimizer: React.FC<SmartTableOptimizerProps> = ({
   }, [])
 
   // Оптимизация 4: Умные onRow handlers
-  const optimizedOnRow = useCallback((record: any, index?: number) => {
-    if (performanceMode) {
-      // В режиме производительности только базовые события
-      return {
-        onClick: tableProps.onRow?.(record, index)?.onClick,
+  const optimizedOnRow = useCallback(
+    (record: any, index?: number) => {
+      if (performanceMode) {
+        // В режиме производительности только базовые события
+        return {
+          onClick: tableProps.onRow?.(record, index)?.onClick,
+        }
       }
-    }
-    return tableProps.onRow?.(record, index) || {}
-  }, [performanceMode, tableProps.onRow])
+      return tableProps.onRow?.(record, index) || {}
+    },
+    [performanceMode, tableProps.onRow],
+  )
 
   // Оптимизация 5: Адаптивная scroll конфигурация
   const scrollConfig = useMemo(() => {
@@ -279,8 +318,11 @@ const SmartTableOptimizer: React.FC<SmartTableOptimizerProps> = ({
               setTimeout(() => {
                 requestAnimationFrame(() => {
                   const renderTime = performance.now() - renderStartTime.current
-                  if (renderTime > 50 && process.env.NODE_ENV === 'development') { // LOG: условное логирование для отладки
-                    console.warn(`⚠️ SmartTableOptimizer РЕАЛЬНОЕ время до полной видимости: ${Math.round(renderTime)}ms для ${limitedData.length} строк`) // LOG: точное время рендеринга таблицы
+                  if (renderTime > 50 && process.env.NODE_ENV === 'development') {
+                    // LOG: условное логирование для отладки
+                    console.warn(
+                      `⚠️ SmartTableOptimizer РЕАЛЬНОЕ время до полной видимости: ${Math.round(renderTime)}ms для ${limitedData.length} строк`,
+                    ) // LOG: точное время рендеринга таблицы
                   }
                   observer.disconnect()
                 })
@@ -288,7 +330,7 @@ const SmartTableOptimizer: React.FC<SmartTableOptimizerProps> = ({
             }
           })
         },
-        { threshold: 0.9 } // Ждем, когда таблица станет на 90% видимой
+        { threshold: 0.9 }, // Ждем, когда таблица станет на 90% видимой
       )
 
       observer.observe(tableRef.current)
@@ -299,7 +341,8 @@ const SmartTableOptimizer: React.FC<SmartTableOptimizerProps> = ({
 
   // Оптимизация 8: Детекция изменений данных с deferredData
   const hasDataChanged = useMemo(() => {
-    const changed = previousDataRef.current.length !== deferredData.length ||
+    const changed =
+      previousDataRef.current.length !== deferredData.length ||
       previousDataRef.current.some((item, index) => item !== deferredData[index])
 
     if (changed) {
@@ -328,24 +371,46 @@ const SmartTableOptimizer: React.FC<SmartTableOptimizerProps> = ({
     // Создаем хэш только из критических полей для Select компонентов (ПОЛНЫЙ СПИСОК)
     const criticalFields = [
       // Select компоненты
-      'tagId', 'tagName', 'documentationId', 'projectCode', 'versionNumber',
-      'unitId', 'blockId', 'block', 'costCategoryId', 'costTypeId',
-      'locationId', 'rateId', 'materialId', 'material', 'nomenclatureId',
-      'nomenclature', 'supplier',
+      'tagId',
+      'tagName',
+      'documentationId',
+      'projectCode',
+      'versionNumber',
+      'unitId',
+      'blockId',
+      'block',
+      'costCategoryId',
+      'costTypeId',
+      'locationId',
+      'rateId',
+      'materialId',
+      'material',
+      'nomenclatureId',
+      'nomenclature',
+      'supplier',
       // Input компоненты
-      'floors', 'quantityPd', 'quantitySpec', 'quantityRd'
+      'floors',
+      'quantityPd',
+      'quantitySpec',
+      'quantityRd',
     ]
-    const values = keys.map(key => {
-      const row = editingRows[key]
-      const criticalValues = criticalFields.map(field => `${field}:${row[field] || ''}`).join(',')
-      return `${key}:(${criticalValues})`
-    }).join('|')
+    const values = keys
+      .map((key) => {
+        const row = editingRows[key]
+        const criticalValues = criticalFields
+          .map((field) => `${field}:${row[field] || ''}`)
+          .join(',')
+        return `${key}:(${criticalValues})`
+      })
+      .join('|')
 
     return values || 'empty'
   }, [editingRows])
 
   return (
-    <div ref={tableRef}> {/* ВАЖНО: ref для IntersectionObserver */}
+    <div ref={tableRef}>
+      {' '}
+      {/* ВАЖНО: ref для IntersectionObserver */}
       <Table
         {...tableProps}
         key={`table-${rowsPerPage}-${limitedData.length}`} // стабильный ключ для сохранения скролла
@@ -394,8 +459,9 @@ export default React.memo(SmartTableOptimizer, (prevProps, nextProps) => {
 
   // Проверяем, изменились ли ключи редактируемых строк
   if (prevEditingKeys.length > 0 || nextEditingKeys.length > 0) {
-    const keysChanged = prevEditingKeys.some(key => !nextEditingKeys.includes(key)) ||
-                       nextEditingKeys.some(key => !prevEditingKeys.includes(key))
+    const keysChanged =
+      prevEditingKeys.some((key) => !nextEditingKeys.includes(key)) ||
+      nextEditingKeys.some((key) => !prevEditingKeys.includes(key))
     if (keysChanged) {
       return false
     }
@@ -410,12 +476,28 @@ export default React.memo(SmartTableOptimizer, (prevProps, nextProps) => {
       // Сравниваем критические поля для Select компонентов (ПОЛНЫЙ СПИСОК)
       const criticalFields = [
         // Select компоненты
-        'tagId', 'tagName', 'documentationId', 'projectCode', 'versionNumber',
-        'unitId', 'blockId', 'block', 'costCategoryId', 'costTypeId',
-        'locationId', 'rateId', 'materialId', 'material', 'nomenclatureId',
-        'nomenclature', 'supplier',
+        'tagId',
+        'tagName',
+        'documentationId',
+        'projectCode',
+        'versionNumber',
+        'unitId',
+        'blockId',
+        'block',
+        'costCategoryId',
+        'costTypeId',
+        'locationId',
+        'rateId',
+        'materialId',
+        'material',
+        'nomenclatureId',
+        'nomenclature',
+        'supplier',
         // Input компоненты
-        'floors', 'quantityPd', 'quantitySpec', 'quantityRd'
+        'floors',
+        'quantityPd',
+        'quantitySpec',
+        'quantityRd',
       ]
       for (const field of criticalFields) {
         if (prevRow[field] !== nextRow[field]) {

@@ -59,11 +59,7 @@ const PerformanceControls: React.FC<PerformanceControlsProps> = ({
       <Space size="small" align="center">
         <TableOutlined style={{ fontSize: '12px', color: '#1890ff' }} />
         <Text style={{ fontSize: '12px' }}>Виртуализация:</Text>
-        <Switch
-          size="small"
-          checked={useVirtualization}
-          onChange={onVirtualizationChange}
-        />
+        <Switch size="small" checked={useVirtualization} onChange={onVirtualizationChange} />
         {useVirtualization && (
           <Tooltip title="Высота строки в виртуальной таблице">
             <Select
@@ -113,11 +109,7 @@ const PerformanceControls: React.FC<PerformanceControlsProps> = ({
       <Space size="small" align="center">
         <ThunderboltOutlined style={{ fontSize: '12px', color: '#fa8c16' }} />
         <Text style={{ fontSize: '12px' }}>Режим производительности:</Text>
-        <Switch
-          size="small"
-          checked={performanceMode}
-          onChange={onPerformanceModeChange}
-        />
+        <Switch size="small" checked={performanceMode} onChange={onPerformanceModeChange} />
         {performanceMode && (
           <Text type="secondary" style={{ fontSize: '10px' }}>
             (упрощенные фильтры и сортировка)

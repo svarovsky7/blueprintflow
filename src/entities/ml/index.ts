@@ -8,7 +8,7 @@ export type {
   MaterialEmbedding,
   NomenclatureEmbedding,
   MLConfig,
-  MLMetrics
+  MLMetrics,
 } from './model/types'
 
 // API functions
@@ -21,7 +21,7 @@ export {
   saveMLConfig,
   getMLMetrics,
   updateMLMetrics,
-  searchNomenclature
+  searchNomenclature,
 } from './api/ml-api'
 
 // React hooks and components

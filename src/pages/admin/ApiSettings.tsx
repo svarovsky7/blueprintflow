@@ -21,7 +21,7 @@ import {
   Space,
   Spin,
   Badge,
-  Divider
+  Divider,
 } from 'antd'
 import {
   CloudOutlined,
@@ -29,7 +29,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   ReloadOutlined,
-  DeleteOutlined
+  DeleteOutlined,
 } from '@ant-design/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -37,7 +37,7 @@ import {
   deepseekApi,
   type YandexDiskSettings,
   type DeepseekSettings,
-  type DeepseekUsageStats
+  type DeepseekUsageStats,
 } from '@/entities/api-settings'
 
 const { Title, Text } = Typography
@@ -49,7 +49,9 @@ const { Title, Text } = Typography
  */
 const YandexDiskTab = () => {
   const [form] = Form.useForm<YandexDiskSettings>()
-  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle')
+  const [connectionStatus, setConnectionStatus] = useState<
+    'idle' | 'testing' | 'success' | 'error'
+  >('idle')
   const [diskInfo, setDiskInfo] = useState<any>(null)
 
   // Загрузка настроек
@@ -115,18 +117,35 @@ const YandexDiskTab = () => {
 
   return (
     <div>
-      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div
+        style={{
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <CloudOutlined style={{ fontSize: 20, color: '#1890ff' }} />
           <Title level={4} style={{ margin: 0 }}>
             Настройки Яндекс Диска
           </Title>
           <Badge
-            status={connectionStatus === 'success' ? 'success' : connectionStatus === 'error' ? 'error' : 'default'}
+            status={
+              connectionStatus === 'success'
+                ? 'success'
+                : connectionStatus === 'error'
+                  ? 'error'
+                  : 'default'
+            }
             text={
-              connectionStatus === 'success' ? 'Подключен' :
-              connectionStatus === 'error' ? 'Ошибка' :
-              connectionStatus === 'testing' ? 'Проверка...' : 'Не проверен'
+              connectionStatus === 'success'
+                ? 'Подключен'
+                : connectionStatus === 'error'
+                  ? 'Ошибка'
+                  : connectionStatus === 'testing'
+                    ? 'Проверка...'
+                    : 'Не проверен'
             }
           />
         </div>
@@ -167,7 +186,11 @@ const YandexDiskTab = () => {
                 <Input placeholder="Например: disk:/blueprintflow" />
               </Form.Item>
 
-              <Form.Item label="Публиковать автоматически" name="make_public" valuePropName="checked">
+              <Form.Item
+                label="Публиковать автоматически"
+                name="make_public"
+                valuePropName="checked"
+              >
                 <Switch />
               </Form.Item>
 
@@ -223,7 +246,9 @@ const YandexDiskTab = () => {
  */
 const DeepseekTab = () => {
   const [form] = Form.useForm<DeepseekSettings>()
-  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle')
+  const [connectionStatus, setConnectionStatus] = useState<
+    'idle' | 'testing' | 'success' | 'error'
+  >('idle')
   const [connectionInfo, setConnectionInfo] = useState<any>(null)
   const queryClient = useQueryClient()
 
@@ -315,7 +340,14 @@ const DeepseekTab = () => {
 
   return (
     <div>
-      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div
+        style={{
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <RobotOutlined style={{ fontSize: 20, color: '#722ed1' }} />
           <Title level={4} style={{ margin: 0 }}>
@@ -323,16 +355,24 @@ const DeepseekTab = () => {
           </Title>
           <Badge
             status={
-              settings?.enabled ? (
-                connectionStatus === 'success' ? 'success' :
-                connectionStatus === 'error' ? 'error' : 'processing'
-              ) : 'default'
+              settings?.enabled
+                ? connectionStatus === 'success'
+                  ? 'success'
+                  : connectionStatus === 'error'
+                    ? 'error'
+                    : 'processing'
+                : 'default'
             }
             text={
-              !settings?.enabled ? 'Отключен' :
-              connectionStatus === 'success' ? 'Подключен' :
-              connectionStatus === 'error' ? 'Ошибка' :
-              connectionStatus === 'testing' ? 'Проверка...' : 'Не проверен'
+              !settings?.enabled
+                ? 'Отключен'
+                : connectionStatus === 'success'
+                  ? 'Подключен'
+                  : connectionStatus === 'error'
+                    ? 'Ошибка'
+                    : connectionStatus === 'testing'
+                      ? 'Проверка...'
+                      : 'Не проверен'
             }
           />
         </div>
@@ -351,8 +391,20 @@ const DeepseekTab = () => {
         message="Информация о Deepseek AI"
         description={
           <div>
-            <p>API ключ можно получить на <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer">platform.deepseek.com</a></p>
-            <p><strong>Важно:</strong> Deepseek API совместим с OpenAI форматом. Включение AI режима заменяет локальный ML алгоритм.</p>
+            <p>
+              API ключ можно получить на{' '}
+              <a
+                href="https://platform.deepseek.com/api_keys"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                platform.deepseek.com
+              </a>
+            </p>
+            <p>
+              <strong>Важно:</strong> Deepseek API совместим с OpenAI форматом. Включение AI режима
+              заменяет локальный ML алгоритм.
+            </p>
           </div>
         }
         type="info"
@@ -369,7 +421,7 @@ const DeepseekTab = () => {
                 name="api_key"
                 rules={[
                   { required: true, message: 'Введите API ключ' },
-                  { min: 20, message: 'API ключ слишком короткий' }
+                  { min: 20, message: 'API ключ слишком короткий' },
                 ]}
               >
                 <Input.Password placeholder="sk-..." />
@@ -450,17 +502,10 @@ const DeepseekTab = () => {
 
               <Form.Item>
                 <Space>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    loading={saveMutation.isPending}
-                  >
+                  <Button type="primary" htmlType="submit" loading={saveMutation.isPending}>
                     Сохранить
                   </Button>
-                  <Button
-                    onClick={() => testConnection()}
-                    loading={connectionStatus === 'testing'}
-                  >
+                  <Button onClick={() => testConnection()} loading={connectionStatus === 'testing'}>
                     Проверить подключение
                   </Button>
                 </Space>
@@ -532,9 +577,7 @@ const DeepseekTab = () => {
                   {connectionStatus === 'success' ? 'Подключение активно' : 'Ошибка подключения'}
                 </Text>
               </div>
-              <Text type="secondary">
-                Задержка: {connectionInfo.latency_ms}мс
-              </Text>
+              <Text type="secondary">Задержка: {connectionInfo.latency_ms}мс</Text>
               {connectionInfo.error && (
                 <div style={{ marginTop: 8 }}>
                   <Text type="danger">{connectionInfo.error}</Text>
@@ -565,7 +608,7 @@ export default function ApiSettings() {
           Яндекс Диск
         </span>
       ),
-      children: <YandexDiskTab />
+      children: <YandexDiskTab />,
     },
     {
       key: 'deepseek',
@@ -575,8 +618,8 @@ export default function ApiSettings() {
           Deepseek AI
         </span>
       ),
-      children: <DeepseekTab />
-    }
+      children: <DeepseekTab />,
+    },
   ]
 
   return (
@@ -585,17 +628,10 @@ export default function ApiSettings() {
         <Title level={3} style={{ margin: 0 }}>
           Настройки API
         </Title>
-        <Text type="secondary">
-          Управление интеграциями с внешними сервисами
-        </Text>
+        <Text type="secondary">Управление интеграциями с внешними сервисами</Text>
       </div>
 
-      <Tabs
-        activeKey={activeTab}
-        onChange={setActiveTab}
-        items={tabItems}
-        size="large"
-      />
+      <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} size="large" />
     </div>
   )
 }

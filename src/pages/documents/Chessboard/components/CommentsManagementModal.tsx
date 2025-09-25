@@ -1,8 +1,30 @@
 import React, { useState, useEffect } from 'react'
-import { Modal, Button, Input, List, Popconfirm, Space, Typography, Empty, Spin, message } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons'
+import {
+  Modal,
+  Button,
+  Input,
+  List,
+  Popconfirm,
+  Space,
+  Typography,
+  Empty,
+  Spin,
+  message,
+} from 'antd'
+import {
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  SaveOutlined,
+  CloseOutlined,
+} from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { chessboardCommentsApi, type Comment, type CreateCommentData, type UpdateCommentData } from '@/entities/comments'
+import {
+  chessboardCommentsApi,
+  type Comment,
+  type CreateCommentData,
+  type UpdateCommentData,
+} from '@/entities/comments'
 
 const { TextArea } = Input
 const { Text } = Typography
@@ -174,10 +196,7 @@ export const CommentsManagementModal: React.FC<CommentsManagementModalProps> = (
             Ошибка загрузки комментариев
           </div>
         ) : comments.length === 0 ? (
-          <Empty
-            description="Комментариев пока нет"
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-          />
+          <Empty description="Комментариев пока нет" image={Empty.PRESENTED_IMAGE_SIMPLE} />
         ) : (
           <List
             dataSource={comments}
@@ -196,11 +215,7 @@ export const CommentsManagementModal: React.FC<CommentsManagementModalProps> = (
                       >
                         Сохранить
                       </Button>
-                      <Button
-                        size="small"
-                        icon={<CloseOutlined />}
-                        onClick={handleCancelEdit}
-                      >
+                      <Button size="small" icon={<CloseOutlined />} onClick={handleCancelEdit}>
                         Отмена
                       </Button>
                     </Space>
@@ -249,7 +264,9 @@ export const CommentsManagementModal: React.FC<CommentsManagementModalProps> = (
                         />
                       ) : (
                         <div>
-                          <div style={{ marginBottom: 8, fontSize: '16px', fontWeight: 'normal' }}>{comment.comment_text}</div>
+                          <div style={{ marginBottom: 8, fontSize: '16px', fontWeight: 'normal' }}>
+                            {comment.comment_text}
+                          </div>
                           <Text type="secondary" style={{ fontSize: '12px' }}>
                             Создан: {formatDate(comment.created_at)}
                             {comment.updated_at !== comment.created_at && (

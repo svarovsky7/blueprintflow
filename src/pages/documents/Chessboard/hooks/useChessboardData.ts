@@ -9,6 +9,28 @@ interface UseChessboardDataProps {
 }
 
 export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessboardDataProps) => {
+  // ИСПРАВЛЕНИЕ: Стабилизируем queryKey для предотвращения бесконечного рендеринга
+  const stableQueryKey = useMemo(() => {
+    return [
+      'chessboard-data',
+      appliedFilters.project_id || 'no-project',
+      appliedFilters.block_ids?.join(',') || 'no-blocks',
+      appliedFilters.cost_category_ids?.join(',') || 'no-cost-categories',
+      appliedFilters.detail_cost_category_ids?.join(',') || 'no-detail-categories',
+      appliedFilters.documentation_section_ids?.join(',') || 'no-doc-sections',
+      appliedFilters.documentation_code_ids?.join(',') || 'no-doc-codes',
+      appliedFilters.material_search || 'no-search',
+    ]
+  }, [
+    appliedFilters.project_id,
+    appliedFilters.block_ids?.join(','),
+    appliedFilters.cost_category_ids?.join(','),
+    appliedFilters.detail_cost_category_ids?.join(','),
+    appliedFilters.documentation_section_ids?.join(','),
+    appliedFilters.documentation_code_ids?.join(','),
+    appliedFilters.material_search,
+  ])
+
   // Основной запрос данных шахматки
   const {
     data: rawData,
@@ -16,17 +38,17 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
     error,
     refetch,
   } = useQuery({
-    queryKey: ['chessboard-data', JSON.stringify(appliedFilters)],
+    queryKey: stableQueryKey,
     queryFn: async () => {
       if (!appliedFilters.project_id) {
         return []
       }
 
-
       // Строим запрос с серверной фильтрацией для производительности
       let query = supabase
         .from('chessboard')
-        .select(`
+        .select(
+          `
           id,
           material,
           color,
@@ -53,7 +75,8 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
             supplier_name,
             nomenclature!chessboard_nomenclature_mapping_nomenclature_id_fkey(name)
           )
-        `)
+        `,
+        )
         .eq('project_id', appliedFilters.project_id)
 
       // Применяем серверные фильтры для производительности
@@ -74,34 +97,42 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
       }
 
       // Фильтрация по документации требует подзапроса из-за сложной связи
-      if (appliedFilters.documentation_section_ids?.length || appliedFilters.documentation_code_ids?.length) {
+      if (
+        appliedFilters.documentation_section_ids?.length ||
+        appliedFilters.documentation_code_ids?.length
+      ) {
         // Получаем ID chessboard записей, которые соответствуют фильтрам документации
-        let docQuery = supabase
-          .from('chessboard_documentation_mapping')
-          .select('chessboard_id')
+        let docQuery = supabase.from('chessboard_documentation_mapping').select('chessboard_id')
 
         if (appliedFilters.documentation_code_ids?.length) {
           docQuery = docQuery
-            .select(`
+            .select(
+              `
               chessboard_id,
               documentation_versions!fk_chessboard_documentation_mapping_version(
                 documentation_id
               )
-            `)
+            `,
+            )
             .in('documentation_versions.documentation_id', appliedFilters.documentation_code_ids)
         }
 
         if (appliedFilters.documentation_section_ids?.length) {
           docQuery = docQuery
-            .select(`
+            .select(
+              `
               chessboard_id,
               documentation_versions!fk_chessboard_documentation_mapping_version(
                 documentations!documentation_versions_documentation_id_fkey(
                   tag_id
                 )
               )
-            `)
-            .in('documentation_versions.documentations.tag_id', appliedFilters.documentation_section_ids)
+            `,
+            )
+            .in(
+              'documentation_versions.documentations.tag_id',
+              appliedFilters.documentation_section_ids,
+            )
         }
 
         // Выполняем подзапрос для получения chessboard_id
@@ -111,7 +142,7 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
           console.error('Error filtering by documentation:', docError)
         } else if (docIds && docIds.length > 0) {
           // Применяем фильтр только к найденным ID с батчингом для избежания длинных URL
-          const chessboardIds = docIds.map(d => d.chessboard_id)
+          const chessboardIds = docIds.map((d) => d.chessboard_id)
 
           // Если ID слишком много, используем батчинг
           if (chessboardIds.length > 500) {
@@ -123,7 +154,8 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
               const batch = chessboardIds.slice(i, i + batchSize)
               const batchQuery = supabase
                 .from('chessboard')
-                .select(`
+                .select(
+                  `
                   id,
                   material,
                   color,
@@ -150,7 +182,8 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
                     supplier_name,
                     nomenclature!chessboard_nomenclature_mapping_nomenclature_id_fkey(name)
                   )
-                `)
+                `,
+                )
                 .eq('project_id', appliedFilters.project_id)
                 .in('id', batch)
                 .limit(500)
@@ -192,27 +225,34 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
         throw error
       }
 
-
       return data as DbRow[]
     },
     enabled: enabled && !!appliedFilters.project_id,
   })
 
+  // ИСПРАВЛЕНИЕ: Стабилизируем queryKey для документации БЕЗ циклической зависимости
+  const stableDocQueryKey = useMemo(
+    () => [
+      'chessboard-documentation',
+      appliedFilters.project_id || 'no-project',
+    ],
+    [appliedFilters.project_id],
+  )
+
   // Отдельный запрос для данных документации
-  const {
-    data: documentationData,
-  } = useQuery({
-    queryKey: ['chessboard-documentation', appliedFilters.project_id],
+  const { data: documentationData } = useQuery({
+    queryKey: stableDocQueryKey,
     queryFn: async () => {
       if (!appliedFilters.project_id || !rawData?.length) {
         return []
       }
 
-      const chessboardIds = rawData.map(row => row.id)
+      const chessboardIds = rawData.map((row) => row.id)
 
       const { data, error } = await supabase
         .from('chessboard_documentation_mapping')
-        .select(`
+        .select(
+          `
           chessboard_id,
           version_id,
           documentation_versions!fk_chessboard_documentation_mapping_version(
@@ -225,7 +265,8 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
               documentation_tags!documentation_codes_tag_id_fkey(tag_number, name)
             )
           )
-        `)
+        `,
+        )
         .in('chessboard_id', chessboardIds)
 
       if (error) {
@@ -233,23 +274,26 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
         return []
       }
 
-
       return data || []
     },
-    enabled: enabled && !!appliedFilters.project_id && !!rawData?.length,
+    enabled: enabled && !!appliedFilters.project_id && !!rawData,
   })
 
+  // ИСПРАВЛЕНИЕ: Стабилизируем queryKey для этажей БЕЗ циклической зависимости
+  const stableFloorsQueryKey = useMemo(
+    () => ['chessboard-floors', appliedFilters.project_id || 'no-project'],
+    [appliedFilters.project_id],
+  )
+
   // Отдельный запрос для данных этажей с батчингом
-  const {
-    data: floorsData,
-  } = useQuery({
-    queryKey: ['chessboard-floors', appliedFilters.project_id],
+  const { data: floorsData } = useQuery({
+    queryKey: stableFloorsQueryKey,
     queryFn: async () => {
       if (!appliedFilters.project_id || !rawData?.length) {
         return []
       }
 
-      const chessboardIds = rawData.map(row => row.id)
+      const chessboardIds = rawData.map((row) => row.id)
       const batchSize = 500 // Батчинг для производительности (соответствует основному лимиту)
       let allFloorsData: any[] = []
 
@@ -259,7 +303,7 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
         const { data: batchData, error: floorsError } = await supabase
           .from('chessboard_floor_mapping')
           .select(
-            'chessboard_id, floor_number, location_id, "quantityPd", "quantitySpec", "quantityRd"'
+            'chessboard_id, floor_number, location_id, "quantityPd", "quantitySpec", "quantityRd"',
           )
           .in('chessboard_id', batch)
           .order('floor_number', { ascending: true })
@@ -274,27 +318,31 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
         }
       }
 
-
       return allFloorsData
     },
-    enabled: enabled && !!appliedFilters.project_id && !!rawData?.length,
+    enabled: enabled && !!appliedFilters.project_id && !!rawData,
   })
 
+  // ИСПРАВЛЕНИЕ: Стабилизируем queryKey для расценок БЕЗ циклической зависимости
+  const stableRatesQueryKey = useMemo(
+    () => ['chessboard-rates', appliedFilters.project_id || 'no-project'],
+    [appliedFilters.project_id],
+  )
+
   // Отдельный запрос для данных расценок
-  const {
-    data: ratesData,
-  } = useQuery({
-    queryKey: ['chessboard-rates', appliedFilters.project_id],
+  const { data: ratesData } = useQuery({
+    queryKey: stableRatesQueryKey,
     queryFn: async () => {
       if (!appliedFilters.project_id || !rawData?.length) {
         return []
       }
 
-      const chessboardIds = rawData.map(row => row.id)
+      const chessboardIds = rawData.map((row) => row.id)
 
       const { data, error } = await supabase
         .from('chessboard_rates_mapping')
-        .select(`
+        .select(
+          `
           chessboard_id,
           rates!chessboard_rates_mapping_rate_id_fkey(
             id,
@@ -302,7 +350,8 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
             work_set,
             base_rate
           )
-        `)
+        `,
+        )
         .in('chessboard_id', chessboardIds)
 
       if (error) {
@@ -310,37 +359,23 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
         return []
       }
 
-
       return data || []
     },
-    enabled: enabled && !!appliedFilters.project_id && !!rawData?.length,
+    enabled: enabled && !!appliedFilters.project_id && !!rawData,
   })
 
-  // Преобразование данных с использованием реальных связей БД
+  // ИСПРАВЛЕНИЕ: Оптимизируем зависимости useMemo для стабильности
   const transformedData = useMemo((): RowData[] => {
     if (!rawData) return []
 
-    // ДИАГНОСТИКА: логирование размера данных для отладки бесконечных рендеров
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🔍 Chessboard Data Transform:', {
-        rawDataLength: rawData.length,
-        timestamp: Date.now(),
-        projectId: appliedFilters.project_id
-      }) // LOG: диагностика преобразования данных шахматки
-
-      if (rawData.length > 1000) {
-        console.warn('⚠️ LARGE DATA SET detected in chessboard transform:', rawData.length)
-      }
-    }
-
     // ОПТИМИЗАЦИЯ: создаем индексы для O(1) поиска вместо O(n) для каждой строки
     const docMappingIndex = new Map()
-    documentationData?.forEach(doc => {
+    documentationData?.forEach((doc) => {
       docMappingIndex.set(doc.chessboard_id, doc)
     })
 
     const floorsByChessboardId = new Map()
-    floorsData?.forEach(fd => {
+    floorsData?.forEach((fd) => {
       if (!floorsByChessboardId.has(fd.chessboard_id)) {
         floorsByChessboardId.set(fd.chessboard_id, [])
       }
@@ -348,14 +383,18 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
     })
 
     const ratesMappingIndex = new Map()
-    ratesData?.forEach(rate => {
+    ratesData?.forEach((rate) => {
       ratesMappingIndex.set(rate.chessboard_id, rate)
     })
 
     return rawData.map((row: any, index: number) => {
       // Извлекаем данные из маппингов
-      const mapping = Array.isArray(row.chessboard_mapping) ? row.chessboard_mapping[0] : row.chessboard_mapping
-      const nomenclatureMapping = Array.isArray(row.chessboard_nomenclature_mapping) ? row.chessboard_nomenclature_mapping[0] : row.chessboard_nomenclature_mapping
+      const mapping = Array.isArray(row.chessboard_mapping)
+        ? row.chessboard_mapping[0]
+        : row.chessboard_mapping
+      const nomenclatureMapping = Array.isArray(row.chessboard_nomenclature_mapping)
+        ? row.chessboard_nomenclature_mapping[0]
+        : row.chessboard_nomenclature_mapping
 
       // ОПТИМИЗАЦИЯ: используем индексы для O(1) поиска вместо find/filter
       const docMapping = docMappingIndex.get(row.id)
@@ -373,7 +412,10 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
       let totalQuantitySpec = 0
       let totalQuantityRd = 0
       const floorNumbers: number[] = []
-      const floorQuantities: Record<number, { quantityPd: string; quantitySpec: string; quantityRd: string }> = {}
+      const floorQuantities: Record<
+        number,
+        { quantityPd: string; quantitySpec: string; quantityRd: string }
+      > = {}
 
       rowFloorsData.forEach((fd: any) => {
         totalQuantityPd += parseFloat(fd.quantityPd) || 0
@@ -385,16 +427,19 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
           floorQuantities[fd.floor_number] = {
             quantityPd: String(fd.quantityPd || ''),
             quantitySpec: String(fd.quantitySpec || ''),
-            quantityRd: String(fd.quantityRd || '')
+            quantityRd: String(fd.quantityRd || ''),
           }
         }
       })
 
       // Формируем диапазон этажей
       const sortedFloors = floorNumbers.sort((a, b) => a - b)
-      const floorsRange = sortedFloors.length > 0 ?
-        (sortedFloors.length === 1 ? String(sortedFloors[0]) : `${Math.min(...sortedFloors)}-${Math.max(...sortedFloors)}`)
-        : ''
+      const floorsRange =
+        sortedFloors.length > 0
+          ? sortedFloors.length === 1
+            ? String(sortedFloors[0])
+            : `${Math.min(...sortedFloors)}-${Math.max(...sortedFloors)}`
+          : ''
 
       return {
         id: row.id,
@@ -405,7 +450,9 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
         documentationSection: docTag ? docTag.name : '',
         documentationCode: documentation?.code || '',
         documentationProjectName: documentation?.project_name || '',
-        documentationVersion: docMapping?.documentation_versions?.version_number ? String(docMapping.documentation_versions.version_number) : '',
+        documentationVersion: docMapping?.documentation_versions?.version_number
+          ? String(docMapping.documentation_versions.version_number)
+          : '',
 
         // Данные корпуса и локации из реальных маппингов
         block: mapping?.blocks?.name || '',
@@ -429,13 +476,11 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
         quantitySpec: String(totalQuantitySpec || 0),
         quantityRd: String(totalQuantityRd || 0),
 
-        // Этажи для отображения ссылок
-        floors: floorsRange,
-
         // Номенклатура и поставщик из реальных маппингов
         nomenclature: nomenclatureMapping?.nomenclature?.name || '',
         nomenclatureId: nomenclatureMapping?.nomenclature_id || '',
         supplier: nomenclatureMapping?.supplier_name || '',
+        nomenclatureSupplier: nomenclatureMapping?.supplier_name || '', // Исправлено: добавлено поле для ML компонента
 
         unit: row.units?.name || '',
         unitId: row.unit_id || '',
@@ -447,9 +492,15 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
         floorQuantities: Object.keys(floorQuantities).length > 0 ? floorQuantities : undefined,
       }
     })
-  }, [rawData, documentationData, floorsData, ratesData, appliedFilters.project_id])
+  }, [
+    rawData, // Возвращаем rawData но обеспечиваем его стабильность через правильные queryKey выше
+    documentationData,
+    floorsData,
+    ratesData,
+    appliedFilters.project_id,
+  ]) // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: стабилизированы зависимости для предотвращения infinite renders
 
-  // Статистика данных
+  // ИСПРАВЛЕНИЕ: Оптимизируем зависимости statistics
   const statistics = useMemo(() => {
     if (!transformedData.length) {
       return {
@@ -462,36 +513,27 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
       }
     }
 
-    // ДИАГНОСТИКА: отслеживание вычисления статистики для больших данных
-    if (process.env.NODE_ENV === 'development') {
-      const startTime = Date.now()
-      console.log('🔍 Chessboard Statistics Calculation Start:', {
-        dataLength: transformedData.length,
-        timestamp: startTime
-      }) // LOG: начало вычисления статистики шахматки
-
-      if (transformedData.length > 1000) {
-        console.warn('⚠️ EXPENSIVE STATISTICS CALCULATION for large data:', transformedData.length)
-      }
-    }
 
     // ОПТИМИЗАЦИЯ: одиночный проход для всех статистик вместо множественных reduce
-    const stats = transformedData.reduce((acc, row) => {
-      acc.totalQuantityPd += parseFloat(row.quantityPd) || 0
-      acc.totalQuantitySpec += parseFloat(row.quantitySpec) || 0
-      acc.totalQuantityRd += parseFloat(row.quantityRd) || 0
+    const stats = transformedData.reduce(
+      (acc, row) => {
+        acc.totalQuantityPd += parseFloat(row.quantityPd) || 0
+        acc.totalQuantitySpec += parseFloat(row.quantitySpec) || 0
+        acc.totalQuantityRd += parseFloat(row.quantityRd) || 0
 
-      if (row.material) acc.materials.add(row.material)
-      if (row.nomenclatureCode) acc.nomenclatures.add(row.nomenclatureCode)
+        if (row.material) acc.materials.add(row.material)
+        if (row.nomenclatureCode) acc.nomenclatures.add(row.nomenclatureCode)
 
-      return acc
-    }, {
-      totalQuantityPd: 0,
-      totalQuantitySpec: 0,
-      totalQuantityRd: 0,
-      materials: new Set(),
-      nomenclatures: new Set()
-    })
+        return acc
+      },
+      {
+        totalQuantityPd: 0,
+        totalQuantitySpec: 0,
+        totalQuantityRd: 0,
+        materials: new Set(),
+        nomenclatures: new Set(),
+      },
+    )
 
     const result = {
       totalRows: transformedData.length,
@@ -502,18 +544,9 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
       uniqueNomenclature: stats.nomenclatures.size,
     }
 
-    // ДИАГНОСТИКА: логирование завершения вычисления статистики
-    if (process.env.NODE_ENV === 'development') {
-      const endTime = Date.now()
-      console.log('🔍 Chessboard Statistics Calculation End:', {
-        calculationTime: endTime - (Date.now() - 50), // примерное время
-        totalRows: result.totalRows,
-        uniqueMaterials: result.uniqueMaterials
-      }) // LOG: завершение вычисления статистики шахматки
-    }
 
     return result
-  }, [transformedData])
+  }, [transformedData]) // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: используем полный массив для правильного отслеживания изменений
 
   return {
     data: transformedData,

@@ -31,48 +31,53 @@ export const DropdownPortalManager: React.FC<{ children: React.ReactNode }> = ({
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Регистрация нового dropdown
-  const registerDropdown = useCallback((id: string, element: HTMLElement, content: React.ReactNode) => {
-    const rect = element.getBoundingClientRect()
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+  const registerDropdown = useCallback(
+    (id: string, element: HTMLElement, content: React.ReactNode) => {
+      const rect = element.getBoundingClientRect()
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop
 
-    const position: DropdownPosition = {
-      top: rect.bottom + scrollTop + 4, // Отступ 4px от элемента
-      left: rect.left,
-      width: rect.width,
-      maxHeight: Math.min(300, window.innerHeight - rect.bottom - 20), // Максимальная высота с отступом
-    }
-
-    setDropdowns(prev => new Map(prev).set(id, {
-      id,
-      element,
-      content,
-      position,
-      visible: true,
-    }))
-
-    // Автоматическое закрытие при клике вне dropdown
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node
-      const dropdownElement = containerRef.current?.querySelector(`[data-dropdown-id="${id}"]`)
-
-      if (dropdownElement && !dropdownElement.contains(target) && !element.contains(target)) {
-        unregisterDropdown(id)
+      const position: DropdownPosition = {
+        top: rect.bottom + scrollTop + 4, // Отступ 4px от элемента
+        left: rect.left,
+        width: rect.width,
+        maxHeight: Math.min(300, window.innerHeight - rect.bottom - 20), // Максимальная высота с отступом
       }
-    }
 
-    setTimeout(() => {
-      document.addEventListener('mousedown', handleClickOutside)
-    }, 0)
+      setDropdowns((prev) =>
+        new Map(prev).set(id, {
+          id,
+          element,
+          content,
+          position,
+          visible: true,
+        }),
+      )
 
-    // Очистка обработчика при размонтировании
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [])
+      // Автоматическое закрытие при клике вне dropdown
+      const handleClickOutside = (event: MouseEvent) => {
+        const target = event.target as Node
+        const dropdownElement = containerRef.current?.querySelector(`[data-dropdown-id="${id}"]`)
+
+        if (dropdownElement && !dropdownElement.contains(target) && !element.contains(target)) {
+          unregisterDropdown(id)
+        }
+      }
+
+      setTimeout(() => {
+        document.addEventListener('mousedown', handleClickOutside)
+      }, 0)
+
+      // Очистка обработчика при размонтировании
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+      }
+    },
+    [],
+  )
 
   // Отмена регистрации dropdown
   const unregisterDropdown = useCallback((id: string) => {
-    setDropdowns(prev => {
+    setDropdowns((prev) => {
       const newMap = new Map(prev)
       newMap.delete(id)
       return newMap
@@ -81,7 +86,7 @@ export const DropdownPortalManager: React.FC<{ children: React.ReactNode }> = ({
 
   // Обновление позиции dropdown
   const updatePosition = useCallback((id: string, position: DropdownPosition) => {
-    setDropdowns(prev => {
+    setDropdowns((prev) => {
       const newMap = new Map(prev)
       const existing = newMap.get(id)
       if (existing) {
@@ -95,7 +100,7 @@ export const DropdownPortalManager: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     const handleScroll = () => {
       // Обновляем позиции всех активных dropdown при скролле
-      setDropdowns(prev => {
+      setDropdowns((prev) => {
         const newMap = new Map()
         prev.forEach((dropdown, id) => {
           const rect = dropdown.element.getBoundingClientRect()
@@ -150,7 +155,7 @@ export const DropdownPortalManager: React.FC<{ children: React.ReactNode }> = ({
           zIndex: 9999, // Поверх всего контента
         }}
       >
-        {Array.from(dropdowns.values()).map(dropdown => (
+        {Array.from(dropdowns.values()).map((dropdown) => (
           <div
             key={dropdown.id}
             data-dropdown-id={dropdown.id}
@@ -164,7 +169,8 @@ export const DropdownPortalManager: React.FC<{ children: React.ReactNode }> = ({
               background: '#fff',
               border: '1px solid #d9d9d9',
               borderRadius: 6,
-              boxShadow: '0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 9px 28px 8px rgba(0, 0, 0, 0.05)',
+              boxShadow:
+                '0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 9px 28px 8px rgba(0, 0, 0, 0.05)',
               overflow: 'auto',
               zIndex: 10000,
             }}
@@ -197,20 +203,23 @@ export const DropdownPortal: React.FC<{
   const triggerRef = useRef<HTMLElement>(null)
   const dropdownId = useRef(`dropdown-${Math.random().toString(36).substr(2, 9)}`)
 
-  const handleTriggerClick = useCallback((event: React.MouseEvent) => {
-    event.preventDefault()
-    event.stopPropagation()
+  const handleTriggerClick = useCallback(
+    (event: React.MouseEvent) => {
+      event.preventDefault()
+      event.stopPropagation()
 
-    if (triggerRef.current) {
-      if (open) {
-        unregisterDropdown(dropdownId.current)
-        onOpenChange?.(false)
-      } else {
-        registerDropdown(dropdownId.current, triggerRef.current, content)
-        onOpenChange?.(true)
+      if (triggerRef.current) {
+        if (open) {
+          unregisterDropdown(dropdownId.current)
+          onOpenChange?.(false)
+        } else {
+          registerDropdown(dropdownId.current, triggerRef.current, content)
+          onOpenChange?.(true)
+        }
       }
-    }
-  }, [open, content, registerDropdown, unregisterDropdown, onOpenChange])
+    },
+    [open, content, registerDropdown, unregisterDropdown, onOpenChange],
+  )
 
   return React.cloneElement(trigger, {
     ref: triggerRef,

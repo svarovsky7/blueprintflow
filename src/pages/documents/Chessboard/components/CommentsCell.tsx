@@ -10,10 +10,7 @@ interface CommentsCellProps {
   mode?: 'view' | 'edit' | 'add'
 }
 
-export const CommentsCell: React.FC<CommentsCellProps> = ({
-  rowId,
-  mode = 'view',
-}) => {
+export const CommentsCell: React.FC<CommentsCellProps> = ({ rowId, mode = 'view' }) => {
   const [modalVisible, setModalVisible] = useState(false)
 
   // Загружаем комментарии для определения отображения кнопки
@@ -29,7 +26,8 @@ export const CommentsCell: React.FC<CommentsCellProps> = ({
 
   // Для отображения первых 8 символов + многоточие
   const displayText = latestComment
-    ? latestComment.comment_text.substring(0, 8) + (latestComment.comment_text.length > 8 ? '...' : '')
+    ? latestComment.comment_text.substring(0, 8) +
+      (latestComment.comment_text.length > 8 ? '...' : '')
     : ''
 
   const handleOpenModal = () => {
@@ -43,7 +41,9 @@ export const CommentsCell: React.FC<CommentsCellProps> = ({
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
       {hasComments ? (
-        <Tooltip title={`${comments.length} комментарий(ев). Последний: ${latestComment?.comment_text}`}>
+        <Tooltip
+          title={`${comments.length} комментарий(ев). Последний: ${latestComment?.comment_text}`}
+        >
           <div>
             <Button
               type="text"

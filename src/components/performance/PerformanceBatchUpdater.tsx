@@ -29,20 +29,23 @@ interface PerformanceBatchUpdaterProps<T extends Record<string, any>> {
 
 // Функция для группировки обновлений по ключам
 const groupUpdatesByKey = (updates: BatchUpdate[]): Record<string, BatchUpdate[]> => {
-  return updates.reduce((groups, update) => {
-    if (!groups[update.key]) {
-      groups[update.key] = []
-    }
-    groups[update.key].push(update)
-    return groups
-  }, {} as Record<string, BatchUpdate[]>)
+  return updates.reduce(
+    (groups, update) => {
+      if (!groups[update.key]) {
+        groups[update.key] = []
+      }
+      groups[update.key].push(update)
+      return groups
+    },
+    {} as Record<string, BatchUpdate[]>,
+  )
 }
 
 // Функция для дедупликации обновлений (оставляем только последнее для каждого field в key)
 const deduplicateUpdates = (updates: BatchUpdate[]): BatchUpdate[] => {
   const latestUpdates = new Map<string, BatchUpdate>()
 
-  updates.forEach(update => {
+  updates.forEach((update) => {
     const uniqueKey = `${update.key}-${update.field}`
     const existing = latestUpdates.get(uniqueKey)
 
@@ -103,7 +106,7 @@ function PerformanceBatchUpdater<T extends Record<string, any>>({
         console.error('Ошибка при применении пакета обновлений:', error)
       }
     },
-    [onUpdate, onBatchUpdate, onBatchComplete, onError]
+    [onUpdate, onBatchUpdate, onBatchComplete, onError],
   )
 
   // Функция для обработки ожидающих обновлений
@@ -135,11 +138,14 @@ function PerformanceBatchUpdater<T extends Record<string, any>>({
 
       // Остальные чанки применяем в следующих фреймах
       chunks.slice(1).forEach((chunk, index) => {
-        setTimeout(() => {
-          requestAnimationFrame(() => {
-            applyBatch(chunk)
-          })
-        }, (index + 1) * 16) // ~60fps
+        setTimeout(
+          () => {
+            requestAnimationFrame(() => {
+              applyBatch(chunk)
+            })
+          },
+          (index + 1) * 16,
+        ) // ~60fps
       })
     } else {
       applyBatch(sortedUpdates)
@@ -184,7 +190,7 @@ function PerformanceBatchUpdater<T extends Record<string, any>>({
       pendingUpdatesRef.current.push(update)
       scheduleBatch()
     },
-    [scheduleBatch]
+    [scheduleBatch],
   )
 
   // Очистка при размонтировании
@@ -209,7 +215,7 @@ function PerformanceBatchUpdater<T extends Record<string, any>>({
 // ===== ЭКСПОРТИРУЕМЫЙ КОМПОНЕНТ С МЕМОИЗАЦИЕЙ =====
 
 export default React.memo(PerformanceBatchUpdater) as <T extends Record<string, any>>(
-  props: PerformanceBatchUpdaterProps<T>
+  props: PerformanceBatchUpdaterProps<T>,
 ) => JSX.Element
 
 // ===== ХУКИ ДЛЯ УДОБСТВА ИСПОЛЬЗОВАНИЯ =====
@@ -217,7 +223,7 @@ export default React.memo(PerformanceBatchUpdater) as <T extends Record<string, 
 // Хук для создания батчер функции
 export const useBatchUpdater = <T extends Record<string, any>>(
   onUpdate: (key: string, field: string, value: any) => void,
-  config: BatchUpdateConfig = {}
+  config: BatchUpdateConfig = {},
 ) => {
   const {
     batchDelay = 100,
@@ -250,7 +256,7 @@ export const useBatchUpdater = <T extends Record<string, any>>(
         console.error('Ошибка при применении пакета обновлений:', error)
       }
     },
-    [onUpdate, onBatchComplete, onError]
+    [onUpdate, onBatchComplete, onError],
   )
 
   const processPendingUpdates = useCallback(() => {
@@ -277,11 +283,14 @@ export const useBatchUpdater = <T extends Record<string, any>>(
       applyBatch(chunks[0])
 
       chunks.slice(1).forEach((chunk, index) => {
-        setTimeout(() => {
-          requestAnimationFrame(() => {
-            applyBatch(chunk)
-          })
-        }, (index + 1) * 16)
+        setTimeout(
+          () => {
+            requestAnimationFrame(() => {
+              applyBatch(chunk)
+            })
+          },
+          (index + 1) * 16,
+        )
       })
     } else {
       applyBatch(sortedUpdates)
@@ -320,7 +329,7 @@ export const useBatchUpdater = <T extends Record<string, any>>(
       pendingUpdatesRef.current.push(update)
       scheduleBatch()
     },
-    [scheduleBatch]
+    [scheduleBatch],
   )
 
   // Функция для немедленной обработки всех ожидающих обновлений

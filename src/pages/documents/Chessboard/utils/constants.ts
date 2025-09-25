@@ -44,26 +44,26 @@ export const PAGINATION_OPTIONS = [10, 20, 50, 100, 200, 500]
 export const DEFAULT_PAGE_SIZE = 100
 
 export const COLUMN_KEYS = {
-  ACTIONS: 'actions',                           // Служебный столбец
+  ACTIONS: 'actions', // Служебный столбец
   DOCUMENTATION_SECTION: 'documentationSection', // Раздел (Тэги проекта)
-  DOCUMENTATION_CODE: 'documentationCode',       // Шифр проекта
+  DOCUMENTATION_CODE: 'documentationCode', // Шифр проекта
   DOCUMENTATION_PROJECT_NAME: 'documentationProjectName', // Наименование проекта
   DOCUMENTATION_VERSION: 'documentationVersion', // Версия
-  BLOCK: 'block',                               // Корпус
-  FLOORS: 'floors',                             // Этажи
-  COST_CATEGORY: 'costCategory',                // Категория затрат
-  COST_TYPE: 'costType',                        // Вид затрат
-  WORK_NAME: 'workName',                        // Наименование работ
-  LOCATION: 'location',                         // Локализация
-  MATERIAL: 'material',                         // Материал
-  QUANTITY_PD: 'quantityPd',                    // Кол-во по ПД
-  QUANTITY_SPEC: 'quantitySpec',                // Кол-во по спеке РД
-  QUANTITY_RD: 'quantityRd',                    // Кол-во по пересчету РД
-  NOMENCLATURE: 'nomenclature',                 // Номенклатура
-  SUPPLIER: 'supplier',                         // Наименование поставщика
-  AI_ANALYSIS: 'ai_analysis',                   // AI анализ материалов
-  UNIT: 'unit',                                // Ед.изм.
-  COMMENTS: 'comments',                         // Комментарии
+  BLOCK: 'block', // Корпус
+  FLOORS: 'floors', // Этажи
+  COST_CATEGORY: 'costCategory', // Категория затрат
+  COST_TYPE: 'costType', // Вид затрат
+  WORK_NAME: 'workName', // Наименование работ
+  LOCATION: 'location', // Локализация
+  MATERIAL: 'material', // Материал
+  QUANTITY_PD: 'quantityPd', // Кол-во по ПД
+  QUANTITY_SPEC: 'quantitySpec', // Кол-во по спеке РД
+  QUANTITY_RD: 'quantityRd', // Кол-во по пересчету РД
+  NOMENCLATURE: 'nomenclature', // Номенклатура
+  SUPPLIER: 'supplier', // Наименование поставщика
+  AI_ANALYSIS: 'ai_analysis', // AI анализ материалов
+  UNIT: 'unit', // Ед.изм.
+  COMMENTS: 'comments', // Комментарии
 } as const
 
 export const HIDDEN_COLUMN_KEYS = [] as const // Показываем все столбцы по умолчанию
@@ -91,10 +91,19 @@ export const DEFAULT_COLUMN_ORDER = [
   COLUMN_KEYS.COMMENTS,
 ]
 
+// СТАБИЛЬНАЯ конфигурация скролла для обычных таблиц (НЕ ДОЛЖНА ИЗМЕНЯТЬСЯ!)
 export const TABLE_SCROLL_CONFIG = {
   x: 'max-content' as const,
   y: 'calc(100vh - 300px)',
-}
+} as const
+
+// СТАБИЛЬНАЯ конфигурация скролла для больших таблиц
+const LARGE_TABLE_SCROLL_CONFIG = {
+  x: 'max-content' as const,
+  y: 'calc(100vh - 300px)',
+  // Дополнительные настройки для больших таблиц
+  scrollToFirstRowOnChange: false, // Не прыгать в начало при изменениях
+} as const
 
 // ОПТИМИЗАЦИЯ DOM: конфигурация для больших таблиц
 export const LARGE_TABLE_CONFIG = {
@@ -106,12 +115,8 @@ export const LARGE_TABLE_CONFIG = {
   overscanRowCount: 10,
   // Критический размер для включения виртуализации
   virtualThreshold: 1000,
-  // Настройки для performance
-  scroll: {
-    ...TABLE_SCROLL_CONFIG,
-    // Дополнительные настройки для больших таблиц
-    scrollToFirstRowOnChange: false, // Не прыгать в начало при изменениях
-  }
+  // Стабильная конфигурация скролла
+  scroll: LARGE_TABLE_SCROLL_CONFIG,
 } as const
 
 export const EXCEL_HEADERS = {

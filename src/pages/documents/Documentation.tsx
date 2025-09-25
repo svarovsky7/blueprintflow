@@ -523,12 +523,18 @@ export default function Documentation() {
       ? {
           title: (
             <Checkbox
-              checked={[...newRows, ...documentation].length > 0 && selectedRowsForDelete.size === [...newRows, ...documentation].length}
-              indeterminate={selectedRowsForDelete.size > 0 && selectedRowsForDelete.size < [...newRows, ...documentation].length}
+              checked={
+                [...newRows, ...documentation].length > 0 &&
+                selectedRowsForDelete.size === [...newRows, ...documentation].length
+              }
+              indeterminate={
+                selectedRowsForDelete.size > 0 &&
+                selectedRowsForDelete.size < [...newRows, ...documentation].length
+              }
               onChange={(e) => {
                 if (e.target.checked) {
                   // Выделить все строки
-                  const allIds = new Set([...newRows, ...documentation].map(row => row.id))
+                  const allIds = new Set([...newRows, ...documentation].map((row) => row.id))
                   setSelectedRowsForDelete(allIds)
                 } else {
                   // Снять выделение со всех строк
@@ -1955,32 +1961,34 @@ export default function Documentation() {
                       onOk: async () => {
                         try {
                           // Получаем записи для удаления по ID
-                          const recordsToDelete = [...newRows, ...documentation].filter(row =>
-                            selectedRowsForDelete.has(row.id)
+                          const recordsToDelete = [...newRows, ...documentation].filter((row) =>
+                            selectedRowsForDelete.has(row.id),
                           )
 
                           // Удаляем только записи с documentation_id (уже созданные в БД)
-                          const recordsWithDbId = recordsToDelete.filter(row =>
-                            row.documentation_id
+                          const recordsWithDbId = recordsToDelete.filter(
+                            (row) => row.documentation_id,
                           )
 
                           // Удаляем новые записи (не сохраненные в БД)
-                          const newRecordsToDelete = recordsToDelete.filter(row =>
-                            !row.documentation_id
+                          const newRecordsToDelete = recordsToDelete.filter(
+                            (row) => !row.documentation_id,
                           )
 
                           // Удаляем из базы данных
                           if (recordsWithDbId.length > 0) {
                             await Promise.all(
-                              recordsWithDbId.map(record =>
-                                documentationApi.deleteDocumentation(record.documentation_id!)
-                              )
+                              recordsWithDbId.map((record) =>
+                                documentationApi.deleteDocumentation(record.documentation_id!),
+                              ),
                             )
                           }
 
                           // Удаляем новые записи из локального состояния
                           if (newRecordsToDelete.length > 0) {
-                            setNewRows(prev => prev.filter(row => !selectedRowsForDelete.has(row.id)))
+                            setNewRows((prev) =>
+                              prev.filter((row) => !selectedRowsForDelete.has(row.id)),
+                            )
                           }
 
                           message.success(`Удалено записей: ${selectedRowsForDelete.size}`)
@@ -1989,7 +1997,6 @@ export default function Documentation() {
 
                           // Обновляем данные из БД
                           queryClient.invalidateQueries({ queryKey: ['documentation'] })
-
                         } catch (error) {
                           console.error('Ошибка при удалении записей:', error)
                           message.error('Ошибка при удалении записей')

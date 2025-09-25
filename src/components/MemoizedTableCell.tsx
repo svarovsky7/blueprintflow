@@ -24,8 +24,11 @@ const MemoizedTableCell: React.FC<MemoizedTableCellProps> = memo(
 
     React.useEffect(() => {
       const renderTime = performance.now() - renderStartTime.current
-      if (renderTime > 50 && process.env.NODE_ENV === 'development') { // LOG: условное логирование только критически медленных ячеек
-        console.warn(`⚠️ MemoizedTableCell критически медленный рендер: ${Math.round(renderTime)}ms для колонки ${column.dataIndex}`) // LOG: производительность ячейки таблицы
+      if (renderTime > 50 && process.env.NODE_ENV === 'development') {
+        // LOG: условное логирование только критически медленных ячеек
+        console.warn(
+          `⚠️ MemoizedTableCell критически медленный рендер: ${Math.round(renderTime)}ms для колонки ${column.dataIndex}`,
+        ) // LOG: производительность ячейки таблицы
       }
     })
     const cellContent = useMemo(() => {
@@ -192,8 +195,7 @@ const MemoizedTableCell: React.FC<MemoizedTableCellProps> = memo(
         const prevLatest = prevProps.record.comments[0]
         const nextLatest = nextProps.record.comments[0]
         return (
-          prevLatest?.comment_text === nextLatest?.comment_text &&
-          prevLatest?.id === nextLatest?.id
+          prevLatest?.comment_text === nextLatest?.comment_text && prevLatest?.id === nextLatest?.id
         )
       }
     }

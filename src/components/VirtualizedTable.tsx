@@ -50,7 +50,14 @@ const Row: React.FC<RowProps> = ({ index, style, data }) => {
       {...rowProps}
     >
       {rowSelection && (
-        <div style={{ width: 60 * scale, padding: `0 ${8 * scale}px`, display: 'flex', justifyContent: 'center' }}>
+        <div
+          style={{
+            width: 60 * scale,
+            padding: `0 ${8 * scale}px`,
+            display: 'flex',
+            justifyContent: 'center',
+          }}
+        >
           <Checkbox
             checked={rowSelection.selectedRowKeys?.includes(
               item[rowSelection.getCheckboxProps?.(item)?.key || 'key'],
@@ -124,7 +131,14 @@ const VirtualizedTableHeader: React.FC<{
       }}
     >
       {rowSelection && (
-        <div style={{ width: 60 * scale, padding: `0 ${8 * scale}px`, display: 'flex', justifyContent: 'center' }}>
+        <div
+          style={{
+            width: 60 * scale,
+            padding: `0 ${8 * scale}px`,
+            display: 'flex',
+            justifyContent: 'center',
+          }}
+        >
           <Checkbox
             indeterminate={
               rowSelection.selectedRowKeys?.length > 0 &&
@@ -190,7 +204,7 @@ const VirtualizedTable: React.FC<VirtualizedTableProps> = ({
 
     const calculatedWidth = visibleColumns.reduce(
       (total, col) => {
-        return total + (((col.width as number) || 150) * scale)
+        return total + ((col.width as number) || 150) * scale
       },
       rowSelection ? 60 * scale : 0,
     )

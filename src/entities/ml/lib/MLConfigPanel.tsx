@@ -11,11 +11,7 @@ interface MLConfigPanelProps {
   onConfigChange?: (config: MLConfig) => void
 }
 
-export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
-  open,
-  onClose,
-  onConfigChange
-}) => {
+export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({ open, onClose, onConfigChange }) => {
   const [form] = Form.useForm()
   const [config, setConfig] = useState<MLConfig | null>(null)
   const [loading, setLoading] = useState(false)
@@ -75,7 +71,7 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
         prefixBonus: 0.25,
         similarityWeight: 0.6,
         minWordLength: 3,
-        ignoredTerms: ['м3', 'м2', 'кг', 'шт', 'п.м.', 'компл.', 'м.п.', 'т']
+        ignoredTerms: ['м3', 'м2', 'кг', 'шт', 'п.м.', 'компл.', 'м.п.', 'т'],
       }
 
       await saveMLConfig(defaultConfig)
@@ -99,7 +95,7 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
   const algorithmDescriptions = {
     strict: 'Высокая точность, меньше ложных совпадений',
     balanced: 'Сбалансированный режим (рекомендуется)',
-    fuzzy: 'Мягкий поиск, больше потенциальных совпадений'
+    fuzzy: 'Мягкий поиск, больше потенциальных совпадений',
   }
 
   return (
@@ -116,20 +112,12 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
       onClose={onClose}
       footer={
         <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={handleReset}
-            loading={loading}
-          >
+          <Button icon={<ReloadOutlined />} onClick={handleReset} loading={loading}>
             Сбросить
           </Button>
           <Space>
             <Button onClick={onClose}>Отмена</Button>
-            <Button
-              type="primary"
-              onClick={handleSave}
-              loading={loading}
-            >
+            <Button type="primary" onClick={handleSave} loading={loading}>
               Применить
             </Button>
           </Space>
@@ -149,18 +137,18 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
 
         <Form.Item
           name="algorithm"
-          label={
-            <Tooltip title="Влияет на общую точность сопоставления">
-              Режим алгоритма
-            </Tooltip>
-          }
+          label={<Tooltip title="Влияет на общую точность сопоставления">Режим алгоритма</Tooltip>}
         >
           <Select>
             {Object.entries(algorithmDescriptions).map(([key, desc]) => (
               <Select.Option key={key} value={key}>
                 <div>
                   <div style={{ fontWeight: 'bold', textTransform: 'capitalize' }}>
-                    {key === 'strict' ? 'Строгий' : key === 'balanced' ? 'Сбалансированный' : 'Мягкий'}
+                    {key === 'strict'
+                      ? 'Строгий'
+                      : key === 'balanced'
+                        ? 'Сбалансированный'
+                        : 'Мягкий'}
                   </div>
                   <div style={{ fontSize: '11px', color: '#666' }}>{desc}</div>
                 </div>
@@ -175,7 +163,11 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
           name="confidenceThreshold"
           label={
             <Tooltip title="Минимальная уверенность для показа предложения">
-              Порог уверенности: {formValues.confidenceThreshold ? Math.round(formValues.confidenceThreshold * 100) : 30}%
+              Порог уверенности:{' '}
+              {formValues.confidenceThreshold
+                ? Math.round(formValues.confidenceThreshold * 100)
+                : 30}
+              %
             </Tooltip>
           }
         >
@@ -188,7 +180,7 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
               0.3: '30%',
               0.5: '50%',
               0.7: '70%',
-              0.9: '90%'
+              0.9: '90%',
             }}
           />
         </Form.Item>
@@ -201,7 +193,7 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
               1: '1',
               5: '5',
               10: '10',
-              15: '15'
+              15: '15',
             }}
           />
         </Form.Item>
@@ -215,7 +207,7 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
               3: '3',
               4: '4',
               5: '5',
-              6: '6'
+              6: '6',
             }}
           />
         </Form.Item>
@@ -226,7 +218,8 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
           name="similarityWeight"
           label={
             <Tooltip title="Влияние алгоритма Levenshtein Distance">
-              Вес схожести: {formValues.similarityWeight ? Math.round(formValues.similarityWeight * 100) : 60}%
+              Вес схожести:{' '}
+              {formValues.similarityWeight ? Math.round(formValues.similarityWeight * 100) : 60}%
             </Tooltip>
           }
         >
@@ -237,7 +230,7 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
             marks={{
               0.1: '10%',
               0.5: '50%',
-              1.0: '100%'
+              1.0: '100%',
             }}
           />
         </Form.Item>
@@ -246,7 +239,8 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
           name="keywordBonus"
           label={
             <Tooltip title="Бонус за совпадение ключевых слов">
-              Бонус за слова: {formValues.keywordBonus ? Math.round(formValues.keywordBonus * 100) : 30}%
+              Бонус за слова:{' '}
+              {formValues.keywordBonus ? Math.round(formValues.keywordBonus * 100) : 30}%
             </Tooltip>
           }
         >
@@ -257,7 +251,7 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
             marks={{
               0: '0%',
               0.25: '25%',
-              0.5: '50%'
+              0.5: '50%',
             }}
           />
         </Form.Item>
@@ -266,7 +260,8 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
           name="exactMatchBonus"
           label={
             <Tooltip title="Бонус за точное вхождение">
-              Бонус за вхождение: {formValues.exactMatchBonus ? Math.round(formValues.exactMatchBonus * 100) : 20}%
+              Бонус за вхождение:{' '}
+              {formValues.exactMatchBonus ? Math.round(formValues.exactMatchBonus * 100) : 20}%
             </Tooltip>
           }
         >
@@ -277,7 +272,7 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
             marks={{
               0: '0%',
               0.2: '20%',
-              0.4: '40%'
+              0.4: '40%',
             }}
           />
         </Form.Item>
@@ -286,7 +281,8 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
           name="prefixBonus"
           label={
             <Tooltip title="Бонус за совпадение в начале строки">
-              Бонус за префикс: {formValues.prefixBonus ? Math.round(formValues.prefixBonus * 100) : 25}%
+              Бонус за префикс:{' '}
+              {formValues.prefixBonus ? Math.round(formValues.prefixBonus * 100) : 25}%
             </Tooltip>
           }
         >
@@ -297,7 +293,7 @@ export const MLConfigPanel: React.FC<MLConfigPanelProps> = ({
             marks={{
               0: '0%',
               0.2: '20%',
-              0.4: '40%'
+              0.4: '40%',
             }}
           />
         </Form.Item>

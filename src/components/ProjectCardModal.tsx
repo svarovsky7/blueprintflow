@@ -196,35 +196,44 @@ export default function ProjectCardModal({
   // УБРАНО: функция createParkingBlock - паркинг теперь не отдельный корпус
 
   // Функция изменения названия корпуса
-  const handleBlockNameChange = useCallback((blockId: number, newName: string) => {
-    setBlocks(prev => prev.map(block =>
-      block.id === blockId ? { ...block, name: newName } : block
-    ))
+  const handleBlockNameChange = useCallback(
+    (blockId: number, newName: string) => {
+      setBlocks((prev) =>
+        prev.map((block) => (block.id === blockId ? { ...block, name: newName } : block)),
+      )
 
-    // Обновляем названия стилобатов при изменении названий корпусов
-    setStylobates(prev => prev.map(stylobate => {
-      const fromBlock = blocks.find(b => b.id === stylobate.fromBlockId)
-      const toBlock = blocks.find(b => b.id === stylobate.toBlockId)
+      // Обновляем названия стилобатов при изменении названий корпусов
+      setStylobates((prev) =>
+        prev.map((stylobate) => {
+          const fromBlock = blocks.find((b) => b.id === stylobate.fromBlockId)
+          const toBlock = blocks.find((b) => b.id === stylobate.toBlockId)
 
-      if ((stylobate.fromBlockId === blockId || stylobate.toBlockId === blockId) && fromBlock && toBlock) {
-        const fromName = stylobate.fromBlockId === blockId ? newName : fromBlock.name
-        const toName = stylobate.toBlockId === blockId ? newName : toBlock.name
-        return {
-          ...stylobate,
-          name: `Стилобат ${fromName}-${toName}`
-        }
-      }
-      return stylobate
-    }))
+          if (
+            (stylobate.fromBlockId === blockId || stylobate.toBlockId === blockId) &&
+            fromBlock &&
+            toBlock
+          ) {
+            const fromName = stylobate.fromBlockId === blockId ? newName : fromBlock.name
+            const toName = stylobate.toBlockId === blockId ? newName : toBlock.name
+            return {
+              ...stylobate,
+              name: `Стилобат ${fromName}-${toName}`,
+            }
+          }
+          return stylobate
+        }),
+      )
 
-    console.log('🔍 Название корпуса изменено:', { blockId, newName }) // LOG
-  }, [blocks])
+      console.log('🔍 Название корпуса изменено:', { blockId, newName }) // LOG
+    },
+    [blocks],
+  )
 
   // Функция добавления нового корпуса
   const handleAddNewBlock = useCallback(() => {
     console.log('🔍 AddNewBlock clicked') // LOG
     const newBlockNumber = blocks.length + 1
-    const newBlockId = Math.max(...blocks.map(b => b.id || 0)) + 1
+    const newBlockId = Math.max(...blocks.map((b) => b.id || 0)) + 1
 
     const newBlock: Block = {
       id: newBlockId,
@@ -240,307 +249,348 @@ export default function ProjectCardModal({
   }, [blocks])
 
   // Функция удаления корпуса
-  const handleDeleteBlock = useCallback((blockId: number) => {
-    const blockToDelete = blocks.find(b => b.id === blockId)
-    if (!blockToDelete) return
+  const handleDeleteBlock = useCallback(
+    (blockId: number) => {
+      const blockToDelete = blocks.find((b) => b.id === blockId)
+      if (!blockToDelete) return
 
-    // Проверяем минимальное количество корпусов
-    if (blocks.length <= 1) {
-      message.warning('Проект должен содержать минимум один корпус')
-      return
-    }
+      // Проверяем минимальное количество корпусов
+      if (blocks.length <= 1) {
+        message.warning('Проект должен содержать минимум один корпус')
+        return
+      }
 
-    // Подтверждение удаления
-    Modal.confirm({
-      title: 'Удалить корпус?',
-      content: (
-        <div>
-          <p>Вы уверены, что хотите удалить корпус <strong>"{blockToDelete.name}"</strong>?</p>
-          <p style={{ color: '#ff4d4f', fontSize: '12px', marginTop: '8px' }}>
-            ⚠️ Будут также удалены все стилобаты и подземные связи этого корпуса
-          </p>
-        </div>
-      ),
-      okText: 'Удалить',
-      cancelText: 'Отмена',
-      okType: 'danger',
-      onOk: () => {
-        console.log('🔍 Deleting block:', blockId, blockToDelete.name) // LOG
+      // Подтверждение удаления
+      Modal.confirm({
+        title: 'Удалить корпус?',
+        content: (
+          <div>
+            <p>
+              Вы уверены, что хотите удалить корпус <strong>"{blockToDelete.name}"</strong>?
+            </p>
+            <p style={{ color: '#ff4d4f', fontSize: '12px', marginTop: '8px' }}>
+              ⚠️ Будут также удалены все стилобаты и подземные связи этого корпуса
+            </p>
+          </div>
+        ),
+        okText: 'Удалить',
+        cancelText: 'Отмена',
+        okType: 'danger',
+        onOk: () => {
+          console.log('🔍 Deleting block:', blockId, blockToDelete.name) // LOG
 
-        // Удаляем корпус из списка блоков
-        setBlocks(prev => prev.filter(b => b.id !== blockId))
+          // Удаляем корпус из списка блоков
+          setBlocks((prev) => prev.filter((b) => b.id !== blockId))
 
-        // Удаляем все стилобаты, связанные с этим корпусом
-        setStylobates(prev => prev.filter(s =>
-          s.fromBlockId !== blockId && s.toBlockId !== blockId
-        ))
-
-        // Удаляем все подземные связи с этим корпусом
-        setUndergroundParking(prev => ({
-          ...prev,
-          blockIds: prev.blockIds.filter(id => id !== blockId),
-          connections: prev.connections.filter(conn =>
-            conn.fromBlockId !== blockId && conn.toBlockId !== blockId
+          // Удаляем все стилобаты, связанные с этим корпусом
+          setStylobates((prev) =>
+            prev.filter((s) => s.fromBlockId !== blockId && s.toBlockId !== blockId),
           )
-        }))
 
-        message.success(`Корпус "${blockToDelete.name}" удален`)
-      },
-    })
-  }, [blocks])
+          // Удаляем все подземные связи с этим корпусом
+          setUndergroundParking((prev) => ({
+            ...prev,
+            blockIds: prev.blockIds.filter((id) => id !== blockId),
+            connections: prev.connections.filter(
+              (conn) => conn.fromBlockId !== blockId && conn.toBlockId !== blockId,
+            ),
+          }))
+
+          message.success(`Корпус "${blockToDelete.name}" удален`)
+        },
+      })
+    },
+    [blocks],
+  )
 
   // Функции управления стилобатами
   const handleAddTopFloorStylobate = useCallback((stylobateId: string | number) => {
-    setStylobates(prev => prev.map(stylobate => {
-      if (stylobate.id === stylobateId) {
-        const newTopFloor = (stylobate.topFloor ?? stylobate.floors) + 1
-        return {
-          ...stylobate,
-          topFloor: newTopFloor,
-          floors: newTopFloor - (stylobate.bottomFloor ?? 1) + 1
-        }
-      }
-      return stylobate
-    }))
-  }, [])
-
-  const handleRemoveTopFloorStylobate = useCallback((stylobateId: string | number) => {
-    setStylobates(prev => prev.map(stylobate => {
-      if (stylobate.id === stylobateId) {
-        const bottomFloor = stylobate.bottomFloor ?? 1
-        const currentTopFloor = stylobate.topFloor ?? stylobate.floors
-        if (currentTopFloor > bottomFloor) {
-          const newTopFloor = currentTopFloor - 1
+    setStylobates((prev) =>
+      prev.map((stylobate) => {
+        if (stylobate.id === stylobateId) {
+          const newTopFloor = (stylobate.topFloor ?? stylobate.floors) + 1
           return {
             ...stylobate,
             topFloor: newTopFloor,
-            floors: newTopFloor - bottomFloor + 1
+            floors: newTopFloor - (stylobate.bottomFloor ?? 1) + 1,
           }
         }
-      }
-      return stylobate
-    }))
+        return stylobate
+      }),
+    )
   }, [])
 
-  const handleDeleteStylobate = useCallback((stylobateId: string | number) => {
-    const stylobateToDelete = stylobates.find(s => s.id === stylobateId)
-    if (!stylobateToDelete) return
+  const handleRemoveTopFloorStylobate = useCallback((stylobateId: string | number) => {
+    setStylobates((prev) =>
+      prev.map((stylobate) => {
+        if (stylobate.id === stylobateId) {
+          const bottomFloor = stylobate.bottomFloor ?? 1
+          const currentTopFloor = stylobate.topFloor ?? stylobate.floors
+          if (currentTopFloor > bottomFloor) {
+            const newTopFloor = currentTopFloor - 1
+            return {
+              ...stylobate,
+              topFloor: newTopFloor,
+              floors: newTopFloor - bottomFloor + 1,
+            }
+          }
+        }
+        return stylobate
+      }),
+    )
+  }, [])
 
-    Modal.confirm({
-      title: 'Удалить стилобат?',
-      content: (
-        <div>
-          <p>Вы уверены, что хотите удалить стилобат <strong>"{stylobateToDelete.name}"</strong>?</p>
-        </div>
-      ),
-      okText: 'Удалить',
-      cancelText: 'Отмена',
-      okType: 'danger',
-      onOk: () => {
-        setStylobates(prev => prev.filter(s => s.id !== stylobateId))
-        message.success(`Стилобат "${stylobateToDelete.name}" удален`)
-      },
-    })
-  }, [stylobates])
+  const handleDeleteStylobate = useCallback(
+    (stylobateId: string | number) => {
+      const stylobateToDelete = stylobates.find((s) => s.id === stylobateId)
+      if (!stylobateToDelete) return
+
+      Modal.confirm({
+        title: 'Удалить стилобат?',
+        content: (
+          <div>
+            <p>
+              Вы уверены, что хотите удалить стилобат <strong>"{stylobateToDelete.name}"</strong>?
+            </p>
+          </div>
+        ),
+        okText: 'Удалить',
+        cancelText: 'Отмена',
+        okType: 'danger',
+        onOk: () => {
+          setStylobates((prev) => prev.filter((s) => s.id !== stylobateId))
+          message.success(`Стилобат "${stylobateToDelete.name}" удален`)
+        },
+      })
+    },
+    [stylobates],
+  )
 
   // Функция обработки кликов по пространству между корпусами
-  const handleConnectionSpaceClick = useCallback((fromBlockId: number, toBlockId: number, floor: number) => {
-    console.log('🔍 ConnectionSpaceClick:', { fromBlockId, toBlockId, floor }) // LOG
+  const handleConnectionSpaceClick = useCallback(
+    (fromBlockId: number, toBlockId: number, floor: number) => {
+      console.log('🔍 ConnectionSpaceClick:', { fromBlockId, toBlockId, floor }) // LOG
 
-    // Проверяем есть ли уже подземная связь
-    const hasUndergroundConnection = undergroundParking.connections.some(
-      conn => conn.fromBlockId === fromBlockId && conn.toBlockId === toBlockId
-    )
+      // Проверяем есть ли уже подземная связь
+      const hasUndergroundConnection = undergroundParking.connections.some(
+        (conn) => conn.fromBlockId === fromBlockId && conn.toBlockId === toBlockId,
+      )
 
-    // Проверяем есть ли стилобат
-    const existingStylobate = stylobates.find(
-      s => s.fromBlockId === fromBlockId && s.toBlockId === toBlockId
-    )
+      // Проверяем есть ли стилобат
+      const existingStylobate = stylobates.find(
+        (s) => s.fromBlockId === fromBlockId && s.toBlockId === toBlockId,
+      )
 
-    console.log('🔍 Состояние до клика:', { // LOG
-      hasUndergroundConnection,
-      existingStylobate: existingStylobate ? { floors: existingStylobate.floors } : null,
-      clickedFloor: floor
-    })
+      console.log('🔍 Состояние до клика:', {
+        // LOG
+        hasUndergroundConnection,
+        existingStylobate: existingStylobate ? { floors: existingStylobate.floors } : null,
+        clickedFloor: floor,
+      })
 
-    if (floor <= 0) {
-      // При клике ниже и включая 0 этаж между корпусами
-      if (hasUndergroundConnection) {
-        // Если паркинг есть - убираем
-        setUndergroundParking(prev => ({
-          ...prev,
-          connections: prev.connections.filter(
-            conn => !(conn.fromBlockId === fromBlockId && conn.toBlockId === toBlockId)
-          )
-        }))
-        console.log('🔍 Подземная связь удалена') // LOG
-      } else {
-        // Если паркинга нет - появляется паркинг, соединяющий корпуса
-        setUndergroundParking(prev => ({
-          ...prev,
-          connections: [...prev.connections, { fromBlockId, toBlockId }]
-        }))
-        console.log('🔍 Подземная связь добавлена') // LOG
-      }
+      if (floor <= 0) {
+        // При клике ниже и включая 0 этаж между корпусами
+        if (hasUndergroundConnection) {
+          // Если паркинг есть - убираем
+          setUndergroundParking((prev) => ({
+            ...prev,
+            connections: prev.connections.filter(
+              (conn) => !(conn.fromBlockId === fromBlockId && conn.toBlockId === toBlockId),
+            ),
+          }))
+          console.log('🔍 Подземная связь удалена') // LOG
+        } else {
+          // Если паркинга нет - появляется паркинг, соединяющий корпуса
+          setUndergroundParking((prev) => ({
+            ...prev,
+            connections: [...prev.connections, { fromBlockId, toBlockId }],
+          }))
+          console.log('🔍 Подземная связь добавлена') // LOG
+        }
 
-      // УБРАНО: вызов createParkingBlock - паркинг теперь не отдельный корпус
-    } else if (floor > 0) {
-      // При клике выше 0 этажа между корпусами
-      if (existingStylobate) {
-        // Стилобат существует
-        if (floor === 1) {
-          // 1. Клик по 1 этажу стилобата уменьшает количество этажей стилобата на один этаж
-          const newFloors = existingStylobate.floors - 1
-          if (newFloors <= 0) {
-            // Если не остается этажей - удаляем стилобат полностью
-            setStylobates(prev => prev.filter(
-              s => !(s.fromBlockId === fromBlockId && s.toBlockId === toBlockId)
-            ))
-            console.log('🔍 Клик по 1 этажу - стилобат полностью удален') // LOG
+        // УБРАНО: вызов createParkingBlock - паркинг теперь не отдельный корпус
+      } else if (floor > 0) {
+        // При клике выше 0 этажа между корпусами
+        if (existingStylobate) {
+          // Стилобат существует
+          if (floor === 1) {
+            // 1. Клик по 1 этажу стилобата уменьшает количество этажей стилобата на один этаж
+            const newFloors = existingStylobate.floors - 1
+            if (newFloors <= 0) {
+              // Если не остается этажей - удаляем стилобат полностью
+              setStylobates((prev) =>
+                prev.filter((s) => !(s.fromBlockId === fromBlockId && s.toBlockId === toBlockId)),
+              )
+              console.log('🔍 Клик по 1 этажу - стилобат полностью удален') // LOG
+            } else {
+              // Уменьшаем количество этажей стилобата на 1
+              setStylobates((prev) =>
+                prev.map((s) =>
+                  s.fromBlockId === fromBlockId && s.toBlockId === toBlockId
+                    ? {
+                        ...s,
+                        floors: newFloors,
+                        topFloor: (s.bottomFloor ?? 1) + newFloors - 1,
+                      }
+                    : s,
+                ),
+              )
+              console.log('🔍 Клик по 1 этажу - убран верхний этаж стилобата, осталось:', newFloors) // LOG
+            }
+          } else if (floor === existingStylobate.floors) {
+            // 2. Клик по последнему этажу стилобата прибавляет один этаж
+            setStylobates((prev) =>
+              prev.map((s) =>
+                s.fromBlockId === fromBlockId && s.toBlockId === toBlockId
+                  ? {
+                      ...s,
+                      floors: s.floors + 1,
+                      topFloor: (s.bottomFloor ?? 1) + s.floors,
+                    }
+                  : s,
+              ),
+            )
+            console.log(
+              '🔍 Клик по последнему этажу - добавлен 1 этаж стилобата, всего:',
+              existingStylobate.floors + 1,
+            ) // LOG
+          } else if (floor === existingStylobate.floors + 1) {
+            // 3. При клике на ячейку сразу выше стилобата - добавляем 1 этаж
+            setStylobates((prev) =>
+              prev.map((s) =>
+                s.fromBlockId === fromBlockId && s.toBlockId === toBlockId
+                  ? {
+                      ...s,
+                      floors: s.floors + 1,
+                      topFloor: (s.bottomFloor ?? 1) + s.floors,
+                    }
+                  : s,
+              ),
+            )
+            console.log(
+              '🔍 Клик выше стилобата на 1 этаж - добавлен 1 этаж стилобата, всего:',
+              existingStylobate.floors + 1,
+            ) // LOG
+          } else if (floor > existingStylobate.floors + 1) {
+            // Клик выше стилобата более чем на 1 этаж - ничего не происходит
+            console.log('🔍 Клик выше стилобата более чем на 1 этаж - ничего не происходит') // LOG
           } else {
-            // Уменьшаем количество этажей стилобата на 1
-            setStylobates(prev => prev.map(s =>
-              s.fromBlockId === fromBlockId && s.toBlockId === toBlockId
-                ? {
-                    ...s,
-                    floors: newFloors,
-                    topFloor: (s.bottomFloor ?? 1) + newFloors - 1
-                  }
-                : s
-            ))
-            console.log('🔍 Клик по 1 этажу - убран верхний этаж стилобата, осталось:', newFloors) // LOG
+            // Клики по промежуточным этажам стилобата (от 2 до предпоследнего) - ничего не делаем
+            console.log('🔍 Клик по промежуточному этажу стилобата - ничего не происходит') // LOG
           }
-        } else if (floor === existingStylobate.floors) {
-          // 2. Клик по последнему этажу стилобата прибавляет один этаж
-          setStylobates(prev => prev.map(s =>
-            s.fromBlockId === fromBlockId && s.toBlockId === toBlockId
-              ? {
-                  ...s,
-                  floors: s.floors + 1,
-                  topFloor: (s.bottomFloor ?? 1) + s.floors
-                }
-              : s
-          ))
-          console.log('🔍 Клик по последнему этажу - добавлен 1 этаж стилобата, всего:', existingStylobate.floors + 1) // LOG
-        } else if (floor === existingStylobate.floors + 1) {
-          // 3. При клике на ячейку сразу выше стилобата - добавляем 1 этаж
-          setStylobates(prev => prev.map(s =>
-            s.fromBlockId === fromBlockId && s.toBlockId === toBlockId
-              ? {
-                  ...s,
-                  floors: s.floors + 1,
-                  topFloor: (s.bottomFloor ?? 1) + s.floors
-                }
-              : s
-          ))
-          console.log('🔍 Клик выше стилобата на 1 этаж - добавлен 1 этаж стилобата, всего:', existingStylobate.floors + 1) // LOG
-        } else if (floor > existingStylobate.floors + 1) {
-          // Клик выше стилобата более чем на 1 этаж - ничего не происходит
-          console.log('🔍 Клик выше стилобата более чем на 1 этаж - ничего не происходит') // LOG
         } else {
-          // Клики по промежуточным этажам стилобата (от 2 до предпоследнего) - ничего не делаем
-          console.log('🔍 Клик по промежуточному этажу стилобата - ничего не происходит') // LOG
-        }
-      } else {
-        // Когда нет стилобата - при клике между корпусами выше 0 этажа появляется 1 этаж стилобата
-        if (floor === 1) {
-          // Создаем новый стилобат с 1 этажом только при клике по 1 этажу
-          const fromBlock = blocks.find(b => b.id === fromBlockId)
-          const toBlock = blocks.find(b => b.id === toBlockId)
-          // Определяем, есть ли паркинг под стилобатом
-          const hasUndergroundParking = undergroundParking.connections.some(
-            conn => conn.fromBlockId === fromBlockId && conn.toBlockId === toBlockId
-          )
+          // Когда нет стилобата - при клике между корпусами выше 0 этажа появляется 1 этаж стилобата
+          if (floor === 1) {
+            // Создаем новый стилобат с 1 этажом только при клике по 1 этажу
+            const fromBlock = blocks.find((b) => b.id === fromBlockId)
+            const toBlock = blocks.find((b) => b.id === toBlockId)
+            // Определяем, есть ли паркинг под стилобатом
+            const hasUndergroundParking = undergroundParking.connections.some(
+              (conn) => conn.fromBlockId === fromBlockId && conn.toBlockId === toBlockId,
+            )
 
-          const newStylobate: UIStylobate = {
-            id: `${Math.max(0, ...stylobates.map(s => typeof s.id === 'number' ? s.id : parseInt(s.id) || 0)) + 1}`,
-            name: `Стилобат ${fromBlock?.name || fromBlockId}-${toBlock?.name || toBlockId}`,
-            fromBlockId,
-            toBlockId,
-            floors: 1,
-            bottomFloor: hasUndergroundParking ? 1 : 1, // Стилобат всегда начинается с 1 этажа
-            topFloor: 1,
-            x: 0,
-            y: 0,
+            const newStylobate: UIStylobate = {
+              id: `${Math.max(0, ...stylobates.map((s) => (typeof s.id === 'number' ? s.id : parseInt(s.id) || 0))) + 1}`,
+              name: `Стилобат ${fromBlock?.name || fromBlockId}-${toBlock?.name || toBlockId}`,
+              fromBlockId,
+              toBlockId,
+              floors: 1,
+              bottomFloor: hasUndergroundParking ? 1 : 1, // Стилобат всегда начинается с 1 этажа
+              topFloor: 1,
+              x: 0,
+              y: 0,
+            }
+            setStylobates((prev) => [...prev, newStylobate])
+            console.log('🔍 Создан новый стилобат с 1 этажом') // LOG
+          } else {
+            // Клик по пустым ячейкам выше 1 этажа - ничего не делаем, так как стилобата нет
+            console.log(
+              '🔍 Клик по пустой ячейке выше 1 этажа без стилобата - ничего не происходит',
+            ) // LOG
           }
-          setStylobates(prev => [...prev, newStylobate])
-          console.log('🔍 Создан новый стилобат с 1 этажом') // LOG
-        } else {
-          // Клик по пустым ячейкам выше 1 этажа - ничего не делаем, так как стилобата нет
-          console.log('🔍 Клик по пустой ячейке выше 1 этажа без стилобата - ничего не происходит') // LOG
         }
       }
-    }
-  }, [undergroundParking.connections, stylobates, blocks])
+    },
+    [undergroundParking.connections, stylobates, blocks],
+  )
 
   // Функция переключения подземной парковки для блока
-  const handleBlockParkingToggle = useCallback((blockId: number, floor: number) => {
-    // При клике по подземному этажу корпуса он становится парковкой
-    const isCurrentlyParking = undergroundParking.blockIds.includes(blockId)
+  const handleBlockParkingToggle = useCallback(
+    (blockId: number, floor: number) => {
+      // При клике по подземному этажу корпуса он становится парковкой
+      const isCurrentlyParking = undergroundParking.blockIds.includes(blockId)
 
-    console.log('🔍 Block parking toggle:', { blockId, floor, isCurrentlyParking }) // LOG
+      console.log('🔍 Block parking toggle:', { blockId, floor, isCurrentlyParking }) // LOG
 
-    if (isCurrentlyParking) {
-      // Убираем блок из парковки
-      setUndergroundParking(prev => ({
-        ...prev,
-        blockIds: prev.blockIds.filter(id => id !== blockId)
-      }))
+      if (isCurrentlyParking) {
+        // Убираем блок из парковки
+        setUndergroundParking((prev) => ({
+          ...prev,
+          blockIds: prev.blockIds.filter((id) => id !== blockId),
+        }))
 
-      // При отключении парковки корпус может начинаться с более низких этажей
-      // Но если минимальный этаж стал положительным - начинаем с 1 этажа
-      setBlocks(prev => prev.map(block => {
-        if (block.id === blockId && block.bottomFloor < 0) {
-          return {
-            ...block,
-            bottomFloor: Math.max(1, block.bottomFloor) // Не выше 1 этажа
-          }
-        }
-        return block
-      }))
-    } else {
-      // Добавляем блок в парковку
-      setUndergroundParking(prev => ({
-        ...prev,
-        blockIds: [...prev.blockIds, blockId]
-      }))
+        // При отключении парковки корпус может начинаться с более низких этажей
+        // Но если минимальный этаж стал положительным - начинаем с 1 этажа
+        setBlocks((prev) =>
+          prev.map((block) => {
+            if (block.id === blockId && block.bottomFloor < 0) {
+              return {
+                ...block,
+                bottomFloor: Math.max(1, block.bottomFloor), // Не выше 1 этажа
+              }
+            }
+            return block
+          }),
+        )
+      } else {
+        // Добавляем блок в парковку
+        setUndergroundParking((prev) => ({
+          ...prev,
+          blockIds: [...prev.blockIds, blockId],
+        }))
 
-      // При включении парковки корпус должен иметь подземные этажи
-      setBlocks(prev => prev.map(block => {
-        if (block.id === blockId) {
-          return {
-            ...block,
-            // Если у корпуса нет подземных этажей - добавляем парковочные этажи
-            bottomFloor: block.bottomFloor >= 1 ? -2 : Math.min(block.bottomFloor, -1)
-          }
-        }
-        return block
-      }))
-    }
-  }, [undergroundParking.blockIds])
+        // При включении парковки корпус должен иметь подземные этажи
+        setBlocks((prev) =>
+          prev.map((block) => {
+            if (block.id === blockId) {
+              return {
+                ...block,
+                // Если у корпуса нет подземных этажей - добавляем парковочные этажи
+                bottomFloor: block.bottomFloor >= 1 ? -2 : Math.min(block.bottomFloor, -1),
+              }
+            }
+            return block
+          }),
+        )
+      }
+    },
+    [undergroundParking.blockIds],
+  )
 
   // Функция переключения технического этажа
   const handleTechnicalFloorToggle = useCallback((blockId: number, floor: number) => {
-    setBlocks(prev => prev.map(block => {
-      if (block.id !== blockId) return block
+    setBlocks((prev) =>
+      prev.map((block) => {
+        if (block.id !== blockId) return block
 
-      const technicalFloors = block.technicalFloors || []
-      const isCurrentlyTechnical = technicalFloors.includes(floor)
+        const technicalFloors = block.technicalFloors || []
+        const isCurrentlyTechnical = technicalFloors.includes(floor)
 
-      if (isCurrentlyTechnical) {
-        // Убираем из технических этажей
-        return {
-          ...block,
-          technicalFloors: technicalFloors.filter(f => f !== floor)
+        if (isCurrentlyTechnical) {
+          // Убираем из технических этажей
+          return {
+            ...block,
+            technicalFloors: technicalFloors.filter((f) => f !== floor),
+          }
+        } else {
+          // Добавляем в технические этажи
+          return {
+            ...block,
+            technicalFloors: [...technicalFloors, floor].sort((a, b) => b - a), // Сортируем по убыванию
+          }
         }
-      } else {
-        // Добавляем в технические этажи
-        return {
-          ...block,
-          technicalFloors: [...technicalFloors, floor].sort((a, b) => b - a) // Сортируем по убыванию
-        }
-      }
-    }))
+      }),
+    )
   }, [])
 
   // Функция сброса изменений к исходному состоянию
@@ -558,7 +608,14 @@ export default function ProjectCardModal({
       JSON.stringify(stylobates) !== JSON.stringify(originalStylobates) ||
       JSON.stringify(undergroundParking) !== JSON.stringify(originalUndergroundParking)
     )
-  }, [blocks, stylobates, undergroundParking, originalBlocks, originalStylobates, originalUndergroundParking])
+  }, [
+    blocks,
+    stylobates,
+    undergroundParking,
+    originalBlocks,
+    originalStylobates,
+    originalUndergroundParking,
+  ])
 
   const handleSave = async () => {
     try {
@@ -674,8 +731,8 @@ export default function ProjectCardModal({
       maxTopFloor,
       minBottomFloor,
       totalFloors: maxTopFloor - minBottomFloor + 1,
-      blocks: blocks.map(b => `${b.name}: ${b.bottomFloor}-${b.topFloor}`),
-      generatedFloors: `from ${maxTopFloor} down to ${minBottomFloor}`
+      blocks: blocks.map((b) => `${b.name}: ${b.bottomFloor}-${b.topFloor}`),
+      generatedFloors: `from ${maxTopFloor} down to ${minBottomFloor}`,
     })
 
     // Создаем данные для каждого этажа
@@ -760,7 +817,6 @@ export default function ProjectCardModal({
         }
       }
 
-
       data.push(row)
     }
 
@@ -768,8 +824,10 @@ export default function ProjectCardModal({
       totalRows: data.length,
       firstFloor: data[0]?.floor,
       lastFloor: data[data.length - 1]?.floor,
-      hasNegativeFloors: data.some(row => (row.floor as number) < 0),
-      negativeFloors: data.filter(row => (row.floor as number) < 0).map(row => row.floor as number)
+      hasNegativeFloors: data.some((row) => (row.floor as number) < 0),
+      negativeFloors: data
+        .filter((row) => (row.floor as number) < 0)
+        .map((row) => row.floor as number),
     })
 
     return data
@@ -807,7 +865,7 @@ export default function ProjectCardModal({
         originalHeight: scalingInfo.tableScrollHeight,
         adjustedHeight: adjustedScrollHeight,
         totalRows: scalingInfo.totalFloors,
-        expectedTableHeight: scalingInfo.totalFloors * 12
+        expectedTableHeight: scalingInfo.totalFloors * 12,
       })
 
       styles += `
@@ -826,7 +884,7 @@ export default function ProjectCardModal({
     console.log('🔍 ProjectCardModal: Финальные scalingStyles:', {
       stylesLength: styles.length,
       hasHeaderStyles: styles.includes('ant-table-thead'),
-      stylesPreview: styles.substring(0, 200)
+      stylesPreview: styles.substring(0, 200),
     })
 
     return styles
@@ -879,7 +937,14 @@ export default function ProjectCardModal({
       // Колонка корпуса - динамическая ширина
       columns.push({
         title: (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '2px 0' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              padding: '2px 0',
+            }}
+          >
             <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
               <button
                 onClick={() => handleAddTopFloor(block.id)}
@@ -892,7 +957,7 @@ export default function ProjectCardModal({
                   color: '#1677ff',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
                 }}
                 title={`Добавить этаж сверху (${block.name})`}
               >
@@ -909,7 +974,7 @@ export default function ProjectCardModal({
                   color: '#1677ff',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
                 }}
                 title={`Удалить верхний этаж (${block.name})`}
               >
@@ -928,7 +993,7 @@ export default function ProjectCardModal({
                 borderRadius: '4px',
                 padding: '2px 4px',
                 width: '80px',
-                background: '#fff'
+                background: '#fff',
               }}
               title={`Изменить название корпуса`}
             />
@@ -945,7 +1010,7 @@ export default function ProjectCardModal({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                margin: '2px 0'
+                margin: '2px 0',
               }}
               title={`Удалить корпус "${block.name}"`}
             >
@@ -963,7 +1028,7 @@ export default function ProjectCardModal({
                   color: '#1677ff',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
                 }}
                 title={`Добавить этаж снизу (${block.name})`}
               >
@@ -980,7 +1045,7 @@ export default function ProjectCardModal({
                   color: '#1677ff',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
                 }}
                 title={`Удалить нижний этаж (${block.name})`}
               >
@@ -1024,7 +1089,10 @@ export default function ProjectCardModal({
                 margin: 0,
                 padding: 0,
                 boxSizing: 'border-box',
-                cursor: isUndergroundFloor || (technicalFloorMode && cell.floor > 0) ? 'pointer' : 'default',
+                cursor:
+                  isUndergroundFloor || (technicalFloorMode && cell.floor > 0)
+                    ? 'pointer'
+                    : 'default',
                 position: 'relative',
               }}
               onClick={
@@ -1037,24 +1105,28 @@ export default function ProjectCardModal({
               title={
                 isUndergroundFloor
                   ? isParking
-                    ? "Подземная парковка (кликните для отключения)"
-                    : "Подземный этаж (кликните для включения парковки)"
+                    ? 'Подземная парковка (кликните для отключения)'
+                    : 'Подземный этаж (кликните для включения парковки)'
                   : technicalFloorMode && cell.floor > 0
-                    ? (block.technicalFloors?.includes(cell.floor) ? "Тех.этаж (кликните для отключения)" : "Обычный этаж (кликните для превращения в тех.этаж)")
+                    ? block.technicalFloors?.includes(cell.floor)
+                      ? 'Тех.этаж (кликните для отключения)'
+                      : 'Обычный этаж (кликните для превращения в тех.этаж)'
                     : undefined
               }
             >
               {cell.floor}
               {isUndergroundFloor && (
-                <div style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  fontSize: '4px',
-                  opacity: 0.7,
-                  pointerEvents: 'none'
-                }}>
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    fontSize: '4px',
+                    opacity: 0.7,
+                    pointerEvents: 'none',
+                  }}
+                >
                   {isParking ? '🚗' : '⏸'}
                 </div>
               )}
@@ -1100,10 +1172,10 @@ export default function ProjectCardModal({
                   onClick={() => handleConnectionSpaceClick(block.id, nextBlock.id, floor)}
                   title={
                     floor < 0
-                      ? "Кликните для переключения подземной связи"
+                      ? 'Кликните для переключения подземной связи'
                       : floor > 0
-                      ? "Кликните для переключения стилобата"
-                      : "Кликните для добавления связи"
+                        ? 'Кликните для переключения стилобата'
+                        : 'Кликните для добавления связи'
                   }
                 >
                   <div style={{ fontSize: '6px', color: '#ccc' }}>+</div>
@@ -1129,19 +1201,21 @@ export default function ProjectCardModal({
                 onClick={() => handleConnectionSpaceClick(block.id, nextBlock.id, floor)}
                 title={
                   floor < 0
-                    ? "Подземная связь (кликните для отключения)"
-                    : "Стилобат (кликните для удаления)"
+                    ? 'Подземная связь (кликните для отключения)'
+                    : 'Стилобат (кликните для удаления)'
                 }
               >
                 {cell.floor}
-                <div style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  fontSize: '6px',
-                  opacity: 0.7
-                }}>
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    fontSize: '6px',
+                    opacity: 0.7,
+                  }}
+                >
                   ×
                 </div>
               </div>
@@ -1150,8 +1224,6 @@ export default function ProjectCardModal({
         })
       }
     })
-
-
 
     // Добавляем кнопку для добавления нового корпуса
     columns.push({
@@ -1168,7 +1240,7 @@ export default function ProjectCardModal({
             alignItems: 'center',
             justifyContent: 'center',
             width: '100%',
-            height: '100%'
+            height: '100%',
           }}
           title="Добавить новый корпус"
         >
@@ -1197,7 +1269,22 @@ export default function ProjectCardModal({
     }
 
     return columns
-  }, [blocks, stylobates, undergroundParking.blockIds, technicalFloorMode, handleAddNewBlock, handleDeleteBlock, handleAddTopFloor, handleRemoveTopFloor, handleAddBottomFloor, handleRemoveBottomFloor, handleConnectionSpaceClick, handleBlockParkingToggle, handleTechnicalFloorToggle, handleBlockNameChange])
+  }, [
+    blocks,
+    stylobates,
+    undergroundParking.blockIds,
+    technicalFloorMode,
+    handleAddNewBlock,
+    handleDeleteBlock,
+    handleAddTopFloor,
+    handleRemoveTopFloor,
+    handleAddBottomFloor,
+    handleRemoveBottomFloor,
+    handleConnectionSpaceClick,
+    handleBlockParkingToggle,
+    handleTechnicalFloorToggle,
+    handleBlockNameChange,
+  ])
 
   return (
     <>
@@ -1222,7 +1309,8 @@ export default function ProjectCardModal({
           if (hasUnsavedChanges) {
             Modal.confirm({
               title: 'Несохраненные изменения',
-              content: 'У вас есть несохраненные изменения. Вы действительно хотите закрыть окно без сохранения?',
+              content:
+                'У вас есть несохраненные изменения. Вы действительно хотите закрыть окно без сохранения?',
               okText: 'Да, закрыть',
               cancelText: 'Отмена',
               onOk: onCancel,
@@ -1267,7 +1355,7 @@ export default function ProjectCardModal({
                     padding: '4px 15px',
                     cursor: 'pointer',
                     color: '#666',
-                    fontSize: '14px'
+                    fontSize: '14px',
                   }}
                   title="Сбросить все несохраненные изменения"
                 >
@@ -1314,32 +1402,41 @@ export default function ProjectCardModal({
                   Управление:
                 </Text>
                 <div style={{ fontSize: '0.95em', color: '#666', lineHeight: 1.4 }}>
-                  <strong>Этажи корпусов:</strong><br/>
-                  • <strong>Кнопки ↑↓</strong> в заголовках - добавить/убрать этажи<br/>
-                  • <strong>Клик по подземному этажу</strong> - переключить парковку 🚗
+                  <strong>Этажи корпусов:</strong>
+                  <br />• <strong>Кнопки ↑↓</strong> в заголовках - добавить/убрать этажи
+                  <br />• <strong>Клик по подземному этажу</strong> - переключить парковку 🚗
                 </div>
               </div>
 
               {/* Связи между корпусами - отдельная колонка справа */}
               <div style={{ flex: '1 1 240px' }}>
-                <Text strong style={{ fontSize: '1.1em', marginBottom: 8, display: 'block', opacity: 0 }}>
+                <Text
+                  strong
+                  style={{ fontSize: '1.1em', marginBottom: 8, display: 'block', opacity: 0 }}
+                >
                   .
                 </Text>
                 <div style={{ fontSize: '0.95em', color: '#666', lineHeight: 1.4 }}>
-                  <strong>Связи между корпусами:</strong><br/>
-                  • <strong>Подземные этажи:</strong> подземные связи<br/>
-                  • <strong>Стилобаты:</strong> клик выше корпусов = добавить, клик по этажу = убрать<br/>
-                  • <strong>Клик по активной связи</strong> для удаления
+                  <strong>Связи между корпусами:</strong>
+                  <br />• <strong>Подземные этажи:</strong> подземные связи
+                  <br />• <strong>Стилобаты:</strong> клик выше корпусов = добавить, клик по этажу =
+                  убрать
+                  <br />• <strong>Клик по активной связи</strong> для удаления
                 </div>
               </div>
 
               {/* Технический этаж - чек-бокс */}
               <div style={{ flex: '1 1 200px' }}>
-                <Text strong style={{ fontSize: '1.1em', marginBottom: 8, display: 'block', opacity: 0 }}>
+                <Text
+                  strong
+                  style={{ fontSize: '1.1em', marginBottom: 8, display: 'block', opacity: 0 }}
+                >
                   .
                 </Text>
                 <div style={{ fontSize: '0.95em', color: '#666', lineHeight: 1.4 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <label
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+                  >
                     <input
                       type="checkbox"
                       checked={technicalFloorMode}
@@ -1497,7 +1594,7 @@ export default function ProjectCardModal({
                 'Min floor:',
                 scalingInfo.minBottomFloor,
                 'Max floor:',
-                scalingInfo.maxTopFloor
+                scalingInfo.maxTopFloor,
               )
               return className
             })()}

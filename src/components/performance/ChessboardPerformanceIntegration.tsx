@@ -77,7 +77,7 @@ const ChessboardPerformanceIntegration: React.FC<ChessboardPerformanceIntegratio
     (key: keyof PerformanceConfig, value: any) => {
       saveConfig({ ...perfConfig, [key]: value })
     },
-    [perfConfig, saveConfig]
+    [perfConfig, saveConfig],
   )
 
   // Автоматическое определение оптимальных настроек
@@ -142,7 +142,10 @@ const ChessboardPerformanceIntegration: React.FC<ChessboardPerformanceIntegratio
   const performanceStats = useMemo(() => {
     const stats = {
       totalRows: data.length,
-      visibleRows: perfConfig.displayLimit === -1 ? data.length : Math.min(data.length, perfConfig.displayLimit),
+      visibleRows:
+        perfConfig.displayLimit === -1
+          ? data.length
+          : Math.min(data.length, perfConfig.displayLimit),
       estimatedPerformance: 'Хорошая',
       recommendedSettings: '',
     }
@@ -184,7 +187,8 @@ const ChessboardPerformanceIntegration: React.FC<ChessboardPerformanceIntegratio
         <div style={{ marginBottom: 12 }}>
           <strong>Оптимизация производительности</strong>
           <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
-            Строки: {performanceStats.totalRows} | Производительность: {performanceStats.estimatedPerformance}
+            Строки: {performanceStats.totalRows} | Производительность:{' '}
+            {performanceStats.estimatedPerformance}
           </div>
         </div>
 
@@ -200,7 +204,9 @@ const ChessboardPerformanceIntegration: React.FC<ChessboardPerformanceIntegratio
 
           {perfConfig.enabled && (
             <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
                 <span>Батчинг обновлений:</span>
                 <Switch
                   checked={perfConfig.batchingEnabled}
@@ -209,7 +215,9 @@ const ChessboardPerformanceIntegration: React.FC<ChessboardPerformanceIntegratio
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
                 <span>Задержка батчинга (мс):</span>
                 <InputNumber
                   value={perfConfig.batchDelay}
@@ -222,7 +230,9 @@ const ChessboardPerformanceIntegration: React.FC<ChessboardPerformanceIntegratio
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
                 <span>Размер пакета:</span>
                 <InputNumber
                   value={perfConfig.maxBatchSize}
@@ -235,7 +245,9 @@ const ChessboardPerformanceIntegration: React.FC<ChessboardPerformanceIntegratio
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
                 <span>Лимит строк:</span>
                 <InputNumber
                   value={perfConfig.displayLimit}
@@ -249,7 +261,9 @@ const ChessboardPerformanceIntegration: React.FC<ChessboardPerformanceIntegratio
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
                 <span>Плавный скролл:</span>
                 <Switch
                   checked={perfConfig.smoothScrolling}
@@ -258,7 +272,9 @@ const ChessboardPerformanceIntegration: React.FC<ChessboardPerformanceIntegratio
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
                 <span>Глубокая мемоизация:</span>
                 <Switch
                   checked={perfConfig.deepMemoization}
@@ -267,7 +283,9 @@ const ChessboardPerformanceIntegration: React.FC<ChessboardPerformanceIntegratio
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
                 <span>Ленивый рендеринг:</span>
                 <Switch
                   checked={perfConfig.lazyRendering}
@@ -289,7 +307,7 @@ const ChessboardPerformanceIntegration: React.FC<ChessboardPerformanceIntegratio
         </Space>
       </div>
     ),
-    [perfConfig, performanceStats, updateConfig, autoOptimize]
+    [perfConfig, performanceStats, updateConfig, autoOptimize],
   )
 
   return (
@@ -319,12 +337,7 @@ const ChessboardPerformanceIntegration: React.FC<ChessboardPerformanceIntegratio
           </Tooltip>
 
           <Tooltip title="Автооптимизация">
-            <Button
-              icon={<DashboardOutlined />}
-              size="small"
-              type="dashed"
-              onClick={autoOptimize}
-            >
+            <Button icon={<DashboardOutlined />} size="small" type="dashed" onClick={autoOptimize}>
               Авто
             </Button>
           </Tooltip>

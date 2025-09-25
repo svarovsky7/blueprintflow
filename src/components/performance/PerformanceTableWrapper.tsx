@@ -56,16 +56,15 @@ const PerformanceTableWrapper: React.FC<PerformanceTableWrapperProps> = ({
   ...tableProps
 }) => {
   // Батчер для обновлений
-  const { batchedUpdate } = useBatchUpdater(
-    onCellUpdate || (() => {}),
-    {
-      batchDelay,
-      maxBatchSize,
-      onBatchComplete: onBatchCellUpdate ? (updates) => {
-        onBatchCellUpdate(updates.map(({ key, field, value }) => ({ key, field, value })))
-      } : undefined,
-    }
-  )
+  const { batchedUpdate } = useBatchUpdater(onCellUpdate || (() => {}), {
+    batchDelay,
+    maxBatchSize,
+    onBatchComplete: onBatchCellUpdate
+      ? (updates) => {
+          onBatchCellUpdate(updates.map(({ key, field, value }) => ({ key, field, value })))
+        }
+      : undefined,
+  })
 
   // Обработчик обновления ячеек
   const handleCellUpdate = useCallback(
@@ -76,7 +75,7 @@ const PerformanceTableWrapper: React.FC<PerformanceTableWrapperProps> = ({
         onCellUpdate?.(key, field, value)
       }
     },
-    [enableBatching, batchedUpdate, onCellUpdate]
+    [enableBatching, batchedUpdate, onCellUpdate],
   )
 
   // Мемоизация оптимизированных колонок
@@ -117,7 +116,9 @@ const PerformanceTableWrapper: React.FC<PerformanceTableWrapperProps> = ({
                   return (
                     <QuantityInput
                       value={value}
-                      onChange={(newValue) => handleCellUpdate(record.key, column.dataIndex, newValue)}
+                      onChange={(newValue) =>
+                        handleCellUpdate(record.key, column.dataIndex, newValue)
+                      }
                       disabled={performanceMode}
                     />
                   )
@@ -146,7 +147,9 @@ const PerformanceTableWrapper: React.FC<PerformanceTableWrapperProps> = ({
                     return (
                       <MemoizedSelect
                         value={value}
-                        onChange={(newValue) => handleCellUpdate(record.key, column.dataIndex, newValue)}
+                        onChange={(newValue) =>
+                          handleCellUpdate(record.key, column.dataIndex, newValue)
+                        }
                         options={column.options || []}
                         placeholder={column.placeholder}
                         disabled={performanceMode}
@@ -157,7 +160,9 @@ const PerformanceTableWrapper: React.FC<PerformanceTableWrapperProps> = ({
                     return (
                       <MemoizedInputNumber
                         value={value}
-                        onChange={(newValue) => handleCellUpdate(record.key, column.dataIndex, newValue)}
+                        onChange={(newValue) =>
+                          handleCellUpdate(record.key, column.dataIndex, newValue)
+                        }
                         placeholder={column.placeholder}
                         disabled={performanceMode}
                         size="small"
@@ -167,7 +172,9 @@ const PerformanceTableWrapper: React.FC<PerformanceTableWrapperProps> = ({
                     return (
                       <MemoizedAutoComplete
                         value={value}
-                        onChange={(newValue) => handleCellUpdate(record.key, column.dataIndex, newValue)}
+                        onChange={(newValue) =>
+                          handleCellUpdate(record.key, column.dataIndex, newValue)
+                        }
                         onSelect={column.onSelect}
                         onSearch={column.onSearch}
                         options={column.options || []}
@@ -180,7 +187,9 @@ const PerformanceTableWrapper: React.FC<PerformanceTableWrapperProps> = ({
                     return (
                       <MemoizedInput
                         value={value}
-                        onChange={(newValue) => handleCellUpdate(record.key, column.dataIndex, newValue)}
+                        onChange={(newValue) =>
+                          handleCellUpdate(record.key, column.dataIndex, newValue)
+                        }
                         placeholder={column.placeholder}
                         disabled={performanceMode}
                         size="small"

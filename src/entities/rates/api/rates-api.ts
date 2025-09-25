@@ -142,7 +142,10 @@ export const ratesApi = {
   },
 
   // Получение работ по виду затрат через rates_detail_cost_categories_mapping
-  async getWorksByCategory(costTypeId?: string, costCategoryId?: string): Promise<{ value: string; label: string }[]> {
+  async getWorksByCategory(
+    costTypeId?: string,
+    costCategoryId?: string,
+  ): Promise<{ value: string; label: string }[]> {
     if (!supabase) throw new Error('Supabase is not configured')
 
     // Если не указан ни вид затрат, ни категория затрат - возвращаем пустой список
@@ -153,9 +156,7 @@ export const ratesApi = {
     console.log('🔍 getWorksByCategory called with:', { costTypeId, costCategoryId }) // LOG: отладочная информация
 
     // Запрос: получаем расценки с их категориями затрат (как в backup файле)
-    const { data, error } = await supabase
-      .from('rates')
-      .select(`
+    const { data, error } = await supabase.from('rates').select(`
         id,
         work_name,
         rates_detail_cost_categories_mapping(detail_cost_category_id)
@@ -174,17 +175,39 @@ export const ratesApi = {
     }
 
     // Фильтруем расценки по виду затрат (как в backup файле)
-    const filteredRates = data.filter(rate => {
-      const categoryIds = rate.rates_detail_cost_categories_mapping?.map((m) => m.detail_cost_category_id.toString()) ?? []
-      return categoryIds.includes(costTypeId || '')
+    const filteredRates = data.filter((rate) => {
+      const categoryIds =
+        rate.rates_detail_cost_categories_mapping?.map((m) =>
+          m.detail_cost_category_id.toString(),
+        ) ?? []
+
+      // Сравниваем и как строку, и как число для надежности
+      const targetIdAsString = costTypeId?.toString() || ''
+      const targetIdAsNumber = parseInt(costTypeId || '0')
+      const categoryIdsAsNumbers = rate.rates_detail_cost_categories_mapping?.map((m) => m.detail_cost_category_id) ?? []
+
+      console.log('🔍 Checking rate:', { // LOG: отладочная информация фильтрации
+        rateId: rate.id,
+        workName: rate.work_name,
+        categoryIds,
+        categoryIdsAsNumbers,
+        targetCostTypeId: costTypeId,
+        targetIdAsString,
+        targetIdAsNumber,
+        includesString: categoryIds.includes(targetIdAsString),
+        includesNumber: categoryIdsAsNumbers.includes(targetIdAsNumber)
+      })
+
+      // Проверяем оба варианта: строка и число
+      return categoryIds.includes(targetIdAsString) || categoryIdsAsNumbers.includes(targetIdAsNumber)
     })
 
     // Преобразуем результат в нужный формат и сортируем по названию работы
     const result = filteredRates
-      .filter(rate => rate.work_name) // Только записи с валидными работами
-      .map(rate => ({
+      .filter((rate) => rate.work_name) // Только записи с валидными работами
+      .map((rate) => ({
         value: rate.id.toString(), // ID расценки для сохранения в chessboard_rates_mapping
-        label: rate.work_name      // Название работы для отображения
+        label: rate.work_name, // Название работы для отображения
       }))
       .sort((a, b) => a.label.localeCompare(b.label)) // Сортировка по названию работы
 

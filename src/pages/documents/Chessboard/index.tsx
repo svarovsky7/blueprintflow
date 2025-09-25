@@ -28,12 +28,7 @@ export default function Chessboard() {
     toggleFiltersCollapsed,
   } = useFiltersState()
 
-  const {
-    data,
-    isLoading,
-    error,
-    statistics,
-  } = useChessboardData({
+  const { data, isLoading, error, statistics } = useChessboardData({
     appliedFilters,
     enabled: !!appliedFilters.project_id,
   })
@@ -63,6 +58,9 @@ export default function Chessboard() {
     startEditing,
     updateEditedRow,
     updateRowColor,
+    startEditBackup,
+    stopEditBackup,
+    updateEditingRow,
     saveChanges,
     cancelChanges,
     deleteSelectedRows,
@@ -76,31 +74,69 @@ export default function Chessboard() {
     }
   }, [appliedFilters.project_id, addNewRow])
 
-  const handleRowUpdate = useCallback((rowId: string, updates: any) => {
-    if (tableMode.mode === 'add') {
-      updateNewRow(rowId, updates)
-    } else if (tableMode.mode === 'edit') {
-      updateEditedRow(rowId, updates)
-    }
-  }, [tableMode.mode, updateNewRow, updateEditedRow])
+  const handleRowUpdate = useCallback(
+    (rowId: string, updates: any) => {
+      console.log('📝 handleRowUpdate called:', {
+        rowId,
+        updates,
+        currentMode: tableMode.mode
+      }) // LOG: главный обработчик обновления строк
 
-  const handleStartEditing = useCallback((rowId: string) => {
-    console.log('🔍 DEBUG: handleStartEditing вызван для строки:', rowId, 'текущий режим:', tableMode.mode) // LOG: отладочная информация
-    if (tableMode.mode === 'view') {
-      console.log('🔍 DEBUG: Переводим в режим edit и начинаем редактирование') // LOG: отладочная информация
-      setMode('edit')
-      startEditing(rowId)
-    } else {
-      console.log('🔍 DEBUG: Режим уже не view, пропускаем редактирование') // LOG: отладочная информация
-    }
-  }, [tableMode.mode, setMode, startEditing])
+      if (tableMode.mode === 'add') {
+        console.log('📝 Routing to updateNewRow') // LOG: маршрутизация к новым строкам
+        updateNewRow(rowId, updates)
+      } else if (tableMode.mode === 'edit') {
+        console.log('📝 Routing to updateEditedRow') // LOG: маршрутизация к редактируемым строкам
+        updateEditedRow(rowId, updates)
+      } else {
+        console.warn('📝 Unknown table mode, ignoring update:', tableMode.mode) // LOG: неизвестный режим
+      }
+    },
+    [tableMode.mode, updateNewRow, updateEditedRow],
+  )
 
-  const handleRowDelete = useCallback((rowId: string) => {
-    if (tableMode.mode === 'add') {
-      removeNewRow(rowId)
-    }
-  }, [tableMode.mode, removeNewRow])
+  const handleStartEditing = useCallback(
+    (rowId: string, rowData?: RowData) => {
+      console.log(
+        '🔍 DEBUG: handleStartEditing вызван для строки:',
+        rowId,
+        'текущий режим:',
+        tableMode.mode,
+      ) // LOG: отладочная информация
 
+      if (tableMode.mode === 'view') {
+        console.log('🔍 DEBUG: Переводим в режим edit и начинаем редактирование') // LOG: отладочная информация
+        setMode('edit')
+        startEditing(rowId)
+      } else if (tableMode.mode === 'edit') {
+        // Если уже в режиме редактирования, используем backup подход для множественного редактирования
+        console.log('🔍 DEBUG: Уже в режиме edit, начинаем backup редактирование') // LOG: отладочная информация
+        if (rowData) {
+          startEditBackup(rowId, rowData)
+        }
+      } else {
+        console.log('🔍 DEBUG: Режим не позволяет редактирование:', tableMode.mode) // LOG: отладочная информация
+      }
+    },
+    [tableMode.mode, setMode, startEditing, startEditBackup],
+  )
+
+  const handleBackupRowUpdate = useCallback(
+    (rowId: string, updates: any) => {
+      console.log('🔍 DEBUG: handleBackupRowUpdate для строки:', rowId, updates) // LOG: отладочная информация
+      updateEditingRow(rowId, updates)
+    },
+    [updateEditingRow],
+  )
+
+  const handleRowDelete = useCallback(
+    (rowId: string) => {
+      if (tableMode.mode === 'add') {
+        removeNewRow(rowId)
+      }
+    },
+    [tableMode.mode, removeNewRow],
+  )
 
   // Получение финальных данных для отображения
   const displayData = getDisplayData(data)
@@ -134,7 +170,9 @@ export default function Chessboard() {
           Шахматка
           {statistics.totalRows > 0 && (
             <span style={{ fontSize: Math.round(14 * scale), fontWeight: 'normal', color: '#666' }}>
-              {' '}({statistics.totalRows} записей, материалов: {statistics.uniqueMaterials}, номенклатур: {statistics.uniqueNomenclature})
+              {' '}
+              ({statistics.totalRows} записей, материалов: {statistics.uniqueMaterials},
+              номенклатур: {statistics.uniqueNomenclature})
             </span>
           )}
         </Title>
@@ -166,22 +204,25 @@ export default function Chessboard() {
         />
       </div>
 
-
       {/* Контейнер таблицы с правильной структурой прокрутки */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        minHeight: 0,
-        padding: '0 24px 24px 24px'
-      }}>
-        <div style={{
+      <div
+        style={{
           flex: 1,
-          overflow: 'auto',
-          border: '1px solid #f0f0f0',
-          borderRadius: '6px'
-        }}>
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          minHeight: 0,
+          padding: '0 24px 24px 24px',
+        }}
+      >
+        <div
+          style={{
+            flex: 1,
+            overflow: 'auto',
+            border: '1px solid #f0f0f0',
+            borderRadius: '6px',
+          }}
+        >
           <ChessboardTable
             data={displayData}
             loading={isLoading}
@@ -190,6 +231,7 @@ export default function Chessboard() {
             currentProjectId={appliedFilters.project_id}
             onSelectionChange={setSelectedRowKeys}
             onRowUpdate={handleRowUpdate}
+            onBackupRowUpdate={handleBackupRowUpdate}
             onRowCopy={copyRow}
             onRowDelete={handleRowDelete}
             onRowColorChange={updateRowColor}

@@ -131,7 +131,12 @@ export default function Projects() {
             blockFloorRanges[f.block_id].isStylebate = true
           }
           if (f.type_blocks === 'Типовой корпус.Тех.этаж') {
+            // Инициализируем массив, если еще не создан
+            if (!blockFloorRanges[f.block_id].technicalFloors) {
+              blockFloorRanges[f.block_id].technicalFloors = []
+            }
             blockFloorRanges[f.block_id].technicalFloors.push(f.floor_number)
+            console.log('🔍 Добавлен технический этаж:', f.floor_number, 'для блока', f.block_id) // LOG
           }
         }
       })
@@ -171,8 +176,8 @@ export default function Projects() {
       })
 
       // 6. Создаем структуру стилобатов на основе соединений между корпусами
-      const stylobateConnections = connections?.filter((c) => c.connection_type === 'Стилобат') || []
-
+      const stylobateConnections =
+        connections?.filter((c) => c.connection_type === 'Стилобат') || []
 
       const stylobates = stylobateConnections.map((connection, index) => {
         // Находим локальные ID корпусов
@@ -180,9 +185,14 @@ export default function Projects() {
         const toBlockId = blockIdMapping[connection.to_block_id] || 0
 
         // Находим соответствующий блок стилобата по названию или берем первый доступный
-        let stylobateBlock = stylobateBlocks.find(block =>
-          block.name.includes(regularBlocks.find(b => b.id === connection.from_block_id)?.name || '') &&
-          block.name.includes(regularBlocks.find(b => b.id === connection.to_block_id)?.name || '')
+        let stylobateBlock = stylobateBlocks.find(
+          (block) =>
+            block.name.includes(
+              regularBlocks.find((b) => b.id === connection.from_block_id)?.name || '',
+            ) &&
+            block.name.includes(
+              regularBlocks.find((b) => b.id === connection.to_block_id)?.name || '',
+            ),
         )
 
         // Если не нашли по названию, берем по индексу
@@ -191,19 +201,22 @@ export default function Projects() {
         }
 
         const floorInfo = stylobateBlock ? blockFloorRanges[stylobateBlock.id] : null
-        const fromBlockName = regularBlocks.find(b => b.id === connection.from_block_id)?.name || 'unknown'
-        const toBlockName = regularBlocks.find(b => b.id === connection.to_block_id)?.name || 'unknown'
+        const fromBlockName =
+          regularBlocks.find((b) => b.id === connection.from_block_id)?.name || 'unknown'
+        const toBlockName =
+          regularBlocks.find((b) => b.id === connection.to_block_id)?.name || 'unknown'
 
         const result = {
           id: `stylobate-${index + 1}`,
           name: stylobateBlock?.name || `Стилобат ${fromBlockName}-${toBlockName}`,
           fromBlockId,
           toBlockId,
-          floors: connection.floors_count || (floorInfo ? floorInfo.top_floor - floorInfo.bottom_floor + 1 : 1),
+          floors:
+            connection.floors_count ||
+            (floorInfo ? floorInfo.top_floor - floorInfo.bottom_floor + 1 : 1),
           x: 0,
           y: 0,
         }
-
 
         return result
       })
@@ -254,6 +267,8 @@ export default function Projects() {
         address: currentProject?.address || '',
         blocks: regularBlocks.map((block, index) => {
           const floorInfo = blockFloorRanges[block.id]
+          const technicalFloors = floorInfo?.technicalFloors || []
+          console.log('🔍 Создание блока UI:', block.name, 'technicalFloors:', technicalFloors) // LOG
           return {
             id: index + 1,
             name: block.name || '',
@@ -261,7 +276,7 @@ export default function Projects() {
             topFloor: floorInfo?.top_floor ?? 0,
             x: 0,
             y: 0,
-            technicalFloors: floorInfo?.technicalFloors || [],
+            technicalFloors,
           }
         }),
         stylobates,
@@ -689,7 +704,7 @@ export default function Projects() {
           .select('block_id')
           .eq('project_id', currentProject.id)
 
-        const allExistingBlockIds = existingProjectBlocks?.map(b => b.block_id) || []
+        const allExistingBlockIds = existingProjectBlocks?.map((b) => b.block_id) || []
         console.log('🔍 Найдено блоков для удаления:', allExistingBlockIds.length) // LOG
 
         // 1. Удаляем связи блоков (connections)
@@ -700,24 +715,15 @@ export default function Projects() {
 
         // 2. Удаляем этажи всех блоков
         if (allExistingBlockIds.length) {
-          await supabase
-            .from('block_floor_mapping')
-            .delete()
-            .in('block_id', allExistingBlockIds)
+          await supabase.from('block_floor_mapping').delete().in('block_id', allExistingBlockIds)
         }
 
         // 3. Удаляем связи блоков с проектом
-        await supabase
-          .from('projects_blocks')
-          .delete()
-          .eq('project_id', currentProject.id)
+        await supabase.from('projects_blocks').delete().eq('project_id', currentProject.id)
 
         // 4. Удаляем сами блоки
         if (allExistingBlockIds.length) {
-          await supabase
-            .from('blocks')
-            .delete()
-            .in('id', allExistingBlockIds)
+          await supabase.from('blocks').delete().in('id', allExistingBlockIds)
         }
 
         console.log('✅ Очистка завершена, создаем новые блоки') // LOG
@@ -739,7 +745,12 @@ export default function Projects() {
         // Добавляем этажи к блоку
         const floors = []
         for (let floor = block.bottomFloor; floor <= block.topFloor; floor++) {
-          let blockType: 'Подземный паркинг' | 'Типовой корпус' | 'Стилобат' | 'Кровля' | 'Типовой корпус.Тех.этаж'
+          let blockType:
+            | 'Подземный паркинг'
+            | 'Типовой корпус'
+            | 'Стилобат'
+            | 'Кровля'
+            | 'Типовой корпус.Тех.этаж'
 
           // Определяем тип этажа
           if (floor === 0) {
@@ -766,7 +777,6 @@ export default function Projects() {
         const toBlockDbId = createdBlocks[stylobate.toBlockId]
 
         if (fromBlockDbId && toBlockDbId) {
-
           // Создаем блок стилобата с правильным типом
           const stylobateBlock = await blocksApi.createBlock(stylobate.name, 'Стилобат')
 
@@ -792,7 +802,7 @@ export default function Projects() {
             fromBlockDbId,
             toBlockDbId,
             'Стилобат',
-            stylobate.floors
+            stylobate.floors,
           )
         }
       }

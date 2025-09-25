@@ -29,20 +29,15 @@ export const FloorQuantitiesModal: React.FC<FloorQuantitiesModalProps> = ({
   }, [floorData])
 
   const handleFloorChange = useCallback((index: number, field: keyof FloorModalRow, value: any) => {
-    setData(prev => prev.map((item, i) =>
-      i === index ? { ...item, [field]: value } : item
-    ))
+    setData((prev) => prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)))
   }, [])
 
   const addFloorRow = useCallback(() => {
-    setData(prev => [
-      ...prev,
-      { floor: 0, quantityPd: '', quantitySpec: '', quantityRd: '' },
-    ])
+    setData((prev) => [...prev, { floor: 0, quantityPd: '', quantitySpec: '', quantityRd: '' }])
   }, [])
 
   const removeFloorRow = useCallback((index: number) => {
-    setData(prev => prev.filter((_, i) => i !== index))
+    setData((prev) => prev.filter((_, i) => i !== index))
   }, [])
 
   const handleSave = useCallback(() => {
@@ -108,22 +103,26 @@ export const FloorQuantitiesModal: React.FC<FloorQuantitiesModalProps> = ({
             record.quantityRd
           ),
       },
-      ...(isEdit ? [{
-        title: 'Действия',
-        key: 'actions',
-        width: 80,
-        render: (_: any, __: FloorModalRow, index: number) => (
-          <Button
-            type="text"
-            size="small"
-            icon={<DeleteOutlined />}
-            danger
-            onClick={() => removeFloorRow(index)}
-          />
-        ),
-      }] : []),
+      ...(isEdit
+        ? [
+            {
+              title: 'Действия',
+              key: 'actions',
+              width: 80,
+              render: (_: any, __: FloorModalRow, index: number) => (
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<DeleteOutlined />}
+                  danger
+                  onClick={() => removeFloorRow(index)}
+                />
+              ),
+            },
+          ]
+        : []),
     ],
-    [isEdit, handleFloorChange, removeFloorRow]
+    [isEdit, handleFloorChange, removeFloorRow],
   )
 
   return (
@@ -133,7 +132,7 @@ export const FloorQuantitiesModal: React.FC<FloorQuantitiesModalProps> = ({
       onCancel={handleCancel}
       onOk={isEdit ? handleSave : undefined}
       okText="Сохранить"
-      cancelText={isEdit ? "Отменить" : "Закрыть"}
+      cancelText={isEdit ? 'Отменить' : 'Закрыть'}
       footer={
         isEdit
           ? undefined

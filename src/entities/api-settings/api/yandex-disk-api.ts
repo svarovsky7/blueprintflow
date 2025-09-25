@@ -18,10 +18,7 @@ export const yandexDiskApi = {
   async getSettings(): Promise<YandexDiskSettings | null> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    const { data, error } = await supabase
-      .from('yandex_disk_settings')
-      .select('*')
-      .single()
+    const { data, error } = await supabase.from('yandex_disk_settings').select('*').single()
 
     if (error && error.code !== 'PGRST116') {
       console.error('Failed to fetch Yandex Disk settings:', error)
@@ -39,10 +36,7 @@ export const yandexDiskApi = {
   async upsertSettings(input: Partial<YandexDiskSettings>): Promise<YandexDiskSettings> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    const { data: existing } = await supabase
-      .from('yandex_disk_settings')
-      .select('id')
-      .single()
+    const { data: existing } = await supabase.from('yandex_disk_settings').select('id').single()
 
     const query = supabase.from('yandex_disk_settings')
     const { data, error } = existing
@@ -66,8 +60,8 @@ export const yandexDiskApi = {
     try {
       const response = await fetch('https://cloud-api.yandex.net/v1/disk', {
         headers: {
-          'Authorization': `OAuth ${token}`
-        }
+          Authorization: `OAuth ${token}`,
+        },
       })
 
       return response.ok
@@ -90,8 +84,8 @@ export const yandexDiskApi = {
     try {
       const response = await fetch('https://cloud-api.yandex.net/v1/disk', {
         headers: {
-          'Authorization': `OAuth ${token}`
-        }
+          Authorization: `OAuth ${token}`,
+        },
       })
 
       if (!response.ok) return null
@@ -100,13 +94,13 @@ export const yandexDiskApi = {
       return {
         total_space: data.total_space,
         used_space: data.used_space,
-        free_space: data.total_space - data.used_space
+        free_space: data.total_space - data.used_space,
       }
     } catch (error) {
       console.error('Failed to get disk info:', error)
       return null
     }
-  }
+  },
 }
 
 // ОБРАТНАЯ СОВМЕСТИМОСТЬ: Экспорт под старым именем

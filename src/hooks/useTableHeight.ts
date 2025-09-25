@@ -74,7 +74,10 @@ export const useTableHeight = ({
       setTableHeight(finalHeight)
 
       // Убираем частые логи - только при значительных изменениях в development режиме
-      if (process.env.NODE_ENV === 'development' && Math.abs(totalUsedHeight - (measurementRef.current?.lastLoggedHeight || 0)) > 10) {
+      if (
+        process.env.NODE_ENV === 'development' &&
+        Math.abs(totalUsedHeight - (measurementRef.current?.lastLoggedHeight || 0)) > 10
+      ) {
         console.log('🔧 Table height calculation:', {
           scale,
           totalUsedHeight,
@@ -84,7 +87,6 @@ export const useTableHeight = ({
         measurementRef.current = measurementRef.current || {}
         measurementRef.current.lastLoggedHeight = totalUsedHeight
       }
-
     } catch (error) {
       console.error('❌ Error calculating table height:', error)
       // Fallback к безопасному значению
@@ -122,7 +124,7 @@ export const useTableHeight = ({
           childList: true,
           subtree: true,
           attributes: true,
-          attributeFilter: ['style', 'class']
+          attributeFilter: ['style', 'class'],
         })
       }
     }

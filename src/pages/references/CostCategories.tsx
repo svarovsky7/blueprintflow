@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { App, Button, Form, Input, Select, Space, Table, Upload } from 'antd'
+import { App, Button, Form, Input, Select, Space, Table, Upload, Row, Col } from 'antd'
 import {
   PlusOutlined,
   CheckOutlined,
@@ -83,6 +83,11 @@ export default function CostCategories() {
     id: number
   } | null>(null)
   const [form] = Form.useForm()
+  const [filters, setFilters] = useState({
+    categoryId: undefined as number | undefined,
+    detailId: undefined as number | undefined,
+    locationId: undefined as number | undefined,
+  })
 
   const {
     data: categories,
@@ -206,6 +211,21 @@ export default function CostCategories() {
     return result
   }, [categories, details])
 
+  const filteredRows = useMemo(() => {
+    let filtered = rows
+    if (filters.categoryId) {
+      filtered = filtered.filter((row) => row.categoryId === filters.categoryId)
+    }
+    if (filters.detailId) {
+      filtered = filtered.filter((row) => row.detailId === filters.detailId)
+    }
+    if (filters.locationId) {
+      const selectedLocation = locations?.find((l) => l.id === filters.locationId)?.name
+      filtered = filtered.filter((row) => row.location === selectedLocation)
+    }
+    return filtered
+  }, [rows, filters, locations])
+
   const emptyRow: TableRow = {
     key: 'new',
     number: null,
@@ -218,7 +238,7 @@ export default function CostCategories() {
     location: null,
   }
 
-  const dataSource: TableRow[] = addMode ? [emptyRow, ...rows] : rows
+  const dataSource: TableRow[] = addMode ? [emptyRow, ...filteredRows] : filteredRows
 
   const numberFilters = useMemo(
     () =>
@@ -878,21 +898,135 @@ export default function CostCategories() {
 
   const loading = categoriesLoading || detailsLoading
 
+  const availableDetails = useMemo(() => {
+    if (!filters.categoryId) return details ?? []
+    return (details ?? []).filter((d) => d.costCategoryId === filters.categoryId)
+  }, [details, filters.categoryId])
+
+  const handleFilterChange = (key: keyof typeof filters, value: any) => {
+    setFilters((prev) => {
+      const newFilters = { ...prev, [key]: value }
+      // Сброс зависимых фильтров
+      if (key === 'categoryId') {
+        newFilters.detailId = undefined
+      }
+      return newFilters
+    })
+  }
+
+  const clearFilters = () => {
+    setFilters({
+      categoryId: undefined,
+      detailId: undefined,
+      locationId: undefined,
+    })
+  }
+
   return (
-    <Form form={form} component={false}>
-      <Space style={{ marginBottom: 16 }}>
-        <Upload
-          beforeUpload={(file) => {
-            void handleImport(file)
-            return false
-          }}
-          showUploadList={false}
-          accept=".xlsx,.xls"
-        >
-          <Button icon={<UploadOutlined />}>Импорт</Button>
-        </Upload>
-      </Space>
-      <Table<TableRow> dataSource={dataSource} columns={columns} rowKey="key" loading={loading} />
-    </Form>
+    <div style={{ height: 'calc(100vh - 96px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Блок фильтров */}
+      <div style={{ flexShrink: 0, paddingBottom: 16 }}>
+        <Row gutter={16} style={{ marginBottom: 16 }}>
+          <Col span={6}>
+            <Select
+              placeholder="Выберите категорию затрат"
+              style={{ width: '100%' }}
+              allowClear
+              showSearch
+              value={filters.categoryId}
+              onChange={(value) => handleFilterChange('categoryId', value)}
+              filterOption={(input, option) => {
+                const text = option?.label?.toString() || ""
+                return text.toLowerCase().includes(input.toLowerCase())
+              }}
+              options={
+                categories?.map((c) => ({
+                  value: c.id,
+                  label: `${c.number ?? ''} ${c.name}`,
+                })) ?? []
+              }
+            />
+          </Col>
+          <Col span={6}>
+            <Select
+              placeholder="Выберите вид затрат"
+              style={{ width: '100%' }}
+              allowClear
+              showSearch
+              value={filters.detailId}
+              onChange={(value) => handleFilterChange('detailId', value)}
+              disabled={!filters.categoryId}
+              filterOption={(input, option) => {
+                const text = option?.label?.toString() || ""
+                return text.toLowerCase().includes(input.toLowerCase())
+              }}
+              options={
+                availableDetails.map((d) => ({
+                  value: d.id,
+                  label: d.name,
+                }))
+              }
+            />
+          </Col>
+          <Col span={6}>
+            <Select
+              placeholder="Выберите локализацию"
+              style={{ width: '100%' }}
+              allowClear
+              showSearch
+              value={filters.locationId}
+              onChange={(value) => handleFilterChange('locationId', value)}
+              filterOption={(input, option) => {
+                const text = option?.label?.toString() || ""
+                return text.toLowerCase().includes(input.toLowerCase())
+              }}
+              options={
+                locations?.map((l) => ({
+                  value: l.id,
+                  label: l.name,
+                })) ?? []
+              }
+            />
+          </Col>
+          <Col span={6}>
+            <Space>
+              <Button onClick={clearFilters}>Сбросить фильтры</Button>
+              <Upload
+                beforeUpload={(file) => {
+                  void handleImport(file)
+                  return false
+                }}
+                showUploadList={false}
+                accept=".xlsx,.xls"
+              >
+                <Button icon={<UploadOutlined />}>Импорт</Button>
+              </Upload>
+            </Space>
+          </Col>
+        </Row>
+      </div>
+
+      {/* Контейнер таблицы */}
+      <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+        <Form form={form} component={false}>
+          <Table<TableRow>
+            dataSource={dataSource}
+            columns={columns}
+            rowKey="key"
+            loading={loading}
+            sticky
+            scroll={{
+              x: 'max-content',
+              y: 'calc(100vh - 300px)',
+            }}
+            pagination={{
+              pageSize: 100,
+              pageSizeOptions: ['10', '20', '50', '100', '200', '500'],
+              showSizeChanger: true,
+            }}
+          />
+        </Form>
+      </div>
+    </div>
   )
 }

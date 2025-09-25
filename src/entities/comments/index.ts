@@ -4,5 +4,5 @@ export type {
   CommentWithMapping,
   CreateCommentData,
   UpdateCommentData,
-  EntityCommentMapping
+  EntityCommentMapping,
 } from './model/types'

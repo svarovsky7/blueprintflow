@@ -70,6 +70,8 @@ interface VorItem {
   type: 'work' | 'material' // Тип элемента: работа или материал
   parent_id?: string // ID родительской работы для материалов
   level: number // Уровень вложенности (1 для работ, 2 для материалов)
+  coefficient?: number // Коэффициент для строк работ
+  base_rate?: number // Базовая расценка без коэффициента для пересчёта
 }
 
 interface ProjectDocument {
@@ -116,6 +118,7 @@ const VorView = () => {
   const [searchParams] = useSearchParams()
   const vorId = searchParams.get('vor_id')
   const [coefficient, setCoefficient] = useState<number>(1)
+  const [vorItemsData, setVorItemsData] = useState<VorItem[]>([])
   const queryClient = useQueryClient()
   const [messageApi, contextHolder] = message.useMessage()
 
@@ -565,6 +568,8 @@ const VorView = () => {
           work_total: baseRate * workQuantity * coefficient,
           type: 'work',
           level: 1,
+          coefficient: coefficient,
+          base_rate: baseRate,
         }
         result.push(workItem)
 
@@ -643,10 +648,36 @@ const VorView = () => {
     enabled: !!vorData?.vor,
   })
 
+  // Синхронизируем локальные данные с данными из запроса
+  useEffect(() => {
+    if (vorItems) {
+      setVorItemsData(vorItems)
+    }
+  }, [vorItems])
+
+  // Функция для обновления коэффициента в строке работы
+  const updateItemCoefficient = (itemId: string, newCoefficient: number) => {
+    setVorItemsData(prevData =>
+      prevData.map(item => {
+        if (item.id === itemId && item.type === 'work') {
+          const baseRate = item.base_rate || 0
+          return {
+            ...item,
+            coefficient: newCoefficient,
+            work_price: baseRate * newCoefficient,
+            work_total: baseRate * item.quantity * newCoefficient,
+          }
+        }
+        return item
+      })
+    )
+  }
+
   // Функция экспорта в Excel
   const handleExportToExcel = () => {
     try {
-      if (!vorData?.vor || !vorItems?.length || !projectCodes) {
+      const currentData = vorItemsData.length > 0 ? vorItemsData : (vorItems || [])
+      if (!vorData?.vor || !currentData.length || !projectCodes) {
         messageApi.error('Нет данных для экспорта')
         return
       }
@@ -676,18 +707,18 @@ const VorView = () => {
       ])
 
       // Данные таблицы
-      vorItems.forEach((item) => {
+      currentData.forEach((item) => {
         let rowNumber = ''
         if (item.type === 'work') {
-          const workItems = vorItems.filter((i) => i.type === 'work')
+          const workItems = currentData.filter((i) => i.type === 'work')
           const workIndex = workItems.findIndex((i) => i.id === item.id) + 1
           rowNumber = `${workIndex}.`
         } else {
-          const workItems = vorItems.filter((i) => i.type === 'work')
+          const workItems = currentData.filter((i) => i.type === 'work')
           const parentWork = workItems.find((i) => i.id === item.parent_id)
           if (parentWork) {
             const workIndex = workItems.findIndex((i) => i.id === parentWork.id) + 1
-            const materialsInWork = vorItems.filter(
+            const materialsInWork = currentData.filter(
               (i) => i.type === 'material' && i.parent_id === parentWork.id,
             )
             const materialIndex = materialsInWork.findIndex((i) => i.id === item.id) + 1
@@ -776,24 +807,34 @@ const VorView = () => {
     }
   }
 
+  // Функция для определения стилей строк таблицы
+  const getRowClassName = (record: VorItem) => {
+    // Строки с расценками работ получают серый фон
+    if (record.type === 'work') {
+      return 'vor-work-row'
+    }
+    return ''
+  }
+
   const columns = [
     {
       title: '№',
       key: 'index',
       width: 40,
       render: (_: unknown, record: VorItem) => {
+        const currentData = vorItemsData.length > 0 ? vorItemsData : (vorItems || [])
         if (record.type === 'work') {
           // Находим номер работы среди всех работ
-          const workItems = (vorItems || []).filter((item) => item.type === 'work')
+          const workItems = currentData.filter((item) => item.type === 'work')
           const workIndex = workItems.findIndex((item) => item.id === record.id) + 1
           return `${workIndex}.`
         } else {
           // Для материалов находим номер работы и номер материала внутри работы
-          const workItems = (vorItems || []).filter((item) => item.type === 'work')
+          const workItems = currentData.filter((item) => item.type === 'work')
           const parentWork = workItems.find((item) => item.id === record.parent_id)
           if (parentWork) {
             const workIndex = workItems.findIndex((item) => item.id === parentWork.id) + 1
-            const materialsInWork = (vorItems || []).filter(
+            const materialsInWork = currentData.filter(
               (item) => item.type === 'material' && item.parent_id === parentWork.id,
             )
             const materialIndex = materialsInWork.findIndex((item) => item.id === record.id) + 1
@@ -827,6 +868,31 @@ const VorView = () => {
       dataIndex: 'unit',
       key: 'unit',
       width: 60,
+    },
+    {
+      title: formatHeaderText('Коэффициент'),
+      dataIndex: 'coefficient',
+      key: 'coefficient',
+      width: 100,
+      render: (value: number | undefined, record: VorItem) => {
+        // Показываем InputNumber только для строк работ
+        if (record.type === 'work') {
+          return (
+            <InputNumber
+              min={0.1}
+              max={10}
+              step={0.1}
+              precision={1}
+              value={value || coefficient}
+              onChange={(newValue) => updateItemCoefficient(record.id, newValue || 1)}
+              style={{ width: '100%' }}
+              size="small"
+            />
+          )
+        }
+        // Для строк материалов возвращаем пустое значение
+        return null
+      },
     },
     {
       title: formatHeaderText('Кол-во'),
@@ -882,10 +948,10 @@ const VorView = () => {
       render: (_, record: VorItem) => {
         // Для строк с работами показываем значение из столбца "Работа Итого"
         if (record.type === 'work') {
-          return Math.round(record.work_total).toLocaleString('ru-RU')
+          return <strong>{Math.round(record.work_total).toLocaleString('ru-RU')}</strong>
         }
         // Для строк с материалами показываем значение из столбца "Номенклатура Итого"
-        return Math.round(record.nomenclature_total).toLocaleString('ru-RU')
+        return <strong>{Math.round(record.nomenclature_total).toLocaleString('ru-RU')}</strong>
       },
     },
   ]
@@ -1024,9 +1090,28 @@ const VorView = () => {
             padding: '0 24px 24px 24px',
           }}
         >
+          <style>
+            {`
+              /* Стили для строк с работами из справочника Расценок */
+              .vor-work-row > td {
+                background-color: #E6E6FA !important;
+              }
+              .vor-work-row:hover > td {
+                background-color: #DDD2E6 !important;
+              }
+              /* Заголовки таблицы */
+              .ant-table-thead > tr > th {
+                background-color: #D8D2E6 !important;
+              }
+              /* Переопределяем встроенные hover стили Ant Design для предотвращения конфликтов */
+              .ant-table-tbody > tr.vor-work-row:hover > td {
+                background-color: #DDD2E6 !important;
+              }
+            `}
+          </style>
           <Table
             columns={columns}
-            dataSource={vorItems}
+            dataSource={vorItemsData.length > 0 ? vorItemsData : vorItems}
             rowKey="id"
             pagination={false}
             scroll={{
@@ -1036,6 +1121,7 @@ const VorView = () => {
             sticky
             size="middle"
             bordered
+            rowClassName={getRowClassName}
             summary={(data) => {
               // Суммируем номенклатуру только для материалов (не работ)
               const totalNomenclature = Math.round(

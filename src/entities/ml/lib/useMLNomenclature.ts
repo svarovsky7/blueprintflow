@@ -27,12 +27,14 @@ interface UseMLNomenclatureResult {
 /**
  * Хук для ML-предсказания номенклатуры по названию материала
  */
-export const useMLNomenclature = (options: UseMLNomenclatureOptions = {}): UseMLNomenclatureResult => {
+export const useMLNomenclature = (
+  options: UseMLNomenclatureOptions = {},
+): UseMLNomenclatureResult => {
   const {
     enabled = true,
     debounceMs = 300,
     minQueryLength = 2,
-    autoPredict = false // По умолчанию автопредсказание отключено
+    autoPredict = false, // По умолчанию автопредсказание отключено
   } = options
 
   const [currentRequest, setCurrentRequest] = useState<MLPredictionRequest | null>(null)
@@ -44,7 +46,7 @@ export const useMLNomenclature = (options: UseMLNomenclatureOptions = {}): UseML
   }>({
     confidence: 0,
     processingTime: 0,
-    modelUsed: 'none'
+    modelUsed: 'none',
   })
 
   const debounceRef = useRef<NodeJS.Timeout>()
@@ -61,25 +63,27 @@ export const useMLNomenclature = (options: UseMLNomenclatureOptions = {}): UseML
   const { data: modeConfig } = useQuery({
     queryKey: ['ml-mode-config'],
     queryFn: () => mlModeApi.getCurrentMode(),
-    staleTime: 0, // Всегда свежие данные
-    gcTime: 1000, // Минимальное время в памяти
-    refetchOnMount: true, // Перезагружать при монтировании
+    staleTime: 30 * 1000, // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: 30 секунд вместо 0 для предотвращения infinite renders
+    gcTime: 5 * 60 * 1000, // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: 5 минут в памяти
+    refetchOnMount: false, // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: отключаем refetch при mount
   })
 
-  // Обновляем режим ML при изменении конфигурации
+  // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обновляем режим ML при изменении конфигурации
   useEffect(() => {
-    if (modeConfig) {
+    if (modeConfig?.mode && modeConfig.mode !== mlMode) {
       setMLMode(modeConfig.mode)
-      console.log('🔄 useMLNomenclature: Режим обновлен на', modeConfig.mode) // LOG: обновление режима
+      if (import.meta.env.DEV) {
+        console.log('🔄 useMLNomenclature: Режим обновлен с', mlMode, 'на', modeConfig.mode) // LOG: обновление режима
+      }
     }
-  }, [modeConfig])
+  }, [modeConfig?.mode]) // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: убрали mlMode и стабилизировали зависимость
 
   // Основной запрос для получения предсказаний
   const {
     data: response,
     isLoading,
     error,
-    refetch
+    refetch,
   } = useQuery({
     queryKey: ['ml-nomenclature-predictions', currentRequest, config, mlMode], // Включаем режим ML в ключ кэша
     queryFn: async () => {
@@ -89,10 +93,11 @@ export const useMLNomenclature = (options: UseMLNomenclatureOptions = {}): UseML
 
       const result = await predictNomenclature(currentRequest)
 
-      console.log('🤖 ML: Prediction completed:', { // LOG: завершение ML предсказания
+      console.log('🤖 ML: Prediction completed:', {
+        // LOG: завершение ML предсказания
         suggestionsCount: result.suggestions.length,
         processingTime: result.processingTime,
-        modelUsed: result.modelUsed
+        modelUsed: result.modelUsed,
       })
 
       // Обновляем метрики
@@ -101,11 +106,13 @@ export const useMLNomenclature = (options: UseMLNomenclatureOptions = {}): UseML
 
       // Сохраняем информацию о последнем ответе
       setLastResponse({
-        confidence: result.suggestions.length > 0
-          ? result.suggestions.reduce((sum, s) => sum + s.confidence, 0) / result.suggestions.length
-          : 0,
+        confidence:
+          result.suggestions.length > 0
+            ? result.suggestions.reduce((sum, s) => sum + s.confidence, 0) /
+              result.suggestions.length
+            : 0,
         processingTime: result.processingTime,
-        modelUsed: result.modelUsed
+        modelUsed: result.modelUsed,
       })
 
       return result
@@ -116,61 +123,67 @@ export const useMLNomenclature = (options: UseMLNomenclatureOptions = {}): UseML
   })
 
   // Функция для мгновенного предсказания без debounce
-  const predictNow = useCallback((materialName: string, context?: MLPredictionRequest['context']) => {
-    // Очищаем предыдущий таймер
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current)
-    }
-
-    // Проверяем минимальную длину запроса
-    if (materialName.length < minQueryLength) {
-      setCurrentRequest(null)
-      return
-    }
-
-    const request: MLPredictionRequest = {
-      materialName: materialName.trim(),
-      context
-    }
-
-    console.log('🤖 ML: Executing immediate prediction request:', request) // LOG: мгновенное выполнение ML запроса
-    console.log('🔍 DEBUG: Текущий режим ML в useMLNomenclature:', mlMode) // DEBUG LOG: текущий режим
-
-    setCurrentRequest(request)
-  }, [minQueryLength, mlMode])
-
-  // Функция для запуска предсказания с debounce (только если включено автопредсказание)
-  const predict = useCallback((materialName: string, context?: MLPredictionRequest['context']) => {
-    if (!autoPredict) {
-      console.log('🤖 ML: Auto-predict disabled, skipping prediction') // LOG: автопредсказание отключено
-      return
-    }
-
-    // Очищаем предыдущий таймер
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current)
-    }
-
-    // Проверяем минимальную длину запроса
-    if (materialName.length < minQueryLength) {
-      setCurrentRequest(null)
-      return
-    }
-
-    console.log('🤖 ML: Scheduling prediction with debounce:', materialName) // LOG: планирование ML предсказания
-
-    // Устанавливаем новый таймер
-    debounceRef.current = setTimeout(() => {
-      const request: MLPredictionRequest = {
-        materialName: materialName.trim(),
-        context
+  const predictNow = useCallback(
+    (materialName: string, context?: MLPredictionRequest['context']) => {
+      // Очищаем предыдущий таймер
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
       }
 
-      console.log('🤖 ML: Executing prediction request:', request) // LOG: выполнение ML запроса
+      // Проверяем минимальную длину запроса
+      if (materialName.length < minQueryLength) {
+        setCurrentRequest(null)
+        return
+      }
+
+      const request: MLPredictionRequest = {
+        materialName: materialName.trim(),
+        context,
+      }
+
+      console.log('🤖 ML: Executing immediate prediction request:', request) // LOG: мгновенное выполнение ML запроса
+      console.log('🔍 DEBUG: Текущий режим ML в useMLNomenclature:', mlMode) // DEBUG LOG: текущий режим
 
       setCurrentRequest(request)
-    }, debounceMs)
-  }, [debounceMs, minQueryLength, autoPredict])
+    },
+    [minQueryLength, mlMode],
+  )
+
+  // Функция для запуска предсказания с debounce (только если включено автопредсказание)
+  const predict = useCallback(
+    (materialName: string, context?: MLPredictionRequest['context']) => {
+      if (!autoPredict) {
+        console.log('🤖 ML: Auto-predict disabled, skipping prediction') // LOG: автопредсказание отключено
+        return
+      }
+
+      // Очищаем предыдущий таймер
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+      }
+
+      // Проверяем минимальную длину запроса
+      if (materialName.length < minQueryLength) {
+        setCurrentRequest(null)
+        return
+      }
+
+      console.log('🤖 ML: Scheduling prediction with debounce:', materialName) // LOG: планирование ML предсказания
+
+      // Устанавливаем новый таймер
+      debounceRef.current = setTimeout(() => {
+        const request: MLPredictionRequest = {
+          materialName: materialName.trim(),
+          context,
+        }
+
+        console.log('🤖 ML: Executing prediction request:', request) // LOG: выполнение ML запроса
+
+        setCurrentRequest(request)
+      }, debounceMs)
+    },
+    [debounceMs, minQueryLength, autoPredict],
+  )
 
   // Функция для очистки предложений
   const clearSuggestions = useCallback(() => {
@@ -183,14 +196,15 @@ export const useMLNomenclature = (options: UseMLNomenclatureOptions = {}): UseML
     setLastResponse({
       confidence: 0,
       processingTime: 0,
-      modelUsed: 'none'
+      modelUsed: 'none',
     })
   }, [])
 
   // Фильтруем предложения по порогу confidence
-  const filteredSuggestions = response?.suggestions.filter(
-    suggestion => suggestion.confidence >= (config?.confidenceThreshold || 0.3)
-  ) || []
+  const filteredSuggestions =
+    response?.suggestions.filter(
+      (suggestion) => suggestion.confidence >= (config?.confidenceThreshold || 0.3),
+    ) || []
 
   return {
     suggestions: filteredSuggestions,
@@ -202,6 +216,6 @@ export const useMLNomenclature = (options: UseMLNomenclatureOptions = {}): UseML
     clearSuggestions,
     confidence: lastResponse.confidence,
     processingTime: lastResponse.processingTime,
-    modelUsed: lastResponse.modelUsed
+    modelUsed: lastResponse.modelUsed,
   }
 }

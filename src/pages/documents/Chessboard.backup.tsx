@@ -1,4 +1,13 @@
-import { useCallback, useMemo, useState, useEffect, useDeferredValue, startTransition, useRef, type Key } from 'react'
+import {
+  useCallback,
+  useMemo,
+  useState,
+  useEffect,
+  useDeferredValue,
+  startTransition,
+  useRef,
+  type Key,
+} from 'react'
 import { useLocation } from 'react-router-dom'
 import {
   App,
@@ -487,14 +496,17 @@ export default function Chessboard() {
   })
 
   // Обработчик изменения количества строк с сохранением в localStorage
-  const handleRowsPerPageChange = useCallback((value: number) => {
-    if (value > 0) {
-      setRowsPerPage(value)
-      localStorage.setItem('chessboard-rows-per-page', value.toString())
-    } else {
-      console.warn('Invalid rowsPerPage value:', value)
-    }
-  }, [rowsPerPage])
+  const handleRowsPerPageChange = useCallback(
+    (value: number) => {
+      if (value > 0) {
+        setRowsPerPage(value)
+        localStorage.setItem('chessboard-rows-per-page', value.toString())
+      } else {
+        console.warn('Invalid rowsPerPage value:', value)
+      }
+    },
+    [rowsPerPage],
+  )
 
   // Состояния производительности
   const [useVirtualization, setUseVirtualization] = useState(() => {
@@ -690,7 +702,6 @@ export default function Chessboard() {
     }
     return Math.min(500, Math.ceil(max) + 64)
   }, [nomenclatures])
-
 
   const [supplierOptions, setSupplierOptions] = useState<
     Record<string, { value: string; label: string }[]>
@@ -1106,9 +1117,13 @@ export default function Chessboard() {
       // ИСПРАВЛЕНИЕ: Всегда используем left join для chessboard_mapping чтобы не терять новые записи
       // Фильтрацию будем делать на уровне приложения, а не в запросе БД
       const mappingJoin = 'chessboard_mapping!left'
-      console.log('🔍 DB QUERY - Using left join for chessboard_mapping to avoid losing new records') // LOG: тип join для маппинга
+      console.log(
+        '🔍 DB QUERY - Using left join for chessboard_mapping to avoid losing new records',
+      ) // LOG: тип join для маппинга
       console.log('🔧 FIX APPLIED - Added .limit(10000) to overcome default 1000 record limit') // LOG: исправление лимита записей
-      console.log('🔧 FIX APPLIED - Using explicit foreign key references in SELECT for proper data loading') // LOG: исправление foreign keys
+      console.log(
+        '🔧 FIX APPLIED - Using explicit foreign key references in SELECT for proper data loading',
+      ) // LOG: исправление foreign keys
 
       // Всегда используем left join для документации, чтобы получать все записи
       // Фильтрацию по документам делаем отдельными условиями where
@@ -1160,7 +1175,10 @@ export default function Chessboard() {
       console.log('🔍 DB DATA UNITS - Проверяем units данные:', data?.[0]?.units) // LOG: проверка units данных
       console.log('🔍 DB DATA MATERIALS - Проверяем materials данные:', data?.[0]?.materials) // LOG: проверка materials данных
       console.log('🔍 DB DATA MAPPING - Проверяем mapping данные:', data?.[0]?.chessboard_mapping) // LOG: проверка chessboard_mapping данных
-      console.log('🔍 DB DATA NOMENCLATURE - Проверяем nomenclature данные:', data?.[0]?.chessboard_nomenclature_mapping) // LOG: проверка nomenclature mapping данных
+      console.log(
+        '🔍 DB DATA NOMENCLATURE - Проверяем nomenclature данные:',
+        data?.[0]?.chessboard_nomenclature_mapping,
+      ) // LOG: проверка nomenclature mapping данных
 
       // Загружаем этажи для всех записей
       const chessboardIds = ((data as unknown as DbRow[] | null | undefined) ?? []).map(
@@ -1398,8 +1416,14 @@ export default function Chessboard() {
         // LOG: Отладка сырых данных для первой записи перед обработкой
         if (index === 0) {
           console.log('🔍 RAW ITEM BEFORE PROCESSING - units:', item.units) // LOG: детальные units данные
-          console.log('🔍 RAW ITEM BEFORE PROCESSING - chessboard_mapping:', item.chessboard_mapping) // LOG: детальные mapping данные
-          console.log('🔍 RAW ITEM BEFORE PROCESSING - nomenclature_mapping:', item.chessboard_nomenclature_mapping) // LOG: детальные nomenclature данные
+          console.log(
+            '🔍 RAW ITEM BEFORE PROCESSING - chessboard_mapping:',
+            item.chessboard_mapping,
+          ) // LOG: детальные mapping данные
+          console.log(
+            '🔍 RAW ITEM BEFORE PROCESSING - nomenclature_mapping:',
+            item.chessboard_nomenclature_mapping,
+          ) // LOG: детальные nomenclature данные
         }
         // Если есть выбранные версии из модального окна, нужно найти правильную версию
         let version = item.chessboard_documentation_mapping?.documentation_versions
@@ -1478,7 +1502,12 @@ export default function Chessboard() {
             )
           : null
         // LOG: Отладка данных для новых записей
-        if (process.env.NODE_ENV === 'development' && (item.id === '837c81f6-adef-4b6d-8b1c-d79321133b2e' || item.id === '7318d107-5d14-4d15-9f08-c8405ab2bd75')) { // LOG: логирование для новых записей
+        if (
+          process.env.NODE_ENV === 'development' &&
+          (item.id === '837c81f6-adef-4b6d-8b1c-d79321133b2e' ||
+            item.id === '7318d107-5d14-4d15-9f08-c8405ab2bd75')
+        ) {
+          // LOG: логирование для новых записей
           console.log('🔍 MAPPING DEBUG - New record detailed data:', {
             id: item.id,
             material: item.material,
@@ -1492,8 +1521,12 @@ export default function Chessboard() {
             detail_cost_categories_name: item.chessboard_mapping?.detail_cost_categories?.name,
             location_name: item.chessboard_mapping?.location?.name,
             nomenclature_mapping: item.chessboard_nomenclature_mapping,
-            nomenclature_id: item.chessboard_nomenclature_mapping?.[0]?.nomenclature_id || item.chessboard_nomenclature_mapping?.nomenclature_id,
-            nomenclature_name: item.chessboard_nomenclature_mapping?.[0]?.nomenclature?.name || item.chessboard_nomenclature_mapping?.nomenclature?.name
+            nomenclature_id:
+              item.chessboard_nomenclature_mapping?.[0]?.nomenclature_id ||
+              item.chessboard_nomenclature_mapping?.nomenclature_id,
+            nomenclature_name:
+              item.chessboard_nomenclature_mapping?.[0]?.nomenclature?.name ||
+              item.chessboard_nomenclature_mapping?.nomenclature?.name,
           }) // LOG: детальная отладка маппинга данных для новой записи
         }
 
@@ -1501,7 +1534,6 @@ export default function Chessboard() {
         if (index === 0) {
           console.log('🔍 ABOUT TO CREATE ROW - Начинаем создание row объекта для index:', index) // LOG: начало создания row
         }
-
 
         const row = {
           key: item.id,
@@ -1513,8 +1545,10 @@ export default function Chessboard() {
           nomenclatureId:
             getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature_id ?? '',
           nomenclature: (() => {
-            const nomenclature = getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature?.name ?? ''
-            if (index === 0) console.log('🔍 NOMENCLATURE FIELD - nomenclature value:', nomenclature) // LOG: проверка поля nomenclature
+            const nomenclature =
+              getNomenclatureMapping(item.chessboard_nomenclature_mapping)?.nomenclature?.name ?? ''
+            if (index === 0)
+              console.log('🔍 NOMENCLATURE FIELD - nomenclature value:', nomenclature) // LOG: проверка поля nomenclature
             return nomenclature
           })(),
           supplier:
@@ -1575,7 +1609,7 @@ export default function Chessboard() {
             costCategory: row.costCategory,
             costType: row.costType,
             location: row.location,
-            nomenclature: row.nomenclature
+            nomenclature: row.nomenclature,
           }) // LOG: отладка данных столбцов
         }
 
@@ -1648,7 +1682,9 @@ export default function Chessboard() {
         return true
       })
 
-    console.log(`🔍 APP FILTER - Applied filters result: ${filteredRows.length} rows after app-level filtering`) // LOG: результат фильтрации на уровне приложения
+    console.log(
+      `🔍 APP FILTER - Applied filters result: ${filteredRows.length} rows after app-level filtering`,
+    ) // LOG: результат фильтрации на уровне приложения
 
     // 🔍 DATA IN PROBLEM COLUMNS - Проверка данных в проблемных колонках
     if (filteredRows.length > 0) {
@@ -1748,8 +1784,11 @@ export default function Chessboard() {
 
   // LOG: Логирование изменений tableRows для отслеживания подсчета строк
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') { // LOG: условное логирование только в dev режиме
-      console.log(`📊 TABLEROWS UPDATED - Total: ${tableRows.length} (editingRows: ${Object.keys(editingRows).length}, rows: ${rows.length}, viewRows: ${viewRows.length})`) // LOG: обновление tableRows
+    if (process.env.NODE_ENV === 'development') {
+      // LOG: условное логирование только в dev режиме
+      console.log(
+        `📊 TABLEROWS UPDATED - Total: ${tableRows.length} (editingRows: ${Object.keys(editingRows).length}, rows: ${rows.length}, viewRows: ${viewRows.length})`,
+      ) // LOG: обновление tableRows
     }
   }, [tableRows.length, editingRows, rows.length, viewRows.length])
 
@@ -1919,7 +1958,7 @@ export default function Chessboard() {
       // ИСПРАВЛЕНИЕ: Принудительно инвалидируем кэш запроса перед refetch
       queryClient.invalidateQueries({
         queryKey: ['chessboard', appliedFilters, selectedVersions],
-        exact: true
+        exact: true,
       })
 
       await refetch()
@@ -1969,8 +2008,6 @@ export default function Chessboard() {
     },
     [],
   )
-
-
 
   const handleEditChange = useCallback(
     (key: string, field: keyof RowData, value: string | number | null) => {
@@ -2400,7 +2437,7 @@ export default function Chessboard() {
     // ИСПРАВЛЕНИЕ: Принудительно инвалидируем кэш запроса перед refetch
     queryClient.invalidateQueries({
       queryKey: ['chessboard', appliedFilters, selectedVersions],
-      exact: true
+      exact: true,
     })
     refetch()
   }, [selectedVersions, appliedFilters, refetch, documentVersions, queryClient])
@@ -2482,9 +2519,10 @@ export default function Chessboard() {
     })
 
     // ОПТИМИЗАЦИЯ: Добавляем строку сразу в editingRows (быстро) вместо setRows + setMode (медленно)
-    setEditingRows(prev => ({ ...prev, [newRowData.key]: newRowData }))
+    setEditingRows((prev) => ({ ...prev, [newRowData.key]: newRowData }))
 
-    if (process.env.NODE_ENV === 'development') { // LOG: условное логирование для отладки
+    if (process.env.NODE_ENV === 'development') {
+      // LOG: условное логирование для отладки
       console.log('⚡ Быстрое добавление строки:', newRowData.key) // LOG: добавление новой строки
     }
 
@@ -2779,8 +2817,6 @@ export default function Chessboard() {
     findMatchingSet()
   }, [appliedFilters, selectedVersions])
 
-
-
   const startEdit = useCallback(
     (id: string) => {
       // Сохраняем текущую позицию скролла
@@ -3048,9 +3084,7 @@ export default function Chessboard() {
           const maxScrollLeft = newContainerScrollWidth - containerWidth
           const safeScrollLeft = Math.min(Math.max(adjustedScrollLeft, 0), maxScrollLeft)
 
-
           container.scrollLeft = safeScrollLeft
-
         }
       }
 
@@ -3083,7 +3117,7 @@ export default function Chessboard() {
     const newRows: RowData[] = []
     const existingRows: RowData[] = []
 
-    Object.values(editingRows).forEach(r => {
+    Object.values(editingRows).forEach((r) => {
       if (r.key.startsWith('new-row-')) {
         newRows.push(r)
       } else {
@@ -3091,13 +3125,19 @@ export default function Chessboard() {
       }
     })
 
-    console.log(`📈 SAVE SPLIT - New rows: ${newRows.length}, Existing rows: ${existingRows.length}`) // LOG: разделение строк на новые и существующие
+    console.log(
+      `📈 SAVE SPLIT - New rows: ${newRows.length}, Existing rows: ${existingRows.length}`,
+    ) // LOG: разделение строк на новые и существующие
 
     // Обрабатываем новые строки - создаем записи в БД
     const newRowPromises = newRows.map(async (r) => {
       if (!appliedFilters?.projectId) return null
 
-      console.log(`🆕 NEW ROW START - Processing new row ${r.key}:`, { material: r.material, nomenclature: r.nomenclatureId, projectCode: r.projectCode }) // LOG: начало обработки новой строки
+      console.log(`🆕 NEW ROW START - Processing new row ${r.key}:`, {
+        material: r.material,
+        nomenclature: r.nomenclatureId,
+        projectCode: r.projectCode,
+      }) // LOG: начало обработки новой строки
 
       let materialId = r.materialId
       if (!materialId && r.material) {
@@ -3128,7 +3168,12 @@ export default function Chessboard() {
       console.log(`✅ NEW ROW - Chessboard record created with newId: ${newId}`) // LOG: основная запись создана
 
       // Создаем mapping для новой записи
-      console.log(`🔧 NEW ROW - Creating mapping for newId: ${newId}:`, { blockId: r.blockId, costCategoryId: r.costCategoryId, costTypeId: r.costTypeId, locationId: r.locationId }) // LOG: создание mapping
+      console.log(`🔧 NEW ROW - Creating mapping for newId: ${newId}:`, {
+        blockId: r.blockId,
+        costCategoryId: r.costCategoryId,
+        costTypeId: r.costTypeId,
+        locationId: r.locationId,
+      }) // LOG: создание mapping
       await supabase!.from('chessboard_mapping').upsert(
         {
           chessboard_id: newId,
@@ -3173,7 +3218,9 @@ export default function Chessboard() {
 
       // LOG: Добавляем сохранение номенклатуры для новой записи
       if (r.nomenclatureId) {
-        console.log(`🔧 NEW ROW - Saving nomenclature mapping for newId: ${newId}, nomenclatureId: ${r.nomenclatureId}, supplier: ${r.supplier || 'null'}`) // LOG: процесс сохранения номенклатуры
+        console.log(
+          `🔧 NEW ROW - Saving nomenclature mapping for newId: ${newId}, nomenclatureId: ${r.nomenclatureId}, supplier: ${r.supplier || 'null'}`,
+        ) // LOG: процесс сохранения номенклатуры
         await supabase!.from('chessboard_nomenclature_mapping').insert({
           chessboard_id: newId,
           nomenclature_id: r.nomenclatureId,
@@ -3187,7 +3234,9 @@ export default function Chessboard() {
 
       // Если есть тэг и шифр проекта, создаём или обновляем документацию
       if (r.projectCode && r.tagId) {
-        console.log(`🔧 NEW ROW - Creating/updating documentation for newId: ${newId}, projectCode: ${r.projectCode}, tagId: ${r.tagId}, projectName: ${r.projectName || 'null'}`) // LOG: процесс создания документации
+        console.log(
+          `🔧 NEW ROW - Creating/updating documentation for newId: ${newId}, projectCode: ${r.projectCode}, tagId: ${r.tagId}, projectName: ${r.projectName || 'null'}`,
+        ) // LOG: процесс создания документации
         const doc = await documentationApi.upsertDocumentation(
           r.projectCode,
           Number(r.tagId),
@@ -3198,11 +3247,15 @@ export default function Chessboard() {
           r.projectName, // projectName - ВАЖНО: передаем название проекта!
         )
         docId = doc.id
-        console.log(`✅ NEW ROW - Documentation created/updated for newId: ${newId}, docId: ${docId}`) // LOG: успешное создание документации
+        console.log(
+          `✅ NEW ROW - Documentation created/updated for newId: ${newId}, docId: ${docId}`,
+        ) // LOG: успешное создание документации
       }
 
       if (docId && r.versionNumber) {
-        console.log(`🔧 NEW ROW - Saving documentation version mapping for newId: ${newId}, docId: ${docId}, versionNumber: ${r.versionNumber}`) // LOG: процесс сохранения версии документации
+        console.log(
+          `🔧 NEW ROW - Saving documentation version mapping for newId: ${newId}, docId: ${docId}, versionNumber: ${r.versionNumber}`,
+        ) // LOG: процесс сохранения версии документации
         // Ищем существующую версию или создаём новую
         let version = documentVersions?.find(
           (v) => v.documentation_id === docId && v.version_number === r.versionNumber,
@@ -3223,7 +3276,9 @@ export default function Chessboard() {
             throw new Error(`Не удалось создать версию документа: ${versionError.message}`)
           }
           version = newVersion
-          console.log(`✅ NEW ROW - New version created for newId: ${newId}, versionId: ${version.id}`) // LOG: создание новой версии
+          console.log(
+            `✅ NEW ROW - New version created for newId: ${newId}, versionId: ${version.id}`,
+          ) // LOG: создание новой версии
         }
 
         // Сохраняем прямую ссылку на версию документа (новая схема)
@@ -3233,7 +3288,9 @@ export default function Chessboard() {
           // TODO: добавить tag_id после применения миграции
           // tag_id: r.tagId ? Number(r.tagId) : null,
         })
-        console.log(`✅ NEW ROW - Documentation mapping saved for newId: ${newId}, versionId: ${version?.id}`) // LOG: успешное сохранение маппинга документации
+        console.log(
+          `✅ NEW ROW - Documentation mapping saved for newId: ${newId}, versionId: ${version?.id}`,
+        ) // LOG: успешное сохранение маппинга документации
       } else if (docId && !r.versionNumber) {
         // Если выбран документ, но не указана версия - выдаем ошибку
         throw new Error('Сохранение шифра проекта без указания версии невозможно!')
@@ -3440,7 +3497,7 @@ export default function Chessboard() {
       // ИСПРАВЛЕНИЕ: Выполняем промисы для новых и существующих строк отдельно
       const [newRowResults, updateResults] = await Promise.all([
         Promise.all(newRowPromises),
-        Promise.all(updatePromises)
+        Promise.all(updatePromises),
       ])
       console.log('✅ SAVE EXECUTION - All promises completed successfully') // LOG: завершение выполнения промисов
 
@@ -3448,12 +3505,16 @@ export default function Chessboard() {
       await refetchMaterials()
 
       const totalProcessed = newRows.length + existingRows.length
-      const newRowsCreated = newRowResults.filter(id => id !== null).length
-      const nullResults = newRowResults.filter(id => id === null).length
-      console.log(`📊 SAVE RESULTS - Total processed: ${totalProcessed}, New rows created: ${newRowsCreated}, Failed: ${nullResults}, Existing updated: ${existingRows.length}`) // LOG: результаты сохранения
+      const newRowsCreated = newRowResults.filter((id) => id !== null).length
+      const nullResults = newRowResults.filter((id) => id === null).length
+      console.log(
+        `📊 SAVE RESULTS - Total processed: ${totalProcessed}, New rows created: ${newRowsCreated}, Failed: ${nullResults}, Existing updated: ${existingRows.length}`,
+      ) // LOG: результаты сохранения
 
       if (newRowsCreated > 0 && existingRows.length > 0) {
-        message.success(`Сохранено: ${newRowsCreated} новых строк, ${existingRows.length} изменений`)
+        message.success(
+          `Сохранено: ${newRowsCreated} новых строк, ${existingRows.length} изменений`,
+        )
       } else if (newRowsCreated > 0) {
         message.success(`Создано ${newRowsCreated} новых строк`)
       } else if (existingRows.length > 0) {
@@ -3463,7 +3524,9 @@ export default function Chessboard() {
       }
 
       console.log('🧹 SAVE CLEANUP - Clearing editing rows') // LOG: очистка редактируемых строк
-      console.log(`📊 COUNT BEFORE CLEAR - tableRows: ${tableRows.length}, viewRows: ${viewRows.length}, editingRows: ${Object.keys(editingRows).length}`) // LOG: подсчет до очистки
+      console.log(
+        `📊 COUNT BEFORE CLEAR - tableRows: ${tableRows.length}, viewRows: ${viewRows.length}, editingRows: ${Object.keys(editingRows).length}`,
+      ) // LOG: подсчет до очистки
       setEditingRows({})
 
       console.log('🔄 SAVE POST - Invalidating queries and refetching table data') // LOG: обновление данных таблицы
@@ -3471,22 +3534,26 @@ export default function Chessboard() {
       console.log('🔧 INVALIDATION - Query key:', ['chessboard', appliedFilters, selectedVersions]) // LOG: используемый ключ для инвалидации
       queryClient.invalidateQueries({
         queryKey: ['chessboard', appliedFilters, selectedVersions],
-        exact: true
+        exact: true,
       })
       // Также инвалидируем все связанные запросы комментариев
       queryClient.invalidateQueries({
         queryKey: ['chessboard-comments'],
-        exact: false
+        exact: false,
       })
       console.log('✅ INVALIDATION - Cache invalidated successfully') // LOG: успешная инвалидация кеша
 
       // ИСПРАВЛЕНИЕ: Добавляем небольшую задержку для завершения транзакции в PostgreSQL
       console.log('⏳ SAVE POST - Waiting 100ms for transaction to complete') // LOG: ожидание завершения транзакции
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await new Promise((resolve) => setTimeout(resolve, 100))
 
       const refetchResult = await refetch()
-      console.log(`📊 COUNT AFTER REFETCH - Refetch returned ${refetchResult.data?.length || 0} records`) // LOG: количество записей после refetch
-      console.log(`📊 COUNT AFTER REFETCH - Data should be updated now. Please check current counts`) // LOG: подсчет после обновления
+      console.log(
+        `📊 COUNT AFTER REFETCH - Refetch returned ${refetchResult.data?.length || 0} records`,
+      ) // LOG: количество записей после refetch
+      console.log(
+        `📊 COUNT AFTER REFETCH - Data should be updated now. Please check current counts`,
+      ) // LOG: подсчет после обновления
 
       // LOG: Проверяем что новые записи появились в результате
       if (newRowsCreated > 0) {
@@ -3501,14 +3568,26 @@ export default function Chessboard() {
       }
 
       console.log('🎉 SAVE COMPLETE - HandleUpdate process finished successfully') // LOG: завершение процесса сохранения
-      if (process.env.NODE_ENV === 'development') { // LOG: условное логирование для отладки
-        console.log('✅ Успешно сохранено:', { newRows: newRowsCreated, updated: existingRows.length }) // LOG: результат сохранения
+      if (process.env.NODE_ENV === 'development') {
+        // LOG: условное логирование для отладки
+        console.log('✅ Успешно сохранено:', {
+          newRows: newRowsCreated,
+          updated: existingRows.length,
+        }) // LOG: результат сохранения
       }
     } catch (error: unknown) {
       console.error(`❌ ОШИБКА ПРИ СОХРАНЕНИИ:`, error)
       message.error(`Не удалось сохранить изменения: ${(error as Error).message}`)
     }
-  }, [editingRows, message, refetch, appliedFilters, refetchMaterials, queryClient, selectedVersions])
+  }, [
+    editingRows,
+    message,
+    refetch,
+    appliedFilters,
+    refetchMaterials,
+    queryClient,
+    selectedVersions,
+  ])
 
   const handleCancelEdit = useCallback(() => {
     setEditingRows({})
@@ -3543,7 +3622,7 @@ export default function Chessboard() {
       // ИСПРАВЛЕНИЕ: Принудительно инвалидируем кэш запроса перед refetch
       queryClient.invalidateQueries({
         queryKey: ['chessboard', appliedFilters, selectedVersions],
-        exact: true
+        exact: true,
       })
 
       await refetch()
@@ -3622,7 +3701,9 @@ export default function Chessboard() {
       const supplierIdx = header.findIndex((h) => h.includes('поставщик'))
       // Индексы для разделов и шифров проектов
       const tagIdx = header.findIndex((h) => h.includes('раздел') || h.includes('tag'))
-      const docCodeIdx = header.findIndex((h) => h.includes('шифр') || h.includes('том') || h.includes('документ'))
+      const docCodeIdx = header.findIndex(
+        (h) => h.includes('шифр') || h.includes('том') || h.includes('документ'),
+      )
       const projectNameIdx = header.findIndex((h) => h.includes('название') && h.includes('проект'))
       const materialMap: Record<string, string> = {}
       for (let i = 1; i < rows.length; i++) {
@@ -3650,7 +3731,8 @@ export default function Chessboard() {
         // Извлекаем раздел и шифр проекта из файла
         const tagName = tagIdx >= 0 ? String(row[tagIdx] ?? '').trim() : ''
         const docCode = docCodeIdx >= 0 ? String(row[docCodeIdx] ?? '').trim() : ''
-        const projectNameFromFile = projectNameIdx >= 0 ? String(row[projectNameIdx] ?? '').trim() : ''
+        const projectNameFromFile =
+          projectNameIdx >= 0 ? String(row[projectNameIdx] ?? '').trim() : ''
 
         // Парсим количественные данные
         const parseQuantity = (cell: string | number | null | undefined) => {
@@ -3702,9 +3784,10 @@ export default function Chessboard() {
         let projectName = projectNameFromFile
         if (!projectName && docCode) {
           // Ищем название проекта по шифру в документации
-          const foundDoc = documentations?.find(d =>
-            d.project_code?.toLowerCase().includes(docCode.toLowerCase()) ||
-            docCode.toLowerCase().includes(d.project_code?.toLowerCase() || '')
+          const foundDoc = documentations?.find(
+            (d) =>
+              d.project_code?.toLowerCase().includes(docCode.toLowerCase()) ||
+              docCode.toLowerCase().includes(d.project_code?.toLowerCase() || ''),
           )
           if (foundDoc && foundDoc.project_name) {
             projectName = foundDoc.project_name
@@ -3846,9 +3929,15 @@ export default function Chessboard() {
               floor_number: floor,
               location_id: importState.locationId ? Number(importState.locationId) : null,
               // Делим количество поровну между этажами
-              quantityPd: additionalData[idx].quantityPd ? additionalData[idx].quantityPd / totalFloors : null,
-              quantitySpec: additionalData[idx].quantitySpec ? additionalData[idx].quantitySpec / totalFloors : null,
-              quantityRd: additionalData[idx].quantityRd ? additionalData[idx].quantityRd / totalFloors : null,
+              quantityPd: additionalData[idx].quantityPd
+                ? additionalData[idx].quantityPd / totalFloors
+                : null,
+              quantitySpec: additionalData[idx].quantitySpec
+                ? additionalData[idx].quantitySpec / totalFloors
+                : null,
+              quantityRd: additionalData[idx].quantityRd
+                ? additionalData[idx].quantityRd / totalFloors
+                : null,
             })
           })
         } else {
@@ -3925,7 +4014,7 @@ export default function Chessboard() {
 
       // Создаем связи с документацией для каждой строки
       const tagCache = new Map<string, { id: number }>()
-      const docCache = new Map<string, { id: string, projectName?: string }>()
+      const docCache = new Map<string, { id: string; projectName?: string }>()
 
       for (let idx = 0; idx < inserted.length; idx++) {
         const rowData = additionalData[idx]
@@ -3944,9 +4033,10 @@ export default function Chessboard() {
         if (rowTagName) {
           // Ищем тег по названию
           if (!tagCache.has(rowTagName)) {
-            const tag = sortedDocumentationTags?.find(t =>
-              t.name.toLowerCase().includes(rowTagName.toLowerCase()) ||
-              rowTagName.toLowerCase().includes(t.name.toLowerCase())
+            const tag = sortedDocumentationTags?.find(
+              (t) =>
+                t.name.toLowerCase().includes(rowTagName.toLowerCase()) ||
+                rowTagName.toLowerCase().includes(t.name.toLowerCase()),
             )
             if (tag) {
               tagCache.set(rowTagName, { id: tag.id })
@@ -3971,9 +4061,10 @@ export default function Chessboard() {
         if (rowDocCode) {
           // Ищем документ по коду
           if (!docCache.has(rowDocCode)) {
-            const doc = documentations?.find(d =>
-              d.project_code?.toLowerCase().includes(rowDocCode.toLowerCase()) ||
-              rowDocCode.toLowerCase().includes(d.project_code?.toLowerCase() || '')
+            const doc = documentations?.find(
+              (d) =>
+                d.project_code?.toLowerCase().includes(rowDocCode.toLowerCase()) ||
+                rowDocCode.toLowerCase().includes(d.project_code?.toLowerCase() || ''),
             )
             if (doc) {
               docCache.set(rowDocCode, { id: doc.id, projectName: doc.project_name })
@@ -4079,7 +4170,7 @@ export default function Chessboard() {
       // ИСПРАВЛЕНИЕ: Принудительно инвалидируем кэш запроса перед refetch
       queryClient.invalidateQueries({
         queryKey: ['chessboard', appliedFilters, selectedVersions],
-        exact: true
+        exact: true,
       })
 
       await refetch()
@@ -4427,7 +4518,7 @@ export default function Chessboard() {
     // ИСПРАВЛЕНИЕ: Принудительно инвалидируем кэш запроса перед refetch
     queryClient.invalidateQueries({
       queryKey: ['chessboard', appliedFilters, selectedVersions],
-      exact: true
+      exact: true,
     })
 
     await refetch()
@@ -4813,10 +4904,14 @@ export default function Chessboard() {
                   popupMatchSelectWidth={nomenclatureDropdownWidth}
                   options={(() => {
                     const allNomenclature = [...(nomenclatures || [])]
-                    if (record.nomenclatureId && record.nomenclature && !allNomenclature.some(n => n.id === record.nomenclatureId)) {
+                    if (
+                      record.nomenclatureId &&
+                      record.nomenclature &&
+                      !allNomenclature.some((n) => n.id === record.nomenclatureId)
+                    ) {
                       allNomenclature.push({ id: record.nomenclatureId, name: record.nomenclature })
                     }
-                    return allNomenclature.map(n => ({ value: n.id, label: n.name }))
+                    return allNomenclature.map((n) => ({ value: n.id, label: n.name }))
                   })()}
                   value={record.nomenclature}
                   onSelect={(value, option) => {
@@ -5481,10 +5576,14 @@ export default function Chessboard() {
                   popupMatchSelectWidth={nomenclatureDropdownWidth}
                   options={(() => {
                     const allNomenclature = [...(nomenclatures || [])]
-                    if (edit.nomenclatureId && record.nomenclature && !allNomenclature.some(n => n.id === edit.nomenclatureId)) {
+                    if (
+                      edit.nomenclatureId &&
+                      record.nomenclature &&
+                      !allNomenclature.some((n) => n.id === edit.nomenclatureId)
+                    ) {
                       allNomenclature.push({ id: edit.nomenclatureId, name: record.nomenclature })
                     }
-                    return allNomenclature.map(n => ({ value: n.id, label: n.name }))
+                    return allNomenclature.map((n) => ({ value: n.id, label: n.name }))
                   })()}
                   value={edit.nomenclature}
                   onSelect={(value, option) => {
@@ -5694,7 +5793,10 @@ export default function Chessboard() {
           const showColorPicker = edit || (mode === 'add' && !record.key.includes('existing'))
 
           if (mode === 'add' && showColorPicker) {
-            console.log('🎨 COLOR FIX APPLIED - Showing color picker for new row in add mode:', record.key) // LOG: исправление отображения color picker
+            console.log(
+              '🎨 COLOR FIX APPLIED - Showing color picker for new row in add mode:',
+              record.key,
+            ) // LOG: исправление отображения color picker
           }
 
           return showColorPicker ? (
@@ -5721,9 +5823,11 @@ export default function Chessboard() {
         },
       },
       ...(() => {
-        const problemColumns = dataColumns.filter(col => ['unit', 'nomenclature', 'costCategory', 'costType', 'location'].includes(col.dataIndex))
+        const problemColumns = dataColumns.filter((col) =>
+          ['unit', 'nomenclature', 'costCategory', 'costType', 'location'].includes(col.dataIndex),
+        )
         console.log('🔍 PROBLEM COLUMNS DEBUG - Проблемные колонки:') // LOG: проверка проблемных колонок
-        problemColumns.forEach(col => {
+        problemColumns.forEach((col) => {
           console.log(`  - title type: ${typeof col.title}, value:`, col.title) // LOG: тип и значение title
           console.log(`    dataIndex: "${col.dataIndex}"`) // LOG: детали каждой проблемной колонки
           console.log(`    render function exists: ${typeof col.render === 'function'}`) // LOG: наличие render функции
@@ -5733,7 +5837,11 @@ export default function Chessboard() {
             const originalRender = col.render
             col.render = (value: any, record: any, index: number) => {
               const renderResult = originalRender(value, record, index)
-              console.log(`🔍 RENDER DEBUG - ${col.dataIndex}:`, { value, result: renderResult, record }) // LOG: результат render функции
+              console.log(`🔍 RENDER DEBUG - ${col.dataIndex}:`, {
+                value,
+                result: renderResult,
+                record,
+              }) // LOG: результат render функции
               return renderResult
             }
           }
@@ -5747,7 +5855,6 @@ export default function Chessboard() {
         render: (_: unknown, record: ViewRow) => {
           const isEditing = !!editingRows[record.key]
           const isNewRow = mode === 'add' && !record.key.includes('existing')
-
 
           return (
             <Space>
@@ -6173,1031 +6280,1048 @@ export default function Chessboard() {
           minHeight: 0,
         }}
       >
-      {/* Индикатор ошибки загрузки данных */}
-      {isError && tableDataError && (
-        <div
-          style={{
-            margin: '16px 0',
-            padding: '12px',
-            backgroundColor: '#fff2f0',
-            border: '1px solid #ffccc7',
-            borderRadius: '6px',
-            color: '#cf1322',
-          }}
-        >
-          <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Ошибка загрузки данных</div>
-          <div style={{ fontSize: '14px' }}>{tableDataError.message || 'Неизвестная ошибка'}</div>
-          <Button
-            size="small"
-            type="primary"
-            style={{ marginTop: '8px' }}
-            onClick={() => {
-              // ИСПРАВЛЕНИЕ: Принудительно инвалидируем кэш запроса перед refetch
-              queryClient.invalidateQueries({
-                queryKey: ['chessboard', appliedFilters, selectedVersions],
-                exact: true
-              })
-              refetch()
+        {/* Индикатор ошибки загрузки данных */}
+        {isError && tableDataError && (
+          <div
+            style={{
+              margin: '16px 0',
+              padding: '12px',
+              backgroundColor: '#fff2f0',
+              border: '1px solid #ffccc7',
+              borderRadius: '6px',
+              color: '#cf1322',
             }}
           >
-            Повторить попытку
-          </Button>
-        </div>
-      )}
-
-      <div className="filters" style={{ flexShrink: 0, paddingBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-          <Space align="center" size="middle">
-            <Select
-              placeholder="Выберите проект"
-              style={{ width: 280 * scale }}
-              size="large"
-              allowClear
-              value={filters.projectId}
-              onChange={(value) => setFilters({ projectId: value })}
-              options={
-                projects?.map((p) => ({
-                  value: p.id,
-                  label: <span style={{ fontWeight: 'bold' }}>{p.name}</span>,
-                })) ?? []
-              }
-              showSearch
-              filterOption={(input, option) => {
-                const label = option?.label
-                return String(label ?? '')
-                  .toLowerCase()
-                  .includes(input.toLowerCase())
-              }}
-            />
-            {filters.projectId && (
-              <>
-                <Select
-                  placeholder="Раздел"
-                  style={{ width: 200 }}
-                  value={filters.tagId}
-                  onChange={(value) =>
-                    setFilters((f) => ({ ...f, tagId: value, documentationId: undefined }))
-                  }
-                  options={sortedDocumentationTags.map((tag) => ({
-                    value: String(tag.id),
-                    label: tag.name,
-                  }))}
-                  allowClear
-                  showSearch
-                  mode="multiple"
-                  filterOption={(input, option) => {
-                    const text = (option?.label ?? '').toString()
-                    return text.toLowerCase().includes(input.toLowerCase())
-                  }}
-                />
-                <Select
-                  placeholder="Шифр документа"
-                  style={{ width: 200 }}
-                  value={filters.documentationId}
-                  onChange={(value) => setFilters((f) => ({ ...f, documentationId: value }))}
-                  options={
-                    filterDocumentations
-                      ?.filter(
-                        (doc: DocumentationRecordForList) =>
-                          !filters.tagId ||
-                          filters.tagId.length === 0 ||
-                          (doc.tag_id !== null && filters.tagId.includes(String(doc.tag_id))),
-                      )
-                      .map((doc: DocumentationRecordForList) => ({
-                        value: doc.id,
-                        label: doc.project_code,
-                      })) ?? []
-                  }
-                  disabled={!filters.tagId || filters.tagId.length === 0}
-                  allowClear
-                  showSearch
-                  mode="multiple"
-                  filterOption={(input, option) => {
-                    const text = (option?.label ?? '').toString()
-                    return text.toLowerCase().includes(input.toLowerCase())
-                  }}
-                />
-              </>
-            )}
-            <Button type="primary" size="large" onClick={handleApply} disabled={!filters.projectId}>
-              Применить
-            </Button>
-            {appliedFilters?.documentationId && appliedFilters.documentationId.length > 0 && (
-              <Button size="large" onClick={openVersionsModal}>
-                Версии
-              </Button>
-            )}
-            <Badge
-              count={
-                [
-                  filters.blockId && filters.blockId.length > 0 ? filters.blockId : null,
-                  filters.categoryId && filters.categoryId.length > 0 ? filters.categoryId : null,
-                  filters.typeId && filters.typeId.length > 0 ? filters.typeId : null,
-                ].filter(Boolean).length
-              }
+            <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Ошибка загрузки данных</div>
+            <div style={{ fontSize: '14px' }}>{tableDataError.message || 'Неизвестная ошибка'}</div>
+            <Button
               size="small"
-              style={{ marginRight: '8px' }}
+              type="primary"
+              style={{ marginTop: '8px' }}
+              onClick={() => {
+                // ИСПРАВЛЕНИЕ: Принудительно инвалидируем кэш запроса перед refetch
+                queryClient.invalidateQueries({
+                  queryKey: ['chessboard', appliedFilters, selectedVersions],
+                  exact: true,
+                })
+                refetch()
+              }}
             >
-              <Button
-                type={filtersExpanded ? 'default' : 'text'}
-                onClick={() => setFiltersExpanded(!filtersExpanded)}
-                icon={
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <FilterOutlined
-                      style={{ fontSize: '16px', color: filtersExpanded ? '#a69ead' : undefined }}
-                    />
-                    {filtersExpanded ? (
-                      <CaretUpFilled style={{ fontSize: '10px', color: '#a69ead' }} />
-                    ) : (
-                      <CaretDownFilled style={{ fontSize: '10px' }} />
-                    )}
-                  </span>
+              Повторить попытку
+            </Button>
+          </div>
+        )}
+
+        <div className="filters" style={{ flexShrink: 0, paddingBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+            <Space align="center" size="middle">
+              <Select
+                placeholder="Выберите проект"
+                style={{ width: 280 * scale }}
+                size="large"
+                allowClear
+                value={filters.projectId}
+                onChange={(value) => setFilters({ projectId: value })}
+                options={
+                  projects?.map((p) => ({
+                    value: p.id,
+                    label: <span style={{ fontWeight: 'bold' }}>{p.name}</span>,
+                  })) ?? []
                 }
-                title={filtersExpanded ? 'Скрыть фильтры' : 'Показать фильтры'}
-                style={{
-                  padding: '4px 12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  borderColor: filtersExpanded ? '#a69ead' : undefined,
+                showSearch
+                filterOption={(input, option) => {
+                  const label = option?.label
+                  return String(label ?? '')
+                    .toLowerCase()
+                    .includes(input.toLowerCase())
                 }}
-              >
-                Фильтры
-              </Button>
-            </Badge>
-          </Space>
-          <Space>
-            {appliedFilters &&
-              !Object.keys(editingRows).length &&
-              mode === 'view' &&
-              !deleteMode && (
+              />
+              {filters.projectId && (
                 <>
-                  <Space.Compact>
-                    <Button onClick={openSetsModal}>Комплект</Button>
-                    <Tooltip
-                      title={
-                        matchedSet
-                          ? `Найден комплект №${matchedSet.set_number}${
-                              matchedSet.name ? `: ${matchedSet.name}` : ''
-                            }`
-                          : null
-                      }
-                    >
-                      <Select
-                        placeholder={
+                  <Select
+                    placeholder="Раздел"
+                    style={{ width: 200 }}
+                    value={filters.tagId}
+                    onChange={(value) =>
+                      setFilters((f) => ({ ...f, tagId: value, documentationId: undefined }))
+                    }
+                    options={sortedDocumentationTags.map((tag) => ({
+                      value: String(tag.id),
+                      label: tag.name,
+                    }))}
+                    allowClear
+                    showSearch
+                    mode="multiple"
+                    filterOption={(input, option) => {
+                      const text = (option?.label ?? '').toString()
+                      return text.toLowerCase().includes(input.toLowerCase())
+                    }}
+                  />
+                  <Select
+                    placeholder="Шифр документа"
+                    style={{ width: 200 }}
+                    value={filters.documentationId}
+                    onChange={(value) => setFilters((f) => ({ ...f, documentationId: value }))}
+                    options={
+                      filterDocumentations
+                        ?.filter(
+                          (doc: DocumentationRecordForList) =>
+                            !filters.tagId ||
+                            filters.tagId.length === 0 ||
+                            (doc.tag_id !== null && filters.tagId.includes(String(doc.tag_id))),
+                        )
+                        .map((doc: DocumentationRecordForList) => ({
+                          value: doc.id,
+                          label: doc.project_code,
+                        })) ?? []
+                    }
+                    disabled={!filters.tagId || filters.tagId.length === 0}
+                    allowClear
+                    showSearch
+                    mode="multiple"
+                    filterOption={(input, option) => {
+                      const text = (option?.label ?? '').toString()
+                      return text.toLowerCase().includes(input.toLowerCase())
+                    }}
+                  />
+                </>
+              )}
+              <Button
+                type="primary"
+                size="large"
+                onClick={handleApply}
+                disabled={!filters.projectId}
+              >
+                Применить
+              </Button>
+              {appliedFilters?.documentationId && appliedFilters.documentationId.length > 0 && (
+                <Button size="large" onClick={openVersionsModal}>
+                  Версии
+                </Button>
+              )}
+              <Badge
+                count={
+                  [
+                    filters.blockId && filters.blockId.length > 0 ? filters.blockId : null,
+                    filters.categoryId && filters.categoryId.length > 0 ? filters.categoryId : null,
+                    filters.typeId && filters.typeId.length > 0 ? filters.typeId : null,
+                  ].filter(Boolean).length
+                }
+                size="small"
+                style={{ marginRight: '8px' }}
+              >
+                <Button
+                  type={filtersExpanded ? 'default' : 'text'}
+                  onClick={() => setFiltersExpanded(!filtersExpanded)}
+                  icon={
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <FilterOutlined
+                        style={{ fontSize: '16px', color: filtersExpanded ? '#a69ead' : undefined }}
+                      />
+                      {filtersExpanded ? (
+                        <CaretUpFilled style={{ fontSize: '10px', color: '#a69ead' }} />
+                      ) : (
+                        <CaretDownFilled style={{ fontSize: '10px' }} />
+                      )}
+                    </span>
+                  }
+                  title={filtersExpanded ? 'Скрыть фильтры' : 'Показать фильтры'}
+                  style={{
+                    padding: '4px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    borderColor: filtersExpanded ? '#a69ead' : undefined,
+                  }}
+                >
+                  Фильтры
+                </Button>
+              </Badge>
+            </Space>
+            <Space>
+              {appliedFilters &&
+                !Object.keys(editingRows).length &&
+                mode === 'view' &&
+                !deleteMode && (
+                  <>
+                    <Space.Compact>
+                      <Button onClick={openSetsModal}>Комплект</Button>
+                      <Tooltip
+                        title={
                           matchedSet
-                            ? `Комплект №${matchedSet.set_number}${matchedSet.name ? `: ${matchedSet.name}` : ''}${matchedSet.status ? ` (${matchedSet.status.name})` : ''}`
-                            : 'Выберите статус'
+                            ? `Найден комплект №${matchedSet.set_number}${
+                                matchedSet.name ? `: ${matchedSet.name}` : ''
+                              }`
+                            : null
                         }
-                        style={{
-                          width: 200,
-                          borderColor: matchedSet ? '#1890ff' : undefined,
-                        }}
-                        value={selectedSetStatus}
-                        onChange={handleSetStatusChange}
-                        allowClear
-                        showSearch
-                        filterOption={(input, option) => {
-                          const status = setStatuses?.find((s) => s.id === option?.value)
-                          return status?.name.toLowerCase().includes(input.toLowerCase()) || false
-                        }}
-                        options={setStatuses?.map((status) => ({
-                          value: status.id,
-                          label: status.name,
-                          status: status,
-                        }))}
-                        optionRender={(option) => {
-                          const status = option.data.status as ChessboardSetStatus
-                          const color = normalizeColorToHex(status.color)
-                          return (
-                            <Space>
+                      >
+                        <Select
+                          placeholder={
+                            matchedSet
+                              ? `Комплект №${matchedSet.set_number}${matchedSet.name ? `: ${matchedSet.name}` : ''}${matchedSet.status ? ` (${matchedSet.status.name})` : ''}`
+                              : 'Выберите статус'
+                          }
+                          style={{
+                            width: 200,
+                            borderColor: matchedSet ? '#1890ff' : undefined,
+                          }}
+                          value={selectedSetStatus}
+                          onChange={handleSetStatusChange}
+                          allowClear
+                          showSearch
+                          filterOption={(input, option) => {
+                            const status = setStatuses?.find((s) => s.id === option?.value)
+                            return status?.name.toLowerCase().includes(input.toLowerCase()) || false
+                          }}
+                          options={setStatuses?.map((status) => ({
+                            value: status.id,
+                            label: status.name,
+                            status: status,
+                          }))}
+                          optionRender={(option) => {
+                            const status = option.data.status as ChessboardSetStatus
+                            const color = normalizeColorToHex(status.color)
+                            return (
+                              <Space>
+                                <div
+                                  style={{
+                                    width: 12,
+                                    height: 12,
+                                    backgroundColor: color,
+                                    borderRadius: 2,
+                                    border: '1px solid #d9d9d9',
+                                    display: 'inline-block',
+                                  }}
+                                />
+                                {status.name}
+                              </Space>
+                            )
+                          }}
+                          suffixIcon={
+                            matchedSet && matchedSet.status ? (
                               <div
                                 style={{
                                   width: 12,
                                   height: 12,
-                                  backgroundColor: color,
+                                  backgroundColor: normalizeColorToHex(matchedSet.status.color),
                                   borderRadius: 2,
                                   border: '1px solid #d9d9d9',
-                                  display: 'inline-block',
+                                  marginRight: 4,
+                                  flexShrink: 0,
                                 }}
                               />
-                              {status.name}
-                            </Space>
-                          )
-                        }}
-                        suffixIcon={
-                          matchedSet && matchedSet.status ? (
-                            <div
-                              style={{
-                                width: 12,
-                                height: 12,
-                                backgroundColor: normalizeColorToHex(matchedSet.status.color),
-                                borderRadius: 2,
-                                border: '1px solid #d9d9d9',
-                                marginRight: 4,
-                                flexShrink: 0,
-                              }}
-                            />
-                          ) : undefined
-                        }
-                      />
-                    </Tooltip>
-                  </Space.Compact>
-                  <Button type="primary" icon={<PlusOutlined />} onClick={startAdd}>
-                    Добавить
+                            ) : undefined
+                          }
+                        />
+                      </Tooltip>
+                    </Space.Compact>
+                    <Button type="primary" icon={<PlusOutlined />} onClick={startAdd}>
+                      Добавить
+                    </Button>
+                  </>
+                )}
+              {Object.keys(editingRows).length > 0 && (
+                <>
+                  <Button type="primary" icon={<SaveOutlined />} onClick={handleUpdate}>
+                    Сохранить
+                  </Button>
+                  <Button onClick={handleCancelEdit}>Отмена</Button>
+                </>
+              )}
+              {appliedFilters && mode === 'add' && (
+                <>
+                  <Button type="primary" icon={<SaveOutlined />} onClick={handleSave}>
+                    Сохранить
+                  </Button>
+                  <Button onClick={handleCancel}>Отменить</Button>
+                </>
+              )}
+              {appliedFilters && !Object.keys(editingRows).length && mode === 'view' && (
+                <Button
+                  danger={deleteMode}
+                  icon={<DeleteOutlined />}
+                  onClick={() => {
+                    if (deleteMode && selectedRows.size > 0) {
+                      handleDeleteSelected()
+                    } else {
+                      setDeleteMode(!deleteMode)
+                      setSelectedRows(new Set())
+                    }
+                  }}
+                >
+                  {deleteMode && selectedRows.size > 0
+                    ? `Удалить (${selectedRows.size})`
+                    : deleteMode
+                      ? 'Выйти из режима'
+                      : 'Удалить'}
+                </Button>
+              )}
+              {deleteMode && (
+                <Button
+                  onClick={() => {
+                    setDeleteMode(false)
+                    setSelectedRows(new Set())
+                  }}
+                >
+                  Отмена
+                </Button>
+              )}
+              {appliedFilters && mode === 'view' && (
+                <>
+                  <Button
+                    icon={<DownloadOutlined />}
+                    onClick={handleExport}
+                    disabled={deleteMode || Object.keys(editingRows).length > 0}
+                  >
+                    Экспорт
+                  </Button>
+                  <Button
+                    icon={<UploadOutlined />}
+                    onClick={openImport}
+                    disabled={deleteMode || Object.keys(editingRows).length > 0}
+                  >
+                    Импорт
                   </Button>
                 </>
               )}
-            {Object.keys(editingRows).length > 0 && (
-              <>
-                <Button type="primary" icon={<SaveOutlined />} onClick={handleUpdate}>
-                  Сохранить
-                </Button>
-                <Button onClick={handleCancelEdit}>Отмена</Button>
-              </>
-            )}
-            {appliedFilters && mode === 'add' && (
-              <>
-                <Button type="primary" icon={<SaveOutlined />} onClick={handleSave}>
-                  Сохранить
-                </Button>
-                <Button onClick={handleCancel}>Отменить</Button>
-              </>
-            )}
-            {appliedFilters && !Object.keys(editingRows).length && mode === 'view' && (
-              <Button
-                danger={deleteMode}
-                icon={<DeleteOutlined />}
-                onClick={() => {
-                  if (deleteMode && selectedRows.size > 0) {
-                    handleDeleteSelected()
-                  } else {
-                    setDeleteMode(!deleteMode)
-                    setSelectedRows(new Set())
-                  }
+            </Space>
+          </div>
+
+          {filtersExpanded && (
+            <Card size="small" style={{ marginTop: 12 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '8px',
                 }}
               >
-                {deleteMode && selectedRows.size > 0
-                  ? `Удалить (${selectedRows.size})`
-                  : deleteMode
-                    ? 'Выйти из режима'
-                    : 'Удалить'}
-              </Button>
-            )}
-            {deleteMode && (
-              <Button
-                onClick={() => {
-                  setDeleteMode(false)
-                  setSelectedRows(new Set())
-                }}
-              >
-                Отмена
-              </Button>
-            )}
-            {appliedFilters && mode === 'view' && (
-              <>
-                <Button
-                  icon={<DownloadOutlined />}
-                  onClick={handleExport}
-                  disabled={deleteMode || Object.keys(editingRows).length > 0}
-                >
-                  Экспорт
-                </Button>
-                <Button
-                  icon={<UploadOutlined />}
-                  onClick={openImport}
-                  disabled={deleteMode || Object.keys(editingRows).length > 0}
-                >
-                  Импорт
-                </Button>
-              </>
-            )}
-          </Space>
-        </div>
+                <Space wrap>
+                  <Select
+                    placeholder="Корпус"
+                    style={{ width: 200 }}
+                    value={filters.blockId}
+                    onChange={(value) => setFilters((f) => ({ ...f, blockId: value }))}
+                    options={blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []}
+                    disabled={!filters.projectId}
+                    allowClear
+                    showSearch
+                    mode="multiple"
+                    filterOption={(input, option) => {
+                      const text = (option?.label ?? '').toString()
+                      return text.toLowerCase().includes(input.toLowerCase())
+                    }}
+                  />
+                  <Select
+                    placeholder="Категория затрат"
+                    style={{ width: 200 }}
+                    value={filters.categoryId}
+                    onChange={(value) =>
+                      setFilters((f) => ({ ...f, categoryId: value, typeId: undefined }))
+                    }
+                    popupMatchSelectWidth={false}
+                    options={
+                      costCategories
+                        ?.sort((a, b) => {
+                          // Сортируем по номеру, если он есть
+                          if (
+                            a.number !== undefined &&
+                            a.number !== null &&
+                            b.number !== undefined &&
+                            b.number !== null
+                          ) {
+                            // Числовое сравнение для правильной сортировки
+                            return Number(a.number) - Number(b.number)
+                          }
+                          return a.name.localeCompare(b.name)
+                        })
+                        .map((c) => ({
+                          value: String(c.id),
+                          label: c.name, // Отображаем только название без номера
+                        })) ?? []
+                    }
+                    allowClear
+                    showSearch
+                    mode="multiple"
+                    filterOption={(input, option) => {
+                      const text = (option?.label ?? '').toString()
+                      return text.toLowerCase().includes(input.toLowerCase())
+                    }}
+                  />
+                  <Select
+                    placeholder="Вид затрат"
+                    style={{ width: 200 }}
+                    value={filters.typeId}
+                    onChange={(value) => setFilters((f) => ({ ...f, typeId: value }))}
+                    options={(() => {
+                      const availableTypes =
+                        costTypes
+                          ?.filter(
+                            (t) =>
+                              !filters.categoryId ||
+                              filters.categoryId.length === 0 ||
+                              filters.categoryId.includes(String(t.cost_category_id)),
+                          )
+                          .map((t) => ({ value: String(t.id), label: t.name })) ?? []
 
-        {filtersExpanded && (
-          <Card size="small" style={{ marginTop: 12 }}>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '8px',
-              }}
-            >
-              <Space wrap>
-                <Select
-                  placeholder="Корпус"
-                  style={{ width: 200 }}
-                  value={filters.blockId}
-                  onChange={(value) => setFilters((f) => ({ ...f, blockId: value }))}
-                  options={blocks?.map((b) => ({ value: b.id, label: b.name })) ?? []}
-                  disabled={!filters.projectId}
-                  allowClear
-                  showSearch
-                  mode="multiple"
-                  filterOption={(input, option) => {
-                    const text = (option?.label ?? '').toString()
-                    return text.toLowerCase().includes(input.toLowerCase())
-                  }}
-                />
-                <Select
-                  placeholder="Категория затрат"
-                  style={{ width: 200 }}
-                  value={filters.categoryId}
-                  onChange={(value) =>
-                    setFilters((f) => ({ ...f, categoryId: value, typeId: undefined }))
-                  }
-                  popupMatchSelectWidth={false}
-                  options={
-                    costCategories
-                      ?.sort((a, b) => {
-                        // Сортируем по номеру, если он есть
-                        if (
-                          a.number !== undefined &&
-                          a.number !== null &&
-                          b.number !== undefined &&
-                          b.number !== null
-                        ) {
-                          // Числовое сравнение для правильной сортировки
-                          return Number(a.number) - Number(b.number)
-                        }
-                        return a.name.localeCompare(b.name)
-                      })
-                      .map((c) => ({
-                        value: String(c.id),
-                        label: c.name, // Отображаем только название без номера
-                      })) ?? []
-                  }
-                  allowClear
-                  showSearch
-                  mode="multiple"
-                  filterOption={(input, option) => {
-                    const text = (option?.label ?? '').toString()
-                    return text.toLowerCase().includes(input.toLowerCase())
-                  }}
-                />
-                <Select
-                  placeholder="Вид затрат"
-                  style={{ width: 200 }}
-                  value={filters.typeId}
-                  onChange={(value) => setFilters((f) => ({ ...f, typeId: value }))}
-                  options={(() => {
-                    const availableTypes =
-                      costTypes
-                        ?.filter(
-                          (t) =>
-                            !filters.categoryId ||
-                            filters.categoryId.length === 0 ||
-                            filters.categoryId.includes(String(t.cost_category_id)),
-                        )
-                        .map((t) => ({ value: String(t.id), label: t.name })) ?? []
-
-                    return availableTypes
-                  })()}
-                  disabled={!filters.categoryId || filters.categoryId.length === 0}
-                  allowClear
-                  showSearch
-                  mode="multiple"
-                  filterOption={(input, option) => {
-                    const text = (option?.label ?? '').toString()
-                    return text.toLowerCase().includes(input.toLowerCase())
-                  }}
-                />
-              </Space>
-              <Space>
-                <Button icon={<SettingOutlined />} onClick={() => setColumnsSettingsOpen(true)}>
-                  Настройка столбцов
-                </Button>
-              </Space>
-            </div>
-
-          </Card>
-        )}
-      </div>
-
-
-      {/* Таблица */}
-      {appliedFilters && (
-        <div
-          className="table-host chessboard-table"
-          style={{
-            borderRadius: '6px',
-          }}
-        >
-          {mode === 'add' ? (
-            <ChessboardOptimized
-              originalTable={
-                <Table<TableRow>
-                  dataSource={tableRows}
-                  columns={orderedAddColumns}
-                  pagination={true}
-                  rowKey="key"
-                  sticky
-                  scroll={{
-                    x: 'max-content',
-                  }}
-                  rowClassName={(record) => (record.color ? `row-${record.color}` : '')}
-                />
-              }
-              data={tableRows}
-              columns={orderedAddColumns}
-              loading={false}
-              useVirtualization={useVirtualization}
-              performanceMode={performanceMode}
-              displayRowLimit={displayRowLimit}
-              rowsPerPage={rowsPerPage}
-              onRowsPerPageChange={handleRowsPerPageChange}
-              editingRows={{}} // Режим добавления не использует editingRows
-            />
-          ) : (
-            <ChessboardOptimized
-              originalTable={
-                <Table<TableRow>
-                  dataSource={tableRows}
-                  columns={orderedViewColumns}
-                  pagination={true}
-                  rowKey="key"
-                  sticky
-                  scroll={{
-                    x: 'max-content',
-                  }}
-                  rowClassName={(record) => {
-                    const color = editingRows[record.key]?.color ?? record.color
-                    return color ? `row-${color}` : ''
-                  }}
-                />
-              }
-              data={tableRows}
-              columns={orderedViewColumns}
-              loading={false}
-              useVirtualization={useVirtualization}
-              onVirtualizationChange={handleVirtualizationChange}
-              virtualRowHeight={virtualRowHeight}
-              performanceMode={performanceMode}
-              onPerformanceModeChange={handlePerformanceModeChange}
-              displayRowLimit={displayRowLimit}
-              rowsPerPage={rowsPerPage}
-              onRowsPerPageChange={handleRowsPerPageChange}
-              editingRows={editingRows}
-            />
+                      return availableTypes
+                    })()}
+                    disabled={!filters.categoryId || filters.categoryId.length === 0}
+                    allowClear
+                    showSearch
+                    mode="multiple"
+                    filterOption={(input, option) => {
+                      const text = (option?.label ?? '').toString()
+                      return text.toLowerCase().includes(input.toLowerCase())
+                    }}
+                  />
+                </Space>
+                <Space>
+                  <Button icon={<SettingOutlined />} onClick={() => setColumnsSettingsOpen(true)}>
+                    Настройка столбцов
+                  </Button>
+                </Space>
+              </div>
+            </Card>
           )}
         </div>
-      )}
-      <Modal
-        title="Количество по этажам"
-        open={floorModalOpen}
-        onCancel={cancelFloorModal}
-        onOk={floorModalIsEdit ? saveFloorModal : undefined}
-        okText="Сохранить"
-        cancelText="Отменить"
-        footer={
-          floorModalIsEdit
-            ? undefined
-            : [
-                <Button key="close" onClick={cancelFloorModal}>
-                  Закрыть
-                </Button>,
-              ]
-        }
-      >
-        <div style={{ marginBottom: 16 }}>
-          <div>Шифр проекта: {floorModalInfo.projectCode}</div>
-          <div>Название проекта: {floorModalInfo.projectName || '-'}</div>
-          <div>Наименование работ: {floorModalInfo.workName}</div>
-          <div>
-            Материал: {floorModalInfo.material} ({floorModalInfo.unit})
-          </div>
-        </div>
-        <Table
-          dataSource={floorModalData.map((d, i) => ({ ...d, key: i }))}
-          columns={floorModalColumns}
-          pagination={false}
-          rowKey="key"
-        />
-        {floorModalIsEdit && (
-          <Button
-            type="dashed"
-            icon={<PlusOutlined />}
-            onClick={addFloorModalRow}
-            style={{ marginTop: 8 }}
+
+        {/* Таблица */}
+        {appliedFilters && (
+          <div
+            className="table-host chessboard-table"
+            style={{
+              borderRadius: '6px',
+            }}
           >
-            Добавить этаж
-          </Button>
+            {mode === 'add' ? (
+              <ChessboardOptimized
+                originalTable={
+                  <Table<TableRow>
+                    dataSource={tableRows}
+                    columns={orderedAddColumns}
+                    pagination={true}
+                    rowKey="key"
+                    sticky
+                    scroll={{
+                      x: 'max-content',
+                    }}
+                    rowClassName={(record) => (record.color ? `row-${record.color}` : '')}
+                  />
+                }
+                data={tableRows}
+                columns={orderedAddColumns}
+                loading={false}
+                useVirtualization={useVirtualization}
+                performanceMode={performanceMode}
+                displayRowLimit={displayRowLimit}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={handleRowsPerPageChange}
+                editingRows={{}} // Режим добавления не использует editingRows
+              />
+            ) : (
+              <ChessboardOptimized
+                originalTable={
+                  <Table<TableRow>
+                    dataSource={tableRows}
+                    columns={orderedViewColumns}
+                    pagination={true}
+                    rowKey="key"
+                    sticky
+                    scroll={{
+                      x: 'max-content',
+                    }}
+                    rowClassName={(record) => {
+                      const color = editingRows[record.key]?.color ?? record.color
+                      return color ? `row-${color}` : ''
+                    }}
+                  />
+                }
+                data={tableRows}
+                columns={orderedViewColumns}
+                loading={false}
+                useVirtualization={useVirtualization}
+                onVirtualizationChange={handleVirtualizationChange}
+                virtualRowHeight={virtualRowHeight}
+                performanceMode={performanceMode}
+                onPerformanceModeChange={handlePerformanceModeChange}
+                displayRowLimit={displayRowLimit}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={handleRowsPerPageChange}
+                editingRows={editingRows}
+              />
+            )}
+          </div>
         )}
-      </Modal>
-      <Modal
-        title="Импорт из Excel"
-        open={importOpen}
-        onCancel={() => {
-          setImportOpen(false)
-          setImportFile(null)
-          setImportState({})
-          setIsImporting(false) // Отключаем режим импорта при отмене
-        }}
-        onOk={handleImport}
-        okText="Импорт"
-        cancelText="Отмена"
-        okButtonProps={{ disabled: !importFile || !importState.projectId }}
-      >
-        <Space direction="vertical" style={{ width: '100%' }}>
+        <Modal
+          title="Количество по этажам"
+          open={floorModalOpen}
+          onCancel={cancelFloorModal}
+          onOk={floorModalIsEdit ? saveFloorModal : undefined}
+          okText="Сохранить"
+          cancelText="Отменить"
+          footer={
+            floorModalIsEdit
+              ? undefined
+              : [
+                  <Button key="close" onClick={cancelFloorModal}>
+                    Закрыть
+                  </Button>,
+                ]
+          }
+        >
           <div style={{ marginBottom: 16 }}>
-            <Typography.Text strong style={{ fontSize: '16px' }}>
-              Столбцы для импорта:
-            </Typography.Text>
-            <div style={{ marginTop: 8, padding: 12, backgroundColor: '#f5f5f5', borderRadius: 6 }}>
-              <Typography.Text style={{ fontSize: '14px' }}>
-                Данные будут загружены из следующих столбцов Excel (любые столбцы могут быть
-                пустыми):
-              </Typography.Text>
-              <ul style={{ margin: '8px 0', paddingLeft: 20 }}>
-                <li>Раздел</li>
-                <li>Шифр проекта</li>
-                <li>Корпус</li>
-                <li>Этажи</li>
-                <li>Материал</li>
-                <li>Кол-во по ПД</li>
-                <li>Кол-во по спеке РД</li>
-                <li>Кол-во по пересчету РД</li>
-                <li>Номенклатура</li>
-                <li>Наименование поставщика</li>
-                <li>Ед.изм.</li>
-              </ul>
-              <Typography.Text style={{ fontSize: '12px', color: '#666' }}>
-                Система автоматически найдет соответствующие столбцы по названиям
-              </Typography.Text>
+            <div>Шифр проекта: {floorModalInfo.projectCode}</div>
+            <div>Название проекта: {floorModalInfo.projectName || '-'}</div>
+            <div>Наименование работ: {floorModalInfo.workName}</div>
+            <div>
+              Материал: {floorModalInfo.material} ({floorModalInfo.unit})
             </div>
           </div>
-          <Upload.Dragger
-            beforeUpload={(file) => {
-              setImportFile(file)
-              return false
-            }}
-            onRemove={() => {
-              setImportFile(null)
-              return true
-            }}
-            maxCount={1}
-            accept=".xlsx,.xls"
-          >
-            <p className="ant-upload-drag-icon">
-              <InboxOutlined />
-            </p>
-            <p className="ant-upload-text">Перетащите файл или нажмите для выбора</p>
-          </Upload.Dragger>
-          <Select
-            placeholder="Проект"
-            style={{ width: '100%' }}
-            value={importState.projectId}
-            onChange={(value) => setImportState({ projectId: value })}
-            options={projects?.map((p) => ({ value: p.id, label: p.name })) ?? []}
+          <Table
+            dataSource={floorModalData.map((d, i) => ({ ...d, key: i }))}
+            columns={floorModalColumns}
+            pagination={false}
+            rowKey="key"
           />
-          <Select
-            placeholder="Корпус"
-            style={{ width: '100%' }}
-            value={importState.blockId}
-            onChange={(value) => setImportState((s) => ({ ...s, blockId: value }))}
-            options={importBlocks?.map((b) => ({ value: b.id, label: b.name })) ?? []}
-            disabled={!importState.projectId}
-          />
-          <Select
-            placeholder="Категория затрат"
-            style={{ width: '100%' }}
-            value={importState.categoryId}
-            onChange={(value) => {
-              setImportState((s) => ({
-                ...s,
-                categoryId: value || undefined,
-                typeId: undefined,
-                locationId: undefined,
-              }))
-            }}
-            popupMatchSelectWidth={false}
-            options={(() => {
-              const options =
-                costCategories
-                  ?.sort((a, b) => {
-                    // Сортируем по номеру, если он есть
-                    if (a.number && b.number) {
-                      const aNum = String(a.number)
-                      const bNum = String(b.number)
-                      return aNum.localeCompare(bNum)
-                    }
-                    return a.name.localeCompare(b.name)
-                  })
-                  .map((c) => ({
-                    value: String(c.id),
-                    label: c.name, // Отображаем только название без номера
-                  })) ?? []
-              return options
-            })()}
-          />
-          <Select
-            placeholder="Вид затрат"
-            style={{ width: '100%' }}
-            value={importState.typeId}
-            onChange={(value) => {
-              const loc = costTypes?.find((t) => {
-                const typeValue =
-                  Array.isArray(value) && value.length > 0 ? value[0] : (value as unknown as string)
-                return String(t.id) === typeValue
-              })?.location_id
-              setImportState((s) => ({
-                ...s,
-                typeId: value || undefined,
-                locationId: loc ? String(loc) : undefined,
-              }))
-            }}
-            options={
-              costTypes
-                ?.filter(
-                  (t) =>
-                    !importState.categoryId ||
-                    importState.categoryId.length === 0 ||
-                    importState.categoryId.includes(String(t.cost_category_id)),
-                )
-                .map((t) => ({ value: String(t.id), label: t.name })) ?? []
-            }
-            disabled={!importState.categoryId}
-          />
-          <Select
-            placeholder="Локализация"
-            style={{ width: '100%' }}
-            value={importState.locationId ?? ''}
-            onChange={(value) => setImportState((s) => ({ ...s, locationId: value || undefined }))}
-            options={locations?.map((l) => ({ value: String(l.id), label: l.name })) ?? []}
-          />
-          <Select
-            placeholder="Раздел"
-            style={{ width: '100%' }}
-            value={importState.tagId}
-            onChange={(value) =>
-              setImportState((s) => ({
-                ...s,
-                tagId: value || undefined,
-                documentationId: undefined,
-              }))
-            }
-            options={sortedDocumentationTags.map((tag) => ({
-              value: String(tag.id),
-              label: tag.name,
-            }))}
-            allowClear
-            showSearch
-            filterOption={(input, option) => {
-              const text = (option?.label ?? '').toString()
-              return text.toLowerCase().includes(input.toLowerCase())
-            }}
-          />
-          <Select
-            placeholder="Шифр тома"
-            style={{ width: '100%' }}
-            value={importState.documentationId}
-            onChange={(value) =>
-              setImportState((s) => ({
-                ...s,
-                documentationId: value || undefined,
-                versionId: undefined,
-              }))
-            }
-            options={
-              documentations
-                ?.filter(
-                  (doc: DocumentationRecordForList) =>
-                    !importState.tagId ||
-                    (doc.tag_id !== null && String(doc.tag_id) === importState.tagId),
-                )
-                .map((doc: DocumentationRecordForList) => ({
-                  value: doc.id,
-                  label: doc.project_code,
-                })) ?? []
-            }
-            disabled={!importState.tagId}
-            allowClear
-            showSearch
-            filterOption={(input, option) => {
-              const text = (option?.label ?? '').toString()
-              return text.toLowerCase().includes(input.toLowerCase())
-            }}
-          />
-          <Select
-            placeholder="Версия"
-            style={{ width: '100%' }}
-            value={importState.versionId}
-            onChange={(value) => setImportState((s) => ({ ...s, versionId: value || undefined }))}
-            options={
-              documentVersions
-                ?.filter((version) => version.documentation_id === importState.documentationId)
-                .sort((a, b) => b.version_number - a.version_number)
-                .map((version) => ({
-                  value: version.id,
-                  label: `Версия ${version.version_number}`,
-                })) ?? []
-            }
-            disabled={!importState.documentationId}
-            allowClear
-            showSearch
-            filterOption={(input, option) => {
-              const text = (option?.label ?? '').toString()
-              return text.toLowerCase().includes(input.toLowerCase())
-            }}
-          />
-        </Space>
-      </Modal>
-
-      {/* Модальное окно комментариев */}
-      <Modal
-        title="Комментарии"
-        open={commentsModalOpen}
-        onCancel={closeCommentsModal}
-        footer={null}
-        width={600}
-      >
-        <div style={{ marginBottom: 16 }}>
-          <Input.TextArea
-            value={newCommentText}
-            onChange={(e) => setNewCommentText(e.target.value)}
-            placeholder={
-              editingCommentId ? 'Редактировать комментарий...' : 'Добавить комментарий...'
-            }
-            rows={3}
-            style={{ marginBottom: 8 }}
-          />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            {editingCommentId && (
-              <Button
-                onClick={() => {
-                  setEditingCommentId(null)
-                  setNewCommentText('')
-                }}
-              >
-                Отмена
-              </Button>
-            )}
-            <Button type="primary" onClick={saveComment} disabled={!newCommentText.trim()}>
-              {editingCommentId ? 'Сохранить' : 'Добавить'}
+          {floorModalIsEdit && (
+            <Button
+              type="dashed"
+              icon={<PlusOutlined />}
+              onClick={addFloorModalRow}
+              style={{ marginTop: 8 }}
+            >
+              Добавить этаж
             </Button>
-          </div>
-        </div>
+          )}
+        </Modal>
+        <Modal
+          title="Импорт из Excel"
+          open={importOpen}
+          onCancel={() => {
+            setImportOpen(false)
+            setImportFile(null)
+            setImportState({})
+            setIsImporting(false) // Отключаем режим импорта при отмене
+          }}
+          onOk={handleImport}
+          okText="Импорт"
+          cancelText="Отмена"
+          okButtonProps={{ disabled: !importFile || !importState.projectId }}
+        >
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <div style={{ marginBottom: 16 }}>
+              <Typography.Text strong style={{ fontSize: '16px' }}>
+                Столбцы для импорта:
+              </Typography.Text>
+              <div
+                style={{ marginTop: 8, padding: 12, backgroundColor: '#f5f5f5', borderRadius: 6 }}
+              >
+                <Typography.Text style={{ fontSize: '14px' }}>
+                  Данные будут загружены из следующих столбцов Excel (любые столбцы могут быть
+                  пустыми):
+                </Typography.Text>
+                <ul style={{ margin: '8px 0', paddingLeft: 20 }}>
+                  <li>Раздел</li>
+                  <li>Шифр проекта</li>
+                  <li>Корпус</li>
+                  <li>Этажи</li>
+                  <li>Материал</li>
+                  <li>Кол-во по ПД</li>
+                  <li>Кол-во по спеке РД</li>
+                  <li>Кол-во по пересчету РД</li>
+                  <li>Номенклатура</li>
+                  <li>Наименование поставщика</li>
+                  <li>Ед.изм.</li>
+                </ul>
+                <Typography.Text style={{ fontSize: '12px', color: '#666' }}>
+                  Система автоматически найдет соответствующие столбцы по названиям
+                </Typography.Text>
+              </div>
+            </div>
+            <Upload.Dragger
+              beforeUpload={(file) => {
+                setImportFile(file)
+                return false
+              }}
+              onRemove={() => {
+                setImportFile(null)
+                return true
+              }}
+              maxCount={1}
+              accept=".xlsx,.xls"
+            >
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
+              <p className="ant-upload-text">Перетащите файл или нажмите для выбора</p>
+            </Upload.Dragger>
+            <Select
+              placeholder="Проект"
+              style={{ width: '100%' }}
+              value={importState.projectId}
+              onChange={(value) => setImportState({ projectId: value })}
+              options={projects?.map((p) => ({ value: p.id, label: p.name })) ?? []}
+            />
+            <Select
+              placeholder="Корпус"
+              style={{ width: '100%' }}
+              value={importState.blockId}
+              onChange={(value) => setImportState((s) => ({ ...s, blockId: value }))}
+              options={importBlocks?.map((b) => ({ value: b.id, label: b.name })) ?? []}
+              disabled={!importState.projectId}
+            />
+            <Select
+              placeholder="Категория затрат"
+              style={{ width: '100%' }}
+              value={importState.categoryId}
+              onChange={(value) => {
+                setImportState((s) => ({
+                  ...s,
+                  categoryId: value || undefined,
+                  typeId: undefined,
+                  locationId: undefined,
+                }))
+              }}
+              popupMatchSelectWidth={false}
+              options={(() => {
+                const options =
+                  costCategories
+                    ?.sort((a, b) => {
+                      // Сортируем по номеру, если он есть
+                      if (a.number && b.number) {
+                        const aNum = String(a.number)
+                        const bNum = String(b.number)
+                        return aNum.localeCompare(bNum)
+                      }
+                      return a.name.localeCompare(b.name)
+                    })
+                    .map((c) => ({
+                      value: String(c.id),
+                      label: c.name, // Отображаем только название без номера
+                    })) ?? []
+                return options
+              })()}
+            />
+            <Select
+              placeholder="Вид затрат"
+              style={{ width: '100%' }}
+              value={importState.typeId}
+              onChange={(value) => {
+                const loc = costTypes?.find((t) => {
+                  const typeValue =
+                    Array.isArray(value) && value.length > 0
+                      ? value[0]
+                      : (value as unknown as string)
+                  return String(t.id) === typeValue
+                })?.location_id
+                setImportState((s) => ({
+                  ...s,
+                  typeId: value || undefined,
+                  locationId: loc ? String(loc) : undefined,
+                }))
+              }}
+              options={
+                costTypes
+                  ?.filter(
+                    (t) =>
+                      !importState.categoryId ||
+                      importState.categoryId.length === 0 ||
+                      importState.categoryId.includes(String(t.cost_category_id)),
+                  )
+                  .map((t) => ({ value: String(t.id), label: t.name })) ?? []
+              }
+              disabled={!importState.categoryId}
+            />
+            <Select
+              placeholder="Локализация"
+              style={{ width: '100%' }}
+              value={importState.locationId ?? ''}
+              onChange={(value) =>
+                setImportState((s) => ({ ...s, locationId: value || undefined }))
+              }
+              options={locations?.map((l) => ({ value: String(l.id), label: l.name })) ?? []}
+            />
+            <Select
+              placeholder="Раздел"
+              style={{ width: '100%' }}
+              value={importState.tagId}
+              onChange={(value) =>
+                setImportState((s) => ({
+                  ...s,
+                  tagId: value || undefined,
+                  documentationId: undefined,
+                }))
+              }
+              options={sortedDocumentationTags.map((tag) => ({
+                value: String(tag.id),
+                label: tag.name,
+              }))}
+              allowClear
+              showSearch
+              filterOption={(input, option) => {
+                const text = (option?.label ?? '').toString()
+                return text.toLowerCase().includes(input.toLowerCase())
+              }}
+            />
+            <Select
+              placeholder="Шифр тома"
+              style={{ width: '100%' }}
+              value={importState.documentationId}
+              onChange={(value) =>
+                setImportState((s) => ({
+                  ...s,
+                  documentationId: value || undefined,
+                  versionId: undefined,
+                }))
+              }
+              options={
+                documentations
+                  ?.filter(
+                    (doc: DocumentationRecordForList) =>
+                      !importState.tagId ||
+                      (doc.tag_id !== null && String(doc.tag_id) === importState.tagId),
+                  )
+                  .map((doc: DocumentationRecordForList) => ({
+                    value: doc.id,
+                    label: doc.project_code,
+                  })) ?? []
+              }
+              disabled={!importState.tagId}
+              allowClear
+              showSearch
+              filterOption={(input, option) => {
+                const text = (option?.label ?? '').toString()
+                return text.toLowerCase().includes(input.toLowerCase())
+              }}
+            />
+            <Select
+              placeholder="Версия"
+              style={{ width: '100%' }}
+              value={importState.versionId}
+              onChange={(value) => setImportState((s) => ({ ...s, versionId: value || undefined }))}
+              options={
+                documentVersions
+                  ?.filter((version) => version.documentation_id === importState.documentationId)
+                  .sort((a, b) => b.version_number - a.version_number)
+                  .map((version) => ({
+                    value: version.id,
+                    label: `Версия ${version.version_number}`,
+                  })) ?? []
+              }
+              disabled={!importState.documentationId}
+              allowClear
+              showSearch
+              filterOption={(input, option) => {
+                const text = (option?.label ?? '').toString()
+                return text.toLowerCase().includes(input.toLowerCase())
+              }}
+            />
+          </Space>
+        </Modal>
 
-        {comments.length > 0 && (
-          <div>
-            <Typography.Title level={5}>Все комментарии:</Typography.Title>
-            {comments.map((comment) => (
-              <Card key={comment.id} size="small" style={{ marginBottom: 8 }}>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
+        {/* Модальное окно комментариев */}
+        <Modal
+          title="Комментарии"
+          open={commentsModalOpen}
+          onCancel={closeCommentsModal}
+          footer={null}
+          width={600}
+        >
+          <div style={{ marginBottom: 16 }}>
+            <Input.TextArea
+              value={newCommentText}
+              onChange={(e) => setNewCommentText(e.target.value)}
+              placeholder={
+                editingCommentId ? 'Редактировать комментарий...' : 'Добавить комментарий...'
+              }
+              rows={3}
+              style={{ marginBottom: 8 }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              {editingCommentId && (
+                <Button
+                  onClick={() => {
+                    setEditingCommentId(null)
+                    setNewCommentText('')
                   }}
                 >
-                  <div style={{ flex: 1 }}>
-                    <Typography.Text>{comment.comment_text}</Typography.Text>
-                    <div style={{ marginTop: 4, fontSize: '12px', color: '#666' }}>
-                      Создан: {new Date(comment.created_at).toLocaleString('ru')}
-                      {comment.updated_at !== comment.created_at && (
-                        <span> • Изменен: {new Date(comment.updated_at).toLocaleString('ru')}</span>
-                      )}
+                  Отмена
+                </Button>
+              )}
+              <Button type="primary" onClick={saveComment} disabled={!newCommentText.trim()}>
+                {editingCommentId ? 'Сохранить' : 'Добавить'}
+              </Button>
+            </div>
+          </div>
+
+          {comments.length > 0 && (
+            <div>
+              <Typography.Title level={5}>Все комментарии:</Typography.Title>
+              {comments.map((comment) => (
+                <Card key={comment.id} size="small" style={{ marginBottom: 8 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <Typography.Text>{comment.comment_text}</Typography.Text>
+                      <div style={{ marginTop: 4, fontSize: '12px', color: '#666' }}>
+                        Создан: {new Date(comment.created_at).toLocaleString('ru')}
+                        {comment.updated_at !== comment.created_at && (
+                          <span>
+                            {' '}
+                            • Изменен: {new Date(comment.updated_at).toLocaleString('ru')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, marginLeft: 8 }}>
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<EditOutlined />}
+                        onClick={() => startEditComment(comment)}
+                      />
+                      <SimpleDeleteConfirm
+                        title="Удалить комментарий?"
+                        content="Вы уверены, что хотите удалить этот комментарий?"
+                        onConfirm={() => deleteComment(comment.id)}
+                      >
+                        <Button type="text" size="small" icon={<DeleteOutlined />} danger />
+                      </SimpleDeleteConfirm>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 4, marginLeft: 8 }}>
+                </Card>
+              ))}
+            </div>
+          )}
+        </Modal>
+
+        {/* Модальное окно версий документов */}
+        <Modal
+          title="Выбор версий документов"
+          open={versionsModalOpen}
+          onCancel={closeVersionsModal}
+          onOk={applyVersions}
+          width={800}
+          okText="Применить версии"
+          cancelText="Отмена"
+        >
+          <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+            {documentations
+              ?.filter((doc) => appliedFilters?.documentationId?.includes(doc.id))
+              .map((doc) => {
+                const docVersions =
+                  documentVersions?.filter((v) => v.documentation_id === doc.id) || []
+                return (
+                  <Card key={doc.id} size="small" style={{ marginBottom: 16 }}>
+                    <Typography.Title level={5} style={{ marginBottom: 8 }}>
+                      Шифр: {doc.project_code}
+                    </Typography.Title>
+                    {docVersions.length > 0 ? (
+                      <Select
+                        placeholder="Выберите версию"
+                        style={{ width: '100%' }}
+                        value={selectedVersions[doc.id]}
+                        onChange={(value) => handleVersionSelect(doc.id, value)}
+                        options={docVersions.map((version) => ({
+                          value: version.id,
+                          label: (
+                            <div
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                              }}
+                            >
+                              <span>Версия {version.version_number}</span>
+                              <div
+                                style={{ display: 'flex', gap: 8, fontSize: '12px', color: '#666' }}
+                              >
+                                {version.issue_date && (
+                                  <span>
+                                    {new Date(version.issue_date).toLocaleDateString('ru')}
+                                  </span>
+                                )}
+                                <span
+                                  style={{
+                                    color:
+                                      version.status === 'filled_recalc'
+                                        ? '#52c41a'
+                                        : version.status === 'filled_spec'
+                                          ? '#1890ff'
+                                          : version.status === 'vor_created'
+                                            ? '#722ed1'
+                                            : '#faad14',
+                                  }}
+                                >
+                                  {version.status === 'filled_recalc'
+                                    ? 'Заполнено (пересчет)'
+                                    : version.status === 'filled_spec'
+                                      ? 'Заполнено (спец.)'
+                                      : version.status === 'vor_created'
+                                        ? 'ВОР создан'
+                                        : 'Не заполнено'}
+                                </span>
+                              </div>
+                            </div>
+                          ),
+                        }))}
+                      />
+                    ) : (
+                      <Typography.Text type="secondary">Версии не найдены</Typography.Text>
+                    )}
+                  </Card>
+                )
+              })}
+          </div>
+        </Modal>
+
+        <Drawer
+          title="Настройка столбцов"
+          placement="right"
+          onClose={() => setColumnsSettingsOpen(false)}
+          open={columnsSettingsOpen}
+          width={350}
+        >
+          <div
+            style={{
+              marginBottom: 16,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <Checkbox
+              checked={allColumns.every((col) => columnVisibility[col.key] !== false)}
+              indeterminate={
+                allColumns.some((col) => columnVisibility[col.key]) &&
+                !allColumns.every((col) => columnVisibility[col.key] !== false)
+              }
+              onChange={(e) => selectAllColumns(e.target.checked)}
+            >
+              Выделить все
+            </Checkbox>
+            <Button type="link" onClick={resetToDefaults}>
+              По умолчанию
+            </Button>
+          </div>
+          <List
+            dataSource={columnOrder
+              .map((key) => {
+                const col = allColumns.find((c) => c.key === key)
+                return col ? { ...col, visible: columnVisibility[key] !== false } : null
+              })
+              .filter(Boolean)}
+            renderItem={(item, index) =>
+              item && (
+                <List.Item
+                  actions={[
                     <Button
                       type="text"
+                      icon={<ArrowUpOutlined />}
+                      onClick={() => moveColumn(item.key, 'up')}
+                      disabled={index === 0}
                       size="small"
-                      icon={<EditOutlined />}
-                      onClick={() => startEditComment(comment)}
-                    />
-                    <SimpleDeleteConfirm
-                      title="Удалить комментарий?"
-                      content="Вы уверены, что хотите удалить этот комментарий?"
-                      onConfirm={() => deleteComment(comment.id)}
-                    >
-                      <Button type="text" size="small" icon={<DeleteOutlined />} danger />
-                    </SimpleDeleteConfirm>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </Modal>
-
-      {/* Модальное окно версий документов */}
-      <Modal
-        title="Выбор версий документов"
-        open={versionsModalOpen}
-        onCancel={closeVersionsModal}
-        onOk={applyVersions}
-        width={800}
-        okText="Применить версии"
-        cancelText="Отмена"
-      >
-        <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-          {documentations
-            ?.filter((doc) => appliedFilters?.documentationId?.includes(doc.id))
-            .map((doc) => {
-              const docVersions =
-                documentVersions?.filter((v) => v.documentation_id === doc.id) || []
-              return (
-                <Card key={doc.id} size="small" style={{ marginBottom: 16 }}>
-                  <Typography.Title level={5} style={{ marginBottom: 8 }}>
-                    Шифр: {doc.project_code}
-                  </Typography.Title>
-                  {docVersions.length > 0 ? (
-                    <Select
-                      placeholder="Выберите версию"
-                      style={{ width: '100%' }}
-                      value={selectedVersions[doc.id]}
-                      onChange={(value) => handleVersionSelect(doc.id, value)}
-                      options={docVersions.map((version) => ({
-                        value: version.id,
-                        label: (
-                          <div
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                            }}
-                          >
-                            <span>Версия {version.version_number}</span>
-                            <div
-                              style={{ display: 'flex', gap: 8, fontSize: '12px', color: '#666' }}
-                            >
-                              {version.issue_date && (
-                                <span>{new Date(version.issue_date).toLocaleDateString('ru')}</span>
-                              )}
-                              <span
-                                style={{
-                                  color:
-                                    version.status === 'filled_recalc'
-                                      ? '#52c41a'
-                                      : version.status === 'filled_spec'
-                                        ? '#1890ff'
-                                        : version.status === 'vor_created'
-                                          ? '#722ed1'
-                                          : '#faad14',
-                                }}
-                              >
-                                {version.status === 'filled_recalc'
-                                  ? 'Заполнено (пересчет)'
-                                  : version.status === 'filled_spec'
-                                    ? 'Заполнено (спец.)'
-                                    : version.status === 'vor_created'
-                                      ? 'ВОР создан'
-                                      : 'Не заполнено'}
-                              </span>
-                            </div>
-                          </div>
-                        ),
-                      }))}
-                    />
-                  ) : (
-                    <Typography.Text type="secondary">Версии не найдены</Typography.Text>
-                  )}
-                </Card>
+                    />,
+                    <Button
+                      type="text"
+                      icon={<ArrowDownOutlined />}
+                      onClick={() => moveColumn(item.key, 'down')}
+                      disabled={index === columnOrder.length - 1}
+                      size="small"
+                    />,
+                  ]}
+                >
+                  <Checkbox
+                    checked={item.visible}
+                    onChange={() => toggleColumnVisibility(item.key)}
+                  >
+                    {item.title}
+                  </Checkbox>
+                </List.Item>
               )
-            })}
-        </div>
-      </Modal>
-
-      <Drawer
-        title="Настройка столбцов"
-        placement="right"
-        onClose={() => setColumnsSettingsOpen(false)}
-        open={columnsSettingsOpen}
-        width={350}
-      >
-        <div
-          style={{
-            marginBottom: 16,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <Checkbox
-            checked={allColumns.every((col) => columnVisibility[col.key] !== false)}
-            indeterminate={
-              allColumns.some((col) => columnVisibility[col.key]) &&
-              !allColumns.every((col) => columnVisibility[col.key] !== false)
             }
-            onChange={(e) => selectAllColumns(e.target.checked)}
-          >
-            Выделить все
-          </Checkbox>
-          <Button type="link" onClick={resetToDefaults}>
-            По умолчанию
-          </Button>
-        </div>
-        <List
-          dataSource={columnOrder
-            .map((key) => {
-              const col = allColumns.find((c) => c.key === key)
-              return col ? { ...col, visible: columnVisibility[key] !== false } : null
-            })
-            .filter(Boolean)}
-          renderItem={(item, index) =>
-            item && (
-              <List.Item
-                actions={[
-                  <Button
-                    type="text"
-                    icon={<ArrowUpOutlined />}
-                    onClick={() => moveColumn(item.key, 'up')}
-                    disabled={index === 0}
-                    size="small"
-                  />,
-                  <Button
-                    type="text"
-                    icon={<ArrowDownOutlined />}
-                    onClick={() => moveColumn(item.key, 'down')}
-                    disabled={index === columnOrder.length - 1}
-                    size="small"
-                  />,
-                ]}
-              >
-                <Checkbox checked={item.visible} onChange={() => toggleColumnVisibility(item.key)}>
-                  {item.title}
-                </Checkbox>
-              </List.Item>
-            )
-          }
+          />
+        </Drawer>
+
+        {/* Модальное окно со списком комплектов */}
+        <ChessboardSetsModal
+          open={setsModalOpen}
+          onClose={() => setSetsModalOpen(false)}
+          projectId={appliedFilters?.projectId}
+          onSelectSet={applySetFilters}
+          currentSetId={matchedSet?.id || null}
         />
-      </Drawer>
 
-      {/* Модальное окно со списком комплектов */}
-      <ChessboardSetsModal
-        open={setsModalOpen}
-        onClose={() => setSetsModalOpen(false)}
-        projectId={appliedFilters?.projectId}
-        onSelectSet={applySetFilters}
-        currentSetId={matchedSet?.id || null}
-      />
+        {/* Модальное окно для ввода названия комплекта */}
+        <Modal
+          title="Название комплекта"
+          open={setNameModalOpen}
+          onOk={handleSetNameConfirm}
+          onCancel={() => {
+            setSetNameModalOpen(false)
+            setPendingStatusId(undefined)
+            setSetNameInput('')
+            setSelectedSetStatus(undefined)
+          }}
+          okText="Создать"
+          cancelText="Отмена"
+          width={600}
+        >
+          <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            <div>
+              <Text>Выберите название из справочника или введите свое:</Text>
+            </div>
 
-      {/* Модальное окно для ввода названия комплекта */}
-      <Modal
-        title="Название комплекта"
-        open={setNameModalOpen}
-        onOk={handleSetNameConfirm}
-        onCancel={() => {
-          setSetNameModalOpen(false)
-          setPendingStatusId(undefined)
-          setSetNameInput('')
-          setSelectedSetStatus(undefined)
-        }}
-        okText="Создать"
-        cancelText="Отмена"
-        width={600}
-      >
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <div>
-            <Text>Выберите название из справочника или введите свое:</Text>
-          </div>
+            {/* Выбор из существующих названий документации */}
+            <Select
+              placeholder="Выберите название из документации"
+              style={{ width: '100%' }}
+              allowClear
+              showSearch
+              value={setNameInput || undefined}
+              onChange={(value) => setSetNameInput(value || '')}
+              filterOption={(input, option) => {
+                const text = option?.label?.toString() || ''
+                return text.toLowerCase().includes(input.toLowerCase())
+              }}
+              options={documentations
+                ?.filter(
+                  (doc) => appliedFilters?.documentationId?.includes(doc.id) && doc.project_name,
+                )
+                .map((doc) => ({
+                  value: doc.project_name,
+                  label: doc.project_name,
+                }))
+                .filter(
+                  (option, index, self) =>
+                    // Убираем дубликаты по названию
+                    option.value && index === self.findIndex((o) => o.value === option.value),
+                )}
+            />
 
-          {/* Выбор из существующих названий документации */}
-          <Select
-            placeholder="Выберите название из документации"
-            style={{ width: '100%' }}
-            allowClear
-            showSearch
-            value={setNameInput || undefined}
-            onChange={(value) => setSetNameInput(value || '')}
-            filterOption={(input, option) => {
-              const text = option?.label?.toString() || ''
-              return text.toLowerCase().includes(input.toLowerCase())
-            }}
-            options={documentations
-              ?.filter(
-                (doc) => appliedFilters?.documentationId?.includes(doc.id) && doc.project_name,
-              )
-              .map((doc) => ({
-                value: doc.project_name,
-                label: doc.project_name,
-              }))
-              .filter(
-                (option, index, self) =>
-                  // Убираем дубликаты по названию
-                  option.value && index === self.findIndex((o) => o.value === option.value),
-              )}
-          />
+            {/* Или ввод произвольного названия */}
+            <Input
+              placeholder="Или введите свое название"
+              value={setNameInput}
+              onChange={(e) => setSetNameInput(e.target.value)}
+              onPressEnter={handleSetNameConfirm}
+            />
 
-          {/* Или ввод произвольного названия */}
-          <Input
-            placeholder="Или введите свое название"
-            value={setNameInput}
-            onChange={(e) => setSetNameInput(e.target.value)}
-            onPressEnter={handleSetNameConfirm}
-          />
-
-          <div>
-            <Text type="secondary">
-              Название будет использоваться для идентификации комплекта. Если оставить пустым, будет
-              использован номер комплекта.
-            </Text>
-          </div>
-        </Space>
-      </Modal>
+            <div>
+              <Text type="secondary">
+                Название будет использоваться для идентификации комплекта. Если оставить пустым,
+                будет использован номер комплекта.
+              </Text>
+            </div>
+          </Space>
+        </Modal>
       </div>
     </DropdownPortalManager>
   )

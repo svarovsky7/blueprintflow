@@ -4,7 +4,7 @@ import type {
   MLPredictionResponse,
   NomenclatureSuggestion,
   MLConfig,
-  MLMetrics
+  MLMetrics,
 } from '../model/types'
 
 // ===============================
@@ -15,7 +15,7 @@ import {
   deepseekApi,
   mlModeApi,
   type DeepseekMaterialRequest,
-  type MLMode
+  type MLMode,
 } from '@/entities/api-settings'
 
 /**
@@ -35,7 +35,7 @@ export const getMLConfig = async (): Promise<MLConfig> => {
     prefixBonus: 0.25,
     similarityWeight: 0.6,
     minWordLength: 3,
-    ignoredTerms: ['м3', 'м2', 'кг', 'шт', 'п.м.', 'компл.', 'м.п.', 'т']
+    ignoredTerms: ['м3', 'м2', 'кг', 'шт', 'п.м.', 'компл.', 'м.п.', 'т'],
   }
 
   try {
@@ -65,7 +65,7 @@ export const saveMLConfig = async (config: Partial<MLConfig>): Promise<void> => 
  */
 export const predictNomenclature = async (
   request: MLPredictionRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<MLPredictionResponse> => {
   const startTime = Date.now()
   const config = await getMLConfig()
@@ -74,7 +74,7 @@ export const predictNomenclature = async (
   console.log('🔍 ML Nomenclature DEBUG: AbortSignal status:', {
     hasSignal: !!signal,
     aborted: signal?.aborted || false,
-    materialName: request.materialName
+    materialName: request.materialName,
   })
 
   if (!config.enabled) {
@@ -111,7 +111,7 @@ export const predictNomenclature = async (
             return {
               ...aiResult,
               processingTime: Date.now() - startTime,
-              modelUsed: 'deepseek'
+              modelUsed: 'deepseek',
             }
           }
         } catch (aiError) {
@@ -150,14 +150,13 @@ export const predictNomenclature = async (
       return {
         suggestions: suggestions.slice(0, config.maxSuggestions),
         processingTime: Date.now() - startTime,
-        modelUsed: 'similarity'
+        modelUsed: 'similarity',
       }
     }
 
     // Если similarity не дал результатов, используем fallback
     console.log('🔬 ML Mode: Нет результатов, используем fallback')
     return getFallbackSuggestions(request, startTime)
-
   } catch (error) {
     console.error('❌ ML prediction error:', error) // LOG: ошибка ML предсказания
     return getFallbackSuggestions(request, startTime, 'Ошибка ML модели')
@@ -168,7 +167,7 @@ export const predictNomenclature = async (
  * УЛУЧШЕННЫЙ similarity-based поиск номенклатуры с настройками точности
  */
 const getSimilarityBasedSuggestions = async (
-  request: MLPredictionRequest
+  request: MLPredictionRequest,
 ): Promise<NomenclatureSuggestion[]> => {
   if (!supabase) throw new Error('Supabase not initialized')
 
@@ -178,14 +177,19 @@ const getSimilarityBasedSuggestions = async (
 
   if (searchTerm.length < 2) return []
 
-  console.log('🔍 ML: Starting enhanced search for:', searchTerm, 'with algorithm:', config.algorithm) // LOG: начало улучшенного поиска
+  console.log(
+    '🔍 ML: Starting enhanced search for:',
+    searchTerm,
+    'with algorithm:',
+    config.algorithm,
+  ) // LOG: начало улучшенного поиска
   console.log('🔍 ML: Current config:', JSON.stringify(config, null, 2)) // LOG: текущая конфигурация ML
 
   // Расширяем поиск для лучшего охвата
   console.log('🔍 ML: Executing Supabase query with term:', searchTerm) // LOG: выполнение запроса Supabase
 
   // УЛУЧШЕННЫЙ поиск: ищем как по полному термину, так и по ключевым словам
-  const searchWords = searchTerm.split(/[\s\-.,()]+/).filter(word => word.length >= 2)
+  const searchWords = searchTerm.split(/[\s\-.,()]+/).filter((word) => word.length >= 2)
   console.log('🔍 ML: Search words extracted:', searchWords) // LOG: извлеченные слова для поиска
 
   // Стратегия 1: Точный поиск по полному термину
@@ -218,12 +222,16 @@ const getSimilarityBasedSuggestions = async (
   }
 
   // Стратегия 3: Если всё ещё нет результатов, пробуем синонимы
-  if ((!matches || matches.length === 0)) {
+  if (!matches || matches.length === 0) {
     console.log('🔍 ML: Trying synonyms search...') // LOG: поиск по синонимам
     const synonymSearchTerms = ['пенопласт', 'полистирол', 'пенополистирол']
 
     for (const synonym of synonymSearchTerms) {
-      if (searchTerm.includes(synonym) || searchTerm.includes('псб') || searchTerm.includes('пенопо')) {
+      if (
+        searchTerm.includes(synonym) ||
+        searchTerm.includes('псб') ||
+        searchTerm.includes('пенопо')
+      ) {
         const { data: synonymMatches, error: synonymError } = await supabase
           .from('nomenclature')
           .select('id, name')
@@ -245,7 +253,7 @@ const getSimilarityBasedSuggestions = async (
     matches: matches?.length || 0,
     error: error?.message || 'none',
     searchTerm,
-    sampleData: matches?.slice(0, 3)?.map(m => m.name) || []
+    sampleData: matches?.slice(0, 3)?.map((m) => m.name) || [],
   }) // LOG: результат запроса Supabase
 
   if (error) {
@@ -272,7 +280,9 @@ const getSimilarityBasedSuggestions = async (
 
   // Очищаем поисковый термин от игнорируемых терминов
   const cleanedSearchTerm = cleanTermForMatching(searchTerm, config.ignoredTerms)
-  const cleanedSearchWords = cleanedSearchTerm.split(/\s+/).filter(word => word.length >= config.minWordLength)
+  const cleanedSearchWords = cleanedSearchTerm
+    .split(/\s+/)
+    .filter((word) => word.length >= config.minWordLength)
 
   console.log('🔍 ML: Original term:', searchTerm) // LOG: оригинальный поисковый термин
   console.log('🔍 ML: Cleaned search term:', cleanedSearchTerm, 'words:', cleanedSearchWords) // LOG: очищенный поисковый термин
@@ -282,68 +292,81 @@ const getSimilarityBasedSuggestions = async (
   console.log('🔍 ML: Effective search term:', effectiveSearchTerm) // LOG: эффективный поисковый термин
 
   // Вычисляем similarity с учетом настроек
-  const suggestions = matches.map((nom, index) => {
-    const nomLower = nom.name.toLowerCase()
-    const cleanedNomName = cleanTermForMatching(nomLower, config.ignoredTerms)
+  const suggestions = matches
+    .map((nom, index) => {
+      const nomLower = nom.name.toLowerCase()
+      const cleanedNomName = cleanTermForMatching(nomLower, config.ignoredTerms)
 
-    // Базовый similarity score с помощью Levenshtein
-    const rawSimilarity = calculateStringSimilarity(effectiveSearchTerm, cleanedNomName)
-    const similarity = rawSimilarity * config.similarityWeight
+      // Базовый similarity score с помощью Levenshtein
+      const rawSimilarity = calculateStringSimilarity(effectiveSearchTerm, cleanedNomName)
+      const similarity = rawSimilarity * config.similarityWeight
 
-    let totalBonus = 0
-    const bonusBreakdown = []
+      let totalBonus = 0
+      const bonusBreakdown = []
 
-    // Бонус за точное совпадение префикса
-    if (cleanedNomName.startsWith(effectiveSearchTerm) || nomLower.startsWith(searchTerm)) {
-      totalBonus += config.prefixBonus
-      bonusBreakdown.push(`prefix:${Math.round(config.prefixBonus * 100)}%`)
-    }
+      // Бонус за точное совпадение префикса
+      if (cleanedNomName.startsWith(effectiveSearchTerm) || nomLower.startsWith(searchTerm)) {
+        totalBonus += config.prefixBonus
+        bonusBreakdown.push(`prefix:${Math.round(config.prefixBonus * 100)}%`)
+      }
 
-    // Бонус за точное вхождение
-    if (cleanedNomName.includes(effectiveSearchTerm) || nomLower.includes(searchTerm)) {
-      totalBonus += config.exactMatchBonus
-      bonusBreakdown.push(`exact:${Math.round(config.exactMatchBonus * 100)}%`)
-    }
+      // Бонус за точное вхождение
+      if (cleanedNomName.includes(effectiveSearchTerm) || nomLower.includes(searchTerm)) {
+        totalBonus += config.exactMatchBonus
+        bonusBreakdown.push(`exact:${Math.round(config.exactMatchBonus * 100)}%`)
+      }
 
-    // Расширенный анализ ключевых слов для материалов
-    const keywordScore = calculateKeywordScore(searchWords, cleanedNomName, config)
-    const keywordBonus = keywordScore * config.keywordBonus
-    totalBonus += keywordBonus
-    bonusBreakdown.push(`keywords:${Math.round(keywordScore * 100)}%*${Math.round(config.keywordBonus * 100)}%=${Math.round(keywordBonus * 100)}%`)
+      // Расширенный анализ ключевых слов для материалов
+      const keywordScore = calculateKeywordScore(searchWords, cleanedNomName, config)
+      const keywordBonus = keywordScore * config.keywordBonus
+      totalBonus += keywordBonus
+      bonusBreakdown.push(
+        `keywords:${Math.round(keywordScore * 100)}%*${Math.round(config.keywordBonus * 100)}%=${Math.round(keywordBonus * 100)}%`,
+      )
 
-    // Применяем алгоритм настройки точности
-    let finalScore = similarity + totalBonus
-    const beforeAlgorithm = finalScore
-    finalScore = applyAlgorithmSettings(finalScore, config.algorithm)
+      // Применяем алгоритм настройки точности
+      let finalScore = similarity + totalBonus
+      const beforeAlgorithm = finalScore
+      finalScore = applyAlgorithmSettings(finalScore, config.algorithm)
 
-    const finalConfidence = Math.max(0.1, Math.min(0.95, finalScore))
+      const finalConfidence = Math.max(0.1, Math.min(0.95, finalScore))
 
-    // Детальный лог для первых 3 результатов
-    if (index < 3) {
-      console.log(`🔍 ML: [${index + 1}] "${nom.name}"`) // LOG: детали расчета для топ результатов
-      console.log(`   Original: "${searchTerm}" vs "${nomLower}"`) // LOG: оригинальные строки
-      console.log(`   Effective: "${effectiveSearchTerm}" vs "${cleanedNomName}"`) // LOG: эффективные строки для расчета
-      console.log(`   Raw similarity: ${Math.round(rawSimilarity * 100)}%`) // LOG: сырое сходство
-      console.log(`   Weighted similarity: ${Math.round(similarity * 100)}% (weight: ${Math.round(config.similarityWeight * 100)}%)`) // LOG: взвешенное сходство
-      console.log(`   Bonuses: ${bonusBreakdown.join(', ')}`) // LOG: бонусы
-      console.log(`   Before algorithm: ${Math.round(beforeAlgorithm * 100)}%`) // LOG: до применения алгоритма
-      console.log(`   After ${config.algorithm}: ${Math.round(finalScore * 100)}%`) // LOG: после применения алгоритма
-      console.log(`   Final confidence: ${Math.round(finalConfidence * 100)}%`) // LOG: итоговая уверенность
-    }
+      // Детальный лог для первых 3 результатов
+      if (index < 3) {
+        console.log(`🔍 ML: [${index + 1}] "${nom.name}"`) // LOG: детали расчета для топ результатов
+        console.log(`   Original: "${searchTerm}" vs "${nomLower}"`) // LOG: оригинальные строки
+        console.log(`   Effective: "${effectiveSearchTerm}" vs "${cleanedNomName}"`) // LOG: эффективные строки для расчета
+        console.log(`   Raw similarity: ${Math.round(rawSimilarity * 100)}%`) // LOG: сырое сходство
+        console.log(
+          `   Weighted similarity: ${Math.round(similarity * 100)}% (weight: ${Math.round(config.similarityWeight * 100)}%)`,
+        ) // LOG: взвешенное сходство
+        console.log(`   Bonuses: ${bonusBreakdown.join(', ')}`) // LOG: бонусы
+        console.log(`   Before algorithm: ${Math.round(beforeAlgorithm * 100)}%`) // LOG: до применения алгоритма
+        console.log(`   After ${config.algorithm}: ${Math.round(finalScore * 100)}%`) // LOG: после применения алгоритма
+        console.log(`   Final confidence: ${Math.round(finalConfidence * 100)}%`) // LOG: итоговая уверенность
+      }
 
-    return {
-      id: nom.id,
-      name: nom.name,
-      confidence: finalConfidence,
-      reasoning: `${config.algorithm.toUpperCase()}: ${Math.round(rawSimilarity * 100)}% sim * ${Math.round(config.similarityWeight * 100)}% + ${Math.round(totalBonus * 100)}% bonus → ${Math.round(finalConfidence * 100)}%`
-    }
-  })
-  .filter(suggestion => suggestion.confidence >= config.confidenceThreshold)
-  .sort((a, b) => b.confidence - a.confidence)
-  .slice(0, config.maxSuggestions)
+      return {
+        id: nom.id,
+        name: nom.name,
+        confidence: finalConfidence,
+        reasoning: `${config.algorithm.toUpperCase()}: ${Math.round(rawSimilarity * 100)}% sim * ${Math.round(config.similarityWeight * 100)}% + ${Math.round(totalBonus * 100)}% bonus → ${Math.round(finalConfidence * 100)}%`,
+      }
+    })
+    .filter((suggestion) => suggestion.confidence >= config.confidenceThreshold)
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, config.maxSuggestions)
 
-  console.log('🔍 ML: Returning suggestions:', suggestions.length, 'avg confidence:',
-    suggestions.length > 0 ? Math.round(suggestions.reduce((sum, s) => sum + s.confidence, 0) / suggestions.length * 100) + '%' : 'N/A') // LOG: возвращаем предложения
+  console.log(
+    '🔍 ML: Returning suggestions:',
+    suggestions.length,
+    'avg confidence:',
+    suggestions.length > 0
+      ? Math.round(
+          (suggestions.reduce((sum, s) => sum + s.confidence, 0) / suggestions.length) * 100,
+        ) + '%'
+      : 'N/A',
+  ) // LOG: возвращаем предложения
 
   return suggestions
 }
@@ -354,7 +377,7 @@ const getSimilarityBasedSuggestions = async (
 const getFallbackSuggestions = async (
   request: MLPredictionRequest,
   startTime: number,
-  reason?: string
+  reason?: string,
 ): Promise<MLPredictionResponse> => {
   if (!supabase) throw new Error('Supabase not initialized')
 
@@ -370,18 +393,18 @@ const getFallbackSuggestions = async (
 
   if (error) throw error
 
-  const suggestions: NomenclatureSuggestion[] = (nomenclatures || []).map(nom => ({
+  const suggestions: NomenclatureSuggestion[] = (nomenclatures || []).map((nom) => ({
     id: nom.id,
     name: nom.name,
     confidence: 0.5, // фиксированная confidence для fallback
-    reasoning: 'Классический текстовый поиск'
+    reasoning: 'Классический текстовый поиск',
   }))
 
   return {
     suggestions,
     processingTime: Date.now() - startTime,
     modelUsed: 'fallback',
-    fallbackReason: reason || 'ML недоступен'
+    fallbackReason: reason || 'ML недоступен',
   }
 }
 
@@ -392,7 +415,7 @@ const cleanTermForMatching = (term: string, ignoredTerms: string[]): string => {
   let cleaned = term.toLowerCase()
 
   // Удаляем игнорируемые термины
-  ignoredTerms.forEach(ignored => {
+  ignoredTerms.forEach((ignored) => {
     const regex = new RegExp(`\\b${ignored.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi')
     cleaned = cleaned.replace(regex, '')
   })
@@ -419,7 +442,7 @@ const calculateKeywordScore = (searchWords: string[], nomName: string, config: a
   let partialMatches = 0
   const matchDetails: string[] = []
 
-  searchWords.forEach(searchWord => {
+  searchWords.forEach((searchWord) => {
     if (nomName.includes(searchWord)) {
       matchedWords++
       matchDetails.push(`"${searchWord}":exact`)
@@ -440,7 +463,9 @@ const calculateKeywordScore = (searchWords: string[], nomName: string, config: a
 
   // LOG: детали анализа ключевых слов (только для первого номенклатурного элемента в процессе)
   if (searchWords.length > 0 && (matchedWords > 0 || partialMatches > 0)) {
-    console.log(`🔍 ML: Keyword analysis for "${nomName.substring(0, 40)}...": ${matchDetails.join(', ')} → score: ${Math.round(totalScore * 100)}%`) // LOG: анализ ключевых слов
+    console.log(
+      `🔍 ML: Keyword analysis for "${nomName.substring(0, 40)}...": ${matchDetails.join(', ')} → score: ${Math.round(totalScore * 100)}%`,
+    ) // LOG: анализ ключевых слов
   }
 
   return Math.min(1.0, totalScore)
@@ -452,22 +477,22 @@ const calculateKeywordScore = (searchWords: string[], nomName: string, config: a
 const findPartialMatch = (searchWord: string, nomName: string): boolean => {
   // РАСШИРЕННЫЕ специальные правила для материалов
   const materialRules: { [key: string]: string[] } = {
-    'пенополистирол': ['пенополистир', 'псб', 'псбс', 'пс', 'пенопласт', 'полистир', 'ппс', 'pps'],
-    'псб': ['псбс', 'пенополистирол', 'пенопласт', 'полистир', 'ппс'],
-    'псбс': ['псб', 'пенополистирол', 'пенопласт', 'полистир', 'ппс'],
-    'пенопласт': ['пенополистирол', 'псб', 'псбс', 'полистир', 'ппс', 'пс'],
-    'экструдированный': ['экстр', 'xps', 'эппс'],
-    'минеральный': ['минвата', 'минплита', 'базальт', 'каменная вата'],
-    'керамзитобетон': ['керамзит', 'легкий бетон'],
-    'железобетон': ['жб', 'ж/б', 'бетон'],
-    'гипсокартон': ['гкл', 'гипс'],
-    'утеплитель': ['теплоизоляция', 'изоляция'],
+    пенополистирол: ['пенополистир', 'псб', 'псбс', 'пс', 'пенопласт', 'полистир', 'ппс', 'pps'],
+    псб: ['псбс', 'пенополистирол', 'пенопласт', 'полистир', 'ппс'],
+    псбс: ['псб', 'пенополистирол', 'пенопласт', 'полистир', 'ппс'],
+    пенопласт: ['пенополистирол', 'псб', 'псбс', 'полистир', 'ппс', 'пс'],
+    экструдированный: ['экстр', 'xps', 'эппс'],
+    минеральный: ['минвата', 'минплита', 'базальт', 'каменная вата'],
+    керамзитобетон: ['керамзит', 'легкий бетон'],
+    железобетон: ['жб', 'ж/б', 'бетон'],
+    гипсокартон: ['гкл', 'гипс'],
+    утеплитель: ['теплоизоляция', 'изоляция'],
   }
 
   // Ищем в правилах
   for (const [material, synonyms] of Object.entries(materialRules)) {
     if (searchWord.includes(material) || material.includes(searchWord)) {
-      return synonyms.some(synonym => nomName.includes(synonym))
+      return synonyms.some((synonym) => nomName.includes(synonym))
     }
   }
 
@@ -478,12 +503,14 @@ const findPartialMatch = (searchWord: string, nomName: string): boolean => {
     const nomNumbers = nomName.match(/\d+/g) || []
 
     // Сравниваем числа (например, 35 из "псб-с-35" и "псбс 35")
-    const hasMatchingNumbers = searchNumbers.some(searchNum =>
-      nomNumbers.some(nomNum => Math.abs(parseInt(searchNum) - parseInt(nomNum)) <= 5)
+    const hasMatchingNumbers = searchNumbers.some((searchNum) =>
+      nomNumbers.some((nomNum) => Math.abs(parseInt(searchNum) - parseInt(nomNum)) <= 5),
     )
 
     if (hasMatchingNumbers) {
-      console.log(`🔍 ML: Number match found: search="${searchWord}" contains numbers [${searchNumbers.join(', ')}], nom="${nomName}" contains [${nomNumbers.join(', ')}]`) // LOG: совпадение чисел
+      console.log(
+        `🔍 ML: Number match found: search="${searchWord}" contains numbers [${searchNumbers.join(', ')}], nom="${nomName}" contains [${nomNumbers.join(', ')}]`,
+      ) // LOG: совпадение чисел
       return true
     }
   }
@@ -494,7 +521,7 @@ const findPartialMatch = (searchWord: string, nomName: string): boolean => {
     for (let i = 0; i <= searchWord.length - 4; i++) {
       substrings.push(searchWord.substring(i, i + 4))
     }
-    return substrings.some(substr => nomName.includes(substr))
+    return substrings.some((substr) => nomName.includes(substr))
   }
 
   return false
@@ -503,7 +530,10 @@ const findPartialMatch = (searchWord: string, nomName: string): boolean => {
 /**
  * Применение настроек алгоритма для корректировки итогового score
  */
-const applyAlgorithmSettings = (score: number, algorithm: 'strict' | 'balanced' | 'fuzzy'): number => {
+const applyAlgorithmSettings = (
+  score: number,
+  algorithm: 'strict' | 'balanced' | 'fuzzy',
+): number => {
   switch (algorithm) {
     case 'strict':
       // Строгий алгоритм - снижает score для неточных совпадений
@@ -542,9 +572,9 @@ const calculateStringSimilarity = (str1: string, str2: string): number => {
     for (let j = 1; j <= len2; j++) {
       const cost = str1[i - 1] === str2[j - 1] ? 0 : 1
       matrix[i][j] = Math.min(
-        matrix[i - 1][j] + 1,      // deletion
-        matrix[i][j - 1] + 1,      // insertion
-        matrix[i - 1][j - 1] + cost // substitution
+        matrix[i - 1][j] + 1, // deletion
+        matrix[i][j - 1] + 1, // insertion
+        matrix[i - 1][j - 1] + cost, // substitution
       )
     }
   }
@@ -564,7 +594,7 @@ export const getMLMetrics = async (): Promise<MLMetrics> => {
     successfulPredictions: 0,
     averageConfidence: 0,
     averageProcessingTime: 0,
-    modelUsageStats: {}
+    modelUsageStats: {},
   }
 
   try {
@@ -580,7 +610,7 @@ export const getMLMetrics = async (): Promise<MLMetrics> => {
  */
 export const updateMLMetrics = async (
   response: MLPredictionResponse,
-  successful: boolean
+  successful: boolean,
 ): Promise<void> => {
   // LOG: обновление метрик ML
   const metrics = await getMLMetrics()
@@ -595,13 +625,16 @@ export const updateMLMetrics = async (
 
   // Обновляем среднюю confidence
   if (response.suggestions.length > 0) {
-    const avgConfidence = response.suggestions.reduce((sum, s) => sum + s.confidence, 0) / response.suggestions.length
+    const avgConfidence =
+      response.suggestions.reduce((sum, s) => sum + s.confidence, 0) / response.suggestions.length
     const successCount = metrics.successfulPredictions
-    metrics.averageConfidence = (metrics.averageConfidence * (successCount - 1) + avgConfidence) / successCount
+    metrics.averageConfidence =
+      (metrics.averageConfidence * (successCount - 1) + avgConfidence) / successCount
   }
 
   // Обновляем статистику использования моделей
-  metrics.modelUsageStats[response.modelUsed] = (metrics.modelUsageStats[response.modelUsed] || 0) + 1
+  metrics.modelUsageStats[response.modelUsed] =
+    (metrics.modelUsageStats[response.modelUsed] || 0) + 1
 
   localStorage.setItem('ml-metrics', JSON.stringify(metrics))
 }
@@ -609,7 +642,10 @@ export const updateMLMetrics = async (
 /**
  * Server-side поиск номенклатуры для больших объемов данных
  */
-export const searchNomenclature = async (searchTerm: string, limit: number = 50): Promise<Array<{ id: string; name: string }>> => {
+export const searchNomenclature = async (
+  searchTerm: string,
+  limit: number = 50,
+): Promise<Array<{ id: string; name: string }>> => {
   if (!supabase) throw new Error('Supabase not initialized')
 
   if (!searchTerm || searchTerm.length < 1) return []
@@ -645,7 +681,7 @@ export const searchNomenclature = async (searchTerm: string, limit: number = 50)
  */
 export const predictSuppliers = async (
   request: MLPredictionRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<MLPredictionResponse> => {
   const startTime = Date.now()
   const config = await getMLConfig()
@@ -654,14 +690,14 @@ export const predictSuppliers = async (
   console.log('🔍 ML Suppliers DEBUG: AbortSignal status:', {
     hasSignal: !!signal,
     aborted: signal?.aborted || false,
-    materialName: request.materialName
+    materialName: request.materialName,
   })
 
   if (!config.enabled) {
     return {
       suggestions: [],
       processingTime: Date.now() - startTime,
-      modelUsed: 'fallback (ML disabled)'
+      modelUsed: 'fallback (ML disabled)',
     }
   }
 
@@ -689,11 +725,15 @@ export const predictSuppliers = async (
 
           // Если AI дал результаты - возвращаем их
           if (aiResult.suggestions.length > 0) {
-            console.log('🤖 AI Mode Suppliers: Deepseek вернул', aiResult.suggestions.length, 'предложений поставщиков')
+            console.log(
+              '🤖 AI Mode Suppliers: Deepseek вернул',
+              aiResult.suggestions.length,
+              'предложений поставщиков',
+            )
             return {
               ...aiResult,
               processingTime: Date.now() - startTime,
-              modelUsed: 'deepseek'
+              modelUsed: 'deepseek',
             }
           }
         } catch (aiError) {
@@ -703,7 +743,10 @@ export const predictSuppliers = async (
             throw aiError // Передаем AbortError без fallback
           }
 
-          console.error('🤖 AI Mode Suppliers: Ошибка Deepseek, переключаемся на локальный ML:', aiError)
+          console.error(
+            '🤖 AI Mode Suppliers: Ошибка Deepseek, переключаемся на локальный ML:',
+            aiError,
+          )
 
           // Если auto_fallback включен, переходим на локальный ML
           if (mlModeConfig.auto_fallback) {
@@ -715,7 +758,7 @@ export const predictSuppliers = async (
               suggestions: [],
               processingTime: Date.now() - startTime,
               modelUsed: 'fallback',
-              fallbackReason: 'Ошибка Deepseek AI для поставщиков'
+              fallbackReason: 'Ошибка Deepseek AI для поставщиков',
             }
           }
         }
@@ -736,16 +779,15 @@ export const predictSuppliers = async (
       return {
         suggestions: suggestions.slice(0, config.maxSuggestions),
         processingTime: Date.now() - startTime,
-        modelUsed: 'supplier-similarity'
+        modelUsed: 'supplier-similarity',
       }
     }
 
     return {
       suggestions: [],
       processingTime: Date.now() - startTime,
-      modelUsed: 'fallback (no matches)'
+      modelUsed: 'fallback (no matches)',
     }
-
   } catch (error) {
     // Проверяем тип ошибки - AbortError пробрасываем выше
     if (error instanceof Error && error.name === 'AbortError') {
@@ -757,7 +799,7 @@ export const predictSuppliers = async (
     return {
       suggestions: [],
       processingTime: Date.now() - startTime,
-      modelUsed: 'fallback (error)'
+      modelUsed: 'fallback (error)',
     }
   }
 }
@@ -773,12 +815,14 @@ export const getNomenclatureBySupplier = async (supplierId: string): Promise<any
 
     const { data, error } = await supabase
       .from('nomenclature_supplier_mapping')
-      .select(`
+      .select(
+        `
         nomenclature:nomenclature!inner(
           id,
           name
         )
-      `)
+      `,
+      )
       .eq('supplier_id', supplierId)
 
     if (error) {
@@ -788,7 +832,7 @@ export const getNomenclatureBySupplier = async (supplierId: string): Promise<any
 
     // Возвращаем уникальные номенклатуры
     const uniqueNomenclatures = new Map()
-    data?.forEach(item => {
+    data?.forEach((item) => {
       const nom = item.nomenclature
       if (nom && !uniqueNomenclatures.has(nom.id)) {
         uniqueNomenclatures.set(nom.id, nom)
@@ -799,7 +843,6 @@ export const getNomenclatureBySupplier = async (supplierId: string): Promise<any
     console.log('🔍 ML: Found nomenclatures for supplier:', result.length) // LOG: найдено номенклатур
 
     return result
-
   } catch (error) {
     console.error('🔍 Exception in getNomenclatureBySupplier:', error)
     return []
@@ -810,7 +853,7 @@ export const getNomenclatureBySupplier = async (supplierId: string): Promise<any
  * НОВАЯ ФУНКЦИЯ: ML поиск поставщиков с настройками точности
  */
 const getSupplierBasedSuggestions = async (
-  request: MLPredictionRequest
+  request: MLPredictionRequest,
 ): Promise<NomenclatureSuggestion[]> => {
   if (!supabase) throw new Error('Supabase not initialized')
 
@@ -820,10 +863,15 @@ const getSupplierBasedSuggestions = async (
 
   if (searchTerm.length < 2) return []
 
-  console.log('🔍 ML: Starting supplier search for:', searchTerm, 'with algorithm:', config.algorithm) // LOG: начало поиска поставщиков
+  console.log(
+    '🔍 ML: Starting supplier search for:',
+    searchTerm,
+    'with algorithm:',
+    config.algorithm,
+  ) // LOG: начало поиска поставщиков
 
   // УЛУЧШЕННЫЙ поиск поставщиков: ищем как по полному термину, так и по ключевым словам
-  const supplierSearchWords = searchTerm.split(/[\s\-.,()]+/).filter(word => word.length >= 2)
+  const supplierSearchWords = searchTerm.split(/[\s\-.,()]+/).filter((word) => word.length >= 2)
   console.log('🔍 ML: Supplier search words extracted:', supplierSearchWords) // LOG: извлеченные слова для поиска поставщиков
 
   // Стратегия 1: Точный поиск по полному термину
@@ -846,7 +894,10 @@ const getSupplierBasedSuggestions = async (
       .ilike('name', `%${mainMaterial}%`)
       .limit(200)
 
-    console.log(`🔍 ML: Supplier keyword search for "${mainMaterial}":`, keywordMatches?.length || 0) // LOG: результаты поиска поставщиков по ключевому слову
+    console.log(
+      `🔍 ML: Supplier keyword search for "${mainMaterial}":`,
+      keywordMatches?.length || 0,
+    ) // LOG: результаты поиска поставщиков по ключевому слову
 
     if (keywordMatches && keywordMatches.length > 0) {
       matches = keywordMatches
@@ -855,10 +906,14 @@ const getSupplierBasedSuggestions = async (
   }
 
   // Стратегия 3: Поиск по синонимам для материалов
-  if ((!matches || matches.length === 0)) {
+  if (!matches || matches.length === 0) {
     console.log('🔍 ML: Trying supplier synonyms search...') // LOG: поиск поставщиков по синонимам
 
-    if (searchTerm.includes('пенопо') || searchTerm.includes('псб') || searchTerm.includes('пенопласт')) {
+    if (
+      searchTerm.includes('пенопо') ||
+      searchTerm.includes('псб') ||
+      searchTerm.includes('пенопласт')
+    ) {
       const { data: synonymMatches, error: synonymError } = await supabase
         .from('supplier_names')
         .select('id, name')
@@ -888,7 +943,9 @@ const getSupplierBasedSuggestions = async (
 
   // Очищаем поисковый термин от игнорируемых терминов
   const cleanedSearchTerm = cleanTermForMatching(searchTerm, config.ignoredTerms)
-  const cleanedSearchWords = cleanedSearchTerm.split(/\s+/).filter(word => word.length >= config.minWordLength)
+  const cleanedSearchWords = cleanedSearchTerm
+    .split(/\s+/)
+    .filter((word) => word.length >= config.minWordLength)
 
   console.log('🔍 ML: Original term:', searchTerm) // LOG: оригинальный поисковый термин
   console.log('🔍 ML: Cleaned search term:', cleanedSearchTerm, 'words:', cleanedSearchWords) // LOG: очищенный поисковый термин
@@ -909,7 +966,10 @@ const getSupplierBasedSuggestions = async (
     const bonusBreakdown = []
 
     // Бонус за точное совпадение префикса
-    if (cleanedSupplierName.startsWith(effectiveSearchTerm) || supplierLower.startsWith(searchTerm)) {
+    if (
+      cleanedSupplierName.startsWith(effectiveSearchTerm) ||
+      supplierLower.startsWith(searchTerm)
+    ) {
       totalBonus += config.prefixBonus
       bonusBreakdown.push(`prefix:${Math.round(config.prefixBonus * 100)}%`)
     }
@@ -924,7 +984,9 @@ const getSupplierBasedSuggestions = async (
     const keywordScore = calculateKeywordScore(supplierSearchWords, cleanedSupplierName, config)
     const keywordBonus = keywordScore * config.keywordBonus
     totalBonus += keywordBonus
-    bonusBreakdown.push(`keywords:${Math.round(keywordScore * 100)}%*${Math.round(config.keywordBonus * 100)}%=${Math.round(keywordBonus * 100)}%`)
+    bonusBreakdown.push(
+      `keywords:${Math.round(keywordScore * 100)}%*${Math.round(config.keywordBonus * 100)}%=${Math.round(keywordBonus * 100)}%`,
+    )
 
     // Применяем алгоритм настройки точности
     let finalScore = similarity + totalBonus
@@ -939,8 +1001,12 @@ const getSupplierBasedSuggestions = async (
       console.log(`🔍 ML: Supplier "${supplier.name}" (${index + 1}/${matches.length}):`, {
         similarity: Math.round(similarity * 100) + '%',
         bonuses: bonusBreakdown.join(' + '),
-        algorithm: config.algorithm + (algorithmAdjustment !== 0 ? ` (${algorithmAdjustment > 0 ? '+' : ''}${Math.round(algorithmAdjustment * 100)}%)` : ''),
-        confidence: Math.round(finalConfidence * 100) + '%'
+        algorithm:
+          config.algorithm +
+          (algorithmAdjustment !== 0
+            ? ` (${algorithmAdjustment > 0 ? '+' : ''}${Math.round(algorithmAdjustment * 100)}%)`
+            : ''),
+        confidence: Math.round(finalConfidence * 100) + '%',
       })
     }
 
@@ -948,13 +1014,13 @@ const getSupplierBasedSuggestions = async (
       id: supplier.id,
       name: supplier.name,
       confidence: finalConfidence,
-      reasoning: `${Math.round(similarity * 100)}% similarity + [${bonusBreakdown.join(', ')}] via ${config.algorithm} algorithm`
+      reasoning: `${Math.round(similarity * 100)}% similarity + [${bonusBreakdown.join(', ')}] via ${config.algorithm} algorithm`,
     }
   })
 
   // Фильтруем по порогу уверенности и сортируем
   const filteredSuggestions = suggestions
-    .filter(s => s.confidence >= config.confidenceThreshold)
+    .filter((s) => s.confidence >= config.confidenceThreshold)
     .sort((a, b) => b.confidence - a.confidence)
 
   console.log('🔍 ML: Supplier suggestions above threshold:', filteredSuggestions.length) // LOG: предложений поставщиков выше порога
@@ -969,11 +1035,14 @@ const getSupplierBasedSuggestions = async (
  * ПАТТЕРН ДЛЯ КОПИРОВАНИЯ: Функция для использования Deepseek AI вместо локального ML
  * Адаптирует ML запрос к формату Deepseek и обрабатывает ответ
  */
-async function predictWithDeepseek(request: MLPredictionRequest, externalSignal?: AbortSignal): Promise<MLPredictionResponse> {
+async function predictWithDeepseek(
+  request: MLPredictionRequest,
+  externalSignal?: AbortSignal,
+): Promise<MLPredictionResponse> {
   console.log('🤖 Deepseek: Начало анализа материала:', request.materialName)
   console.log('🔍 DEEPSEEK DEBUG: External signal status:', {
     hasSignal: !!externalSignal,
-    aborted: externalSignal?.aborted || false
+    aborted: externalSignal?.aborted || false,
   })
 
   try {
@@ -986,18 +1055,20 @@ async function predictWithDeepseek(request: MLPredictionRequest, externalSignal?
     // Преобразуем ML запрос в формат Deepseek
     const deepseekRequest: DeepseekMaterialRequest = {
       material_name: request.materialName,
-      context: request.context ? {
-        project_type: request.context.projectId ? 'строительный' : undefined,
-        cost_category: request.context.categoryId,
-        cost_type: request.context.typeId,
-        location: undefined // можно добавить если нужно
-      } : undefined,
+      context: request.context
+        ? {
+            project_type: request.context.projectId ? 'строительный' : undefined,
+            cost_category: request.context.categoryId,
+            cost_type: request.context.typeId,
+            location: undefined, // можно добавить если нужно
+          }
+        : undefined,
       preferences: {
         prefer_eco_friendly: false,
         budget_conscious: true,
         quality_priority: true,
-        max_suggestions: maxSuggestions // Передаем максимальное количество результатов
-      }
+        max_suggestions: maxSuggestions, // Передаем максимальное количество результатов
+      },
     }
 
     console.log('🤖 Deepseek: Отправляем запрос:', deepseekRequest)
@@ -1005,7 +1076,11 @@ async function predictWithDeepseek(request: MLPredictionRequest, externalSignal?
     // ИСПРАВЛЕНИЕ AbortError: Передаем externalSignal в Deepseek API
     const deepseekResponse = await deepseekApi.analyzeMaterial(deepseekRequest, externalSignal)
 
-    console.log('🤖 Deepseek: Получен ответ с', deepseekResponse.recommendations.length, 'рекомендациями')
+    console.log(
+      '🤖 Deepseek: Получен ответ с',
+      deepseekResponse.recommendations.length,
+      'рекомендациями',
+    )
     console.log('🔍 Deepseek: Анализ материала:', deepseekResponse.material_analysis)
 
     // Преобразуем ответ Deepseek в формат ML с расширенной информацией
@@ -1015,7 +1090,11 @@ async function predictWithDeepseek(request: MLPredictionRequest, externalSignal?
         let nomenclatureId = rec.nomenclature_id
 
         // Если ID не найден, пробуем поиск по названию
-        if (!nomenclatureId || nomenclatureId.startsWith('ai-suggestion-') || nomenclatureId.startsWith('fallback-')) {
+        if (
+          !nomenclatureId ||
+          nomenclatureId.startsWith('ai-suggestion-') ||
+          nomenclatureId.startsWith('fallback-')
+        ) {
           const searchResults = await searchNomenclatureByName(rec.nomenclature_name)
           nomenclatureId = searchResults.length > 0 ? searchResults[0].id : rec.nomenclature_id
         }
@@ -1024,18 +1103,22 @@ async function predictWithDeepseek(request: MLPredictionRequest, externalSignal?
         // AI уже проанализировал предотобранные ML записи, дополнительный поиск не нужен
         let fullMaterialName = rec.supplier_name || rec.nomenclature_name || 'Не указано'
 
-        console.log(`🎯 AI Выбор: Материал "${fullMaterialName}" рекомендован AI из предотобранных записей`) // LOG: AI выбор из предотобранных записей
+        console.log(
+          `🎯 AI Выбор: Материал "${fullMaterialName}" рекомендован AI из предотобранных записей`,
+        ) // LOG: AI выбор из предотобранных записей
 
         // Проверяем что название не является служебным fallback-текстом
         const fallbackTexts = [
           'Требуется уточнение поставщика',
           'Не указано',
           'Уточняется',
-          'Материал не найден'
+          'Материал не найден',
         ]
 
-        if (fallbackTexts.some(fallback => fullMaterialName.includes(fallback))) {
-          console.log(`⚠️ Обнаружен fallback текст, используем исходный материал: ${deepseekRequest.material_name}`)
+        if (fallbackTexts.some((fallback) => fullMaterialName.includes(fallback))) {
+          console.log(
+            `⚠️ Обнаружен fallback текст, используем исходный материал: ${deepseekRequest.material_name}`,
+          )
           // Если AI вернул служебный текст, используем исходное название материала
           fullMaterialName = deepseekRequest.material_name
         }
@@ -1064,9 +1147,9 @@ async function predictWithDeepseek(request: MLPredictionRequest, externalSignal?
           tooltip_info: rec.tooltip_info, // Для показа при наведении
           price_analysis: rec.price_analysis, // Анализ цен
           quality_score: rec.quality_score, // Оценка качества
-          supplier_name: rec.supplier_name // Название поставщика от AI
+          supplier_name: rec.supplier_name, // Название поставщика от AI
         }
-      })
+      }),
     )
 
     console.log('🤖 Deepseek: Преобразованы предложения:', suggestions.length)
@@ -1074,9 +1157,8 @@ async function predictWithDeepseek(request: MLPredictionRequest, externalSignal?
     return {
       suggestions,
       processingTime: deepseekResponse.usage_stats.processing_time_ms,
-      modelUsed: 'deepseek'
+      modelUsed: 'deepseek',
     }
-
   } catch (error) {
     // Проверяем тип ошибки - AbortError нормальная ситуация при отмене запроса
     if (error instanceof Error && error.name === 'AbortError') {
@@ -1099,7 +1181,9 @@ async function predictWithDeepseek(request: MLPredictionRequest, externalSignal?
  * Находит полное название материала в таблице supplier_names по частичному совпадению
  * В таблице supplier_names поле name содержит названия материалов у поставщиков
  */
-async function searchMaterialInSuppliers(materialName: string): Promise<Array<{ id?: string; name: string }>> {
+async function searchMaterialInSuppliers(
+  materialName: string,
+): Promise<Array<{ id?: string; name: string }>> {
   if (!supabase || !materialName) return []
 
   try {
@@ -1110,8 +1194,8 @@ async function searchMaterialInSuppliers(materialName: string): Promise<Array<{ 
     const keywords = cleanedName
       .replace(/[^\w\sа-яё]/g, ' ')
       .split(/\s+/)
-      .filter(word => word.length >= 3)
-      .filter(word => !['для', 'при', 'под', 'над', 'без', 'про', 'или'].includes(word))
+      .filter((word) => word.length >= 3)
+      .filter((word) => !['для', 'при', 'под', 'над', 'без', 'про', 'или'].includes(word))
 
     // Стратегия 1: Точное совпадение (без учета регистра)
     const { data: exactMatch, error: exactError } = await supabase
@@ -1138,7 +1222,7 @@ async function searchMaterialInSuppliers(materialName: string): Promise<Array<{ 
     // Стратегия 3: Поиск по ключевым словам (более точный)
     if (keywords.length > 0) {
       // Ищем материалы, содержащие все ключевые слова
-      const keywordQueries = keywords.map(keyword => `%${keyword}%`)
+      const keywordQueries = keywords.map((keyword) => `%${keyword}%`)
 
       for (const keyword of keywordQueries) {
         const { data: keywordMatch, error: keywordError } = await supabase
@@ -1149,10 +1233,10 @@ async function searchMaterialInSuppliers(materialName: string): Promise<Array<{ 
 
         if (!keywordError && keywordMatch && keywordMatch.length > 0) {
           // Фильтруем результаты по релевантности
-          const relevantResults = keywordMatch.filter(item => {
+          const relevantResults = keywordMatch.filter((item) => {
             const itemLower = item.name.toLowerCase()
             // Проверяем, содержит ли результат хотя бы 2 ключевых слова из исходного запроса
-            const matchingKeywords = keywords.filter(kw => itemLower.includes(kw))
+            const matchingKeywords = keywords.filter((kw) => itemLower.includes(kw))
             return matchingKeywords.length >= Math.min(2, keywords.length)
           })
 
@@ -1190,7 +1274,9 @@ async function searchMaterialInSuppliers(materialName: string): Promise<Array<{ 
  * ПОИСК НОМЕНКЛАТУРЫ ПО НАЗВАНИЮ
  * Используется для сопоставления AI предложений с базой данных
  */
-async function searchNomenclatureByName(name: string): Promise<Array<{ id: string; name: string }>> {
+async function searchNomenclatureByName(
+  name: string,
+): Promise<Array<{ id: string; name: string }>> {
   if (!supabase) return []
 
   try {
@@ -1222,7 +1308,7 @@ async function searchNomenclatureByName(name: string): Promise<Array<{ id: strin
  */
 export async function vectorSearchSupplierNames(
   materialName: string,
-  limit: number = 20
+  limit: number = 20,
 ): Promise<Array<{ id: string; name: string; confidence: number }>> {
   if (!supabase || !materialName) return []
 
@@ -1230,10 +1316,7 @@ export async function vectorSearchSupplierNames(
     console.log('🔍 Векторный поиск в supplier_names для:', materialName) // LOG: векторный поиск
 
     // Получаем все записи для векторного анализа
-    const { data, error } = await supabase
-      .from('supplier_names')
-      .select('id, name')
-      .limit(1000) // Берем больше записей для векторного анализа
+    const { data, error } = await supabase.from('supplier_names').select('id, name').limit(1000) // Берем больше записей для векторного анализа
 
     if (error) {
       console.error('Ошибка получения данных supplier_names:', error) // LOG: ошибка получения данных
@@ -1249,12 +1332,12 @@ export async function vectorSearchSupplierNames(
     const searchTerms = materialName.toLowerCase().split(/\s+/)
 
     const results = data
-      .map(item => {
+      .map((item) => {
         const itemName = item.name.toLowerCase()
         let confidence = 0
 
         // Рассчитываем confidence на основе совпадений
-        searchTerms.forEach(term => {
+        searchTerms.forEach((term) => {
           if (itemName.includes(term)) {
             confidence += 0.3
           }
@@ -1274,16 +1357,15 @@ export async function vectorSearchSupplierNames(
         return {
           id: item.id,
           name: item.name,
-          confidence: Math.min(confidence, 1.0)
+          confidence: Math.min(confidence, 1.0),
         }
       })
-      .filter(item => item.confidence > 0.1) // Фильтруем по минимальной уверенности
+      .filter((item) => item.confidence > 0.1) // Фильтруем по минимальной уверенности
       .sort((a, b) => b.confidence - a.confidence) // Сортируем по убыванию confidence
       .slice(0, limit)
 
     console.log(`🎯 Векторный поиск: найдено ${results.length} результатов`) // LOG: результаты векторного поиска
     return results
-
   } catch (error) {
     console.error('Ошибка векторного поиска в supplier_names:', error) // LOG: ошибка векторного поиска
     return []
@@ -1296,8 +1378,16 @@ export async function vectorSearchSupplierNames(
  */
 export async function keywordSearchSupplierNames(
   materialName: string,
-  limit: number = 20
-): Promise<Array<{ id: string; name: string; matchedKeywords: string[]; relevanceScore: number; matchType: string }>> {
+  limit: number = 20,
+): Promise<
+  Array<{
+    id: string
+    name: string
+    matchedKeywords: string[]
+    relevanceScore: number
+    matchType: string
+  }>
+> {
   if (!supabase || !materialName) return []
 
   try {
@@ -1305,32 +1395,33 @@ export async function keywordSearchSupplierNames(
 
     // Словарь синонимов и альтернативных названий
     const synonyms: Record<string, string[]> = {
-      'теплоизоляция': ['утеплитель', 'изоляция', 'термоизоляция', 'теплоизолятор'],
-      'минеральная': ['минвата', 'каменная', 'базальтовая', 'стекловата'],
-      'плита': ['плиты', 'листы', 'панели', 'блоки'],
-      'кирпич': ['кирпичи', 'блоки', 'камни'],
-      'бетон': ['раствор', 'смесь', 'состав'],
-      'арматура': ['армирование', 'сталь', 'прутки', 'стержни'],
-      'гипс': ['гипсовый', 'штукатурка', 'шпатлевка'],
-      'цемент': ['портландцемент', 'вяжущее'],
-      'металл': ['стальной', 'железный', 'металлический'],
-      'пластик': ['пластиковый', 'полимер', 'ПВХ'],
-      'дерево': ['деревянный', 'древесина', 'брус', 'доска'],
-      'стекло': ['стеклянный', 'остекление']
+      теплоизоляция: ['утеплитель', 'изоляция', 'термоизоляция', 'теплоизолятор'],
+      минеральная: ['минвата', 'каменная', 'базальтовая', 'стекловата'],
+      плита: ['плиты', 'листы', 'панели', 'блоки'],
+      кирпич: ['кирпичи', 'блоки', 'камни'],
+      бетон: ['раствор', 'смесь', 'состав'],
+      арматура: ['армирование', 'сталь', 'прутки', 'стержни'],
+      гипс: ['гипсовый', 'штукатурка', 'шпатлевка'],
+      цемент: ['портландцемент', 'вяжущее'],
+      металл: ['стальной', 'железный', 'металлический'],
+      пластик: ['пластиковый', 'полимер', 'ПВХ'],
+      дерево: ['деревянный', 'древесина', 'брус', 'доска'],
+      стекло: ['стеклянный', 'остекление'],
     }
 
     // Технические термины и их варианты
     const technicalTerms: Record<string, string[]> = {
-      'фасад': ['фасадный', 'наружный', 'внешний'],
-      'кровля': ['кровельный', 'крыша', 'покрытие'],
-      'фундамент': ['фундаментный', 'основание'],
-      'стена': ['стеновой', 'перегородка'],
-      'пол': ['напольный', 'покрытие'],
-      'потолок': ['потолочный', 'подвесной']
+      фасад: ['фасадный', 'наружный', 'внешний'],
+      кровля: ['кровельный', 'крыша', 'покрытие'],
+      фундамент: ['фундаментный', 'основание'],
+      стена: ['стеновой', 'перегородка'],
+      пол: ['напольный', 'покрытие'],
+      потолок: ['потолочный', 'подвесной'],
     }
 
     // Обработка входного запроса
-    const processedQuery = materialName.toLowerCase()
+    const processedQuery = materialName
+      .toLowerCase()
       .replace(/[^\wа-яё\s]/g, ' ') // Убираем спецсимволы
       .replace(/\s+/g, ' ') // Убираем лишние пробелы
       .trim()
@@ -1338,22 +1429,24 @@ export async function keywordSearchSupplierNames(
     // Извлекаем ключевые термины
     const originalKeywords = processedQuery
       .split(/\s+/)
-      .filter(word => word.length >= 2)
-      .filter(word => !['мм', 'см', 'м', 'кг', 'шт', 'т', 'гр', 'л', 'м2', 'м3', 'шт'].includes(word))
+      .filter((word) => word.length >= 2)
+      .filter(
+        (word) => !['мм', 'см', 'м', 'кг', 'шт', 'т', 'гр', 'л', 'м2', 'м3', 'шт'].includes(word),
+      )
 
     // Расширяем поиск синонимами
     const expandedKeywords = new Set<string>()
-    originalKeywords.forEach(keyword => {
+    originalKeywords.forEach((keyword) => {
       expandedKeywords.add(keyword)
 
       // Добавляем синонимы
       if (synonyms[keyword]) {
-        synonyms[keyword].forEach(synonym => expandedKeywords.add(synonym))
+        synonyms[keyword].forEach((synonym) => expandedKeywords.add(synonym))
       }
 
       // Добавляем технические термины
       if (technicalTerms[keyword]) {
-        technicalTerms[keyword].forEach(term => expandedKeywords.add(term))
+        technicalTerms[keyword].forEach((term) => expandedKeywords.add(term))
       }
 
       // Добавляем морфологические варианты
@@ -1373,10 +1466,7 @@ export async function keywordSearchSupplierNames(
     }
 
     // Получаем все записи для детального анализа
-    const { data, error } = await supabase
-      .from('supplier_names')
-      .select('id, name')
-      .limit(2000) // Берем больше записей для качественного анализа
+    const { data, error } = await supabase.from('supplier_names').select('id, name').limit(2000) // Берем больше записей для качественного анализа
 
     if (error) {
       console.error('Ошибка получения данных supplier_names:', error) // LOG: ошибка получения данных
@@ -1390,7 +1480,7 @@ export async function keywordSearchSupplierNames(
 
     // Интеллектуальный анализ релевантности
     const results = data
-      .map(item => {
+      .map((item) => {
         const itemName = item.name.toLowerCase()
         const itemWords = itemName.split(/\s+/)
 
@@ -1406,7 +1496,7 @@ export async function keywordSearchSupplierNames(
         }
 
         // Анализируем совпадения по словам
-        originalKeywords.forEach(keyword => {
+        originalKeywords.forEach((keyword) => {
           if (itemName.includes(keyword)) {
             relevanceScore += 3
             matchedKeywords.push(keyword)
@@ -1424,8 +1514,11 @@ export async function keywordSearchSupplierNames(
         })
 
         // Проверяем синонимы и расширенные термины
-        allKeywords.forEach(keyword => {
-          if (keyword !== originalKeywords.find(ok => ok === keyword) && itemName.includes(keyword)) {
+        allKeywords.forEach((keyword) => {
+          if (
+            keyword !== originalKeywords.find((ok) => ok === keyword) &&
+            itemName.includes(keyword)
+          ) {
             relevanceScore += 1.5
             if (!matchedKeywords.includes(keyword)) {
               matchedKeywords.push(`${keyword} (синоним)`)
@@ -1447,10 +1540,10 @@ export async function keywordSearchSupplierNames(
           matchedKeywords,
           relevanceScore,
           matchType,
-          matchRatio
+          matchRatio,
         }
       })
-      .filter(item => item.relevanceScore > 0.5) // Минимальный порог релевантности
+      .filter((item) => item.relevanceScore > 0.5) // Минимальный порог релевантности
       .sort((a, b) => {
         // Сортируем по типу совпадения, затем по релевантности
         if (a.matchType === 'exact' && b.matchType !== 'exact') return -1
@@ -1462,14 +1555,13 @@ export async function keywordSearchSupplierNames(
     console.log(`🎯 Семантический поиск: найдено ${results.length} результатов`) // LOG: результаты семантического поиска
 
     // Возвращаем результаты в нужном формате
-    return results.map(item => ({
+    return results.map((item) => ({
       id: item.id,
       name: item.name,
       matchedKeywords: item.matchedKeywords,
       relevanceScore: Math.round(item.relevanceScore * 10) / 10,
-      matchType: item.matchType
+      matchType: item.matchType,
     }))
-
   } catch (error) {
     console.error('Ошибка семантического поиска в supplier_names:', error) // LOG: ошибка семантического поиска
     return []
@@ -1479,46 +1571,52 @@ export async function keywordSearchSupplierNames(
 /**
  * ФУНКЦИЯ 3: Поиск поставщиков методом из режима редактирования (getSupplierBasedSuggestions)
  */
-export const editingModeSearchSupplierNames = async (materialName: string): Promise<Array<{
-  id: string
-  name: string
-  confidence: number
-}>> => {
+export const editingModeSearchSupplierNames = async (
+  materialName: string,
+): Promise<
+  Array<{
+    id: string
+    name: string
+    confidence: number
+  }>
+> => {
   if (!materialName || materialName.trim().length < 2) {
     return []
   }
 
   try {
     const request: MLPredictionRequest = {
-      materialName: materialName.trim()
+      materialName: materialName.trim(),
     }
 
     const suggestions = await getSupplierBasedSuggestions(request)
 
     // Если результатов меньше 60, делаем дополнительный расширенный поиск
     if (suggestions.length < 60) {
-      console.log(`🔍 Режим редактирования: найдено ${suggestions.length} результатов, нужно минимум 60. Запускаем расширенный поиск...`) // LOG: расширенный поиск
+      console.log(
+        `🔍 Режим редактирования: найдено ${suggestions.length} результатов, нужно минимум 60. Запускаем расширенный поиск...`,
+      ) // LOG: расширенный поиск
 
       const additionalResults = await getAdditionalSupplierResults(materialName.trim(), suggestions)
 
       // Объединяем результаты, убираем дубликаты по id
-      const existingIds = new Set(suggestions.map(s => s.id))
-      const uniqueAdditional = additionalResults.filter(result => !existingIds.has(result.id))
+      const existingIds = new Set(suggestions.map((s) => s.id))
+      const uniqueAdditional = additionalResults.filter((result) => !existingIds.has(result.id))
 
       const allResults = [...suggestions, ...uniqueAdditional]
       console.log(`🔍 Расширенный поиск завершен: итого ${allResults.length} результатов`) // LOG: результаты расширенного поиска
 
-      return allResults.map(suggestion => ({
+      return allResults.map((suggestion) => ({
         id: suggestion.id,
         name: suggestion.name,
-        confidence: suggestion.confidence
+        confidence: suggestion.confidence,
       }))
     }
 
-    return suggestions.map(suggestion => ({
+    return suggestions.map((suggestion) => ({
       id: suggestion.id,
       name: suggestion.name,
-      confidence: suggestion.confidence
+      confidence: suggestion.confidence,
     }))
   } catch (error) {
     console.error('Editing mode supplier search error:', error)
@@ -1532,7 +1630,7 @@ export const editingModeSearchSupplierNames = async (materialName: string): Prom
  */
 const getAdditionalSupplierResults = async (
   materialName: string,
-  existingResults: NomenclatureSuggestion[]
+  existingResults: NomenclatureSuggestion[],
 ): Promise<NomenclatureSuggestion[]> => {
   if (!supabase) return []
 
@@ -1552,12 +1650,12 @@ const getAdditionalSupplierResults = async (
         .limit(80)
 
       if (firstWordResults) {
-        firstWordResults.forEach(item => {
+        firstWordResults.forEach((item) => {
           additionalResults.push({
             id: item.id,
             name: item.name,
             confidence: 0.3, // Базовая уверенность для расширенного поиска
-            reasoning: `Дополнительный поиск по слову "${firstWord}"`
+            reasoning: `Дополнительный поиск по слову "${firstWord}"`,
           })
         })
       }
@@ -1565,14 +1663,14 @@ const getAdditionalSupplierResults = async (
 
     // Стратегия 2: Поиск по общим строительным материалам
     const materialSynonyms = {
-      'пеноплэкс': ['пенопласт', 'полистирол', 'пенополистирол', 'псб', 'xps'],
-      'утеплитель': ['теплоизоляция', 'изоляция', 'термоизоляция'],
-      'минеральная': ['минвата', 'каменная', 'базальтовая', 'стекловата'],
-      'плита': ['плиты', 'листы', 'панели', 'блоки'],
-      'кирпич': ['блок', 'камень', 'керамический'],
-      'бетон': ['раствор', 'смесь', 'цемент'],
-      'арматура': ['стержни', 'прутки', 'сталь'],
-      'кран': ['вентиль', 'клапан', 'фитинг', 'шаровой']
+      пеноплэкс: ['пенопласт', 'полистирол', 'пенополистирол', 'псб', 'xps'],
+      утеплитель: ['теплоизоляция', 'изоляция', 'термоизоляция'],
+      минеральная: ['минвата', 'каменная', 'базальтовая', 'стекловата'],
+      плита: ['плиты', 'листы', 'панели', 'блоки'],
+      кирпич: ['блок', 'камень', 'керамический'],
+      бетон: ['раствор', 'смесь', 'цемент'],
+      арматура: ['стержни', 'прутки', 'сталь'],
+      кран: ['вентиль', 'клапан', 'фитинг', 'шаровой'],
     }
 
     for (const [material, synonyms] of Object.entries(materialSynonyms)) {
@@ -1585,12 +1683,12 @@ const getAdditionalSupplierResults = async (
             .limit(20)
 
           if (synonymResults) {
-            synonymResults.forEach(item => {
+            synonymResults.forEach((item) => {
               additionalResults.push({
                 id: item.id,
                 name: item.name,
                 confidence: 0.25,
-                reasoning: `Поиск по синониму "${synonym}" для "${material}"`
+                reasoning: `Поиск по синониму "${synonym}" для "${material}"`,
               })
             })
           }
@@ -1608,12 +1706,12 @@ const getAdditionalSupplierResults = async (
         .order('id', { ascending: false }) // Берем последние добавленные
 
       if (randomResults) {
-        randomResults.forEach(item => {
+        randomResults.forEach((item) => {
           additionalResults.push({
             id: item.id,
             name: item.name,
             confidence: 0.15,
-            reasoning: 'Расширенная выборка для достижения минимума 60 результатов'
+            reasoning: 'Расширенная выборка для достижения минимума 60 результатов',
           })
         })
       }
@@ -1623,7 +1721,7 @@ const getAdditionalSupplierResults = async (
     const uniqueResults: NomenclatureSuggestion[] = []
     const seenIds = new Set()
 
-    additionalResults.forEach(result => {
+    additionalResults.forEach((result) => {
       if (!seenIds.has(result.id)) {
         seenIds.add(result.id)
         uniqueResults.push(result)
@@ -1632,7 +1730,6 @@ const getAdditionalSupplierResults = async (
 
     console.log(`🔍 Дополнительный поиск нашел ${uniqueResults.length} уникальных результатов`) // LOG: результаты дополнительного поиска
     return uniqueResults
-
   } catch (error) {
     console.error('Ошибка дополнительного поиска:', error) // LOG: ошибка дополнительного поиска
     return []
@@ -1643,20 +1740,24 @@ const getAdditionalSupplierResults = async (
  * ФУНКЦИЯ 4: Адаптивный гибридный поиск поставщиков (4-й алгоритм)
  * Основан на анализе MCP агента - автоматически адаптируется к типу материала
  */
-export const adaptiveHybridSearchSupplierNames = async (materialName: string): Promise<Array<{
-  id: string
-  name: string
-  confidence: number
-  matchDetails: {
-    materialTokens: string[]
-    sizeTokens: string[]
-    brandTokens: string[]
-    articleTokens: string[]
-    matchType: 'EXACT' | 'PARTIAL' | 'SEMANTIC' | 'BRAND' | 'SIZE'
-    score: number
-    explanation: string
-  }
-}>> => {
+export const adaptiveHybridSearchSupplierNames = async (
+  materialName: string,
+): Promise<
+  Array<{
+    id: string
+    name: string
+    confidence: number
+    matchDetails: {
+      materialTokens: string[]
+      sizeTokens: string[]
+      brandTokens: string[]
+      articleTokens: string[]
+      matchType: 'EXACT' | 'PARTIAL' | 'SEMANTIC' | 'BRAND' | 'SIZE'
+      score: number
+      explanation: string
+    }
+  }>
+> => {
   if (!materialName || materialName.trim().length < 2) {
     return []
   }
@@ -1684,7 +1785,6 @@ export const adaptiveHybridSearchSupplierNames = async (materialName: string): P
     console.log('📈 Ранжирование завершено') // LOG: ранжирование
 
     return rankedResults.slice(0, 60) // Ограничиваем топ-60
-
   } catch (error) {
     console.error('Ошибка адаптивного поиска:', error)
     return []
@@ -1702,13 +1802,30 @@ function classifyMaterialQuery(query: string): 'SIMPLE' | 'TECHNICAL' | 'MIXED' 
   ]
 
   const simpleMaterials = [
-    'пеноплэкс', 'пенопласт', 'утеплитель', 'изоляция', 'плита', 'плиты',
-    'теплоизоляция', 'минеральная', 'базальтовая', 'каменная', 'стекловата', 'вата',
-    'бетон', 'цемент', 'кирпич', 'блок', 'арматура', 'краска', 'труба', 'кран'
+    'пеноплэкс',
+    'пенопласт',
+    'утеплитель',
+    'изоляция',
+    'плита',
+    'плиты',
+    'теплоизоляция',
+    'минеральная',
+    'базальтовая',
+    'каменная',
+    'стекловата',
+    'вата',
+    'бетон',
+    'цемент',
+    'кирпич',
+    'блок',
+    'арматура',
+    'краска',
+    'труба',
+    'кран',
   ]
 
-  const hasTechnical = technicalPatterns.some(pattern => pattern.test(query))
-  const hasSimple = simpleMaterials.some(material => query.includes(material))
+  const hasTechnical = technicalPatterns.some((pattern) => pattern.test(query))
+  const hasSimple = simpleMaterials.some((material) => query.includes(material))
 
   if (hasSimple && !hasTechnical) return 'SIMPLE'
   if (hasTechnical && !hasSimple) return 'TECHNICAL'
@@ -1722,30 +1839,72 @@ function intelligentTokenize(query: string) {
     size: [] as string[],
     brand: [] as string[],
     article: [] as string[],
-    all: query.split(/[\s\-.,()]+/).filter(t => t.length > 1)
+    all: query.split(/[\s\-.,()]+/).filter((t) => t.length > 1),
   }
 
   // Расширенный список материалов (строительные материалы)
   const materials = [
     // Основные категории
-    'кран', 'пеноплэкс', 'пенопласт', 'шаровой', 'резьбовой',
+    'кран',
+    'пеноплэкс',
+    'пенопласт',
+    'шаровой',
+    'резьбовой',
     // Теплоизоляция
-    'теплоизоляция', 'утеплитель', 'изоляция', 'минеральная', 'плита', 'плиты',
-    'базальтовая', 'каменная', 'стекловата', 'вата',
+    'теплоизоляция',
+    'утеплитель',
+    'изоляция',
+    'минеральная',
+    'плита',
+    'плиты',
+    'базальтовая',
+    'каменная',
+    'стекловата',
+    'вата',
     // Строительные материалы
-    'бетон', 'цемент', 'раствор', 'кирпич', 'блок', 'блоки',
-    'арматура', 'металл', 'сталь', 'железо', 'алюминий',
+    'бетон',
+    'цемент',
+    'раствор',
+    'кирпич',
+    'блок',
+    'блоки',
+    'арматура',
+    'металл',
+    'сталь',
+    'железо',
+    'алюминий',
     // Отделочные материалы
-    'краска', 'грунтовка', 'штукатурка', 'шпаклевка', 'клей',
-    'плитка', 'керамика', 'ламинат', 'паркет', 'линолеум',
+    'краска',
+    'грунтовка',
+    'штукатурка',
+    'шпаклевка',
+    'клей',
+    'плитка',
+    'керамика',
+    'ламинат',
+    'паркет',
+    'линолеум',
     // Трубы и фитинги
-    'труба', 'трубы', 'фитинг', 'фитинги', 'муфта', 'тройник',
-    'полиэтилен', 'полипропилен', 'металлопластик',
+    'труба',
+    'трубы',
+    'фитинг',
+    'фитинги',
+    'муфта',
+    'тройник',
+    'полиэтилен',
+    'полипропилен',
+    'металлопластик',
     // Крепеж
-    'винт', 'болт', 'гайка', 'шуруп', 'саморез', 'дюбель', 'анкер'
+    'винт',
+    'болт',
+    'гайка',
+    'шуруп',
+    'саморез',
+    'дюбель',
+    'анкер',
   ]
 
-  materials.forEach(mat => {
+  materials.forEach((mat) => {
     if (query.toLowerCase().includes(mat)) tokens.material.push(mat)
   })
 
@@ -1755,11 +1914,23 @@ function intelligentTokenize(query: string) {
 
   // Бренды (расширенный список)
   const brands = [
-    'ридан', 'пеноплэкс', 'технониколь', 'rockwool', 'isover',
-    'ursa', 'knauf', 'paroc', 'baswool', 'термолайф',
-    'эковер', 'izovol', 'изовол', 'изомин', 'izomin'
+    'ридан',
+    'пеноплэкс',
+    'технониколь',
+    'rockwool',
+    'isover',
+    'ursa',
+    'knauf',
+    'paroc',
+    'baswool',
+    'термолайф',
+    'эковер',
+    'izovol',
+    'изовол',
+    'изомин',
+    'izomin',
   ]
-  brands.forEach(brand => {
+  brands.forEach((brand) => {
     if (query.toLowerCase().includes(brand)) tokens.brand.push(brand)
   })
 
@@ -1782,7 +1953,8 @@ async function performAdaptiveSearch(tokens: any, classification: string) {
         .select('id, name')
         .ilike('name', `%${article}%`)
         .limit(80)
-      if (data) results.push(...data.map((item: any) => ({...item, matchType: 'EXACT', baseScore: 10})))
+      if (data)
+        results.push(...data.map((item: any) => ({ ...item, matchType: 'EXACT', baseScore: 10 })))
     }
   }
 
@@ -1795,7 +1967,10 @@ async function performAdaptiveSearch(tokens: any, classification: string) {
           .select('id, name')
           .and(`name.ilike.%${material}%, name.ilike.%${size}%`)
           .limit(50)
-        if (data) results.push(...data.map((item: any) => ({...item, matchType: 'PARTIAL', baseScore: 8})))
+        if (data)
+          results.push(
+            ...data.map((item: any) => ({ ...item, matchType: 'PARTIAL', baseScore: 8 })),
+          )
       }
     }
   }
@@ -1808,16 +1983,18 @@ async function performAdaptiveSearch(tokens: any, classification: string) {
         .select('id, name')
         .ilike('name', `%${brand}%`)
         .limit(60)
-      if (data) results.push(...data.map((item: any) => ({...item, matchType: 'BRAND', baseScore: 7})))
+      if (data)
+        results.push(...data.map((item: any) => ({ ...item, matchType: 'BRAND', baseScore: 7 })))
     }
   }
 
   // Стратегия 4: Поиск по всем значимым словам (fallback)
   // Если предыдущие стратегии не дали результатов или дали мало результатов
   if (results.length < 10) {
-    const significantWords = tokens.all.filter((word: string) =>
-      word.length >= 3 && // Минимум 3 символа
-      !['для', 'из', 'под', 'при', 'без', 'над', 'про', 'или'].includes(word.toLowerCase()) // Исключаем служебные слова
+    const significantWords = tokens.all.filter(
+      (word: string) =>
+        word.length >= 3 && // Минимум 3 символа
+        !['для', 'из', 'под', 'при', 'без', 'над', 'про', 'или'].includes(word.toLowerCase()), // Исключаем служебные слова
     )
 
     for (const word of significantWords) {
@@ -1826,7 +2003,8 @@ async function performAdaptiveSearch(tokens: any, classification: string) {
         .select('id, name')
         .ilike('name', `%${word}%`)
         .limit(25)
-      if (data) results.push(...data.map((item: any) => ({...item, matchType: 'PARTIAL', baseScore: 5})))
+      if (data)
+        results.push(...data.map((item: any) => ({ ...item, matchType: 'PARTIAL', baseScore: 5 })))
     }
   }
 
@@ -1838,12 +2016,13 @@ async function performAdaptiveSearch(tokens: any, classification: string) {
       .select('id, name')
       .ilike('name', `%${term}%`)
       .limit(40)
-    if (data) results.push(...data.map((item: any) => ({...item, matchType: 'SEMANTIC', baseScore: 6})))
+    if (data)
+      results.push(...data.map((item: any) => ({ ...item, matchType: 'SEMANTIC', baseScore: 6 })))
   }
 
   // Удаляем дубликаты по ID
-  const uniqueResults = results.filter((item, index, arr) =>
-    arr.findIndex(i => i.id === item.id) === index
+  const uniqueResults = results.filter(
+    (item, index, arr) => arr.findIndex((i) => i.id === item.id) === index,
   )
 
   return uniqueResults
@@ -1853,28 +2032,28 @@ async function performAdaptiveSearch(tokens: any, classification: string) {
 function getSemanticTerms(tokens: any): string[] {
   const synonyms: Record<string, string[]> = {
     // Теплоизоляция
-    'пеноплэкс': ['пенополистирол', 'полистирол', 'пенопласт', 'экструдированный', 'xps'],
-    'теплоизоляция': ['утеплитель', 'изоляция', 'теплоизолятор', 'термоизоляция'],
-    'минеральная': ['базальтовая', 'каменная', 'rockwool', 'роквул'],
-    'плита': ['плиты', 'панель', 'панели', 'лист', 'листы'],
-    'вата': ['стекловата', 'минвата', 'базальтовата'],
+    пеноплэкс: ['пенополистирол', 'полистирол', 'пенопласт', 'экструдированный', 'xps'],
+    теплоизоляция: ['утеплитель', 'изоляция', 'теплоизолятор', 'термоизоляция'],
+    минеральная: ['базальтовая', 'каменная', 'rockwool', 'роквул'],
+    плита: ['плиты', 'панель', 'панели', 'лист', 'листы'],
+    вата: ['стекловата', 'минвата', 'базальтовата'],
     // Краны и арматура
-    'кран': ['вентиль', 'затвор', 'клапан', 'запорный'],
-    'шаровой': ['шар', 'ball', 'сферический'],
-    'резьбовой': ['резьба', 'thread', 'муфтовый'],
+    кран: ['вентиль', 'затвор', 'клапан', 'запорный'],
+    шаровой: ['шар', 'ball', 'сферический'],
+    резьбовой: ['резьба', 'thread', 'муфтовый'],
     // Размеры
     '100': ['сто', '100мм', '10см'],
-    'мм': ['миллиметр', 'миллиметры', 'mm'],
+    мм: ['миллиметр', 'миллиметры', 'mm'],
     // Дополнительные категории
-    'бетон': ['железобетон', 'ж/б', 'жб', 'цементный'],
-    'труба': ['трубы', 'трубопровод', 'трубная']
+    бетон: ['железобетон', 'ж/б', 'жб', 'цементный'],
+    труба: ['трубы', 'трубопровод', 'трубная'],
   }
 
   const terms = new Set<string>()
 
   for (const token of tokens.all) {
     if (synonyms[token]) {
-      synonyms[token].forEach(syn => terms.add(syn))
+      synonyms[token].forEach((syn) => terms.add(syn))
     }
   }
 
@@ -1883,66 +2062,72 @@ function getSemanticTerms(tokens: any): string[] {
 
 // Умное ранжирование
 function intelligentRanking(results: any[], tokens: any, classification: string) {
-  return results.map(item => {
-    const name = item.name.toLowerCase()
-    let score = item.baseScore || 1
-    const explanation = []
+  return results
+    .map((item) => {
+      const name = item.name.toLowerCase()
+      let score = item.baseScore || 1
+      const explanation = []
 
-    // Бонусы за точные совпадения
-    if (tokens.article.some((art: string) => name.includes(art.toLowerCase()))) {
-      score += 20
-      explanation.push('артикул')
-    }
-
-    if (tokens.size.some((size: string) => name.includes(size.toLowerCase()))) {
-      score += 10
-      explanation.push('размер')
-    }
-
-    if (tokens.brand.some((brand: string) => name.includes(brand.toLowerCase()))) {
-      score += 8
-      explanation.push('бренд')
-    }
-
-    if (tokens.material.some((mat: string) => name.includes(mat.toLowerCase()))) {
-      score += 5
-      explanation.push('материал')
-    }
-
-    // Бонус за начало строки
-    if (tokens.all.some((token: string) => name.startsWith(token.toLowerCase()))) {
-      score += 3
-      explanation.push('префикс')
-    }
-
-    const confidence = Math.min(0.95, Math.max(0.1, score / 40))
-
-    return {
-      id: item.id,
-      name: item.name,
-      confidence,
-      matchDetails: {
-        materialTokens: tokens.material,
-        sizeTokens: tokens.size,
-        brandTokens: tokens.brand,
-        articleTokens: tokens.article,
-        matchType: item.matchType,
-        score,
-        explanation: explanation.join(', ') || 'общее совпадение'
+      // Бонусы за точные совпадения
+      if (tokens.article.some((art: string) => name.includes(art.toLowerCase()))) {
+        score += 20
+        explanation.push('артикул')
       }
-    }
-  }).sort((a, b) => b.confidence - a.confidence)
+
+      if (tokens.size.some((size: string) => name.includes(size.toLowerCase()))) {
+        score += 10
+        explanation.push('размер')
+      }
+
+      if (tokens.brand.some((brand: string) => name.includes(brand.toLowerCase()))) {
+        score += 8
+        explanation.push('бренд')
+      }
+
+      if (tokens.material.some((mat: string) => name.includes(mat.toLowerCase()))) {
+        score += 5
+        explanation.push('материал')
+      }
+
+      // Бонус за начало строки
+      if (tokens.all.some((token: string) => name.startsWith(token.toLowerCase()))) {
+        score += 3
+        explanation.push('префикс')
+      }
+
+      const confidence = Math.min(0.95, Math.max(0.1, score / 40))
+
+      return {
+        id: item.id,
+        name: item.name,
+        confidence,
+        matchDetails: {
+          materialTokens: tokens.material,
+          sizeTokens: tokens.size,
+          brandTokens: tokens.brand,
+          articleTokens: tokens.article,
+          matchType: item.matchType,
+          score,
+          explanation: explanation.join(', ') || 'общее совпадение',
+        },
+      }
+    })
+    .sort((a, b) => b.confidence - a.confidence)
 }
 
 /**
  * Комбинированный поиск для тестирования AI
  * Выполняет все четыре варианта поиска и возвращает форматированные результаты
  */
-export async function testSearchSupplierNames(
-  materialName: string
-): Promise<{
+export async function testSearchSupplierNames(materialName: string): Promise<{
   vectorResults: Array<{ id: string; name: string; confidence: number }>
-  keywordResults: Array<{ id: string; name: string; matchedKeywords: string[]; relevanceScore: number; matchType: string }>
+  keywordResults: Array<{
+    id: string
+    name: string
+    matchedKeywords: string[]
+    relevanceScore: number
+    matchType: string
+  }>
   editingResults: Array<{ id: string; name: string; confidence: number }>
   adaptiveResults: Array<{ id: string; name: string; confidence: number; matchDetails: any }>
   formattedText: string
@@ -1953,7 +2138,7 @@ export async function testSearchSupplierNames(
       keywordResults: [],
       editingResults: [],
       adaptiveResults: [],
-      formattedText: 'Укажите название материала для поиска'
+      formattedText: 'Укажите название материала для поиска',
     }
   }
 
@@ -1965,7 +2150,7 @@ export async function testSearchSupplierNames(
       vectorSearchSupplierNames(materialName, 60),
       keywordSearchSupplierNames(materialName, 60),
       editingModeSearchSupplierNames(materialName),
-      adaptiveHybridSearchSupplierNames(materialName)
+      adaptiveHybridSearchSupplierNames(materialName),
     ])
 
     // Формируем текст для отображения
@@ -2022,24 +2207,25 @@ export async function testSearchSupplierNames(
 
     // Добавляем итоговую статистику
     const totalUnique = new Set([
-      ...vectorResults.map(r => r.id),
-      ...keywordResults.map(r => r.id),
-      ...editingResults.map(r => r.id),
-      ...adaptiveResults.map(r => r.id)
+      ...vectorResults.map((r) => r.id),
+      ...keywordResults.map((r) => r.id),
+      ...editingResults.map((r) => r.id),
+      ...adaptiveResults.map((r) => r.id),
     ]).size
 
     formattedText += `\n📈 ИТОГО: ${totalUnique} уникальных поставщиков найдено`
 
-    console.log(`🎯 Комбинированный поиск завершен: векторный=${vectorResults.length}, семантический=${keywordResults.length}, режим_редактирования=${editingResults.length}, адаптивный=${adaptiveResults.length}`) // LOG: результаты комбинированного поиска
+    console.log(
+      `🎯 Комбинированный поиск завершен: векторный=${vectorResults.length}, семантический=${keywordResults.length}, режим_редактирования=${editingResults.length}, адаптивный=${adaptiveResults.length}`,
+    ) // LOG: результаты комбинированного поиска
 
     return {
       vectorResults,
       keywordResults,
       editingResults,
       adaptiveResults,
-      formattedText
+      formattedText,
     }
-
   } catch (error) {
     console.error('Ошибка комбинированного поиска:', error) // LOG: ошибка комбинированного поиска
     return {
@@ -2047,7 +2233,7 @@ export async function testSearchSupplierNames(
       keywordResults: [],
       editingResults: [],
       adaptiveResults: [],
-      formattedText: `❌ Ошибка поиска: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
+      formattedText: `❌ Ошибка поиска: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`,
     }
   }
 }
@@ -2062,7 +2248,7 @@ export async function testSearchSupplierNames(
  */
 export const predictNomenclatureSuppliers = async (
   request: MLPredictionRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<MLPredictionResponse> => {
   const startTime = Date.now()
   const config = await getMLConfig()
@@ -2070,7 +2256,7 @@ export const predictNomenclatureSuppliers = async (
   console.log('🔍 ML NomenclatureSuppliers DEBUG: AbortSignal status:', {
     hasSignal: !!signal,
     aborted: signal?.aborted || false,
-    materialName: request.materialName
+    materialName: request.materialName,
   })
 
   if (!config.enabled) {
@@ -2082,30 +2268,40 @@ export const predictNomenclatureSuppliers = async (
     const mlModeConfig = await mlModeApi.getCurrentMode()
     const currentMode = mlModeConfig.mode
 
-    console.log('🔄 ML NomenclatureSuppliers: Режим', currentMode, 'для материала:', request.materialName)
+    console.log(
+      '🔄 ML NomenclatureSuppliers: Режим',
+      currentMode,
+      'для материала:',
+      request.materialName,
+    )
 
     // Если выбран Deepseek AI режим
     if (currentMode === 'deepseek') {
       const deepseekAvailable = await mlModeApi.isDeepseekAvailable()
 
       if (deepseekAvailable) {
-        console.log('🤖 ML NomenclatureSuppliers: Используем Deepseek AI для поиска номенклатуры поставщика')
+        console.log(
+          '🤖 ML NomenclatureSuppliers: Используем Deepseek AI для поиска номенклатуры поставщика',
+        )
         return await predictNomenclatureSuppliersWithDeepseek(request, signal)
       } else {
-        console.log('🤖 ML NomenclatureSuppliers: Deepseek недоступен, переключаемся на локальный ML')
+        console.log(
+          '🤖 ML NomenclatureSuppliers: Deepseek недоступен, переключаемся на локальный ML',
+        )
       }
     }
 
     // Локальный ML режим для номенклатуры поставщика
-    console.log('🧠 ML NomenclatureSuppliers: Используем локальный ML алгоритм для поиска номенклатуры поставщика')
+    console.log(
+      '🧠 ML NomenclatureSuppliers: Используем локальный ML алгоритм для поиска номенклатуры поставщика',
+    )
     const suggestions = await getNomenclatureSupplierSuggestions(request, config)
 
     return {
       suggestions,
       processingTime: Date.now() - startTime,
-      modelUsed: 'local-nomenclature-suppliers'
+      modelUsed: 'local-nomenclature-suppliers',
     }
-
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       console.log('🤖 ML NomenclatureSuppliers: Запрос отменен (AbortError)')
@@ -2122,11 +2318,14 @@ export const predictNomenclatureSuppliers = async (
  */
 const getNomenclatureSupplierSuggestions = async (
   request: MLPredictionRequest,
-  config: MLConfig
+  config: MLConfig,
 ): Promise<NomenclatureSuggestion[]> => {
   if (!supabase) throw new Error('Supabase is not configured')
 
-  console.log('🔍 ML NomenclatureSuppliers: Поиск в supplier_names для материала:', request.materialName)
+  console.log(
+    '🔍 ML NomenclatureSuppliers: Поиск в supplier_names для материала:',
+    request.materialName,
+  )
 
   // Получаем все записи из supplier_names (номенклатура поставщика)
   const { data: supplierNames, error } = await supabase
@@ -2144,15 +2343,17 @@ const getNomenclatureSupplierSuggestions = async (
     return []
   }
 
-  console.log(`🔍 ML NomenclatureSuppliers: Загружено ${supplierNames.length} записей номенклатуры поставщика`)
+  console.log(
+    `🔍 ML NomenclatureSuppliers: Загружено ${supplierNames.length} записей номенклатуры поставщика`,
+  )
 
   // Адаптированный алгоритм поиска для номенклатуры поставщика
   const searchTerm = request.materialName.toLowerCase().trim()
   const supplierSearchWords = searchTerm
     .replace(/[^\wа-яё\s]/g, ' ')
     .split(/\s+/)
-    .filter(word => word.length >= config.minWordLength)
-    .filter(word => !config.ignoredTerms.includes(word))
+    .filter((word) => word.length >= config.minWordLength)
+    .filter((word) => !config.ignoredTerms.includes(word))
 
   console.log('🔍 ML NomenclatureSuppliers: Поисковые слова:', supplierSearchWords)
 
@@ -2164,9 +2365,9 @@ const getNomenclatureSupplierSuggestions = async (
   const effectiveSearchTerm = supplierSearchWords.join(' ')
 
   // Фильтрация и ранжирование номенклатуры поставщика
-  const matches = supplierNames.filter(supplier => {
+  const matches = supplierNames.filter((supplier) => {
     const supplierLower = supplier.name.toLowerCase()
-    return supplierSearchWords.some(word => supplierLower.includes(word))
+    return supplierSearchWords.some((word) => supplierLower.includes(word))
   })
 
   console.log(`🔍 ML NomenclatureSuppliers: Найдено ${matches.length} совпадений`)
@@ -2184,7 +2385,10 @@ const getNomenclatureSupplierSuggestions = async (
     const bonusBreakdown = []
 
     // Бонус за точное совпадение префикса
-    if (cleanedSupplierName.startsWith(effectiveSearchTerm) || supplierLower.startsWith(searchTerm)) {
+    if (
+      cleanedSupplierName.startsWith(effectiveSearchTerm) ||
+      supplierLower.startsWith(searchTerm)
+    ) {
       totalBonus += config.prefixBonus
       bonusBreakdown.push(`prefix:${Math.round(config.prefixBonus * 100)}%`)
     }
@@ -2199,7 +2403,9 @@ const getNomenclatureSupplierSuggestions = async (
     const keywordScore = calculateKeywordScore(supplierSearchWords, cleanedSupplierName, config)
     const keywordBonus = keywordScore * config.keywordBonus
     totalBonus += keywordBonus
-    bonusBreakdown.push(`keywords:${Math.round(keywordScore * 100)}%*${Math.round(config.keywordBonus * 100)}%=${Math.round(keywordBonus * 100)}%`)
+    bonusBreakdown.push(
+      `keywords:${Math.round(keywordScore * 100)}%*${Math.round(config.keywordBonus * 100)}%=${Math.round(keywordBonus * 100)}%`,
+    )
 
     // Применяем алгоритм настройки точности
     let finalScore = similarity + totalBonus
@@ -2209,25 +2415,28 @@ const getNomenclatureSupplierSuggestions = async (
     const finalConfidence = Math.max(0.1, Math.min(0.95, finalScore))
 
     if (process.env.NODE_ENV === 'development') {
-      console.log(`🔍 ML NomenclatureSuppliers: "${supplier.name}" (${index + 1}/${matches.length}):`, {
-        similarity: Math.round(similarity * 100) + '%',
-        bonuses: bonusBreakdown.join(' + '),
-        algorithm: config.algorithm,
-        confidence: Math.round(finalConfidence * 100) + '%'
-      })
+      console.log(
+        `🔍 ML NomenclatureSuppliers: "${supplier.name}" (${index + 1}/${matches.length}):`,
+        {
+          similarity: Math.round(similarity * 100) + '%',
+          bonuses: bonusBreakdown.join(' + '),
+          algorithm: config.algorithm,
+          confidence: Math.round(finalConfidence * 100) + '%',
+        },
+      )
     }
 
     return {
       id: supplier.id,
       name: supplier.name,
       confidence: finalConfidence,
-      reasoning: `${Math.round(similarity * 100)}% similarity + [${bonusBreakdown.join(', ')}] via ${config.algorithm} algorithm`
+      reasoning: `${Math.round(similarity * 100)}% similarity + [${bonusBreakdown.join(', ')}] via ${config.algorithm} algorithm`,
     }
   })
 
   // Фильтруем по порогу уверенности и сортируем
   const filteredSuggestions = suggestions
-    .filter(s => s.confidence >= config.confidenceThreshold)
+    .filter((s) => s.confidence >= config.confidenceThreshold)
     .sort((a, b) => b.confidence - a.confidence)
     .slice(0, 30) // Ограничиваем 30 результатами
 
@@ -2241,7 +2450,7 @@ const getNomenclatureSupplierSuggestions = async (
  */
 async function predictNomenclatureSuppliersWithDeepseek(
   request: MLPredictionRequest,
-  externalSignal?: AbortSignal
+  externalSignal?: AbortSignal,
 ): Promise<MLPredictionResponse> {
   console.log('🤖 Deepseek NomenclatureSuppliers: Начало анализа материала:', request.materialName)
 
@@ -2252,69 +2461,76 @@ async function predictNomenclatureSuppliersWithDeepseek(
     // Формируем запрос для Deepseek
     const deepseekRequest: DeepseekMaterialRequest = {
       material_name: request.materialName,
-      context: request.context ? {
-        project_type: request.context.projectId ? 'строительный' : undefined,
-        cost_category: request.context.categoryId,
-        cost_type: request.context.typeId,
-        location: undefined
-      } : undefined,
+      context: request.context
+        ? {
+            project_type: request.context.projectId ? 'строительный' : undefined,
+            cost_category: request.context.categoryId,
+            cost_type: request.context.typeId,
+            location: undefined,
+          }
+        : undefined,
       preferences: {
         prefer_eco_friendly: false,
         budget_conscious: true,
         quality_priority: true,
-        max_suggestions: maxSuggestions
-      }
+        max_suggestions: maxSuggestions,
+      },
     }
 
     console.log('🤖 Deepseek NomenclatureSuppliers: Отправляем запрос:', deepseekRequest)
 
     const deepseekResponse = await deepseekApi.analyzeMaterial(deepseekRequest, externalSignal)
 
-    console.log('🤖 Deepseek NomenclatureSuppliers: Получен ответ с', deepseekResponse.recommendations.length, 'рекомендациями')
+    console.log(
+      '🤖 Deepseek NomenclatureSuppliers: Получен ответ с',
+      deepseekResponse.recommendations.length,
+      'рекомендациями',
+    )
 
     // Преобразуем ответ Deepseek в формат ML
-    const suggestions: NomenclatureSuggestion[] = deepseekResponse.recommendations.map((rec, index) => {
-      // Используем supplier_name как основное название (номенклатура поставщика)
-      const nomenclatureSupplierName = rec.supplier_name || rec.nomenclature_name || 'Не указано'
+    const suggestions: NomenclatureSuggestion[] = deepseekResponse.recommendations.map(
+      (rec, index) => {
+        // Используем supplier_name как основное название (номенклатура поставщика)
+        const nomenclatureSupplierName = rec.supplier_name || rec.nomenclature_name || 'Не указано'
 
-      // Проверяем на fallback тексты
-      const fallbackTexts = [
-        'Требуется уточнение поставщика',
-        'Не указано',
-        'Уточняется',
-        'Материал не найден'
-      ]
+        // Проверяем на fallback тексты
+        const fallbackTexts = [
+          'Требуется уточнение поставщика',
+          'Не указано',
+          'Уточняется',
+          'Материал не найден',
+        ]
 
-      let finalName = nomenclatureSupplierName
-      if (fallbackTexts.some(fallback => nomenclatureSupplierName.includes(fallback))) {
-        finalName = request.materialName
-      }
+        let finalName = nomenclatureSupplierName
+        if (fallbackTexts.some((fallback) => nomenclatureSupplierName.includes(fallback))) {
+          finalName = request.materialName
+        }
 
-      // Формируем расширенное обоснование
-      let enhancedReasoning = `AI: ${rec.reasoning}`
-      if (rec.price_analysis) enhancedReasoning += `\n💰 Цена: ${rec.price_analysis}`
-      if (rec.quality_score) enhancedReasoning += `\n⭐ Качество: ${rec.quality_score}/10`
+        // Формируем расширенное обоснование
+        let enhancedReasoning = `AI: ${rec.reasoning}`
+        if (rec.price_analysis) enhancedReasoning += `\n💰 Цена: ${rec.price_analysis}`
+        if (rec.quality_score) enhancedReasoning += `\n⭐ Качество: ${rec.quality_score}/10`
 
-      return {
-        id: rec.nomenclature_id || `ai-nomenclature-supplier-${index}`,
-        name: finalName,
-        confidence: Math.max(0.1, Math.min(0.95, rec.confidence)),
-        reasoning: enhancedReasoning,
-        tooltip_info: rec.tooltip_info,
-        price_analysis: rec.price_analysis,
-        quality_score: rec.quality_score,
-        supplier_name: rec.supplier_name
-      }
-    })
+        return {
+          id: rec.nomenclature_id || `ai-nomenclature-supplier-${index}`,
+          name: finalName,
+          confidence: Math.max(0.1, Math.min(0.95, rec.confidence)),
+          reasoning: enhancedReasoning,
+          tooltip_info: rec.tooltip_info,
+          price_analysis: rec.price_analysis,
+          quality_score: rec.quality_score,
+          supplier_name: rec.supplier_name,
+        }
+      },
+    )
 
     console.log('🤖 Deepseek NomenclatureSuppliers: Преобразованы предложения:', suggestions.length)
 
     return {
       suggestions,
       processingTime: deepseekResponse.usage_stats.processing_time_ms,
-      modelUsed: 'deepseek-nomenclature-suppliers'
+      modelUsed: 'deepseek-nomenclature-suppliers',
     }
-
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       console.log('🤖 Deepseek NomenclatureSuppliers: Запрос отменен пользователем (AbortError)')
@@ -2330,13 +2546,13 @@ async function predictNomenclatureSuppliersWithDeepseek(
  */
 const getFallbackNomenclatureSuppliersResults = async (
   request: MLPredictionRequest,
-  startTime: number
+  startTime: number,
 ): Promise<MLPredictionResponse> => {
   console.log('🔄 ML NomenclatureSuppliers: Возвращаем fallback результаты (ML отключен)')
 
   return {
     suggestions: [],
     processingTime: Date.now() - startTime,
-    modelUsed: 'fallback-nomenclature-suppliers'
+    modelUsed: 'fallback-nomenclature-suppliers',
   }
 }

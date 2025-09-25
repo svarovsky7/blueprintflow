@@ -51,12 +51,12 @@ export const MLNomenclatureSelect: React.FC<MLNomenclatureSelectProps> = ({
     clearSuggestions,
     confidence,
     processingTime,
-    modelUsed
+    modelUsed,
   } = useMLNomenclature({
     enabled: !disabled,
     autoPredict: false, // Отключаем автопредсказание
     debounceMs: 300,
-    minQueryLength: 2
+    minQueryLength: 2,
   })
 
   // Server-side поиск номенклатуры для больших данных
@@ -113,26 +113,22 @@ export const MLNomenclatureSelect: React.FC<MLNomenclatureSelectProps> = ({
         mlSuggestions: stableSuggestions.length,
         searchResults: stableSearchResults.length,
         staticOptions: stableOptions.length,
-        searchQuery
+        searchQuery,
       })
     }
 
-    const mlOptions = stableSuggestions.map(suggestion => ({
+    const mlOptions = stableSuggestions.map((suggestion) => ({
       value: suggestion.id,
       label: (
         <Tooltip
           title={
             <div style={{ maxWidth: '300px' }}>
-              <div><strong>📋 {suggestion.tooltip_info || suggestion.name}</strong></div>
-              {suggestion.supplier_name && (
-                <div>🏢 Поставщик: {suggestion.supplier_name}</div>
-              )}
-              {suggestion.quality_score && (
-                <div>⭐ Качество: {suggestion.quality_score}/10</div>
-              )}
-              {suggestion.price_analysis && (
-                <div>💰 Цена: {suggestion.price_analysis}</div>
-              )}
+              <div>
+                <strong>📋 {suggestion.tooltip_info || suggestion.name}</strong>
+              </div>
+              {suggestion.supplier_name && <div>🏢 Поставщик: {suggestion.supplier_name}</div>}
+              {suggestion.quality_score && <div>⭐ Качество: {suggestion.quality_score}/10</div>}
+              {suggestion.price_analysis && <div>💰 Цена: {suggestion.price_analysis}</div>}
               <div style={{ marginTop: '8px', fontSize: '12px', opacity: 0.8 }}>
                 {suggestion.reasoning}
               </div>
@@ -144,7 +140,14 @@ export const MLNomenclatureSelect: React.FC<MLNomenclatureSelectProps> = ({
             <div style={{ flex: 1, overflow: 'hidden' }}>
               <div style={{ fontWeight: 'bold' }}>{suggestion.name}</div>
               {suggestion.supplier_name && (
-                <div style={{ fontSize: '11px', color: '#666', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <div
+                  style={{
+                    fontSize: '11px',
+                    color: '#666',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
                   🏢 {suggestion.supplier_name}
                 </div>
               )}
@@ -154,24 +157,32 @@ export const MLNomenclatureSelect: React.FC<MLNomenclatureSelectProps> = ({
                 <Badge
                   count={`⭐${suggestion.quality_score}`}
                   style={{
-                    backgroundColor: suggestion.quality_score >= 8 ? '#52c41a' :
-                                    suggestion.quality_score >= 6 ? '#faad14' : '#ff7875',
+                    backgroundColor:
+                      suggestion.quality_score >= 8
+                        ? '#52c41a'
+                        : suggestion.quality_score >= 6
+                          ? '#faad14'
+                          : '#ff7875',
                     fontSize: '9px',
                     height: '16px',
                     lineHeight: '16px',
-                    borderRadius: '8px'
+                    borderRadius: '8px',
                   }}
                 />
               )}
               <Badge
                 count={`${Math.round(suggestion.confidence * 100)}%`}
                 style={{
-                  backgroundColor: suggestion.confidence > 0.7 ? '#52c41a' :
-                                  suggestion.confidence > 0.5 ? '#faad14' : '#ff7875',
+                  backgroundColor:
+                    suggestion.confidence > 0.7
+                      ? '#52c41a'
+                      : suggestion.confidence > 0.5
+                        ? '#faad14'
+                        : '#ff7875',
                   fontSize: '10px',
                   height: '16px',
                   lineHeight: '16px',
-                  borderRadius: '8px'
+                  borderRadius: '8px',
                 }}
               />
               <RobotOutlined style={{ color: '#1890ff', fontSize: '12px' }} />
@@ -186,29 +197,30 @@ export const MLNomenclatureSelect: React.FC<MLNomenclatureSelectProps> = ({
       price_analysis: suggestion.price_analysis,
       quality_score: suggestion.quality_score,
       supplier_name: suggestion.supplier_name,
-      isMLSuggestion: true
+      isMLSuggestion: true,
     }))
 
     // Server-side результаты поиска
     const serverOptions = stableSearchResults
-      .filter(item => !mlOptions.some(mlOpt => mlOpt.value === item.id))
-      .map(item => ({
+      .filter((item) => !mlOptions.some((mlOpt) => mlOpt.value === item.id))
+      .map((item) => ({
         value: item.id,
         label: item.name,
         isMLSuggestion: false,
-        isServerResult: true
+        isServerResult: true,
       }))
 
     // Статические опции (из props)
     const staticOptions = stableOptions
-      .filter(opt =>
-        !mlOptions.some(mlOpt => mlOpt.value === opt.value) &&
-        !serverOptions.some(serverOpt => serverOpt.value === opt.value)
+      .filter(
+        (opt) =>
+          !mlOptions.some((mlOpt) => mlOpt.value === opt.value) &&
+          !serverOptions.some((serverOpt) => serverOpt.value === opt.value),
       )
-      .map(opt => ({
+      .map((opt) => ({
         ...opt,
         isMLSuggestion: false,
-        isServerResult: false
+        isServerResult: false,
       }))
 
     // Порядок: ML предложения -> Server-side результаты -> Статические опции
@@ -216,10 +228,11 @@ export const MLNomenclatureSelect: React.FC<MLNomenclatureSelectProps> = ({
   }, [stableSuggestions, stableSearchResults, stableOptions, searchQuery])
 
   const handleSelect = (selectedValue: string, option: any) => {
-    console.log('🤖 ML AutoComplete: Option selected:', { // LOG: выбор опции в ML AutoComplete
+    console.log('🤖 ML AutoComplete: Option selected:', {
+      // LOG: выбор опции в ML AutoComplete
       selectedValue,
       isMLSuggestion: option.isMLSuggestion,
-      confidence: option.confidence
+      confidence: option.confidence,
     })
 
     if (option.isMLSuggestion && onMLSuggestionSelect) {
@@ -232,7 +245,7 @@ export const MLNomenclatureSelect: React.FC<MLNomenclatureSelectProps> = ({
         tooltip_info: option.tooltip_info,
         price_analysis: option.price_analysis,
         quality_score: option.quality_score,
-        supplier_name: option.supplier_name
+        supplier_name: option.supplier_name,
       })
     }
 
@@ -240,11 +253,13 @@ export const MLNomenclatureSelect: React.FC<MLNomenclatureSelectProps> = ({
   }
 
   return (
-    <div style={{
-      position: 'relative',
-      width: '100%', // Фиксируем ширину
-      minHeight: '32px' // Минимальная высота для предотвращения скачков
-    }}>
+    <div
+      style={{
+        position: 'relative',
+        width: '100%', // Фиксируем ширину
+        minHeight: '32px', // Минимальная высота для предотвращения скачков
+      }}
+    >
       <AutoComplete
         value={value}
         onChange={onChange}
@@ -254,7 +269,7 @@ export const MLNomenclatureSelect: React.FC<MLNomenclatureSelectProps> = ({
         placeholder={placeholder}
         style={{
           width: '100%', // Фиксируем ширину AutoComplete
-          ...style
+          ...style,
         }}
         disabled={disabled}
         allowClear={allowClear}
@@ -267,71 +282,78 @@ export const MLNomenclatureSelect: React.FC<MLNomenclatureSelectProps> = ({
         }}
         getPopupContainer={(triggerNode) => {
           // Попап будет создан в фиксированном контейнере для предотвращения скачков
-          const scrollContainer = triggerNode.closest('.ant-table-body') ||
-                                 triggerNode.closest('.ant-table-container') ||
-                                 triggerNode.closest('[data-testid="table-scroll-container"]') ||
-                                 document.body
+          const scrollContainer =
+            triggerNode.closest('.ant-table-body') ||
+            triggerNode.closest('.ant-table-container') ||
+            triggerNode.closest('[data-testid="table-scroll-container"]') ||
+            document.body
           return scrollContainer as HTMLElement
         }}
         popupMatchSelectWidth={false} // Отключаем автоматическое совпадение ширины
-        popupMatchSelectWidth={false} // Отключаем автоматическое совпадение ширины
         loading={isLoading || isSearching}
         notFoundContent={
-          (isLoading || isSearching) ? (
-            <div style={{
-              padding: '12px 16px',
-              textAlign: 'center',
-              color: '#666',
-              minHeight: '44px', // Фиксированная высота для стабильности
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
+          isLoading || isSearching ? (
+            <div
+              style={{
+                padding: '12px 16px',
+                textAlign: 'center',
+                color: '#666',
+                minHeight: '44px', // Фиксированная высота для стабильности
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
               <RobotOutlined spin style={{ marginRight: '8px' }} />
               ML анализирует материал...
             </div>
           ) : materialName.length >= 2 ? (
             suggestions.length === 0 && config?.enabled ? (
-              <div style={{
-                padding: '12px 16px',
-                textAlign: 'center',
-                color: '#666',
-                minHeight: '44px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
+              <div
+                style={{
+                  padding: '12px 16px',
+                  textAlign: 'center',
+                  color: '#666',
+                  minHeight: '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
                 <RobotOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
-                Кликните для ML-анализа материала "{materialName.substring(0, 20)}{materialName.length > 20 ? '...' : ''}"
+                Кликните для ML-анализа материала "{materialName.substring(0, 20)}
+                {materialName.length > 20 ? '...' : ''}"
               </div>
             ) : (
-              <div style={{
-                padding: '12px 16px',
-                textAlign: 'center',
-                color: '#666',
-                minHeight: '44px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
+              <div
+                style={{
+                  padding: '12px 16px',
+                  textAlign: 'center',
+                  color: '#666',
+                  minHeight: '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
                 Нет подходящих вариантов
               </div>
             )
           ) : (
-            <div style={{
-              padding: '12px 16px',
-              textAlign: 'center',
-              color: '#666',
-              minHeight: '44px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              {materialName.length < 2 ? (
-                'Сначала введите материал (мин. 2 символа)'
-              ) : (
-                'Кликните для ML-подбора номенклатуры'
-              )}
+            <div
+              style={{
+                padding: '12px 16px',
+                textAlign: 'center',
+                color: '#666',
+                minHeight: '44px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {materialName.length < 2
+                ? 'Сначала введите материал (мин. 2 символа)'
+                : 'Кликните для ML-подбора номенклатуры'}
             </div>
           )
         }
@@ -340,42 +362,46 @@ export const MLNomenclatureSelect: React.FC<MLNomenclatureSelectProps> = ({
 
       {/* ML статус индикатор */}
       {config?.enabled && materialName.length >= 2 && (
-        <div style={{
-          position: 'absolute',
-          top: '-26px',
-          right: '0px',
-          fontSize: '11px',
-          color: '#666',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
-          height: '20px', // Фиксированная высота
-          minWidth: '120px', // Минимальная ширина для предотвращения скачков
-          justifyContent: 'flex-end',
-          pointerEvents: 'none', // Не блокируем клики
-          zIndex: 10
-        }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: '-26px',
+            right: '0px',
+            fontSize: '11px',
+            color: '#666',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            height: '20px', // Фиксированная высота
+            minWidth: '120px', // Минимальная ширина для предотвращения скачков
+            justifyContent: 'flex-end',
+            pointerEvents: 'none', // Не блокируем клики
+            zIndex: 10,
+          }}
+        >
           {isLoading ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <RobotOutlined spin style={{ color: '#1890ff' }} />
               <span>ML анализ...</span>
             </div>
           ) : suggestions.length > 0 ? (
-            <Tooltip title={`ML модель: ${modelUsed}, Время: ${processingTime}мс, Средняя уверенность: ${Math.round(confidence * 100)}%`}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', pointerEvents: 'auto' }}>
+            <Tooltip
+              title={`ML модель: ${modelUsed}, Время: ${processingTime}мс, Средняя уверенность: ${Math.round(confidence * 100)}%`}
+            >
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: '4px', pointerEvents: 'auto' }}
+              >
                 <ThunderboltFilled style={{ color: '#52c41a' }} />
-                <span style={{ color: '#52c41a' }}>
-                  {suggestions.length} ML предложений
-                </span>
+                <span style={{ color: '#52c41a' }}>{suggestions.length} ML предложений</span>
               </div>
             </Tooltip>
           ) : (
             <Tooltip title="Кликните на поле для ML-анализа материала">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', pointerEvents: 'auto' }}>
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: '4px', pointerEvents: 'auto' }}
+              >
                 <RobotOutlined style={{ color: '#1890ff' }} />
-                <span style={{ color: '#1890ff' }}>
-                  Готов к ML-анализу
-                </span>
+                <span style={{ color: '#1890ff' }}>Готов к ML-анализу</span>
               </div>
             </Tooltip>
           )}
@@ -384,12 +410,14 @@ export const MLNomenclatureSelect: React.FC<MLNomenclatureSelectProps> = ({
 
       {/* Дебаг информация (только в development) */}
       {import.meta.env.DEV && suggestions.length > 0 && (
-        <div style={{
-          marginTop: '4px',
-          fontSize: '10px',
-          color: '#999',
-          fontFamily: 'monospace'
-        }}>
+        <div
+          style={{
+            marginTop: '4px',
+            fontSize: '10px',
+            color: '#999',
+            fontFamily: 'monospace',
+          }}
+        >
           🤖 ML: {suggestions.length} suggestions, {processingTime}ms, model: {modelUsed}
         </div>
       )}

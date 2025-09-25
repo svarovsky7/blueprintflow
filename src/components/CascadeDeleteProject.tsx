@@ -187,9 +187,7 @@ const CascadeDeleteProject: React.FC<CascadeDeleteProjectProps> = ({
 
       // Шаг 6: Получаем список файлов для удаления из storage
       console.log('6️⃣ Ищем файлы для удаления...')
-      const { data: filesList } = await supabase.storage
-        .from('files')
-        .list(`projects/${projectId}`)
+      const { data: filesList } = await supabase.storage.from('files').list(`projects/${projectId}`)
 
       // Удаляем файлы из storage если они есть
       if (filesList && filesList.length > 0) {

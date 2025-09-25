@@ -70,7 +70,7 @@ export const chessboardApi = {
         message: error.message,
         details: error.details,
         hint: error.hint,
-        code: error.code
+        code: error.code,
       })
       throw error
     }

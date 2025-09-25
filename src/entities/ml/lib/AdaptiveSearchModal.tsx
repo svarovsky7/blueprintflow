@@ -6,7 +6,7 @@ import {
   ThunderboltFilled,
   InfoCircleOutlined,
   CheckCircleOutlined,
-  ExclamationCircleOutlined
+  ExclamationCircleOutlined,
 } from '@ant-design/icons'
 import { adaptiveHybridSearchSupplierNames, testSearchSupplierNames } from '../api/ml-api'
 
@@ -34,21 +34,24 @@ interface ComparisonResults {
   }>
   other: {
     vectorResults: Array<{ id: string; name: string; confidence: number }>
-    keywordResults: Array<{ id: string; name: string; matchedKeywords: string[]; relevanceScore: number; matchType: string }>
+    keywordResults: Array<{
+      id: string
+      name: string
+      matchedKeywords: string[]
+      relevanceScore: number
+      matchType: string
+    }>
     editingResults: Array<{ id: string; name: string; confidence: number }>
   }
 }
 
-export const AdaptiveSearchModal: React.FC<AdaptiveSearchModalProps> = ({
-  open,
-  onClose,
-}) => {
+export const AdaptiveSearchModal: React.FC<AdaptiveSearchModalProps> = ({ open, onClose }) => {
   const [materialName, setMaterialName] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [results, setResults] = useState<ComparisonResults | null>(null)
   const [testMaterials] = useState<string[]>([
     'пеноплэкс',
-    'Кран шаровой резьбовой BVR-R DN32 BVR-R DN32 065B8310R Ридан'
+    'Кран шаровой резьбовой BVR-R DN32 BVR-R DN32 065B8310R Ридан',
   ])
 
   // Функция поиска четвертым алгоритмом
@@ -65,7 +68,7 @@ export const AdaptiveSearchModal: React.FC<AdaptiveSearchModalProps> = ({
       // Выполняем поиск четвертым алгоритмом и сравнение с остальными
       const [adaptiveResults, allResults] = await Promise.all([
         adaptiveHybridSearchSupplierNames(material.trim()),
-        testSearchSupplierNames(material.trim())
+        testSearchSupplierNames(material.trim()),
       ])
 
       setResults({
@@ -73,13 +76,12 @@ export const AdaptiveSearchModal: React.FC<AdaptiveSearchModalProps> = ({
         other: {
           vectorResults: allResults.vectorResults,
           keywordResults: allResults.keywordResults,
-          editingResults: allResults.editingResults
-        }
+          editingResults: allResults.editingResults,
+        },
       })
 
       message.success(`Адаптивный поиск найдел ${adaptiveResults.length} результатов`)
       console.log('🎯 Адаптивный поиск завершен успешно') // LOG: завершение адаптивного поиска
-
     } catch (error) {
       console.error('Ошибка адаптивного поиска:', error) // LOG: ошибка адаптивного поиска
       message.error('Ошибка при выполнении поиска')
@@ -90,10 +92,13 @@ export const AdaptiveSearchModal: React.FC<AdaptiveSearchModalProps> = ({
   }, [])
 
   // Функция быстрого тестирования на образцах
-  const handleQuickTest = useCallback((testMaterial: string) => {
-    setMaterialName(testMaterial)
-    handleAdaptiveSearch(testMaterial)
-  }, [handleAdaptiveSearch])
+  const handleQuickTest = useCallback(
+    (testMaterial: string) => {
+      setMaterialName(testMaterial)
+      handleAdaptiveSearch(testMaterial)
+    },
+    [handleAdaptiveSearch],
+  )
 
   // Колонки для таблицы результатов адаптивного поиска
   const adaptiveColumns = [
@@ -102,7 +107,7 @@ export const AdaptiveSearchModal: React.FC<AdaptiveSearchModalProps> = ({
       dataIndex: 'index',
       key: 'index',
       width: 50,
-      render: (_: unknown, __: unknown, index: number) => index + 1
+      render: (_: unknown, __: unknown, index: number) => index + 1,
     },
     {
       title: 'Название поставщика',
@@ -113,7 +118,7 @@ export const AdaptiveSearchModal: React.FC<AdaptiveSearchModalProps> = ({
         <Tooltip title={text}>
           <Text>{text}</Text>
         </Tooltip>
-      )
+      ),
     },
     {
       title: 'Уверенность',
@@ -129,7 +134,7 @@ export const AdaptiveSearchModal: React.FC<AdaptiveSearchModalProps> = ({
           </Tag>
         )
       },
-      sorter: (a: { confidence: number }, b: { confidence: number }) => a.confidence - b.confidence
+      sorter: (a: { confidence: number }, b: { confidence: number }) => a.confidence - b.confidence,
     },
     {
       title: 'Тип совпадения',
@@ -138,14 +143,14 @@ export const AdaptiveSearchModal: React.FC<AdaptiveSearchModalProps> = ({
       width: 120,
       render: (matchType: string) => {
         const colors = {
-          'EXACT': '#52c41a',
-          'PARTIAL': '#1890ff',
-          'SEMANTIC': '#722ed1',
-          'BRAND': '#fa8c16',
-          'SIZE': '#eb2f96'
+          EXACT: '#52c41a',
+          PARTIAL: '#1890ff',
+          SEMANTIC: '#722ed1',
+          BRAND: '#fa8c16',
+          SIZE: '#eb2f96',
         }
         return <Tag color={colors[matchType as keyof typeof colors] || '#666'}>{matchType}</Tag>
-      }
+      },
     },
     {
       title: 'Объяснение',
@@ -156,26 +161,49 @@ export const AdaptiveSearchModal: React.FC<AdaptiveSearchModalProps> = ({
         <Tooltip title={explanation}>
           <Text type="secondary">{explanation}</Text>
         </Tooltip>
-      )
+      ),
     },
     {
       title: 'Детали',
       key: 'details',
       width: 80,
-      render: (_: unknown, record: { matchDetails?: { score: number; materialTokens: string[]; sizeTokens: string[]; brandTokens: string[]; articleTokens: string[] } }) => (
-        <Tooltip title={
-          <div>
-            <div><strong>Счет:</strong> {record.matchDetails?.score}</div>
-            <div><strong>Материал:</strong> {record.matchDetails?.materialTokens.join(', ') || 'нет'}</div>
-            <div><strong>Размер:</strong> {record.matchDetails?.sizeTokens.join(', ') || 'нет'}</div>
-            <div><strong>Бренд:</strong> {record.matchDetails?.brandTokens.join(', ') || 'нет'}</div>
-            <div><strong>Артикул:</strong> {record.matchDetails?.articleTokens.join(', ') || 'нет'}</div>
-          </div>
-        }>
+      render: (
+        _: unknown,
+        record: {
+          matchDetails?: {
+            score: number
+            materialTokens: string[]
+            sizeTokens: string[]
+            brandTokens: string[]
+            articleTokens: string[]
+          }
+        },
+      ) => (
+        <Tooltip
+          title={
+            <div>
+              <div>
+                <strong>Счет:</strong> {record.matchDetails?.score}
+              </div>
+              <div>
+                <strong>Материал:</strong> {record.matchDetails?.materialTokens.join(', ') || 'нет'}
+              </div>
+              <div>
+                <strong>Размер:</strong> {record.matchDetails?.sizeTokens.join(', ') || 'нет'}
+              </div>
+              <div>
+                <strong>Бренд:</strong> {record.matchDetails?.brandTokens.join(', ') || 'нет'}
+              </div>
+              <div>
+                <strong>Артикул:</strong> {record.matchDetails?.articleTokens.join(', ') || 'нет'}
+              </div>
+            </div>
+          }
+        >
           <Button type="text" icon={<InfoCircleOutlined />} size="small" />
         </Tooltip>
-      )
-    }
+      ),
+    },
   ]
 
   // Функция сравнения с другими алгоритмами
@@ -183,7 +211,7 @@ export const AdaptiveSearchModal: React.FC<AdaptiveSearchModalProps> = ({
     if (!results?.other) return null
 
     const { vectorResults, keywordResults, editingResults } = results.other
-    const adaptiveIds = new Set(results.adaptive.map(r => r.id))
+    const adaptiveIds = new Set(results.adaptive.map((r) => r.id))
 
     return (
       <Card title="Сравнение с другими алгоритмами" size="small" style={{ marginTop: 16 }}>
@@ -193,7 +221,7 @@ export const AdaptiveSearchModal: React.FC<AdaptiveSearchModalProps> = ({
             <Tag color={vectorResults.length > 0 ? 'blue' : 'red'}>
               {vectorResults.length} результатов
             </Tag>
-            {vectorResults.some(r => adaptiveIds.has(r.id)) && (
+            {vectorResults.some((r) => adaptiveIds.has(r.id)) && (
               <Tag color="green" icon={<CheckCircleOutlined />}>
                 Есть пересечения
               </Tag>
@@ -205,7 +233,7 @@ export const AdaptiveSearchModal: React.FC<AdaptiveSearchModalProps> = ({
             <Tag color={keywordResults.length > 0 ? 'purple' : 'red'}>
               {keywordResults.length} результатов
             </Tag>
-            {keywordResults.some(r => adaptiveIds.has(r.id)) && (
+            {keywordResults.some((r) => adaptiveIds.has(r.id)) && (
               <Tag color="green" icon={<CheckCircleOutlined />}>
                 Есть пересечения
               </Tag>
@@ -217,7 +245,7 @@ export const AdaptiveSearchModal: React.FC<AdaptiveSearchModalProps> = ({
             <Tag color={editingResults.length > 0 ? 'orange' : 'red'}>
               {editingResults.length} результатов
             </Tag>
-            {editingResults.some(r => adaptiveIds.has(r.id)) && (
+            {editingResults.some((r) => adaptiveIds.has(r.id)) && (
               <Tag color="green" icon={<CheckCircleOutlined />}>
                 Есть пересечения
               </Tag>
@@ -226,7 +254,8 @@ export const AdaptiveSearchModal: React.FC<AdaptiveSearchModalProps> = ({
 
           <div style={{ marginTop: 8, padding: 8, backgroundColor: '#f0f8ff', borderRadius: 4 }}>
             <Text strong style={{ color: '#1890ff' }}>
-              <ThunderboltFilled /> Адаптивный алгоритм: {results.adaptive.length} уникальных результатов
+              <ThunderboltFilled /> Адаптивный алгоритм: {results.adaptive.length} уникальных
+              результатов
             </Text>
           </div>
         </Space>
@@ -250,11 +279,10 @@ export const AdaptiveSearchModal: React.FC<AdaptiveSearchModalProps> = ({
       footer={[
         <Button key="close" onClick={onClose}>
           Закрыть
-        </Button>
+        </Button>,
       ]}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
         {/* Поле ввода материала */}
         <Card title="Тестирование адаптивного поиска" size="small">
           <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
@@ -278,7 +306,9 @@ export const AdaptiveSearchModal: React.FC<AdaptiveSearchModalProps> = ({
 
           {/* Быстрые тесты */}
           <div>
-            <Text strong style={{ marginRight: 8 }}>Быстрые тесты:</Text>
+            <Text strong style={{ marginRight: 8 }}>
+              Быстрые тесты:
+            </Text>
             {testMaterials.map((testMaterial, index) => (
               <Button
                 key={index}
@@ -314,7 +344,7 @@ export const AdaptiveSearchModal: React.FC<AdaptiveSearchModalProps> = ({
                   pageSize: 10,
                   showSizeChanger: true,
                   showQuickJumper: true,
-                  showTotal: (total, range) => `${range[0]}-${range[1]} из ${total} записей`
+                  showTotal: (total, range) => `${range[0]}-${range[1]} из ${total} записей`,
                 }}
                 scroll={{ y: 300 }}
               />
@@ -351,7 +381,6 @@ export const AdaptiveSearchModal: React.FC<AdaptiveSearchModalProps> = ({
             </div>
           </Space>
         </Card>
-
       </div>
     </Modal>
   )

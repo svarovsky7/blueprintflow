@@ -8,9 +8,10 @@ import { ratesApi } from '@/entities/rates/api/rates-api'
 import { RowColorPicker } from './RowColorPicker'
 import { CommentsCell } from './CommentsCell'
 import { FloorQuantitiesModal } from './FloorQuantitiesModal'
-import { AIAnalysisModal, MLNomenclatureSupplierSelect } from '@/entities/ml'
+import { AIAnalysisModal } from '@/entities/ml'
 import type { RowData, TableMode, RowColor, FloorModalRow, FloorModalInfo } from '../types'
 import { COLUMN_KEYS, TABLE_SCROLL_CONFIG, LARGE_TABLE_CONFIG } from '../utils/constants'
+import { parseFloorsFromString, hasMultipleFloors as checkMultipleFloors, distributeQuantitiesAcrossFloors } from '../utils/floors'
 import { useNomenclatureSupplierCascade } from '../hooks/useNomenclatureSupplierCascade'
 import { chessboardCascadeApi } from '@/entities/chessboard'
 
@@ -37,9 +38,17 @@ interface WorkNameSelectProps {
 }
 
 const WorkNameSelect: React.FC<WorkNameSelectProps> = ({ value, costTypeId, costCategoryId, onChange }) => {
+  // ИСПРАВЛЕНИЕ: Стабилизируем queryKey для предотвращения infinite render
+  const stableQueryKey = useMemo(() => {
+    const key = ['works-by-category']
+    if (costTypeId) key.push(costTypeId)
+    if (costCategoryId) key.push(costCategoryId)
+    return key
+  }, [costTypeId, costCategoryId])
+
   // Хук всегда вызывается на верхнем уровне компонента
   const { data: workOptions = [] } = useQuery({
-    queryKey: ['works-by-category', costTypeId, costCategoryId].filter(Boolean),
+    queryKey: stableQueryKey,
     queryFn: () => ratesApi.getWorksByCategory(costTypeId, costCategoryId),
     enabled: !!(costTypeId || costCategoryId), // Запрос только если есть вид или категория затрат
   })
@@ -655,6 +664,7 @@ export const ChessboardTable = memo(({
     enableCascade: true
   })
 
+
   // Загрузка данных справочников для селектов
   const { data: materialsData = [] } = useQuery({
     queryKey: ['materials-autocomplete'],
@@ -977,11 +987,56 @@ export const ChessboardTable = memo(({
   // Функция для проверки, есть ли у записи множественные этажи
   const hasMultipleFloors = useCallback((record: RowData) => {
     if (!record.floors) return false
-
-    // Проверяем, содержит ли строка этажей диапазон (например: "1-5") или список (например: "1,2,3")
-    const floorsStr = record.floors.toString()
-    return floorsStr.includes('-') || floorsStr.includes(',')
+    return checkMultipleFloors(record.floors.toString())
   }, [])
+
+  // Обработчик изменения поля этажей с автоматическим распределением количеств
+  const handleFloorsChange = useCallback((recordId: string, newFloorsValue: string) => {
+    // Находим запись, чтобы получить текущие количества
+    const record = data.find(r => r.id === recordId)
+    if (!record) {
+      console.error('🏢 ERROR: Record not found for floors change:', recordId)
+      return
+    }
+
+    console.log('🏢 Floor change START:', {
+      recordId,
+      newFloorsValue,
+      currentFloors: record.floors,
+      currentFloorQuantities: record.floorQuantities
+    })
+
+    // Получаем текущие общие количества
+    const currentQuantityPd = parseFloat(record.quantityPd || '0')
+    const currentQuantitySpec = parseFloat(record.quantitySpec || '0')
+    const currentQuantityRd = parseFloat(record.quantityRd || '0')
+
+    console.log('🏢 Current quantities:', {
+      currentQuantityPd,
+      currentQuantitySpec,
+      currentQuantityRd
+    })
+
+    // Если количества есть, распределяем их по новым этажам
+    const newFloorQuantities = distributeQuantitiesAcrossFloors(
+      newFloorsValue,
+      record.floorQuantities || {},
+      currentQuantityPd,
+      currentQuantitySpec,
+      currentQuantityRd
+    )
+
+
+    const updateData = {
+      floors: newFloorsValue,
+      floorQuantities: newFloorQuantities
+    }
+
+
+    // Обновляем запись с новыми этажами и распределенными количествами
+    onRowUpdate(recordId, updateData)
+
+  }, [data, onRowUpdate])
 
   // ОПТИМИЗАЦИЯ: стабильные обработчики событий (ИСПРАВЛЕНО: убираем циклические зависимости)
   const handleStartEditing = useCallback((recordId: string) => () => onStartEditing(recordId), [onStartEditing])
@@ -1008,7 +1063,7 @@ export const ChessboardTable = memo(({
         dataLength: data.length,
         threshold: LARGE_TABLE_CONFIG.virtualThreshold,
         usingOptimizedConfig: true
-      }) // LOG: обнаружение больших данных в таблице
+      })
     }
   }, [isLargeDataset, data.length])
 
@@ -1366,7 +1421,7 @@ export const ChessboardTable = memo(({
           return (
             <Input
               value={value || ''}
-              onChange={(e) => onRowUpdate(record.id, { floors: e.target.value })}
+              onChange={(e) => handleFloorsChange(record.id, e.target.value)}
               size="small"
               placeholder="1,2,3 или 1-5"
               style={{ width: '100%' }}
@@ -1712,24 +1767,6 @@ export const ChessboardTable = memo(({
                   onChange={(newValue) => {
                     const quantity = newValue || 0
                     onRowUpdate(record.id, { quantityPd: quantity })
-
-                    // Если есть этажи, распределяем количество равномерно
-                    if (record.floors) {
-                      const floors = record.floors.toString().split(',').map(f => f.trim()).filter(Boolean)
-                      if (floors.length > 1) {
-                        const quantityPerFloor = quantity / floors.length
-                        const floorQuantities = floors.reduce((acc, floor) => {
-                          const floorNum = parseInt(floor)
-                          const existing = record.floorQuantities?.[floorNum] || {}
-                          acc[floorNum] = {
-                            ...existing,
-                            quantityPd: quantityPerFloor.toString()
-                          }
-                          return acc
-                        }, {})
-                        onRowUpdate(record.id, { floorQuantities })
-                      }
-                    }
                   }}
                   size="small"
                   style={{ width: '100%', flex: 1 }}
@@ -1758,24 +1795,6 @@ export const ChessboardTable = memo(({
                 onChange={(newValue) => {
                   const quantity = newValue || 0
                   onRowUpdate(record.id, { quantityPd: quantity })
-
-                  // Если есть этажи, распределяем количество равномерно
-                  if (record.floors) {
-                    const floors = record.floors.toString().split(',').map(f => f.trim()).filter(Boolean)
-                    if (floors.length > 1) {
-                      const quantityPerFloor = quantity / floors.length
-                      const floorQuantities = floors.reduce((acc, floor) => {
-                        const floorNum = parseInt(floor)
-                        const existing = record.floorQuantities?.[floorNum] || {}
-                        acc[floorNum] = {
-                          ...existing,
-                          quantityPd: quantityPerFloor.toString()
-                        }
-                        return acc
-                      }, {})
-                      onRowUpdate(record.id, { floorQuantities })
-                    }
-                  }
                 }}
                 size="small"
                 style={{ width: '100%' }}
@@ -1844,24 +1863,6 @@ export const ChessboardTable = memo(({
                   onChange={(newValue) => {
                     const quantity = newValue || 0
                     onRowUpdate(record.id, { quantitySpec: quantity })
-
-                    // Если есть этажи, распределяем количество равномерно
-                    if (record.floors) {
-                      const floors = record.floors.toString().split(',').map(f => f.trim()).filter(Boolean)
-                      if (floors.length > 1) {
-                        const quantityPerFloor = quantity / floors.length
-                        const floorQuantities = floors.reduce((acc, floor) => {
-                          const floorNum = parseInt(floor)
-                          const existing = record.floorQuantities?.[floorNum] || {}
-                          acc[floorNum] = {
-                            ...existing,
-                            quantitySpec: quantityPerFloor.toString()
-                          }
-                          return acc
-                        }, {})
-                        onRowUpdate(record.id, { floorQuantities })
-                      }
-                    }
                   }}
                   size="small"
                   style={{ width: '100%', flex: 1 }}
@@ -1890,24 +1891,6 @@ export const ChessboardTable = memo(({
                 onChange={(newValue) => {
                   const quantity = newValue || 0
                   onRowUpdate(record.id, { quantitySpec: quantity })
-
-                  // Если есть этажи, распределяем количество равномерно
-                  if (record.floors) {
-                    const floors = record.floors.toString().split(',').map(f => f.trim()).filter(Boolean)
-                    if (floors.length > 1) {
-                      const quantityPerFloor = quantity / floors.length
-                      const floorQuantities = floors.reduce((acc, floor) => {
-                        const floorNum = parseInt(floor)
-                        const existing = record.floorQuantities?.[floorNum] || {}
-                        acc[floorNum] = {
-                          ...existing,
-                          quantitySpec: quantityPerFloor.toString()
-                        }
-                        return acc
-                      }, {})
-                      onRowUpdate(record.id, { floorQuantities })
-                    }
-                  }
                 }}
                 size="small"
                 style={{ width: '100%' }}
@@ -1976,24 +1959,6 @@ export const ChessboardTable = memo(({
                   onChange={(newValue) => {
                     const quantity = newValue || 0
                     onRowUpdate(record.id, { quantityRd: quantity })
-
-                    // Если есть этажи, распределяем количество равномерно
-                    if (record.floors) {
-                      const floors = record.floors.toString().split(',').map(f => f.trim()).filter(Boolean)
-                      if (floors.length > 1) {
-                        const quantityPerFloor = quantity / floors.length
-                        const floorQuantities = floors.reduce((acc, floor) => {
-                          const floorNum = parseInt(floor)
-                          const existing = record.floorQuantities?.[floorNum] || {}
-                          acc[floorNum] = {
-                            ...existing,
-                            quantityRd: quantityPerFloor.toString()
-                          }
-                          return acc
-                        }, {})
-                        onRowUpdate(record.id, { floorQuantities })
-                      }
-                    }
                   }}
                   size="small"
                   style={{ width: '100%', flex: 1 }}
@@ -2022,24 +1987,6 @@ export const ChessboardTable = memo(({
                 onChange={(newValue) => {
                   const quantity = newValue || 0
                   onRowUpdate(record.id, { quantityRd: quantity })
-
-                  // Если есть этажи, распределяем количество равномерно
-                  if (record.floors) {
-                    const floors = record.floors.toString().split(',').map(f => f.trim()).filter(Boolean)
-                    if (floors.length > 1) {
-                      const quantityPerFloor = quantity / floors.length
-                      const floorQuantities = floors.reduce((acc, floor) => {
-                        const floorNum = parseInt(floor)
-                        const existing = record.floorQuantities?.[floorNum] || {}
-                        acc[floorNum] = {
-                          ...existing,
-                          quantityRd: quantityPerFloor.toString()
-                        }
-                        return acc
-                      }, {})
-                      onRowUpdate(record.id, { floorQuantities })
-                    }
-                  }
                 }}
                 size="small"
                 style={{ width: '100%' }}
@@ -2097,7 +2044,7 @@ export const ChessboardTable = memo(({
             <Select
               value={record.nomenclatureId || undefined}
               onChange={(newValue) => {
-                const selectedNomenclature = nomenclatureData.find(nom => nom.value === newValue)
+                const selectedNomenclature = cascadeHook.nomenclatureOptions.find(nom => nom.value === newValue)
 
                 // Используем каскадную логику для обработки изменения номенклатуры
                 cascadeHook.handleNomenclatureChange(newValue, () => {
@@ -2117,7 +2064,9 @@ export const ChessboardTable = memo(({
                   })
                 }
               }}
-              options={nomenclatureData}
+              options={(() => {
+                return cascadeHook.nomenclatureOptions
+              })()}
               allowClear
               showSearch
               filterOption={(input, option) =>
@@ -2166,121 +2115,43 @@ export const ChessboardTable = memo(({
         const isEditing = (record as any).isEditing
         if (isEditing) {
           return (
-            <MLNomenclatureSupplierSelect
+            <Select
               value={record.supplier || undefined}
-              disableML={!!record.nomenclatureId} // Отключаем ML если номенклатура выбрана
-              onChange={(newValue, option) => {
-                // Немедленно обновляем UI для отзывчивости
+              onChange={(newValue) => {
+                // Обновляем UI
                 onRowUpdate(record.id, {
                   supplier: newValue || '',
                 })
 
-                // ВАЖНО: Каскадная логика НЕ срабатывает для ML выборов - они обрабатываются через onNomenclatureSupplierSelect
-                if (newValue && !option?.isMLSuggestion) {
-                  // Обычный выбор из статических опций - запускаем каскадную логику
-                  const isMLMode = !record.nomenclatureId
-                  if (isMLMode) {
-                    cascadeHook.handleSupplierChange(newValue, (nomenclatureId) => {
-                      // Автоматически подставляем номенклатуру если поставщик выбран первым в ML режиме
-                      const selectedNomenclature = nomenclatureData.find(nom => nom.value === nomenclatureId)
-                      onRowUpdate(record.id, {
-                        nomenclature: selectedNomenclature ? selectedNomenclature.label : record.nomenclature,
-                        nomenclatureId: nomenclatureId || record.nomenclatureId
-                      })
-                      console.log('🤖 Standard: Автоподстановка номенклатуры:', { nomenclatureId, nomenclatureName: selectedNomenclature?.label }) // LOG: стандартная автоподстановка номенклатуры
-                    }).catch(error => {
-                      console.error('🔗 Cascade: Ошибка каскадной логики:', error) // LOG: ошибка каскадной логики
-                    })
-                  }
-
-                  // Сохранение маппинга (только для каскадного выбора)
-                  if (record.nomenclatureId) {
-                    cascadeHook.saveMappingToDatabase(record.nomenclatureId, newValue)
-                      .then(saved => {
-                        if (saved) {
-                          console.log('✅ Cascade: Связь номенклатура-поставщик сохранена в БД:', { nomenclatureId: record.nomenclatureId, supplier: newValue }) // LOG: сохранение связи номенклатура-поставщик в БД
-                        }
-                      })
-                      .catch(error => {
-                        console.error('🔗 Cascade: Ошибка сохранения связи в БД:', error) // LOG: ошибка сохранения связи в БД
-                      })
-                  }
-                }
-              }}
-              onNomenclatureSupplierSelect={(nomenclatureSupplierId, nomenclatureSupplierName) => {
-                console.log('🤖 ML: Nomenclature supplier selected:', { nomenclatureSupplierId, nomenclatureSupplierName, rowId: record.id }) // LOG: выбор номенклатуры поставщика через ML
-
-                // ML выбор - обрабатываем полностью здесь, onChange НЕ должен дублировать логику
-                const isMLMode = !record.nomenclatureId
-                if (isMLMode) {
-                  // Сразу делаем API запрос по supplierId, не полагаясь на allSupplierOptions
-                  chessboardCascadeApi.getNomenclatureBySupplier(nomenclatureSupplierId)
-                    .then(nomenclature => {
-                      if (nomenclature) {
-                        // Автоматически подставляем номенклатуру в ML режиме
-                        const selectedNomenclature = nomenclatureData.find(nom => nom.value === nomenclature.id)
-                        onRowUpdate(record.id, {
-                          nomenclature: selectedNomenclature ? selectedNomenclature.label : nomenclature.name,
-                          nomenclatureId: nomenclature.id
-                        })
-                        console.log('🤖 ML: Автоподстановка номенклатуры через прямой API запрос:', { nomenclatureId: nomenclature.id, nomenclatureName: selectedNomenclature?.label || nomenclature.name }) // LOG: ML автоподстановка номенклатуры через прямой API
-                      } else {
-                        console.log('🤖 ML: Номенклатура не найдена для поставщика:', nomenclatureSupplierId) // LOG: номенклатура не найдена для ML поставщика
+                // Сохранение каскадной связи в БД если номенклатура выбрана
+                if (record.nomenclatureId && newValue) {
+                  cascadeHook.saveMappingToDatabase(record.nomenclatureId, newValue)
+                    .then(saved => {
+                      if (saved) {
                       }
                     })
                     .catch(error => {
-                      console.error('🔗 Cascade: Ошибка прямого API запроса номенклатуры в ML режиме:', error) // LOG: ошибка прямого API запроса номенклатуры
+                      console.error('🔗 Cascade: Ошибка сохранения связи:', error)
                     })
                 }
               }}
-              materialName={(() => {
-                // Получаем название материала по UUID или используем исходное значение (как в столбце "Материал")
-                const currentMaterialUuid = record.materialId || record.material
-                // Сначала пробуем найти по UUID, потом используем value как fallback
-                const currentMaterialName = materialsData.find(m => m.value === currentMaterialUuid)?.label || record.material || ''
-                console.log('🤖 ML NomenclatureSupplier: Material resolution:', { // LOG: разрешение материала для ML номенклатуры поставщика
-                  materialId: record.materialId,
-                  material: record.material,
-                  currentMaterialUuid,
-                  currentMaterialName,
-                  materialsDataLength: materialsData.length
-                })
-                return currentMaterialName
+              options={(() => {
+                const options = record.nomenclatureId ? cascadeHook.filteredSupplierOptions : cascadeHook.allSupplierOptions
+                return options
               })()}
-              context={{
-                projectId: record.projectId,
-                blockId: record.blockId
-              }}
-              options={record.nomenclatureId
-                ? cascadeHook.filteredSupplierOptions.map(item => ({ value: item.name, label: item.name }))
-                : [] // При выбранной номенклатуре - каскадные поставщики, без номенклатуры - только ML
-              }
               allowClear
               showSearch
-              filterOption={(input, option) =>
-                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              size="small"
+              placeholder={
+                record.nomenclatureId
+                  ? "Выберите поставщика для номенклатуры"
+                  : "Сначала выберите номенклатуру"
               }
-              placeholder={(() => {
-                const currentMaterialUuid = record.materialId || record.material
-                const currentMaterialName = materialsData.find(m => m.value === currentMaterialUuid)?.label || ''
-
-                if (record.nomenclatureId) {
-                  return "Поставщики для выбранной номенклатуры"
-                }
-
-                return currentMaterialName
-                  ? "ML-подбор номенклатуры поставщика по материалу..."
-                  : "Выберите материал для ML-поиска"
-              })()}
-              style={{
-                width: '100%',
-                minHeight: 'auto',
-                height: 'auto'
-              }}
-              dropdownStyle={{
-                minWidth: '500px',
-                maxWidth: '500px',
-                zIndex: 9999
+              disabled={!record.nomenclatureId}
+              style={{ width: '100%' }}
+              filterOption={(input, option) => {
+                const text = option?.label?.toString() || ""
+                return text.toLowerCase().includes(input.toLowerCase())
               }}
               getPopupContainer={(triggerNode) => triggerNode.parentNode}
             />

@@ -27,7 +27,9 @@ console.error = (...args) => {
 
     // Диагностика React Query
     if (window.__REACT_QUERY_DEVTOOLS_GLOBAL_HOOK__) {
-      const queries = window.__REACT_QUERY_DEVTOOLS_GLOBAL_HOOK__.queryClient?.getQueryCache?.().getAll?.()
+      const queries = window.__REACT_QUERY_DEVTOOLS_GLOBAL_HOOK__.queryClient
+        ?.getQueryCache?.()
+        .getAll?.()
       console.warn('Active queries count:', queries?.length || 'unknown')
       if (queries?.length > 10) {
         console.warn('⚠️ HIGH QUERY COUNT detected:', queries.length)

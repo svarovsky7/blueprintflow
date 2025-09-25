@@ -52,44 +52,50 @@ const DebouncedInput: React.FC<DebouncedInputProps> = ({
   }, [])
 
   // Оптимизированная debounce функция с throttling
-  const debouncedOnChange = useCallback((newValue: any) => {
-    const now = Date.now()
+  const debouncedOnChange = useCallback(
+    (newValue: any) => {
+      const now = Date.now()
 
-    // Немедленное обновление если включено
-    if (immediate) {
-      onChange(newValue)
-      return
-    }
-
-    // Throttling для частых изменений
-    if (throttleMs > 0 && now - lastChangeRef.current < throttleMs) {
-      if (throttleRef.current) {
-        clearTimeout(throttleRef.current)
+      // Немедленное обновление если включено
+      if (immediate) {
+        onChange(newValue)
+        return
       }
 
-      throttleRef.current = setTimeout(() => {
+      // Throttling для частых изменений
+      if (throttleMs > 0 && now - lastChangeRef.current < throttleMs) {
+        if (throttleRef.current) {
+          clearTimeout(throttleRef.current)
+        }
+
+        throttleRef.current = setTimeout(() => {
+          onChange(newValue)
+          lastChangeRef.current = Date.now()
+        }, throttleMs)
+        return
+      }
+
+      // Обычный debounce
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+
+      timeoutRef.current = setTimeout(() => {
         onChange(newValue)
         lastChangeRef.current = Date.now()
-      }, throttleMs)
-      return
-    }
+      }, debounceMs)
+    },
+    [onChange, debounceMs, throttleMs, immediate],
+  )
 
-    // Обычный debounce
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-    }
-
-    timeoutRef.current = setTimeout(() => {
-      onChange(newValue)
-      lastChangeRef.current = Date.now()
-    }, debounceMs)
-  }, [onChange, debounceMs, throttleMs, immediate])
-
-  const handleChange = useCallback((e: any) => {
-    const newValue = e?.target?.value ?? e
-    setLocalValue(newValue)
-    debouncedOnChange(newValue)
-  }, [debouncedOnChange])
+  const handleChange = useCallback(
+    (e: any) => {
+      const newValue = e?.target?.value ?? e
+      setLocalValue(newValue)
+      debouncedOnChange(newValue)
+    },
+    [debouncedOnChange],
+  )
 
   if (type === 'number') {
     return (
