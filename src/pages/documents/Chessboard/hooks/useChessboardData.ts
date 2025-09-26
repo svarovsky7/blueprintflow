@@ -403,6 +403,17 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
       const documentation = docMapping?.documentation_versions?.documentations
       const docTag = documentation?.documentation_tags
 
+      // LOG: отладочная информация для документации
+      if (row.id === '3bad03e2-d11a-4d19-bf12-cf600070d7d5') {
+        console.log('🔍 DEBUG documentation data:', {
+          rowId: row.id,
+          documentationId: documentation?.id,
+          documentationCode: documentation?.code,
+          documentationProjectName: documentation?.project_name,
+          docMappingVersionId: docMapping?.version_id
+        })
+      }
+
       const rowFloorsData = floorsByChessboardId.get(row.id) || []
 
       const rateMapping = ratesMappingIndex.get(row.id)
@@ -457,6 +468,7 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
           ? String(docMapping.documentation_versions.version_number)
           : '',
         documentationVersionId: docMapping?.version_id || '',
+        documentationCodeId: documentation?.id || '', // ID документа для компонента VersionSelect
 
         // Данные корпуса и локации из реальных маппингов
         block: mapping?.blocks?.name || '',

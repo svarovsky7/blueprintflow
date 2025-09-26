@@ -20,6 +20,7 @@ export interface RowData {
   documentationProjectName: string // Наименование проекта (зависимое от Шифра проекта)
   documentationVersion: string // Версия проекта
   documentationVersionId: string // UUID выбранной версии документа
+  documentationCodeId: string // UUID документа для VersionSelect
   // Данные из маппингов
   block: string
   blockId: string

@@ -64,6 +64,7 @@ export const useTableOperations = () => {
       documentationProjectName: '',
       documentationVersion: '',
       documentationVersionId: '',
+      documentationCodeId: '',
       // Данные из маппингов
       block: '',
       blockId: '',

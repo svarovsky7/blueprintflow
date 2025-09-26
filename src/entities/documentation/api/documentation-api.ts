@@ -917,6 +917,31 @@ export const documentationApi = {
     }))
   },
 
+  // Получить все версии документа по ID версии (для VersionSelect когда нет documentId)
+  async getVersionsByVersionId(versionId: string) {
+    if (!supabase) throw new Error('Supabase client not initialized')
+
+    // Сначала найдем версию и получим documentation_id
+    const { data: version, error: versionError } = await supabase
+      .from('documentation_versions')
+      .select('documentation_id')
+      .eq('id', versionId)
+      .single()
+
+    if (versionError) {
+      console.error('Failed to fetch version info:', versionError) // LOG: ошибка получения версии
+      throw versionError
+    }
+
+    if (!version?.documentation_id) {
+      console.log('🔍 No documentation_id found for version:', versionId) // LOG: нет документа для версии
+      return []
+    }
+
+    // Теперь получим все версии этого документа
+    return this.getVersionsByDocumentId(version.documentation_id)
+  },
+
   // Комплексное сохранение документации с версиями и комментариями
   async saveDocumentationComplete(data: {
     code: string

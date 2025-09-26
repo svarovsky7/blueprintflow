@@ -78,33 +78,129 @@ const WorkNameSelect: React.FC<WorkNameSelectProps> = ({ value, costTypeId, cost
 interface VersionSelectProps {
   value: string
   documentId: string | undefined
-  onChange: (versionId: string, versionNumber: string) => void
+  isEditing?: boolean // LOG: добавляем флаг режима редактирования
+  onChange: (versionId: string, versionNumber: string, documentationCodeId?: string) => void
 }
 
-const VersionSelect: React.FC<VersionSelectProps> = ({ value, documentId, onChange }) => {
+const VersionSelect: React.FC<VersionSelectProps> = ({ value, documentId, isEditing = false, onChange }) => {
+  console.log('🔍 VersionSelect render:', { value, documentId, isEditing, isValueUUID: value?.length === 36 }) // LOG: рендер компонента версий
+
+  // ИСПРАВЛЕНИЕ: кэшируем отображаемое значение для предотвращения мерцания UUID
+  const [displayValue, setDisplayValue] = useState<string | undefined>(value)
+  const [isInitialized, setIsInitialized] = useState<boolean>(false)
+
   // Стабилизируем queryKey
   const stableQueryKey = useMemo(() => {
     const key = ['document-versions']
-    if (documentId) key.push(documentId)
+    if (documentId) {
+      key.push('by-document', documentId)
+    } else if (value) {
+      key.push('by-version', value)
+    }
     return key
-  }, [documentId])
+  }, [documentId, value])
 
-  // Загружаем версии для выбранного документа
+  // Загружаем версии для выбранного документа или по ID версии
   const { data: versionOptions = [] } = useQuery({
     queryKey: stableQueryKey,
-    queryFn: () => documentationApi.getVersionsByDocumentId(documentId!),
-    enabled: !!documentId, // Запрос только если выбран документ
+    queryFn: () => {
+      if (documentId) {
+        // LOG: загрузка версий по documentId
+        console.log('🔍 Loading versions by documentId:', documentId)
+        return documentationApi.getVersionsByDocumentId(documentId)
+      } else if (value) {
+        // LOG: загрузка версий по versionId
+        console.log('🔍 Loading versions by versionId:', value)
+        return documentationApi.getVersionsByVersionId(value)
+      }
+      return []
+    },
+    enabled: !!(documentId || value), // Запрос если есть документ или версия
   })
+
+  // ИСПРАВЛЕНИЕ: инициализируем displayValue при первом рендере или изменении value
+  useEffect(() => {
+    if (value && (!isInitialized || displayValue !== value)) {
+      console.log('🔄 Initializing displayValue to prevent UUID flash:', { // LOG
+        value,
+        previousDisplayValue: displayValue,
+        isInitialized
+      })
+      setDisplayValue(value)
+      setIsInitialized(true)
+    }
+  }, [value, isInitialized, displayValue])
+
+  // Обновляем displayValue только когда нужно предотвратить мерцание при загрузке опций
+  useEffect(() => {
+    if (value && versionOptions.length > 0) {
+      const currentVersion = versionOptions.find(v => v.value === value)
+      if (currentVersion) {
+        console.log('🔄 Updating displayValue after options loaded:', { // LOG
+          versionId: value,
+          versionNumber: currentVersion.label,
+          hasOptions: versionOptions.length > 0
+        })
+        // Сохраняем value как есть, но убеждаемся что у нас есть правильная опция
+        setDisplayValue(value)
+      }
+    }
+  }, [value, versionOptions])
+
+  console.log('📋 VersionSelect options loaded:', { versionOptions, displayValue, documentId }) // LOG: загруженные опции версий
+
+  // Проверяем, есть ли активная версия (value - это UUID версии)
+  const hasActiveVersion = value && versionOptions.length > 0
+  // LOG: Компонент активен в режиме редактирования или если есть активная версия
+  const isDisabled = !isEditing && !documentId && !hasActiveVersion
+
+  console.log('🎛️ VersionSelect state:', { isEditing, hasActiveVersion, isDisabled, optionsCount: versionOptions.length }) // LOG: состояние компонента
 
   return (
     <Select
-      value={value || undefined}
+      value={displayValue}
+      // ИСПРАВЛЕНИЕ: явно указываем что отображать в поле
+      optionLabelProp="label"
       placeholder="Версия"
-      onChange={(versionId) => {
+      onChange={async (versionId) => {
+        console.log('🔄 Version changing:', { versionId, value }) // LOG
+
+        // Немедленно обновляем displayValue чтобы избежать мерцания
+        setDisplayValue(versionId)
+
         const selectedVersion = versionOptions.find(v => v.value === versionId)
         if (selectedVersion) {
-          onChange(versionId, selectedVersion.label)
+          console.log('✅ Version selected:', { versionId, versionNumber: selectedVersion.label }) // LOG: выбор версии
+
+          // Получаем documentationCodeId если нет documentId
+          let documentationCodeId = documentId
+          if (!documentId && versionId) {
+            try {
+              console.log('🔍 Getting documentationCodeId for versionId:', versionId) // LOG
+              const { data: versionData, error } = await supabase
+                .from('documentation_versions')
+                .select('documentation_id')
+                .eq('id', versionId)
+                .single()
+
+              if (error) {
+                console.error('❌ Error getting documentationCodeId:', error) // LOG
+              } else {
+                documentationCodeId = versionData.documentation_id
+                console.log('✅ Got documentationCodeId:', documentationCodeId) // LOG
+              }
+            } catch (error) {
+              console.error('❌ Error in version change:', error) // LOG
+            }
+          }
+
+          onChange(versionId, selectedVersion.label, documentationCodeId)
         }
+      }}
+      onClear={() => {
+        console.log('🧹 Version field cleared') // LOG
+        setDisplayValue(undefined)
+        onChange('', '', documentId)
       }}
       allowClear
       showSearch
@@ -115,7 +211,7 @@ const VersionSelect: React.FC<VersionSelectProps> = ({ value, documentId, onChan
         return text.toLowerCase().includes(input.toLowerCase())
       }}
       options={versionOptions}
-      disabled={!documentId} // Отключаем если не выбран документ
+      disabled={isDisabled} // Отключаем только если нет ни документа, ни активной версии
       notFoundContent={documentId ? 'Версии не найдены' : 'Выберите документ'}
     />
   )
@@ -1408,19 +1504,33 @@ export const ChessboardTable = memo(({
         if (isEditing) {
           const currentDocumentId = (record as any).documentationCodeId
           const currentVersionId = (record as any).documentationVersionId
+
+          console.log('🔍 Version column render (editing):', { // LOG: рендер столбца версии
+            recordId: record.id,
+            value,
+            currentDocumentId,
+            currentVersionId,
+            isEditing
+          })
+
           return (
             <VersionSelect
               value={currentVersionId || ''}
               documentId={currentDocumentId}
-              onChange={(versionId, versionNumber) => {
+              isEditing={true} // LOG: передаем флаг режима редактирования
+              onChange={(versionId, versionNumber, documentCodeId) => {
+                console.log('📝 Version onChange called:', { versionId, versionNumber, documentCodeId }) // LOG: изменение версии
+
                 onRowUpdate(record.id, {
                   documentationVersionId: versionId,
-                  documentationVersion: versionNumber
+                  documentationVersion: versionNumber,
+                  documentationCodeId: documentCodeId || '' // Используем переданный documentCodeId из VersionSelect
                 })
               }}
             />
           )
         }
+        console.log('🔍 Version column render (view):', { value, recordId: record.id }) // LOG: рендер в режиме просмотра
         return <span>{value || ''}</span>
       },
     },
