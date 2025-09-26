@@ -30,35 +30,52 @@ const STABLE_STYLES = {
 
 // КОНФИГУРАЦИЯ: Точные настройки ширины столбцов для оптимизации пространства
 const COLUMN_WIDTH_CONFIG: Record<string, { width?: number; minWidth?: number; maxWidth?: number }> = {
-  [COLUMN_KEYS.ACTIONS]: { width: 120 }, // 4 кнопки в режиме добавления
-  [COLUMN_KEYS.DOCUMENTATION_SECTION]: { minWidth: 60, maxWidth: 80 }, // "Раздел" + 10px = ~60px
-  [COLUMN_KEYS.DOCUMENTATION_CODE]: { width: 60, minWidth: 60, maxWidth: 60 }, // Фиксированная
+  [COLUMN_KEYS.ACTIONS]: { width: 60 }, // Уменьшенная ширина для действий
+  [COLUMN_KEYS.DOCUMENTATION_SECTION]: { minWidth: 40, maxWidth: 80 }, // "Раздел" динамический 40-80px
+  [COLUMN_KEYS.DOCUMENTATION_CODE]: { width: 100 }, // "Шифр проекта" 100px
   [COLUMN_KEYS.DOCUMENTATION_PROJECT_NAME]: { width: 120, minWidth: 120, maxWidth: 120 }, // Фиксированная
-  [COLUMN_KEYS.DOCUMENTATION_VERSION]: { width: 40 }, // "Вер." + 10px = ~40px
+  [COLUMN_KEYS.DOCUMENTATION_VERSION]: { width: 40 }, // "Вер." фиксированная 40px
   [COLUMN_KEYS.BLOCK]: { minWidth: 60, maxWidth: 90 }, // "Корпус" + 10px = ~60px
-  [COLUMN_KEYS.FLOORS]: { width: 50 }, // "Этажи" + 10px = ~50px
-  [COLUMN_KEYS.COST_CATEGORY]: { minWidth: 80, maxWidth: 120 }, // По требованию
+  [COLUMN_KEYS.FLOORS]: { width: 50 }, // "Этажи" 50px
+  [COLUMN_KEYS.COST_CATEGORY]: { width: 120 }, // "Категория затрат" 120px
   [COLUMN_KEYS.COST_TYPE]: { minWidth: 80, maxWidth: 120 }, // "Вид затрат"
-  [COLUMN_KEYS.WORK_NAME]: { minWidth: 100, maxWidth: 200 }, // "Наименование работ"
-  [COLUMN_KEYS.LOCATION]: { minWidth: 80, maxWidth: 120 }, // "Локализация"
-  [COLUMN_KEYS.MATERIAL]: { minWidth: 120, maxWidth: 180 }, // "Материал"
-  [COLUMN_KEYS.MATERIAL_TYPE]: { width: 60 }, // "Тип материала" - короткий
-  [COLUMN_KEYS.QUANTITY_PD]: { width: 70 }, // "Кол-во по ПД"
-  [COLUMN_KEYS.QUANTITY_SPEC]: { width: 80 }, // "Кол-во по спеке РД"
-  [COLUMN_KEYS.QUANTITY_RD]: { width: 80 }, // "Кол-во по пересчету РД"
+  [COLUMN_KEYS.WORK_NAME]: { minWidth: 140, maxWidth: 240 }, // "Наименование работ" +40px
+  [COLUMN_KEYS.LOCATION]: { width: 80 }, // "Локализация" 80px
+  [COLUMN_KEYS.MATERIAL]: { width: 120 }, // "Материал" 120px
+  [COLUMN_KEYS.MATERIAL_TYPE]: { width: 60 }, // "Тип материала" 60px
+  [COLUMN_KEYS.QUANTITY_PD]: { width: 60 }, // "Кол-во по ПД" 60px
+  [COLUMN_KEYS.QUANTITY_SPEC]: { width: 90 }, // "Кол-во по спеке РД" 90px
+  [COLUMN_KEYS.QUANTITY_RD]: { width: 80 }, // "Кол-во по пересчету РД" 80px
   [COLUMN_KEYS.NOMENCLATURE]: { minWidth: 120, maxWidth: 180 }, // "Номенклатура"
   [COLUMN_KEYS.SUPPLIER]: { minWidth: 100, maxWidth: 150 }, // "Наименование поставщика"
-  [COLUMN_KEYS.UNIT]: { width: 60 }, // "Ед.изм." - короткий
-  [COLUMN_KEYS.COMMENTS]: { minWidth: 100, maxWidth: 200 }, // "Комментарии"
+  [COLUMN_KEYS.UNIT]: { width: 40 }, // "Ед.изм." 40px
+  [COLUMN_KEYS.COMMENTS]: { width: 80 }, // "Комментарии" 80px
 }
 
 const DEFAULT_COLUMN_WIDTH = { minWidth: 100, maxWidth: 150 } // Для остальных столбцов
 
-// Столбцы, которые поддерживают перенос текста (многострочные)
+// Столбцы, которые поддерживают перенос текста (многострочные) - ВСЕ СТОЛБЦЫ
 const MULTILINE_COLUMNS = new Set([
+  COLUMN_KEYS.ACTIONS,
+  COLUMN_KEYS.DOCUMENTATION_SECTION,
+  COLUMN_KEYS.DOCUMENTATION_CODE,
+  COLUMN_KEYS.DOCUMENTATION_PROJECT_NAME,
+  COLUMN_KEYS.DOCUMENTATION_VERSION,
+  COLUMN_KEYS.BLOCK,
+  COLUMN_KEYS.FLOORS,
+  COLUMN_KEYS.COST_CATEGORY,
+  COLUMN_KEYS.COST_TYPE,
   COLUMN_KEYS.WORK_NAME,
+  COLUMN_KEYS.WORK_UNIT,
+  COLUMN_KEYS.LOCATION,
   COLUMN_KEYS.MATERIAL,
+  COLUMN_KEYS.MATERIAL_TYPE,
+  COLUMN_KEYS.QUANTITY_PD,
+  COLUMN_KEYS.QUANTITY_SPEC,
+  COLUMN_KEYS.QUANTITY_RD,
   COLUMN_KEYS.NOMENCLATURE,
+  COLUMN_KEYS.SUPPLIER,
+  COLUMN_KEYS.UNIT,
   COLUMN_KEYS.COMMENTS
 ])
 
@@ -84,32 +101,38 @@ function normalizeColumns(cols: ColumnsType<RowData>): ColumnsType<RowData> {
 
       return {
         ...c,
-        width,
+        width: width || minWidth, // Принудительно устанавливаем ширину
+        minWidth,
+        maxWidth,
         ellipsis: !isMultiline, // Отключаем ellipsis для многострочных столбцов
         onHeaderCell: (col?: unknown) => ({
           ...(c.onHeaderCell?.(col) || {}),
           style: {
             ...(c.onHeaderCell?.(col)?.style || {}),
-            width: width ? `${width}px` : undefined,
-            minWidth: `${minWidth}px`,
-            maxWidth: `${maxWidth}px`,
-            whiteSpace: isMultiline ? 'normal' as const : 'nowrap' as const,
+            width: `${width || minWidth}px !important`,
+            minWidth: `${minWidth}px !important`,
+            maxWidth: `${maxWidth}px !important`,
+            whiteSpace: 'normal' as const,
             overflow: 'hidden' as const,
-            textOverflow: isMultiline ? 'clip' as const : 'ellipsis' as const
+            textOverflow: 'clip' as const,
+            flex: 'none' as const, // Отключаем flex для фиксированной ширины
+            boxSizing: 'border-box' as const
           }
         }),
         onCell: (record?: RowData, index?: number) => ({
           ...(c.onCell?.(record, index) || {}),
           style: {
             ...(c.onCell?.(record, index)?.style || {}),
-            width: width ? `${width}px` : undefined,
-            minWidth: `${minWidth}px`,
-            maxWidth: `${maxWidth}px`,
-            whiteSpace: isMultiline ? 'normal' as const : 'nowrap' as const,
+            width: `${width || minWidth}px !important`,
+            minWidth: `${minWidth}px !important`,
+            maxWidth: `${maxWidth}px !important`,
+            whiteSpace: 'normal' as const,
             overflow: 'hidden' as const,
-            textOverflow: isMultiline ? 'clip' as const : 'ellipsis' as const,
-            wordBreak: isMultiline ? 'break-word' as const : 'normal' as const,
-            padding: isMultiline ? '8px 12px' : undefined
+            textOverflow: 'clip' as const,
+            wordBreak: 'break-word' as const,
+            padding: isMultiline ? '8px 12px' : undefined,
+            flex: 'none' as const, // Отключаем flex для фиксированной ширины
+            boxSizing: 'border-box' as const
           }
         })
       }
@@ -391,11 +414,9 @@ table.ant-table thead tr th {
   min-width: 80px !important;
   max-width: 80px !important;
   width: 80px !important;
-  white-space: nowrap !important;
-  word-break: keep-all !important;
-  overflow-wrap: normal !important;
-  hyphens: none !important;
-  text-overflow: ellipsis !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
   overflow: hidden !important;
 }
 
@@ -429,11 +450,9 @@ table.ant-table thead tr th {
   min-width: 70px !important;
   max-width: 70px !important;
   width: 70px !important;
-  white-space: nowrap !important;
-  word-break: keep-all !important;
-  overflow-wrap: normal !important;
-  hyphens: none !important;
-  text-overflow: ellipsis !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
   overflow: hidden !important;
 }
 
@@ -501,9 +520,9 @@ table.ant-table tbody tr td {
 
 /* Специальное правило для столбца Корпус - компактный и динамический */
 .chessboard-table .ant-table-thead > tr > th.block-header {
-  white-space: nowrap !important;
-  word-break: keep-all !important;
-  overflow-wrap: normal !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
   min-width: 60px !important;
   max-width: 120px !important;
   width: auto !important;
@@ -525,10 +544,9 @@ table.ant-table tbody tr td {
   width: auto !important;
   padding: 2px 4px !important;
   font-size: 11px !important;
-  white-space: nowrap !important;
-  word-break: keep-all !important;
-  overflow-wrap: normal !important;
-  text-overflow: ellipsis !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
   overflow: hidden !important;
 }
 
@@ -543,10 +561,9 @@ table.ant-table tbody tr td {
   width: auto !important;
   padding: 2px 4px !important;
   font-size: 11px !important;
-  white-space: nowrap !important;
-  word-break: keep-all !important;
-  overflow-wrap: normal !important;
-  text-overflow: ellipsis !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
   overflow: hidden !important;
 }
 
@@ -762,32 +779,26 @@ const forceHeaderHeight = () => {
 
     // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: специальная обработка проблемных столбцов
     if (isFloorsColumn) {
-      // Столбец "Этажи" - НЕ переносить вообще
-      th.style.setProperty('white-space', 'nowrap', 'important')
-      th.style.setProperty('word-break', 'keep-all', 'important')
-      th.style.setProperty('overflow-wrap', 'normal', 'important')
-      th.style.setProperty('hyphens', 'none', 'important')
-      th.style.setProperty('text-overflow', 'ellipsis', 'important')
+      // Столбец "Этажи" - с переносом текста
+      th.style.setProperty('white-space', 'normal', 'important')
+      th.style.setProperty('word-break', 'break-word', 'important')
+      th.style.setProperty('overflow-wrap', 'break-word', 'important')
       th.style.setProperty('min-width', '120px', 'important')
       th.style.setProperty('max-width', '120px', 'important')
       th.style.setProperty('width', '120px', 'important')
     } else if (isUnitColumn) {
-      // Столбец "Ед.изм." - НЕ переносить вообще
-      th.style.setProperty('white-space', 'nowrap', 'important')
-      th.style.setProperty('word-break', 'keep-all', 'important')
-      th.style.setProperty('overflow-wrap', 'normal', 'important')
-      th.style.setProperty('hyphens', 'none', 'important')
-      th.style.setProperty('text-overflow', 'ellipsis', 'important')
+      // Столбец "Ед.изм." - с переносом текста
+      th.style.setProperty('white-space', 'normal', 'important')
+      th.style.setProperty('word-break', 'break-word', 'important')
+      th.style.setProperty('overflow-wrap', 'break-word', 'important')
       th.style.setProperty('min-width', '100px', 'important')
       th.style.setProperty('max-width', '100px', 'important')
       th.style.setProperty('width', '100px', 'important')
     } else if (isBlockColumn) {
-      // Столбец "Корпус" - компактный и динамический
-      th.style.setProperty('white-space', 'nowrap', 'important')
-      th.style.setProperty('word-break', 'keep-all', 'important')
-      th.style.setProperty('overflow-wrap', 'normal', 'important')
-      th.style.setProperty('hyphens', 'none', 'important')
-      th.style.setProperty('text-overflow', 'ellipsis', 'important')
+      // Столбец "Корпус" - компактный и динамический с переносом
+      th.style.setProperty('white-space', 'normal', 'important')
+      th.style.setProperty('word-break', 'break-word', 'important')
+      th.style.setProperty('overflow-wrap', 'break-word', 'important')
       th.style.setProperty('overflow', 'hidden', 'important')
       th.style.setProperty('min-width', '60px', 'important')
       th.style.setProperty('max-width', '120px', 'important')
@@ -1670,9 +1681,8 @@ export const ChessboardTable = memo(({
           maxWidth: '100px', // Максимальная ширина
           width: '100px', // Фиксированная ширина
           overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          wordBreak: 'keep-all', // Не разрывать слова
-          overflowWrap: 'normal', // Стандартная обработка переносов
+          wordBreak: 'break-word', // Разрывать слова для переноса
+          overflowWrap: 'break-word', // Перенос длинных слов
         },
       }),
       onCell: () => ({
@@ -1908,9 +1918,7 @@ export const ChessboardTable = memo(({
       title: 'Локализация',
       key: COLUMN_KEYS.LOCATION,
       dataIndex: 'location',
-      width: 'auto',
-      minWidth: 60,
-      maxWidth: 120,
+      width: 80,
       filterMode: 'tree' as const,
       filterSearch: true,
       onFilter: (value, record) => record.location.includes(value as string),
@@ -1923,9 +1931,8 @@ export const ChessboardTable = memo(({
           lineHeight: '20px',
           padding: '4px 8px',
           overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          wordBreak: 'keep-all', // Не разрывать слова
-          overflowWrap: 'normal', // Стандартная обработка переносов
+          wordBreak: 'break-word', // Разрывать слова для переноса
+          overflowWrap: 'break-word', // Перенос длинных слов
         },
       }),
       onCell: () => ({
@@ -2032,7 +2039,7 @@ export const ChessboardTable = memo(({
       title: 'Тип\nматериала',
       key: COLUMN_KEYS.MATERIAL_TYPE,
       dataIndex: 'materialType',
-      width: 80,
+      width: 60,
       filterMode: 'tree' as const,
       filterSearch: true,
       onFilter: (value, record) => record.materialType?.includes(value as string),
@@ -2514,9 +2521,8 @@ export const ChessboardTable = memo(({
           maxWidth: '100px',
           width: '100px',
           overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          wordBreak: 'keep-all', // Не разрывать слова
-          overflowWrap: 'normal', // Стандартная обработка переносов
+          wordBreak: 'break-word', // Разрывать слова для переноса
+          overflowWrap: 'break-word', // Перенос длинных слов
         },
       }),
       render: (value, record) => {
@@ -2597,9 +2603,322 @@ export const ChessboardTable = memo(({
 
   return (
     <>
+      <style>{`
+        /* Действия - 1-й столбец */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(1) {
+          width: 60px !important;
+          min-width: 60px !important;
+          max-width: 60px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(1) {
+          width: 60px !important;
+          min-width: 60px !important;
+          max-width: 60px !important;
+        }
+        /* Раздел - 2-й столбец */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(2) {
+          min-width: 40px !important;
+          max-width: 80px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(2) {
+          min-width: 40px !important;
+          max-width: 80px !important;
+        }
+        /* Шифр проекта - 3-й столбец */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(3) {
+          width: 100px !important;
+          min-width: 100px !important;
+          max-width: 100px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(3) {
+          width: 100px !important;
+          min-width: 100px !important;
+          max-width: 100px !important;
+        }
+        /* Вер. - 5-й столбец */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(5) {
+          width: 40px !important;
+          min-width: 40px !important;
+          max-width: 40px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(5) {
+          width: 40px !important;
+          min-width: 40px !important;
+          max-width: 40px !important;
+        }
+        /* Этажи - 7-й столбец */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(7) {
+          width: 50px !important;
+          min-width: 50px !important;
+          max-width: 50px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(7) {
+          width: 50px !important;
+          min-width: 50px !important;
+          max-width: 50px !important;
+        }
+        /* Категория затрат - 8-й столбец */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(8) {
+          width: 120px !important;
+          min-width: 120px !important;
+          max-width: 120px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(8) {
+          width: 120px !important;
+          min-width: 120px !important;
+          max-width: 120px !important;
+        }
+        /* Наименование работ - 10-й столбец */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(10) {
+          min-width: 140px !important;
+          max-width: 240px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(10) {
+          min-width: 140px !important;
+          max-width: 240px !important;
+        }
+        /* Локализация - 11-й столбец (WORK_UNIT скрыт) */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(11) {
+          width: 80px !important;
+          min-width: 80px !important;
+          max-width: 80px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(11) {
+          width: 80px !important;
+          min-width: 80px !important;
+          max-width: 80px !important;
+        }
+        /* Материал - 12-й столбец */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(12) {
+          width: 120px !important;
+          min-width: 120px !important;
+          max-width: 120px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(12) {
+          width: 120px !important;
+          min-width: 120px !important;
+          max-width: 120px !important;
+        }
+        /* Тип материала - 13-й столбец */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(13) {
+          width: 60px !important;
+          min-width: 60px !important;
+          max-width: 60px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(13) {
+          width: 60px !important;
+          min-width: 60px !important;
+          max-width: 60px !important;
+        }
+        /* Кол-во по ПД - 14-й столбец */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(14) {
+          width: 60px !important;
+          min-width: 60px !important;
+          max-width: 60px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(14) {
+          width: 60px !important;
+          min-width: 60px !important;
+          max-width: 60px !important;
+        }
+        /* Кол-во по спеке РД - 15-й столбец */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(15) {
+          width: 90px !important;
+          min-width: 90px !important;
+          max-width: 90px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(15) {
+          width: 90px !important;
+          min-width: 90px !important;
+          max-width: 90px !important;
+        }
+        /* Кол-во по пересчету РД - 16-й столбец */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(16) {
+          width: 90px !important;
+          min-width: 90px !important;
+          max-width: 90px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(16) {
+          width: 90px !important;
+          min-width: 90px !important;
+          max-width: 90px !important;
+        }
+        /* Ед.изм. - 19-й столбец */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(19) {
+          width: 40px !important;
+          min-width: 40px !important;
+          max-width: 40px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(19) {
+          width: 40px !important;
+          min-width: 40px !important;
+          max-width: 40px !important;
+        }
+        /* Наименование проекта - 4-й столбец */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(4) {
+          width: 120px !important;
+          min-width: 120px !important;
+          max-width: 120px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(4) {
+          width: 120px !important;
+          min-width: 120px !important;
+          max-width: 120px !important;
+        }
+        /* Корпус - 6-й столбец */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(6) {
+          min-width: 60px !important;
+          max-width: 90px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(6) {
+          min-width: 60px !important;
+          max-width: 90px !important;
+        }
+        /* Вид затрат - 9-й столбец */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(9) {
+          min-width: 80px !important;
+          max-width: 120px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(9) {
+          min-width: 80px !important;
+          max-width: 120px !important;
+        }
+        /* Номенклатура - 17-й столбец */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(17) {
+          min-width: 120px !important;
+          max-width: 180px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(17) {
+          min-width: 120px !important;
+          max-width: 180px !important;
+        }
+        /* Наименование поставщика - 18-й столбец */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(18) {
+          min-width: 100px !important;
+          max-width: 150px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(18) {
+          min-width: 100px !important;
+          max-width: 150px !important;
+        }
+        /* Комментарии - 20-й столбец */
+        .chessboard-table .ant-table-thead > tr > th:nth-child(20) {
+          width: 80px !important;
+          min-width: 80px !important;
+          max-width: 80px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td:nth-child(20) {
+          width: 80px !important;
+          min-width: 80px !important;
+          max-width: 80px !important;
+        }
+        /* Форсирование для всех остальных столбцов */
+        .chessboard-table .ant-table-thead > tr > th {
+          box-sizing: border-box !important;
+          flex: none !important;
+          white-space: normal !important;
+          overflow: hidden !important;
+          word-break: break-word !important;
+          padding: 4px 6px !important;
+          line-height: 1.2 !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td {
+          box-sizing: border-box !important;
+          flex: none !important;
+          white-space: normal !important;
+          overflow: hidden !important;
+          word-break: break-word !important;
+          padding: 4px 6px !important;
+          line-height: 1.2 !important;
+        }
+        .chessboard-table .ant-table-tbody > tr {
+          height: auto !important;
+          min-height: 32px !important;
+        }
+        /* Компактные иконки в столбце действий */
+        .chessboard-table .ant-btn {
+          padding: 2px 4px !important;
+          height: 24px !important;
+          width: 24px !important;
+          font-size: 12px !important;
+          margin: 0 1px !important;
+        }
+        .chessboard-table .ant-btn-icon-only {
+          padding: 2px !important;
+        }
+        .chessboard-table .anticon {
+          font-size: 12px !important;
+          line-height: 1 !important;
+        }
+        /* Компактная цветовая кнопка */
+        .chessboard-table .color-picker-button {
+          width: 20px !important;
+          height: 20px !important;
+          min-width: 20px !important;
+          padding: 0 !important;
+          margin: 0 1px !important;
+        }
+        /* Компактные элементы управления */
+        .chessboard-table .ant-select {
+          font-size: 12px !important;
+        }
+        .chessboard-table .ant-select-selector {
+          padding: 2px 4px !important;
+          min-height: 24px !important;
+          line-height: 1.2 !important;
+        }
+        .chessboard-table .ant-input {
+          padding: 2px 6px !important;
+          font-size: 12px !important;
+          line-height: 1.2 !important;
+          min-height: 24px !important;
+        }
+        .chessboard-table .ant-input-number {
+          font-size: 12px !important;
+        }
+        .chessboard-table .ant-input-number-input {
+          padding: 2px 6px !important;
+          font-size: 12px !important;
+          line-height: 1.2 !important;
+          min-height: 20px !important;
+        }
+        /* Компактная пагинация */
+        .chessboard-table + .ant-table-pagination {
+          margin: 8px 0 !important;
+          font-size: 12px !important;
+        }
+        .chessboard-table + .ant-table-pagination .ant-pagination-item {
+          min-width: 24px !important;
+          height: 24px !important;
+          line-height: 22px !important;
+          font-size: 12px !important;
+        }
+        .chessboard-table + .ant-table-pagination .ant-select-selector {
+          height: 24px !important;
+          min-height: 24px !important;
+          padding: 0 4px !important;
+          font-size: 12px !important;
+        }
+        .chessboard-table table {
+          table-layout: fixed !important;
+        }
+        .chessboard-table .ant-table {
+          table-layout: fixed !important;
+        }
+        .chessboard-table .ant-table-content {
+          overflow-x: auto !important;
+        }
+        .chessboard-table .ant-table-body {
+          overflow-x: hidden !important;
+        }
+      `}</style>
       <Table<RowData>
         className="chessboard-table"
         tableLayout="fixed"
+        style={{
+          tableLayout: 'fixed',
+          width: '100%'
+        }}
         columns={visibleColumnsData}
         dataSource={data}
         loading={loading}
@@ -2609,6 +2928,7 @@ export const ChessboardTable = memo(({
         sticky={true}
         scroll={tableScrollConfig}
         pagination={{
+          size: 'small',
           position: ['bottomCenter'],
           defaultPageSize: 100,
           showSizeChanger: true,

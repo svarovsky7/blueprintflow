@@ -286,7 +286,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
       icon: collapsed ? (
         <div
           {...createHoverMenu('references', [
-            { key: 'units', label: 'Единицы измерения', path: '/references' },
+            { key: 'units', label: 'Единицы измерения', path: '/references/units' },
             {
               key: 'cost-categories',
               label: 'Категории затрат',
@@ -307,7 +307,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
       children: collapsed
         ? undefined
         : [
-            { key: 'units', label: <Link to="/references">Единицы измерения</Link> },
+            { key: 'units', label: <Link to="/references/units">Единицы измерения</Link> },
             {
               key: 'cost-categories',
               label: <Link to="/references/cost-categories">Категории затрат</Link>,
@@ -709,7 +709,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                   <Route path="documentation" element={<Documentation />} />
                 </Route>
                 <Route path="/references" element={<References />}>
-                  <Route index element={<Units />} />
+                  <Route path="units" element={<Units />} />
                   <Route path="cost-categories" element={<CostCategories />} />
                   <Route path="projects" element={<Projects />} />
                   <Route path="locations" element={<Locations />} />
@@ -842,7 +842,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
 
           {hoveredMenu === 'references' &&
             [
-              { key: 'units', label: 'Единицы измерения', path: '/references' },
+              { key: 'units', label: 'Единицы измерения', path: '/references/units' },
               {
                 key: 'cost-categories',
                 label: 'Категории затрат',

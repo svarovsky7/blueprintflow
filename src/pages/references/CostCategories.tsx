@@ -32,6 +32,19 @@ interface DetailCategory {
   locationName: string | null
 }
 
+interface DetailCategoryGroup {
+  id: number // ID первой записи в группе
+  name: string
+  description: string | null
+  unitId: string | null
+  unitName: string | null
+  costCategoryId: number
+  locations: Array<{
+    id: number
+    name: string
+  }>
+}
+
 interface UnitOption {
   id: string
   name: string
@@ -51,7 +64,8 @@ interface TableRow {
   detailId: number | null
   detailName: string | null
   detailUnit: string | null
-  location: string | null
+  locations: string[] | null  // Массив названий локализаций
+  locationIds: number[] | null // Массив ID локализаций
 }
 
 interface CategoryRowDB {
@@ -171,27 +185,62 @@ export default function CostCategories() {
 
   const rows = useMemo(() => {
     const result: TableRow[] = []
-    const detailsByCategory = new Map<number, DetailCategory[]>(
-      (details ?? []).map((d) => [d.costCategoryId, []]),
-    )
+
+    // Группируем детали по категории и имени
+    const detailsGrouped = new Map<string, DetailCategoryGroup>()
+
     ;(details ?? []).forEach((d) => {
-      const arr = detailsByCategory.get(d.costCategoryId)
-      if (arr) arr.push(d)
+      const groupKey = `${d.costCategoryId}-${d.name}`
+
+      if (detailsGrouped.has(groupKey)) {
+        // Добавляем локализацию к существующей группе
+        const group = detailsGrouped.get(groupKey)!
+        group.locations.push({
+          id: d.locationId,
+          name: d.locationName || ''
+        })
+      } else {
+        // Создаем новую группу
+        detailsGrouped.set(groupKey, {
+          id: d.id,
+          name: d.name,
+          description: d.description,
+          unitId: d.unitId,
+          unitName: d.unitName,
+          costCategoryId: d.costCategoryId,
+          locations: [{
+            id: d.locationId,
+            name: d.locationName || ''
+          }]
+        })
+      }
     })
+
+    // Организуем по категориям
+    const detailsByCategory = new Map<number, DetailCategoryGroup[]>()
+    for (const group of detailsGrouped.values()) {
+      if (!detailsByCategory.has(group.costCategoryId)) {
+        detailsByCategory.set(group.costCategoryId, [])
+      }
+      detailsByCategory.get(group.costCategoryId)!.push(group)
+    }
+
+    // Создаем строки таблицы
     ;(categories ?? []).forEach((c) => {
-      const ds = detailsByCategory.get(c.id)
-      if (ds && ds.length > 0) {
-        ds.forEach((d) => {
+      const groups = detailsByCategory.get(c.id)
+      if (groups && groups.length > 0) {
+        groups.forEach((group) => {
           result.push({
-            key: `detail-${d.id}`,
+            key: `detail-group-${group.id}`,
             number: c.number,
             categoryId: c.id,
             categoryName: c.name,
             categoryUnit: c.unitName,
-            detailId: d.id,
-            detailName: d.name,
-            detailUnit: d.unitName,
-            location: d.locationName,
+            detailId: group.id,
+            detailName: group.name,
+            detailUnit: group.unitName,
+            locations: group.locations.map(l => l.name),
+            locationIds: group.locations.map(l => l.id),
           })
         })
       } else {
@@ -204,7 +253,8 @@ export default function CostCategories() {
           detailId: null,
           detailName: null,
           detailUnit: null,
-          location: null,
+          locations: null,
+          locationIds: null,
         })
       }
     })
@@ -235,7 +285,8 @@ export default function CostCategories() {
     detailId: null,
     detailName: null,
     detailUnit: null,
-    location: null,
+    locations: null,
+    locationIds: null,
   }
 
   const dataSource: TableRow[] = addMode ? [emptyRow, ...filteredRows] : filteredRows
@@ -433,15 +484,23 @@ export default function CostCategories() {
     if (addMode) return
     form.resetFields()
     if (record.detailId) {
-      const detail = details?.find((d) => d.id === record.detailId)
-      form.setFieldsValue({
-        costCategoryId: detail?.costCategoryId,
-        detailName: detail?.name,
-        detailDescription: detail?.description,
-        detailUnitId: detail?.unitId,
-        locationId: detail?.locationId,
-      })
-      setEditing({ type: 'detail', key: record.key, id: record.detailId })
+      // Для групп деталей - редактируем группу целиком
+      const detailsInGroup = details?.filter((d) =>
+        d.costCategoryId === record.categoryId &&
+        d.name === record.detailName
+      ) ?? []
+
+      if (detailsInGroup.length > 0) {
+        const firstDetail = detailsInGroup[0]
+        form.setFieldsValue({
+          costCategoryId: firstDetail.costCategoryId,
+          detailName: firstDetail.name,
+          detailDescription: firstDetail.description,
+          detailUnitId: firstDetail.unitId,
+          locationIds: record.locationIds || [], // Используем все ID локализаций из группы
+        })
+        setEditing({ type: 'detail', key: record.key, id: record.detailId })
+      }
     } else if (record.categoryId) {
       const category = categories?.find((c) => c.id === record.categoryId)
       form.setFieldsValue({
@@ -473,14 +532,19 @@ export default function CostCategories() {
         if (error) throw error
       }
       if (addMode === 'detail') {
-        const { error } = await supabase.from('detail_cost_categories').insert({
-          cost_category_id: values.costCategoryId,
-          name: values.detailName,
-          description: values.detailDescription,
-          unit_id: values.detailUnitId,
-          location_id: values.locationId,
-        })
-        if (error) throw error
+        // Создаем записи для каждой выбранной локализации
+        if (values.locationIds && values.locationIds.length > 0) {
+          const detailRecords = values.locationIds.map((locationId: number) => ({
+            cost_category_id: values.costCategoryId,
+            name: values.detailName,
+            description: values.detailDescription,
+            unit_id: values.detailUnitId,
+            location_id: locationId,
+          }))
+
+          const { error } = await supabase.from('detail_cost_categories').insert(detailRecords)
+          if (error) throw error
+        }
       }
       message.success('Запись добавлена')
       setAddMode(null)
@@ -508,17 +572,37 @@ export default function CostCategories() {
         if (error) throw error
       }
       if (editing.type === 'detail') {
-        const { error } = await supabase
-          .from('detail_cost_categories')
-          .update({
+        // Находим все записи текущей группы (одинаковая категория и название детали)
+        const currentDetailGroup = details?.filter((d) =>
+          d.costCategoryId === values.costCategoryId &&
+          d.name === values.detailName
+        ) ?? []
+
+        // Удаляем все старые записи группы
+        if (currentDetailGroup.length > 0) {
+          const groupIds = currentDetailGroup.map(d => d.id)
+          const { error: deleteError } = await supabase
+            .from('detail_cost_categories')
+            .delete()
+            .in('id', groupIds)
+          if (deleteError) throw deleteError
+        }
+
+        // Создаем новые записи для каждой выбранной локализации
+        if (values.locationIds && values.locationIds.length > 0) {
+          const detailRecords = values.locationIds.map((locationId: number) => ({
             cost_category_id: values.costCategoryId,
             name: values.detailName,
             description: values.detailDescription,
             unit_id: values.detailUnitId,
-            location_id: values.locationId,
-          })
-          .eq('id', editing.id)
-        if (error) throw error
+            location_id: locationId,
+          }))
+
+          const { error: insertError } = await supabase
+            .from('detail_cost_categories')
+            .insert(detailRecords)
+          if (insertError) throw insertError
+        }
       }
       message.success('Запись обновлена')
       cancelEdit()
@@ -532,11 +616,20 @@ export default function CostCategories() {
     try {
       if (!supabase) return
       if (record.detailId) {
-        const { error } = await supabase
-          .from('detail_cost_categories')
-          .delete()
-          .eq('id', record.detailId)
-        if (error) throw error
+        // Удаляем всю группу деталей (все записи с одинаковыми категорией и названием)
+        const detailsInGroup = details?.filter((d) =>
+          d.costCategoryId === record.categoryId &&
+          d.name === record.detailName
+        ) ?? []
+
+        if (detailsInGroup.length > 0) {
+          const groupIds = detailsInGroup.map(d => d.id)
+          const { error } = await supabase
+            .from('detail_cost_categories')
+            .delete()
+            .in('id', groupIds)
+          if (error) throw error
+        }
       } else if (record.categoryId) {
         const { error } = await supabase
           .from('cost_categories')
@@ -815,34 +908,63 @@ export default function CostCategories() {
     },
     {
       title: 'Локализация',
-      dataIndex: 'location',
-      sorter: (a: TableRow, b: TableRow) => (a.location ?? '').localeCompare(b.location ?? ''),
+      dataIndex: 'locations',
+      sorter: (a: TableRow, b: TableRow) => {
+        const aLoc = Array.isArray(a.locations) ? a.locations.join(', ') : (a.locations ?? '')
+        const bLoc = Array.isArray(b.locations) ? b.locations.join(', ') : (b.locations ?? '')
+        return aLoc.localeCompare(bLoc)
+      },
       filters: locationFilters,
-      onFilter: (value: unknown, record: TableRow) => record.location === value,
-      render: (value: string | null, record: TableRow) => {
+      onFilter: (value: unknown, record: TableRow) => {
+        if (Array.isArray(record.locations)) {
+          return record.locations.some(loc => loc === value)
+        }
+        return record.locations === value
+      },
+      render: (value: string[] | null, record: TableRow) => {
         if (record.key === 'new' && addMode === 'detail') {
           return (
             <Form.Item
-              name="locationId"
-              rules={[{ required: true, message: 'Выберите локализацию' }]}
+              name="locationIds"
+              rules={[{ required: true, message: 'Выберите локализации' }]}
               style={{ margin: 0 }}
             >
-              <Select options={locations?.map((l) => ({ value: l.id, label: l.name })) ?? []} />
+              <Select
+                mode="multiple"
+                placeholder="Выберите локализации"
+                options={locations?.map((l) => ({ value: l.id, label: l.name })) ?? []}
+              />
             </Form.Item>
           )
         }
         if (editing?.key === record.key && editing.type === 'detail') {
           return (
             <Form.Item
-              name="locationId"
-              rules={[{ required: true, message: 'Выберите локализацию' }]}
+              name="locationIds"
+              rules={[{ required: true, message: 'Выберите локализации' }]}
               style={{ margin: 0 }}
             >
-              <Select options={locations?.map((l) => ({ value: l.id, label: l.name })) ?? []} />
+              <Select
+                mode="multiple"
+                placeholder="Выберите локализации"
+                options={locations?.map((l) => ({ value: l.id, label: l.name })) ?? []}
+              />
             </Form.Item>
           )
         }
-        return value
+
+        // Отображение множественных локализаций
+        if (Array.isArray(value) && value.length > 0) {
+          return (
+            <div style={{ lineHeight: '1.4' }}>
+              {value.map((location, index) => (
+                <div key={index}>{location}</div>
+              ))}
+            </div>
+          )
+        }
+
+        return value || '-'
       },
     },
     {
