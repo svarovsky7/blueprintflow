@@ -73,7 +73,9 @@
       "Bash(del:*)",
       "WebFetch(domain:localhost)",
       "WebFetch(domain:tanstack.com)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(timeout 30 npm run dev:local)",
+      "Bash(ren:*)"
     ],
     "deny": [],
     "ask": []

@@ -19,6 +19,7 @@ export interface RowData {
   documentationCode: string // Шифр проекта (из справочника Документация)
   documentationProjectName: string // Наименование проекта (зависимое от Шифра проекта)
   documentationVersion: string // Версия проекта
+  documentationVersionId: string // UUID выбранной версии документа
   // Данные из маппингов
   block: string
   blockId: string
@@ -28,9 +29,12 @@ export interface RowData {
   costType: string
   costTypeId: string
   workName: string // Наименование работ
+  workUnit: string // Ед.Изм. Работ
+  rateId: string // ID расценки
   location: string // Локализация
   locationId: string
   material: string
+  materialType: 'База' | 'Доп' | 'ИИ' // Тип материала
   quantityPd: string // Кол-во по ПД
   quantitySpec: string // Кол-во по спеке РД
   quantityRd: string // Кол-во по пересчету РД

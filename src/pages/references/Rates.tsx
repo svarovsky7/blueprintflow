@@ -69,6 +69,7 @@ const defaultColumnVisibility = {
   detail_cost_category: true,
   unit: true,
   base_rate: true,
+  active: true,
   actions: true,
 }
 
@@ -79,6 +80,7 @@ const defaultColumnOrder = [
   'detail_cost_category',
   'unit',
   'base_rate',
+  'active',
   'actions',
 ]
 
@@ -360,6 +362,7 @@ export default function Rates() {
         work_set: '',
         base_rate: 0,
         detail_cost_category_id: undefined,
+        active: true, // По умолчанию активна
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         isNew: true,
@@ -392,6 +395,7 @@ export default function Rates() {
           base_rate: newRow.base_rate,
           unit_id: newRow.unit_id || undefined,
           detail_cost_category_id: newRow.detail_cost_category_id,
+          active: newRow.active,
         }
 
         await ratesApi.create(formData)
@@ -405,6 +409,7 @@ export default function Rates() {
           base_rate: editedRow.base_rate,
           unit_id: editedRow.unit_id || undefined,
           detail_cost_category_id: editedRow.detail_cost_category_id,
+          active: editedRow.active,
         }
 
         await ratesApi.update(id, formData)
@@ -902,6 +907,41 @@ export default function Rates() {
         },
       },
       {
+        title: 'Актив',
+        dataIndex: 'active',
+        key: 'active',
+        width: 80,
+        render: (value: boolean, record: RateTableRow) => {
+          if (record.isNew || editingRows[record.id]) {
+            return (
+              <Checkbox
+                checked={editingRows[record.id]?.active ?? record.active}
+                onChange={(e) => {
+                  if (record.isNew) {
+                    setNewRows((prev) =>
+                      prev.map((row) =>
+                        row.id === record.id ? { ...row, active: e.target.checked } : row,
+                      ),
+                    )
+                  } else {
+                    setEditingRows((prev) => ({
+                      ...prev,
+                      [record.id]: { ...record, ...prev[record.id], active: e.target.checked },
+                    }))
+                  }
+                }}
+              />
+            )
+          }
+          return (
+            <Checkbox
+              checked={value}
+              disabled
+            />
+          )
+        },
+      },
+      {
         title: 'Действия',
         key: 'actions',
         width: 120,
@@ -920,6 +960,7 @@ export default function Rates() {
                     ...record,
                     id: newId,
                     work_name: `${record.work_name} (копия)`,
+                    active: record.active, // Копируем статус активности
                     isNew: true,
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),

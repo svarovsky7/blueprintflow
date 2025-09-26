@@ -893,6 +893,30 @@ export const documentationApi = {
       .filter(Boolean) as Comment[]
   },
 
+  // Получение версий для конкретного документа
+  async getVersionsByDocumentId(documentId: string) {
+    if (!supabase) throw new Error('Supabase client not initialized')
+
+    const { data, error } = await supabase
+      .from('documentation_versions')
+      .select('id, documentation_id, version_number, issue_date, status, created_at, updated_at')
+      .eq('documentation_id', documentId)
+      .order('version_number', { ascending: true })
+
+    if (error) {
+      console.error('Failed to fetch document versions:', error)
+      throw error
+    }
+
+    return (data || []).map(version => ({
+      value: version.id,
+      label: version.version_number.toString(),
+      versionNumber: version.version_number,
+      issueDate: version.issue_date,
+      status: version.status
+    }))
+  },
+
   // Комплексное сохранение документации с версиями и комментариями
   async saveDocumentationComplete(data: {
     code: string

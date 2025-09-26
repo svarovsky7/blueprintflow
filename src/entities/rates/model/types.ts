@@ -4,6 +4,7 @@ export interface Rate {
   work_set?: string // РАБОЧИЙ НАБОР
   base_rate: number // Расценка БАЗОВАЯ
   unit_id?: string // Ед.изм.
+  active: boolean // Флаг активности расценки
   created_at: string
   updated_at: string
 }
@@ -40,4 +41,5 @@ export interface RateFormData {
   base_rate: number
   unit_id?: string
   detail_cost_category_id?: number
+  active?: boolean
 }

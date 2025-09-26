@@ -47,10 +47,16 @@ export const ratesApi = {
 
     const { detail_cost_category_id, ...rateData } = data
 
+    // Устанавливаем значение по умолчанию для active, если не указано
+    const rateDataWithDefaults = {
+      ...rateData,
+      active: rateData.active !== undefined ? rateData.active : true
+    }
+
     // Создаем запись расценки
     const { data: rate, error: rateError } = await supabase
       .from('rates')
-      .insert({ ...rateData })
+      .insert({ ...rateDataWithDefaults })
       .select()
       .single()
 
@@ -79,7 +85,7 @@ export const ratesApi = {
 
     const { detail_cost_category_id, ...rateData } = data
 
-    // Обновляем запись расценки
+    // Обновляем запись расценки (включая поле active)
     const { data: rate, error: rateError } = await supabase
       .from('rates')
       .update({ ...rateData })
@@ -141,6 +147,24 @@ export const ratesApi = {
     }
   },
 
+  // Получение единицы измерения по ID расценки
+  async getUnitByRateId(rateId: string): Promise<string | null> {
+    if (!supabase) throw new Error('Supabase is not configured')
+
+    const { data, error } = await supabase
+      .from('rates')
+      .select('unit:units(name)')
+      .eq('id', rateId)
+      .single()
+
+    if (error) {
+      console.error('Failed to get unit by rate id:', error)
+      return null
+    }
+
+    return data?.unit?.name || null
+  },
+
   // Получение работ по виду затрат через rates_detail_cost_categories_mapping
   async getWorksByCategory(
     costTypeId?: string,
@@ -155,12 +179,14 @@ export const ratesApi = {
 
     console.log('🔍 getWorksByCategory called with:', { costTypeId, costCategoryId }) // LOG: отладочная информация
 
-    // Запрос: получаем расценки с их категориями затрат (как в backup файле)
+    // Запрос: получаем только активные расценки с их категориями затрат
     const { data, error } = await supabase.from('rates').select(`
         id,
         work_name,
+        active,
         rates_detail_cost_categories_mapping(detail_cost_category_id)
       `)
+      .eq('active', true) // Фильтруем только активные расценки
 
     console.log('📊 SQL результат:', { data, error }) // LOG: отладочная информация
 
@@ -170,7 +196,7 @@ export const ratesApi = {
     }
 
     if (!data || data.length === 0) {
-      console.log('⚠️ Нет данных для costTypeId:', costTypeId) // LOG: отладочная информация
+      console.log('⚠️ Нет активных данных для costTypeId:', costTypeId) // LOG: отладочная информация
       return []
     }
 
@@ -186,9 +212,10 @@ export const ratesApi = {
       const targetIdAsNumber = parseInt(costTypeId || '0')
       const categoryIdsAsNumbers = rate.rates_detail_cost_categories_mapping?.map((m) => m.detail_cost_category_id) ?? []
 
-      console.log('🔍 Checking rate:', { // LOG: отладочная информация фильтрации
+      console.log('🔍 Checking active rate:', { // LOG: отладочная информация фильтрации
         rateId: rate.id,
         workName: rate.work_name,
+        active: rate.active,
         categoryIds,
         categoryIdsAsNumbers,
         targetCostTypeId: costTypeId,
@@ -211,7 +238,7 @@ export const ratesApi = {
       }))
       .sort((a, b) => a.label.localeCompare(b.label)) // Сортировка по названию работы
 
-    console.log('✅ Результат обработки:', result) // LOG: отладочная информация
+    console.log('✅ Результат обработки активных расценок:', result) // LOG: отладочная информация
     return result
   },
 }

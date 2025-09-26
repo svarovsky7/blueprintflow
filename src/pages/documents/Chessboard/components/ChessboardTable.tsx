@@ -10,10 +10,11 @@ import { CommentsCell } from './CommentsCell'
 import { FloorQuantitiesModal } from './FloorQuantitiesModal'
 import { AIAnalysisModal } from '@/entities/ml'
 import type { RowData, TableMode, RowColor, FloorModalRow, FloorModalInfo } from '../types'
-import { COLUMN_KEYS, TABLE_SCROLL_CONFIG, LARGE_TABLE_CONFIG } from '../utils/constants'
+import { COLUMN_KEYS, TABLE_SCROLL_CONFIG, LARGE_TABLE_CONFIG, MATERIAL_TYPE_OPTIONS } from '../utils/constants'
 import { parseFloorsFromString, hasMultipleFloors as checkMultipleFloors, distributeQuantitiesAcrossFloors } from '../utils/floors'
 import { useNomenclatureSupplierCascade } from '../hooks/useNomenclatureSupplierCascade'
 import { chessboardCascadeApi } from '@/entities/chessboard'
+import { documentationApi } from '@/entities/documentation/api/documentation-api'
 
 // ОПТИМИЗАЦИЯ: константы стилей для предотвращения создания новых объектов на каждом рендере
 const STABLE_STYLES = {
@@ -69,6 +70,53 @@ const WorkNameSelect: React.FC<WorkNameSelectProps> = ({ value, costTypeId, cost
       options={workOptions}
       disabled={!costTypeId && !costCategoryId} // Отключаем если нет ни вида, ни категории затрат
       notFoundContent={costTypeId || costCategoryId ? 'Работы не найдены' : 'Выберите вид или категорию затрат'}
+    />
+  )
+}
+
+// Компонент для каскадного выбора версий документа
+interface VersionSelectProps {
+  value: string
+  documentId: string | undefined
+  onChange: (versionId: string, versionNumber: string) => void
+}
+
+const VersionSelect: React.FC<VersionSelectProps> = ({ value, documentId, onChange }) => {
+  // Стабилизируем queryKey
+  const stableQueryKey = useMemo(() => {
+    const key = ['document-versions']
+    if (documentId) key.push(documentId)
+    return key
+  }, [documentId])
+
+  // Загружаем версии для выбранного документа
+  const { data: versionOptions = [] } = useQuery({
+    queryKey: stableQueryKey,
+    queryFn: () => documentationApi.getVersionsByDocumentId(documentId!),
+    enabled: !!documentId, // Запрос только если выбран документ
+  })
+
+  return (
+    <Select
+      value={value || undefined}
+      placeholder="Версия"
+      onChange={(versionId) => {
+        const selectedVersion = versionOptions.find(v => v.value === versionId)
+        if (selectedVersion) {
+          onChange(versionId, selectedVersion.label)
+        }
+      }}
+      allowClear
+      showSearch
+      size="small"
+      style={STABLE_STYLES.fullWidth}
+      filterOption={(input, option) => {
+        const text = option?.label?.toString() || ""
+        return text.toLowerCase().includes(input.toLowerCase())
+      }}
+      options={versionOptions}
+      disabled={!documentId} // Отключаем если не выбран документ
+      notFoundContent={documentId ? 'Версии не найдены' : 'Выберите документ'}
     />
   )
 }
@@ -1260,13 +1308,37 @@ export const ChessboardTable = memo(({
           return (
             <Select
               value={value || undefined}
-              onChange={(newValue) => {
+              onChange={async (newValue) => {
                 const selectedDoc = documentationData.find(doc => doc.value === newValue)
-                onRowUpdate(record.id, {
+
+                // Базовое обновление полей документа
+                const updateData = {
                   documentationCode: selectedDoc ? selectedDoc.label : '',
                   documentationCodeId: newValue,
-                  documentationProjectName: selectedDoc ? selectedDoc.projectName : ''
-                })
+                  documentationProjectName: selectedDoc ? selectedDoc.projectName : '',
+                  // Сбрасываем версию при смене документа
+                  documentationVersionId: '',
+                  documentationVersion: ''
+                }
+
+                // Если выбран документ, автоматически загружаем и выбираем последнюю версию
+                if (newValue) {
+                  try {
+                    const versions = await documentationApi.getVersionsByDocumentId(newValue)
+                    if (versions.length > 0) {
+                      // Находим версию с максимальным номером
+                      const latestVersion = versions.reduce((max, current) =>
+                        current.versionNumber > max.versionNumber ? current : max
+                      )
+                      updateData.documentationVersionId = latestVersion.value
+                      updateData.documentationVersion = latestVersion.label
+                    }
+                  } catch (error) {
+                    console.error('Ошибка загрузки версий документа:', error)
+                  }
+                }
+
+                onRowUpdate(record.id, updateData)
               }}
               // Фильтрация по выбранному разделу
               options={documentationData.filter(doc => {
@@ -1320,7 +1392,7 @@ export const ChessboardTable = memo(({
       title: 'Вер.',
       key: COLUMN_KEYS.DOCUMENTATION_VERSION,
       dataIndex: 'documentationVersion',
-      width: 50,
+      width: 70,
       onHeaderCell: () => ({
         className: 'chessboard-header-cell',
         style: {
@@ -1331,6 +1403,26 @@ export const ChessboardTable = memo(({
           padding: '4px 8px',
         },
       }),
+      render: (value, record) => {
+        const isEditing = (record as any).isEditing
+        if (isEditing) {
+          const currentDocumentId = (record as any).documentationCodeId
+          const currentVersionId = (record as any).documentationVersionId
+          return (
+            <VersionSelect
+              value={currentVersionId || ''}
+              documentId={currentDocumentId}
+              onChange={(versionId, versionNumber) => {
+                onRowUpdate(record.id, {
+                  documentationVersionId: versionId,
+                  documentationVersion: versionNumber
+                })
+              }}
+            />
+          )
+        }
+        return <span>{value || ''}</span>
+      },
     },
 
     // Корпус (из таблицы blocks)
@@ -1609,6 +1701,32 @@ export const ChessboardTable = memo(({
       },
     },
 
+    // Ед.Изм. Работ
+    {
+      title: 'Ед.Изм.\nРабот',
+      key: COLUMN_KEYS.WORK_UNIT,
+      dataIndex: 'workUnit',
+      width: 'auto',
+      minWidth: 60,
+      maxWidth: 100,
+      filterMode: 'tree' as const,
+      filterSearch: true,
+      onFilter: (value, record) => record.workUnit?.includes(value as string),
+      onHeaderCell: () => ({
+        className: 'chessboard-header-cell',
+        style: {
+          whiteSpace: 'pre-line',
+          textAlign: 'center',
+          verticalAlign: 'middle',
+          lineHeight: '20px',
+          padding: '4px 8px',
+        },
+      }),
+      render: (value, record) => {
+        return <span>{value || ''}</span>
+      },
+    },
+
     // Локализация
     {
       title: 'Локализация',
@@ -1730,6 +1848,43 @@ export const ChessboardTable = memo(({
           )
         }
         return <span>{value || ''}</span>
+      },
+    },
+
+    // Тип материала
+    {
+      title: 'Тип\nматериала',
+      key: COLUMN_KEYS.MATERIAL_TYPE,
+      dataIndex: 'materialType',
+      width: 80,
+      filterMode: 'tree' as const,
+      filterSearch: true,
+      onFilter: (value, record) => record.materialType?.includes(value as string),
+      onHeaderCell: () => ({
+        className: 'chessboard-header-cell',
+        style: {
+          whiteSpace: 'pre-line',
+          textAlign: 'center',
+          verticalAlign: 'middle',
+          lineHeight: '20px',
+          padding: '4px 8px',
+        },
+      }),
+      render: (value, record) => {
+        const isEditing = (record as any).isEditing
+        if (isEditing) {
+          return (
+            <Select
+              value={value || 'База'}
+              onChange={(newValue) => onRowUpdate(record.id, { materialType: newValue })}
+              options={MATERIAL_TYPE_OPTIONS}
+              size="small"
+              style={STABLE_STYLES.fullWidth}
+              placeholder="Выберите тип"
+            />
+          )
+        }
+        return <span>{value || 'База'}</span>
       },
     },
 

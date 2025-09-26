@@ -58,24 +58,40 @@ export const useTableOperations = () => {
       id: `new-${Date.now()}-${Math.random()}`,
       project: '',
       projectId,
+      // Данные из документации
+      documentationSection: '',
+      documentationCode: '',
+      documentationProjectName: '',
+      documentationVersion: '',
+      documentationVersionId: '',
+      // Данные из маппингов
       block: '',
       blockId: '',
+      floors: '',
       costCategory: '',
       costCategoryId: '',
       costType: '',
       costTypeId: '',
+      workName: '',
+      workUnit: '',
+      rateId: '',
       location: '',
       locationId: '',
-      nomenclatureId: '',
       material: '',
-      quantity: 0,
+      materialType: 'База',
+      quantityPd: '',
+      quantitySpec: '',
+      quantityRd: '',
+      nomenclature: '',
+      nomenclatureId: '',
+      supplier: '',
       unit: '',
       unitId: '',
-      rate: '',
-      rateId: '',
-      amount: 0,
+      comments: '',
       color: '',
+      // Данные этажей для модального окна
       floorQuantities: {},
+      // Технические поля
       isNew: true,
       isEditing: true,
     }
@@ -217,6 +233,17 @@ export const useTableOperations = () => {
       // Сохранение отредактированных строк
       for (const [rowId, updates] of editedRows.entries()) {
         console.log('🔍 saveChanges - обрабатываем строку:', { rowId, updates }) // LOG: отладочная информация
+      console.log('🔍 DEBUG: Все ключи в updates:', Object.keys(updates)) // LOG: отладочная информация
+      console.log('🔍 DEBUG: Проверяем поля документации:', {
+        documentationSection: updates.documentationSection,
+        documentationCode: updates.documentationCode,
+        documentationSectionId: updates.documentationSectionId,
+        documentationCodeId: updates.documentationCodeId,
+        documentationTagId: updates.documentationTagId,
+        documentationId: updates.documentationId,
+        block: updates.block,
+        blockId: updates.blockId
+      }) // LOG: отладочная информация
 
         // Обновляем только поля, которые есть в основной таблице chessboard
         const chessboardUpdateData: any = {}
@@ -232,10 +259,55 @@ export const useTableOperations = () => {
           // materialId должен быть UUID, а не строка
           chessboardUpdateData.material = updates.materialId || null
         }
+        // Обработка материала: нужно найти или создать материал в таблице materials
         if (updates.material !== undefined) {
-          // Если передается material как UUID строка
-          chessboardUpdateData.material = updates.material || null
-          console.log('🔍 DEBUG: Обработка поля material:', updates.material) // LOG: отладочная информация
+          const materialName = updates.material?.trim()
+          if (materialName) {
+            console.log('🔍 DEBUG: Обработка материала, ищем или создаем:', materialName) // LOG: отладочная информация
+
+            // Ищем существующий материал (поле uuid, а не id!)
+            const { data: existingMaterial, error: findError } = await supabase
+              .from('materials')
+              .select('uuid')
+              .eq('name', materialName)
+              .single()
+
+            if (findError && findError.code !== 'PGRST116') {
+              console.error('🔍 ERROR: Ошибка поиска материала:', findError) // LOG: ошибка поиска
+              throw findError
+            }
+
+            let materialId: string
+            if (existingMaterial) {
+              // Материал найден
+              materialId = existingMaterial.uuid
+              console.log('🔍 DEBUG: Материал найден, UUID:', materialId) // LOG: найденный материал
+            } else {
+              // Создаем новый материал
+              console.log('🔍 DEBUG: Создаем новый материал:', materialName) // LOG: новый материал
+              const { data: newMaterial, error: createError } = await supabase
+                .from('materials')
+                .insert({ name: materialName })
+                .select('uuid')
+                .single()
+
+              if (createError) {
+                console.error('🔍 ERROR: Ошибка создания материала:', createError) // LOG: ошибка создания
+                throw createError
+              }
+
+              materialId = newMaterial.uuid
+              console.log('🔍 DEBUG: Новый материал создан, UUID:', materialId) // LOG: созданный материал
+            }
+
+            chessboardUpdateData.material = materialId
+          } else {
+            chessboardUpdateData.material = null
+          }
+        }
+        if (updates.materialType !== undefined) {
+          chessboardUpdateData.material_type = updates.materialType || 'База'
+          console.log('🔍 DEBUG: Обработка поля materialType:', updates.materialType) // LOG: отладочная информация
         }
         // ИСПРАВЛЕНИЕ: floors и floorQuantities сохраняются в отдельной таблице chessboard_floor_mapping
         // Не пытаемся сохранить их в основную таблицу chessboard
@@ -248,14 +320,21 @@ export const useTableOperations = () => {
         // Обновляем основную таблицу только если есть что обновлять
         if (Object.keys(chessboardUpdateData).length > 1) { // > 1 потому что updated_at всегда есть
           console.log('✅ Обновление основной таблицы chessboard') // LOG: отладочная информация
-          promises.push(
-            supabase.from('chessboard').update(chessboardUpdateData).eq('id', rowId)
-          )
+          const chessboardPromise = supabase.from('chessboard').update(chessboardUpdateData).eq('id', rowId)
+          promises.push(chessboardPromise)
         }
 
         // Обновляем mapping таблицу для остальных полей (с правильными типами данных)
         const mappingUpdateData: any = {}
-        if (updates.blockId !== undefined) mappingUpdateData.block_id = updates.blockId || null
+        console.log('🔍 DEBUG: Проверяем blockId:', { blockId: updates.blockId, block: updates.block }) // LOG: отладочная информация
+        if (updates.blockId !== undefined) {
+          mappingUpdateData.block_id = updates.blockId || null
+          console.log('✅ DEBUG: Добавили block_id в mapping:', mappingUpdateData.block_id) // LOG: отладочная информация
+        } else if (updates.block !== undefined) {
+          // Если пришло название блока вместо ID - используем его как ID (блоки могут быть UUID)
+          mappingUpdateData.block_id = updates.block || null
+          console.log('✅ DEBUG: Добавили block (as ID) в mapping:', mappingUpdateData.block_id) // LOG: отладочная информация
+        }
         if (updates.costCategoryId !== undefined) {
           // cost_category_id должно быть integer
           mappingUpdateData.cost_category_id = updates.costCategoryId ? parseInt(updates.costCategoryId) : null
@@ -314,64 +393,329 @@ export const useTableOperations = () => {
           promises.push(mappingPromise)
         }
 
-        // Обновляем floors mapping для этажей
-        if (updates.floors !== undefined || updates.floorQuantities !== undefined) {
-          console.log('🏢 Обновление этажей:', { floors: updates.floors, floorQuantities: updates.floorQuantities }) // LOG: отладочная информация
+        // Обновляем documentation mapping для полей документации
+        console.log('🔍 DEBUG: Проверяем условие документации:', {
+          documentationSectionId_defined: updates.documentationSectionId !== undefined,
+          documentationCodeId_defined: updates.documentationCodeId !== undefined,
+          documentationSectionId_value: updates.documentationSectionId,
+          documentationCodeId_value: updates.documentationCodeId,
+          documentationSection: updates.documentationSection,
+          documentationCode: updates.documentationCode
+        }) // LOG: отладочная информация
 
-          // Создаем функцию обновления этажей (аналогично старой логике из backup)
+        if (updates.documentationSectionId !== undefined || updates.documentationCodeId !== undefined) {
+          console.log('📄 ВОШЛИ в обновление документации:', { documentationSectionId: updates.documentationSectionId, documentationCodeId: updates.documentationCodeId }) // LOG: отладочная информация
+
+          // Сначала удаляем старые связи
+          promises.push(
+            supabase.from('chessboard_documentation_mapping').delete().eq('chessboard_id', rowId)
+          )
+
+          // Добавляем новую связь - используется documentationVersionId как version_id
+          // В таблице chessboard_documentation_mapping есть только поле version_id
+          if (updates.documentationVersionId) {
+            console.log('📄 Добавляем version_id (documentationVersionId):', updates.documentationVersionId) // LOG: отладочная информация
+            promises.push(
+              supabase.from('chessboard_documentation_mapping').insert({
+                chessboard_id: rowId,
+                version_id: updates.documentationVersionId
+              })
+            )
+          } else if (updates.documentationCodeId) {
+            // Fallback: если версия не выбрана, но выбран документ, используем documentationCodeId
+            console.log('📄 Fallback: добавляем version_id (documentationCodeId):', updates.documentationCodeId) // LOG: отладочная информация
+            promises.push(
+              supabase.from('chessboard_documentation_mapping').insert({
+                chessboard_id: rowId,
+                version_id: updates.documentationCodeId
+              })
+            )
+          } else {
+            console.log('📄 documentationCodeId не указан, пропускаем добавление в documentation_mapping') // LOG: отладочная информация
+          }
+        }
+
+        // Обновляем floors mapping для этажей и количеств
+        if (updates.floors !== undefined || updates.floorQuantities !== undefined ||
+            updates.quantityPd !== undefined || updates.quantitySpec !== undefined || updates.quantityRd !== undefined) {
+          console.log('🏢 Обновление этажей и количеств:', {
+            floors: updates.floors,
+            floorQuantities: updates.floorQuantities,
+            quantityPd: updates.quantityPd,
+            quantitySpec: updates.quantitySpec,
+            quantityRd: updates.quantityRd
+          }) // LOG: отладочная информация
+
+          // Создаем функцию обновления этажей и количеств
           const updateFloorsPromise = async () => {
             try {
-              // 1. Сначала удаляем старые связи этажей
-              const { error: deleteError } = await supabase
+              // 1. Сначала получаем существующие данные этажей
+              const { data: existingFloors } = await supabase
                 .from('chessboard_floor_mapping')
-                .delete()
+                .select('*')
                 .eq('chessboard_id', rowId)
 
-              if (deleteError) {
-                console.error('🏢 Ошибка удаления старых этажей:', deleteError) // LOG: ошибка удаления
-                throw deleteError
-              }
+              console.log('🔍 Существующие данные этажей:', existingFloors) // LOG: отладочная информация
 
-              // 2. Парсим строку этажей и добавляем новые
+              // 2. Проверяем, есть ли этажи или количества для обработки
               const floorsString = updates.floors !== undefined ? updates.floors : ''
-              if (!floorsString) {
-                console.log('🏢 Пустая строка этажей, пропускаем вставку') // LOG: пустые этажи
-                return
-              }
-
-              const floors = parseFloorsFromString(floorsString)
               const floorQuantities = updates.floorQuantities || {}
 
-              console.log('🏢 Обработка этажей:', { floors, floorQuantities }) // LOG: обработка этажей
+              // Проверяем, есть ли прямые изменения количеств (без этажей)
+              const hasDirectQuantityUpdates = updates.quantityPd !== undefined ||
+                                               updates.quantitySpec !== undefined ||
+                                               updates.quantityRd !== undefined
 
-              if (floors.length > 0) {
-                const totalFloors = floors.length
-                const floorMappings = floors.map((floor) => ({
-                  chessboard_id: rowId,
-                  floor_number: floor,
-                  quantityPd: floorQuantities?.[floor]?.quantityPd
-                    ? Number(floorQuantities[floor].quantityPd)
-                    : null,
-                  quantitySpec: floorQuantities?.[floor]?.quantitySpec
-                    ? Number(floorQuantities[floor].quantitySpec)
-                    : null,
-                  quantityRd: floorQuantities?.[floor]?.quantityRd
-                    ? Number(floorQuantities[floor].quantityRd)
-                    : null,
-                }))
+              // Проверяем, есть ли существующие этажи в БД (кроме записей с floor_number = null)
+              const existingFloorsWithNumbers = existingFloors?.filter(floor => floor.floor_number !== null) || []
+              const hasExistingFloors = existingFloorsWithNumbers.length > 0
 
-                console.log('🏢 Вставляем новые этажи:', floorMappings) // LOG: вставка этажей
+              console.log('🔍 DEBUG: Анализ условий обработки:', {
+                floorsString,
+                floorsStringTrimmed: floorsString.trim(),
+                floorsStringExists: !!(floorsString && floorsString.trim()),
+                hasDirectQuantityUpdates,
+                hasExistingFloors,
+                existingFloorsWithNumbers,
+                updateFields: {
+                  floors: updates.floors,
+                  quantityPd: updates.quantityPd,
+                  quantitySpec: updates.quantitySpec,
+                  quantityRd: updates.quantityRd
+                },
+                floorQuantities
+              }) // LOG: анализ условий
+
+              if (floorsString && floorsString.trim()) {
+                console.log('✅ DEBUG: Выполняем секцию ОБРАБОТКА ЭТАЖЕЙ') // LOG: выполнение секции
+                // Обработка с указанными этажами
+                const floors = parseFloorsFromString(floorsString)
+                console.log('🏢 Обработка этажей:', { floors, floorQuantities, hasDirectQuantityUpdates, quantityUpdates: { quantityPd: updates.quantityPd, quantitySpec: updates.quantitySpec, quantityRd: updates.quantityRd } }) // LOG: обработка этажей
+
+                if (floors.length > 0) {
+                  // КРИТИЧНО: При указании этажей удаляем ВСЕ существующие записи для данной строки
+                  // (включая записи с floor_number = null - количества без этажей)
+                  console.log('🗑️ Удаляем ВСЕ старые записи этажей и количеств') // LOG: удаление всех записей
+                  const { error: deleteError } = await supabase
+                    .from('chessboard_floor_mapping')
+                    .delete()
+                    .eq('chessboard_id', rowId) // Удаляем все записи для данной строки
+
+                  if (deleteError) {
+                    console.error('🏢 Ошибка удаления старых этажей:', deleteError) // LOG: ошибка удаления
+                    throw deleteError
+                  }
+
+                  // Теперь создаем новые записи для указанных этажей
+                  const newFloorRecords = floors.map(floor => {
+                    // Находим существующую запись для этого этажа для сохранения неизменных значений
+                    const existingFloorRecord = existingFloors?.find(f => f.floor_number === floor)
+
+                    const floorQuantityData = {
+                      // ПРИОРИТЕТ: прямые изменения количеств, затем floorQuantities, затем существующие значения
+                      quantityPd: hasDirectQuantityUpdates && updates.quantityPd !== undefined
+                        ? (updates.quantityPd ? Number(updates.quantityPd) : null)
+                        : (floorQuantities?.[floor]?.quantityPd
+                          ? Number(floorQuantities[floor].quantityPd)
+                          : (existingFloorRecord?.quantityPd || null)),
+                      quantitySpec: hasDirectQuantityUpdates && updates.quantitySpec !== undefined
+                        ? (updates.quantitySpec ? Number(updates.quantitySpec) : null)
+                        : (floorQuantities?.[floor]?.quantitySpec
+                          ? Number(floorQuantities[floor].quantitySpec)
+                          : (existingFloorRecord?.quantitySpec || null)),
+                      quantityRd: hasDirectQuantityUpdates && updates.quantityRd !== undefined
+                        ? (updates.quantityRd ? Number(updates.quantityRd) : null)
+                        : (floorQuantities?.[floor]?.quantityRd
+                          ? Number(floorQuantities[floor].quantityRd)
+                          : (existingFloorRecord?.quantityRd || null)),
+                    }
+
+                    console.log(`🏢 Обработка этажа ${floor}:`, {
+                      hasDirectQuantityUpdates,
+                      directUpdates: { quantityPd: updates.quantityPd, quantitySpec: updates.quantitySpec, quantityRd: updates.quantityRd },
+                      floorQuantitiesForThisFloor: floorQuantities?.[floor],
+                      existingRecord: existingFloorRecord,
+                      resultQuantityData: floorQuantityData
+                    }) // LOG: обработка этажа
+
+                    return {
+                      chessboard_id: rowId,
+                      floor_number: floor,
+                      ...floorQuantityData
+                    }
+                  })
+
+                  console.log('➕ Создаем новые этажи:', newFloorRecords) // LOG: создание этажей
+
+                  const { error: insertError } = await supabase
+                    .from('chessboard_floor_mapping')
+                    .insert(newFloorRecords)
+
+                  if (insertError) {
+                    console.error('🏢 Ошибка создания новых этажей:', insertError) // LOG: ошибка создания
+                    throw insertError
+                  }
+
+                  console.log('✅ Этажи успешно заменены') // LOG: успех замены
+                }
+              } else if (hasExistingFloors && hasDirectQuantityUpdates) {
+                // НОВАЯ СЕКЦИЯ: Есть существующие этажи в БД, но поле floors не передано
+                // Обновляем количества для существующих этажей
+                                console.log('🔄 Обновление количеств для существующих этажей:', existingFloorsWithNumbers) // LOG: обновление существующих этажей
+
+                // Удаляем все существующие записи
+                const { error: deleteError } = await supabase
+                  .from('chessboard_floor_mapping')
+                  .delete()
+                  .eq('chessboard_id', rowId) // Удаляем все записи для данной строки
+
+                if (deleteError) {
+                                    throw deleteError
+                }
+
+                // Создаем новые записи для существующих этажей с обновленными количествами
+                const totalFloors = existingFloorsWithNumbers.length
+                
+                const updatedFloorRecords = existingFloorsWithNumbers.map(existingFloor => {
+                  return {
+                    chessboard_id: rowId,
+                    floor_number: existingFloor.floor_number,
+                    // РАСПРЕДЕЛЯЕМ количества равномерно между всеми этажами или сохраняем существующие значения
+                    quantityPd: hasDirectQuantityUpdates && updates.quantityPd !== undefined
+                      ? (updates.quantityPd ? Number(updates.quantityPd) / totalFloors : null)
+                      : (existingFloor.quantityPd || null),
+                    quantitySpec: hasDirectQuantityUpdates && updates.quantitySpec !== undefined
+                      ? (updates.quantitySpec ? Number(updates.quantitySpec) / totalFloors : null)
+                      : (existingFloor.quantitySpec || null),
+                    quantityRd: hasDirectQuantityUpdates && updates.quantityRd !== undefined
+                      ? (updates.quantityRd ? Number(updates.quantityRd) / totalFloors : null)
+                      : (existingFloor.quantityRd || null),
+                  }
+                })
+
+                console.log('📐 Количества распределены по этажам:', updatedFloorRecords.map(record => ({
+                  floor: record.floor_number,
+                  quantityPd: record.quantityPd,
+                  quantitySpec: record.quantitySpec,
+                  quantityRd: record.quantityRd
+                }))) // LOG: результат распределения
 
                 const { error: insertError } = await supabase
                   .from('chessboard_floor_mapping')
-                  .insert(floorMappings)
+                  .insert(updatedFloorRecords)
 
                 if (insertError) {
-                  console.error('🏢 Ошибка вставки новых этажей:', insertError) // LOG: ошибка вставки
-                  throw insertError
+                                    throw insertError
                 }
 
-                console.log('✅ Этажи успешно обновлены') // LOG: успех обновления
+                              } else if (hasDirectQuantityUpdates && (!floorsString || !floorsString.trim()) && !hasExistingFloors) {
+                                console.log('⚠️ DEBUG: Условия выполнения:', {
+                  hasDirectQuantityUpdates,
+                  floorsStringEmpty: !floorsString || !floorsString.trim(),
+                  floorsString,
+                  floorsStringTrimmed: floorsString?.trim()
+                }) // LOG: условия выполнения
+                // Обработка количеств БЕЗ указания этажей - только если этажи НЕ указаны
+                console.log('📊 Обработка количеств без этажей') // LOG: количества без этажей
+
+                // Ищем существующую запись с floor_number = null
+                const existingRecord = existingFloors?.find(floor => floor.floor_number === null)
+
+                if (existingRecord) {
+                  // Обновляем существующую запись, сохраняя неизменные поля
+                  const updateData: any = {}
+
+                  if (updates.quantityPd !== undefined) {
+                    updateData.quantityPd = updates.quantityPd ? Number(updates.quantityPd) : null
+                  }
+                  if (updates.quantitySpec !== undefined) {
+                    updateData.quantitySpec = updates.quantitySpec ? Number(updates.quantitySpec) : null
+                  }
+                  if (updates.quantityRd !== undefined) {
+                    updateData.quantityRd = updates.quantityRd ? Number(updates.quantityRd) : null
+                  }
+
+                  console.log('🔄 Обновляем существующую запись:', { id: existingRecord.id, updateData }) // LOG: обновление записи
+
+                  const { error: updateError } = await supabase
+                    .from('chessboard_floor_mapping')
+                    .update(updateData)
+                    .eq('id', existingRecord.id)
+
+                  if (updateError) {
+                    console.error('📊 Ошибка обновления количеств:', updateError) // LOG: ошибка обновления
+                    throw updateError
+                  }
+                } else {
+                  // Создаем новую запись
+                  const quantityMapping = {
+                    chessboard_id: rowId,
+                    floor_number: null, // Этаж не указан
+                    quantityPd: updates.quantityPd !== undefined
+                      ? (updates.quantityPd ? Number(updates.quantityPd) : null)
+                      : null,
+                    quantitySpec: updates.quantitySpec !== undefined
+                      ? (updates.quantitySpec ? Number(updates.quantitySpec) : null)
+                      : null,
+                    quantityRd: updates.quantityRd !== undefined
+                      ? (updates.quantityRd ? Number(updates.quantityRd) : null)
+                      : null,
+                  }
+
+                  console.log('➕ Создаем новую запись для количеств:', quantityMapping) // LOG: создание записи
+
+                  const { error: insertError } = await supabase
+                    .from('chessboard_floor_mapping')
+                    .insert(quantityMapping)
+
+                  if (insertError) {
+                    console.error('📊 Ошибка создания количеств:', insertError) // LOG: ошибка создания
+                    throw insertError
+                  }
+                }
+
+                console.log('✅ Количества успешно обработаны') // LOG: успех обработки
+              } else if (hasExistingFloors && updates.floors !== undefined && (!floorsString || !floorsString.trim())) {
+                // НОВАЯ СЕКЦИЯ: Удаление этажей - переход от этажей к количествам без этажей
+                                
+                // Суммируем количества со всех существующих этажей
+                const totalQuantities = existingFloorsWithNumbers.reduce((totals, floor) => {
+                  return {
+                    quantityPd: (totals.quantityPd || 0) + (floor.quantityPd || 0),
+                    quantitySpec: (totals.quantitySpec || 0) + (floor.quantitySpec || 0),
+                    quantityRd: (totals.quantityRd || 0) + (floor.quantityRd || 0),
+                  }
+                }, { quantityPd: 0, quantitySpec: 0, quantityRd: 0 })
+
+                // Удаляем все существующие записи
+                const { error: deleteError } = await supabase
+                  .from('chessboard_floor_mapping')
+                  .delete()
+                  .eq('chessboard_id', rowId)
+
+                if (deleteError) {
+                                    throw deleteError
+                }
+
+                // Создаем одну запись с floor_number = null и суммированными количествами
+                const nullFloorRecord = {
+                  chessboard_id: rowId,
+                  floor_number: null, // Этажи удалены
+                  quantityPd: totalQuantities.quantityPd || null,
+                  quantitySpec: totalQuantities.quantitySpec || null,
+                  quantityRd: totalQuantities.quantityRd || null,
+                }
+
+                const { error: insertError } = await supabase
+                  .from('chessboard_floor_mapping')
+                  .insert(nullFloorRecord)
+
+                if (insertError) {
+                                    throw insertError
+                }
+
+                              } else {
+                                console.log('🏢 Нет данных для сохранения в chessboard_floor_mapping') // LOG: нет данных
               }
             } catch (error) {
               console.error('🏢 Критическая ошибка обновления этажей:', error) // LOG: критическая ошибка
@@ -539,7 +883,19 @@ export const useTableOperations = () => {
         console.log('💾 Backup строка обработана:', rowId) // LOG: отладочная информация
       }
 
-      await Promise.all(promises)
+      const results = await Promise.all(promises)
+
+      // Проверяем результаты на ошибки
+      results.forEach((result, index) => {
+        // Проверяем, что result существует перед доступом к свойствам
+        if (result && result.error) {
+          console.error(`❌ Ошибка в promise ${index}:`, result.error) // LOG: ошибка запроса
+        } else if (result) {
+          console.log(`✅ Promise ${index} выполнен успешно`) // LOG: успешный запрос
+        } else {
+          console.warn(`⚠️  Promise ${index} вернул undefined`) // LOG: неопределенный результат
+        }
+      })
 
       // Обновляем кэш для перерисовки данных без перезагрузки
       console.log('🔄 Обновление кэша для перерисовки данных') // LOG: отладочная информация

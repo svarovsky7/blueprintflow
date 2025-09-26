@@ -51,6 +51,7 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
           `
           id,
           material,
+          material_type,
           color,
           created_at,
           updated_at,
@@ -348,7 +349,8 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
             id,
             work_name,
             work_set,
-            base_rate
+            base_rate,
+            unit:units(name)
           )
         `,
         )
@@ -406,6 +408,7 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
       const rateMapping = ratesMappingIndex.get(row.id)
       const workName = rateMapping?.rates?.work_name || ''
       const rateId = rateMapping?.rates?.id || ''
+      const workUnit = rateMapping?.rates?.unit?.name || ''
 
       // ОПТИМИЗАЦИЯ: агрегируем количества и формируем данные этажей в одном проходе
       let totalQuantityPd = 0
@@ -453,6 +456,7 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
         documentationVersion: docMapping?.documentation_versions?.version_number
           ? String(docMapping.documentation_versions.version_number)
           : '',
+        documentationVersionId: docMapping?.version_id || '',
 
         // Данные корпуса и локации из реальных маппингов
         block: mapping?.blocks?.name || '',
@@ -467,11 +471,13 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
 
         workName: workName,
         rateId: String(rateId || ''), // ID расценки для сохранения в mapping
+        workUnit: workUnit,
         location: mapping?.location?.name || '',
         locationId: String(mapping?.location_id || ''),
 
         // Материал и единицы измерения из реальных данных
         material: row.materials?.name || '',
+        materialType: (row.material_type || 'База') as 'База' | 'Доп' | 'ИИ',
         quantityPd: String(totalQuantityPd || 0),
         quantitySpec: String(totalQuantitySpec || 0),
         quantityRd: String(totalQuantityRd || 0),

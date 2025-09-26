@@ -54,8 +54,10 @@ export const COLUMN_KEYS = {
   COST_CATEGORY: 'costCategory', // Категория затрат
   COST_TYPE: 'costType', // Вид затрат
   WORK_NAME: 'workName', // Наименование работ
+  WORK_UNIT: 'workUnit', // Ед.Изм. Работ
   LOCATION: 'location', // Локализация
   MATERIAL: 'material', // Материал
+  MATERIAL_TYPE: 'materialType', // Тип материала
   QUANTITY_PD: 'quantityPd', // Кол-во по ПД
   QUANTITY_SPEC: 'quantitySpec', // Кол-во по спеке РД
   QUANTITY_RD: 'quantityRd', // Кол-во по пересчету РД
@@ -66,7 +68,7 @@ export const COLUMN_KEYS = {
   COMMENTS: 'comments', // Комментарии
 } as const
 
-export const HIDDEN_COLUMN_KEYS = [] as const // Показываем все столбцы по умолчанию
+export const HIDDEN_COLUMN_KEYS = [COLUMN_KEYS.WORK_UNIT] as const // Временно скрываем столбец "Ед.Изм. Работ"
 
 export const DEFAULT_COLUMN_ORDER = [
   COLUMN_KEYS.ACTIONS,
@@ -79,8 +81,10 @@ export const DEFAULT_COLUMN_ORDER = [
   COLUMN_KEYS.COST_CATEGORY,
   COLUMN_KEYS.COST_TYPE,
   COLUMN_KEYS.WORK_NAME,
+  COLUMN_KEYS.WORK_UNIT,
   COLUMN_KEYS.LOCATION,
   COLUMN_KEYS.MATERIAL,
+  COLUMN_KEYS.MATERIAL_TYPE,
   COLUMN_KEYS.QUANTITY_PD,
   COLUMN_KEYS.QUANTITY_SPEC,
   COLUMN_KEYS.QUANTITY_RD,
@@ -124,6 +128,11 @@ export const EXCEL_HEADERS = {
   QUANTITY: ['кол', 'количество', 'qty'],
   UNIT: ['ед', 'единица', 'unit'],
 }
+
+export const MATERIAL_TYPE_OPTIONS = [
+  { value: 'База', label: 'База' },
+  { value: 'Доп', label: 'Доп' },
+] as const
 
 export const STORAGE_KEYS = {
   COLUMN_VISIBILITY: 'chessboard-column-visibility',

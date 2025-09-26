@@ -7,6 +7,7 @@ export interface ChessboardRow extends BaseEntity {
   block: string
   costCategoryId: string
   costTypeId: string
+  workUnit: string
   locationId: string
   floors: string
   color: 'green' | 'yellow' | 'blue' | 'red' | 'purple' | ''
