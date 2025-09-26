@@ -33,7 +33,7 @@ npm run format:check # Check formatting without changes
 npx tsc --noEmit     # Type checking only (standalone)
 
 # Testing
-npx playwright test  # Run end-to-end tests (base URL: http://localhost:5174)
+npx playwright test  # Run end-to-end tests (base URL: http://localhost:5173)
 npx playwright test --ui  # Run tests with UI mode
 npx playwright show-report  # Open test results in browser
 
@@ -79,7 +79,7 @@ src/
 └── components/   # Legacy UI components (ConflictResolutionDialog, DataTable, FileUpload, etc.)
 ```
 
-**Note**: The project is in transition to FSD architecture. Current entities include: api-settings, chessboard, comments, disk, documentation, documentation-tags, materials, ml, projects, rates, and statuses.
+**Note**: The project is in transition to FSD architecture. Current entities include: api-settings, chessboard, comments, disk, documentation, documentation-tags, materials, ml, projects, rates, statuses, and units.
 
 ### Key Patterns
 - **Public API**: Each slice exposes through `index.ts`
@@ -96,7 +96,7 @@ src/
 - **Error Handling**: All Supabase queries must include error handling
 
 ### Key Directories
-- `src/entities/` - Domain entities (api-settings, chessboard, comments, disk, documentation, documentation-tags, materials, ml, projects, rates, statuses)
+- `src/entities/` - Domain entities (api-settings, chessboard, comments, disk, documentation, documentation-tags, materials, ml, projects, rates, statuses, units)
 - `src/pages/` - Main application pages organized by sections (admin/, documents/, references/, reports/, experiments/)
 - `src/features/auth/` - Authentication logic using Supabase
 - `src/shared/contexts/` - React contexts for global state (LogoContext, ScaleContext)

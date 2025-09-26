@@ -19,18 +19,27 @@ interface ColumnSettingsDrawerProps {
 }
 
 const COLUMN_LABELS: Record<string, string> = {
-  color: 'Цвет',
-  project: 'Проект',
+  actions: '',
+  documentationSection: 'Раздел',
+  documentationCode: 'Шифр проекта',
+  documentationProjectName: 'Наименование проекта',
+  documentationVersion: 'Вер.',
   block: 'Корпус',
+  floors: 'Этажи',
   costCategory: 'Категория затрат',
   costType: 'Вид затрат',
+  workName: 'Наименование работ',
+  workUnit: 'Ед.Изм. Работ',
   location: 'Локализация',
   material: 'Материал',
-  quantity: 'Количество',
-  unit: 'Единица измерения',
-  rate: 'Расценка',
-  amount: 'Сумма',
-  actions: 'Действия',
+  materialType: 'Тип материала',
+  quantityPd: 'Кол-во по ПД',
+  quantitySpec: 'Кол-во по спецификации РД',
+  quantityRd: 'Кол-во по пересчету РД',
+  nomenclature: 'Номенклатура',
+  supplier: 'Наименование номенклатуры поставщика',
+  unit: 'Ед.изм.',
+  comments: 'Комментарии',
 }
 
 export const ColumnSettingsDrawer = memo(
@@ -77,47 +86,39 @@ export const ColumnSettingsDrawer = memo(
 
         <List
           size="small"
-          dataSource={columns}
+          dataSource={managedColumns}
           renderItem={(column, index) => {
-            const isService = column.isService
             const canMoveUp = index > 0
-            const canMoveDown = index < columns.length - 1
+            const canMoveDown = index < managedColumns.length - 1
 
             return (
               <List.Item
                 style={{
                   padding: '8px 0',
-                  opacity: isService ? 0.6 : 1,
                 }}
-                actions={
-                  !isService
-                    ? [
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={<ArrowUpOutlined />}
-                          disabled={!canMoveUp}
-                          onClick={() => onMoveColumn(index, index - 1)}
-                        />,
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={<ArrowDownOutlined />}
-                          disabled={!canMoveDown}
-                          onClick={() => onMoveColumn(index, index + 1)}
-                        />,
-                      ]
-                    : undefined
-                }
+                actions={[
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<ArrowUpOutlined />}
+                    disabled={!canMoveUp}
+                    onClick={() => onMoveColumn(index, index - 1)}
+                  />,
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<ArrowDownOutlined />}
+                    disabled={!canMoveDown}
+                    onClick={() => onMoveColumn(index, index + 1)}
+                  />,
+                ]}
               >
                 <Checkbox
                   checked={column.visible}
-                  disabled={isService}
                   onChange={() => onToggleColumn(column.key)}
                 >
-                  <span style={{ color: isService ? '#999' : undefined }}>
+                  <span>
                     {COLUMN_LABELS[column.key] || column.key}
-                    {isService && <Text type="secondary"> (служебный)</Text>}
                   </span>
                 </Checkbox>
               </List.Item>
@@ -127,7 +128,7 @@ export const ColumnSettingsDrawer = memo(
 
         <div style={{ marginTop: 16, padding: 12, background: '#f5f5f5', borderRadius: 4 }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            <strong>Подсказка:</strong> Служебные столбцы (цвет, действия) всегда отображаются.
+            <strong>Подсказка:</strong> Служебные столбцы всегда отображаются и не настраиваются.
             Используйте стрелки для изменения порядка столбцов.
           </Text>
         </div>
