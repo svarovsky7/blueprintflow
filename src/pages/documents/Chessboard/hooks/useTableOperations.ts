@@ -187,18 +187,41 @@ export const useTableOperations = () => {
 
   // Изменение цвета строки
   const updateRowColor = useCallback(
-    (rowId: string, color: RowColor) => {
+    async (rowId: string, color: RowColor) => {
       if (tableMode.mode === 'add') {
         updateNewRow(rowId, { color })
       } else if (editingRows[rowId]) {
         // Если строка в режиме backup редактирования
         updateEditingRow(rowId, { color })
+      } else if (tableMode.mode === 'view') {
+        // ИСПРАВЛЕНИЕ: В режиме просмотра сразу сохраняем цвет в БД без перевода в режим редактирования
+        try {
+          console.log('🎨 Updating row color directly in DB:', { rowId, color }) // LOG: прямое обновление цвета в БД
+
+          const { error } = await supabase
+            .from('chessboard')
+            .update({ color })
+            .eq('id', rowId)
+
+          if (error) {
+            console.error('❌ Failed to update row color:', error) // LOG: ошибка обновления цвета
+            message.error('Ошибка при обновлении цвета строки')
+          } else {
+            console.log('✅ Row color updated successfully') // LOG: цвет успешно обновлен
+            // Обновляем кэш React Query
+            queryClient.invalidateQueries({ queryKey: ['chessboard-data'] })
+            message.success('Цвет строки обновлен')
+          }
+        } catch (error) {
+          console.error('❌ Error updating row color:', error) // LOG: ошибка при обновлении цвета
+          message.error('Ошибка при обновлении цвета строки')
+        }
       } else {
-        // Обычное одиночное редактирование
+        // Обычное одиночное редактирование для других режимов
         updateEditedRow(rowId, { color })
       }
     },
-    [tableMode.mode, updateNewRow, updateEditedRow, updateEditingRow, editingRows],
+    [tableMode.mode, updateNewRow, updateEditedRow, updateEditingRow, editingRows, queryClient, message],
   )
 
   // Сохранение всех изменений

@@ -86,7 +86,7 @@ const VersionSelect: React.FC<VersionSelectProps> = ({ value, documentId, isEdit
   console.log('🔍 VersionSelect render:', { value, documentId, isEditing, isValueUUID: value?.length === 36 }) // LOG: рендер компонента версий
 
   // ИСПРАВЛЕНИЕ: кэшируем отображаемое значение для предотвращения мерцания UUID
-  const [displayValue, setDisplayValue] = useState<string | undefined>(value)
+  const [displayValue, setDisplayValue] = useState<string | undefined>(undefined)
   const [isInitialized, setIsInitialized] = useState<boolean>(false)
 
   // Стабилизируем queryKey
@@ -118,34 +118,28 @@ const VersionSelect: React.FC<VersionSelectProps> = ({ value, documentId, isEdit
     enabled: !!(documentId || value), // Запрос если есть документ или версия
   })
 
-  // ИСПРАВЛЕНИЕ: инициализируем displayValue при первом рендере или изменении value
-  useEffect(() => {
-    if (value && (!isInitialized || displayValue !== value)) {
-      console.log('🔄 Initializing displayValue to prevent UUID flash:', { // LOG
-        value,
-        previousDisplayValue: displayValue,
-        isInitialized
-      })
-      setDisplayValue(value)
-      setIsInitialized(true)
-    }
-  }, [value, isInitialized, displayValue])
-
-  // Обновляем displayValue только когда нужно предотвратить мерцание при загрузке опций
+  // ИСПРАВЛЕНИЕ: устанавливаем displayValue ТОЛЬКО когда у нас есть соответствующая опция с label
   useEffect(() => {
     if (value && versionOptions.length > 0) {
       const currentVersion = versionOptions.find(v => v.value === value)
-      if (currentVersion) {
-        console.log('🔄 Updating displayValue after options loaded:', { // LOG
+      if (currentVersion && (!isInitialized || displayValue !== value)) {
+        console.log('🔄 Setting displayValue with correct label:', { // LOG
           versionId: value,
           versionNumber: currentVersion.label,
-          hasOptions: versionOptions.length > 0
+          previousDisplayValue: displayValue,
+          isInitialized
         })
-        // Сохраняем value как есть, но убеждаемся что у нас есть правильная опция
+        // Устанавливаем displayValue только когда у нас есть правильная опция с label
         setDisplayValue(value)
+        setIsInitialized(true)
       }
+    } else if (!value) {
+      // Если value пустое, сбрасываем displayValue
+      console.log('🧹 Clearing displayValue (no value)') // LOG
+      setDisplayValue(undefined)
+      setIsInitialized(false)
     }
-  }, [value, versionOptions])
+  }, [value, versionOptions, isInitialized, displayValue])
 
   console.log('📋 VersionSelect options loaded:', { versionOptions, displayValue, documentId }) // LOG: загруженные опции версий
 
