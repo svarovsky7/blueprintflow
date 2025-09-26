@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { Typography } from 'antd'
+import { Typography, Pagination } from 'antd'
 import { useScale } from '@/shared/contexts/ScaleContext'
 import { useFiltersState } from './hooks/useFiltersState'
 import { useChessboardData } from './hooks/useChessboardData'
@@ -218,9 +218,10 @@ export default function Chessboard() {
         <div
           style={{
             flex: 1,
-            overflow: 'auto',
+            overflow: 'auto', // Восстанавливаем прокрутку
             border: '1px solid #f0f0f0',
             borderRadius: '6px',
+            minHeight: 0,
           }}
         >
           <ChessboardTable
@@ -236,6 +237,24 @@ export default function Chessboard() {
             onRowDelete={handleRowDelete}
             onRowColorChange={updateRowColor}
             onStartEditing={handleStartEditing}
+          />
+        </div>
+
+        {/* Пагинация под таблицей */}
+        <div style={{
+          padding: '16px 0',
+          textAlign: 'center',
+          borderTop: '1px solid #f0f0f0'
+        }}>
+          <Pagination
+            size="small"
+            current={1}
+            total={displayData.length}
+            pageSize={100}
+            showSizeChanger
+            showQuickJumper
+            showTotal={(total, range) => `${range[0]}-${range[1]} из ${total} записей`}
+            pageSizeOptions={['10', '20', '50', '100', '200', '500']}
           />
         </div>
       </div>

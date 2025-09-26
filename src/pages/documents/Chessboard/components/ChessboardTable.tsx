@@ -1266,14 +1266,10 @@ export const ChessboardTable = memo(({
   const isLargeDataset = useMemo(() => data.length > LARGE_TABLE_CONFIG.virtualThreshold, [data.length])
 
   const tableScrollConfig = useMemo(() => {
-    if (isLargeDataset) {
-      // Для больших данных используем оптимизированную конфигурацию
-      return LARGE_TABLE_CONFIG.scroll
-    }
-    // Обновленная конфигурация скролла для предотвращения сжатия столбцов
+    // ИСПРАВЛЕНИЕ: упрощаем конфигурацию скролла для работы с flex-контейнером
     return {
       x: 'max-content' as const,
-      y: 'calc(100vh - 300px)'
+      // Убираем y-скролл, так как теперь за него отвечает внешний контейнер
     }
   }, [isLargeDataset])
 
@@ -2905,11 +2901,36 @@ export const ChessboardTable = memo(({
         .chessboard-table .ant-table {
           table-layout: fixed !important;
         }
+        /* Основной контейнер таблицы */
+        .chessboard-table {
+          width: 100% !important;
+          height: 100% !important;
+        }
+        /* КРИТИЧЕСКИ ВАЖНО: убираем overflow с внутренних элементов Ant Design */
+        .chessboard-table .ant-table-container {
+          overflow: visible !important;
+        }
         .chessboard-table .ant-table-content {
-          overflow-x: auto !important;
+          overflow: visible !important;
         }
         .chessboard-table .ant-table-body {
-          overflow-x: hidden !important;
+          overflow: visible !important;
+        }
+        /* Sticky заголовки БЕЗ создания отдельной прокручиваемой области */
+        .chessboard-table .ant-table-header {
+          position: sticky !important;
+          top: 0 !important;
+          z-index: 10 !important;
+          background: white !important;
+          /* ВАЖНО: не создаем overflow для заголовков */
+          overflow: visible !important;
+        }
+        /* Синхронизируем прокрутку заголовков с телом таблицы */
+        .chessboard-table .ant-table-thead {
+          overflow: visible !important;
+        }
+        .chessboard-table .ant-table-tbody {
+          overflow: visible !important;
         }
       `}</style>
       <Table<RowData>
@@ -2917,7 +2938,8 @@ export const ChessboardTable = memo(({
         tableLayout="fixed"
         style={{
           tableLayout: 'fixed',
-          width: '100%'
+          width: '100%',
+          height: '100%'
         }}
         columns={visibleColumnsData}
         dataSource={data}
@@ -2925,18 +2947,7 @@ export const ChessboardTable = memo(({
         rowKey="id"
         rowSelection={rowSelection}
         rowClassName={rowClassName}
-        sticky={true}
-        scroll={tableScrollConfig}
-        pagination={{
-          size: 'small',
-          position: ['bottomCenter'],
-          defaultPageSize: 100,
-          showSizeChanger: true,
-          showQuickJumper: true,
-          showTotal: (total, range) =>
-            `${range[0]}-${range[1]} из ${total} записей`,
-          pageSizeOptions: ['10', '20', '50', '100', '200', '500'],
-        }}
+        pagination={false}
         size="small"
       />
 

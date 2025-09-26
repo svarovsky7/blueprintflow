@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { App, Button, Form, Input, Modal, Space, Table, Tag } from 'antd'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { EyeOutlined, EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { unitsApi, type UnitWithSynonyms, type UnitFormData, type UnitSynonymFormData } from '@/entities/units'
+import { useScale } from '@/shared/contexts/ScaleContext'
 
 interface SynonymModalProps {
   visible: boolean
@@ -14,6 +15,13 @@ interface SynonymModalProps {
 function SynonymModal({ visible, unit, onClose, onSuccess }: SynonymModalProps) {
   const { message, modal } = App.useApp()
   const [form] = Form.useForm()
+  const { scale } = useScale()
+
+  useEffect(() => {
+    if (unit) {
+      form.setFieldValue('mainValue', unit.name)
+    }
+  }, [unit, form])
 
   const addSynonymMutation = useMutation({
     mutationFn: (data: UnitSynonymFormData) => unitsApi.addSynonym(data),
@@ -65,11 +73,11 @@ function SynonymModal({ visible, unit, onClose, onSuccess }: SynonymModalProps) 
 
   return (
     <Modal
-      title="Управление синонимами"
+      title={<span style={{ fontSize: `${13.44 * scale}px` }}>Управление синонимами</span>}
       open={visible}
       onCancel={onClose}
       footer={[
-        <Button key="cancel" onClick={onClose}>
+        <Button key="cancel" onClick={onClose} style={{ fontSize: `${13.44 * scale}px` }}>
           Закрыть
         </Button>,
         <Button
@@ -77,22 +85,22 @@ function SynonymModal({ visible, unit, onClose, onSuccess }: SynonymModalProps) 
           type="primary"
           onClick={handleSubmit}
           loading={addSynonymMutation.isPending}
+          style={{ fontSize: `${13.44 * scale}px` }}
         >
           Добавить
         </Button>
       ]}
       width={600}
     >
-      <Form form={form} layout="vertical">
+      <Form form={form} layout="vertical" style={{ fontSize: `${13.44 * scale}px` }}>
         <Form.Item
-          label="Основное значение"
+          label={<span style={{ fontSize: `${13.44 * scale}px` }}>Основное значение</span>}
           name="mainValue"
-          initialValue={unit?.name}
         >
-          <Input disabled />
+          <Input disabled style={{ fontSize: `${13.44 * scale}px` }} />
         </Form.Item>
 
-        <Form.Item label="Существующие синонимы">
+        <Form.Item label={<span style={{ fontSize: `${13.44 * scale}px` }}>Существующие синонимы</span>}>
           <div style={{ marginBottom: 16 }}>
             {unit?.synonyms && unit.synonyms.length > 0 ? (
               <div>
@@ -101,20 +109,20 @@ function SynonymModal({ visible, unit, onClose, onSuccess }: SynonymModalProps) 
                     key={synonym.id}
                     closable
                     onClose={() => handleDeleteSynonym(synonym.id, synonym.synonym)}
-                    style={{ marginBottom: 4, marginRight: 4 }}
+                    style={{ marginBottom: 4, marginRight: 4, fontSize: `${13.44 * scale}px` }}
                   >
                     {synonym.synonym}
                   </Tag>
                 ))}
               </div>
             ) : (
-              <div style={{ color: '#999', fontStyle: 'italic' }}>Нет синонимов</div>
+              <div style={{ color: '#999', fontStyle: 'italic', fontSize: `${13.44 * scale}px` }}>Нет синонимов</div>
             )}
           </div>
         </Form.Item>
 
         <Form.Item
-          label="Новый синоним"
+          label={<span style={{ fontSize: `${13.44 * scale}px` }}>Новый синоним</span>}
           name="synonym"
           rules={[
             { required: true, message: 'Введите синоним' },
@@ -124,6 +132,7 @@ function SynonymModal({ visible, unit, onClose, onSuccess }: SynonymModalProps) 
           <Input
             placeholder="Введите альтернативное название единицы измерения"
             onPressEnter={handleSubmit}
+            style={{ fontSize: `${13.44 * scale}px` }}
           />
         </Form.Item>
       </Form>
@@ -134,6 +143,7 @@ function SynonymModal({ visible, unit, onClose, onSuccess }: SynonymModalProps) 
 export default function Units() {
   const { message, modal } = App.useApp()
   const queryClient = useQueryClient()
+  const { scale } = useScale()
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view' | null>(null)
   const [currentUnit, setCurrentUnit] = useState<UnitWithSynonyms | null>(null)
   const [synonymModalVisible, setSynonymModalVisible] = useState(false)
@@ -148,6 +158,16 @@ export default function Units() {
     queryKey: ['units-with-synonyms'],
     queryFn: () => unitsApi.getAllWithSynonyms(),
   })
+
+  // Автоматически обновляем synonymUnit когда обновляются units
+  useEffect(() => {
+    if (synonymUnit && units) {
+      const updatedUnit = units.find(u => u.id === synonymUnit.id)
+      if (updatedUnit) {
+        setSynonymUnit(updatedUnit)
+      }
+    }
+  }, [units, synonymUnit])
 
   const createMutation = useMutation({
     mutationFn: (data: UnitFormData) => unitsApi.create(data),
@@ -294,6 +314,7 @@ export default function Units() {
               icon={<PlusOutlined />}
               onClick={() => openSynonymModal(record)}
               size="small"
+              style={{ fontSize: '11.2px' }}
             >
               Добавить синоним
             </Button>
@@ -308,7 +329,7 @@ export default function Units() {
                   key={synonym.id}
                   closable
                   onClose={() => handleDeleteSynonym(synonym.id, synonym.synonym)}
-                  style={{ marginBottom: 4 }}
+                  style={{ marginBottom: 4, fontSize: '11.2px' }}
                 >
                   {synonym.synonym}
                 </Tag>
@@ -319,6 +340,7 @@ export default function Units() {
               icon={<PlusOutlined />}
               onClick={() => openSynonymModal(record)}
               size="small"
+              style={{ fontSize: '11.2px' }}
             >
               Добавить
             </Button>
@@ -371,25 +393,28 @@ export default function Units() {
           showQuickJumper: true,
           showTotal: (total) => `Всего ${total} записей`,
         }}
+        style={{ fontSize: `${13.44 * scale}px` }}
       />
 
       <Modal
         title={
-          modalMode === 'add'
-            ? 'Добавить единицу измерения'
-            : modalMode === 'edit'
-            ? 'Редактировать единицу измерения'
-            : 'Просмотр единицы измерения'
+          <span style={{ fontSize: `${13.44 * scale}px` }}>
+            {modalMode === 'add'
+              ? 'Добавить единицу измерения'
+              : modalMode === 'edit'
+              ? 'Редактировать единицу измерения'
+              : 'Просмотр единицы измерения'}
+          </span>
         }
         open={modalMode !== null}
         onCancel={closeModal}
         footer={
           modalMode === 'view' ? [
-            <Button key="close" onClick={closeModal}>
+            <Button key="close" onClick={closeModal} style={{ fontSize: `${13.44 * scale}px` }}>
               Закрыть
             </Button>
           ] : [
-            <Button key="cancel" onClick={closeModal}>
+            <Button key="cancel" onClick={closeModal} style={{ fontSize: `${13.44 * scale}px` }}>
               Отмена
             </Button>,
             <Button
@@ -397,33 +422,34 @@ export default function Units() {
               type="primary"
               onClick={handleSubmit}
               loading={createMutation.isPending || updateMutation.isPending}
+              style={{ fontSize: `${13.44 * scale}px` }}
             >
               {modalMode === 'add' ? 'Создать' : 'Сохранить'}
             </Button>
           ]
         }
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" style={{ fontSize: `${13.44 * scale}px` }}>
           <Form.Item
-            label="Название"
+            label={<span style={{ fontSize: `${13.44 * scale}px` }}>Название</span>}
             name="name"
             rules={[{ required: true, message: 'Введите название единицы измерения' }]}
           >
-            <Input disabled={modalMode === 'view'} />
+            <Input disabled={modalMode === 'view'} style={{ fontSize: `${13.44 * scale}px` }} />
           </Form.Item>
 
           <Form.Item
-            label="Описание"
+            label={<span style={{ fontSize: `${13.44 * scale}px` }}>Описание</span>}
             name="description"
           >
-            <Input.TextArea disabled={modalMode === 'view'} rows={3} />
+            <Input.TextArea disabled={modalMode === 'view'} rows={3} style={{ fontSize: `${13.44 * scale}px` }} />
           </Form.Item>
 
           {modalMode === 'view' && currentUnit?.synonyms && currentUnit.synonyms.length > 0 && (
-            <Form.Item label="Синонимы">
+            <Form.Item label={<span style={{ fontSize: `${13.44 * scale}px` }}>Синонимы</span>}>
               <div>
                 {currentUnit.synonyms.map((synonym) => (
-                  <Tag key={synonym.id} style={{ marginBottom: 4 }}>
+                  <Tag key={synonym.id} style={{ marginBottom: 4, fontSize: `${13.44 * scale}px` }}>
                     {synonym.synonym}
                   </Tag>
                 ))}
