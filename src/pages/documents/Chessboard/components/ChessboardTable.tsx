@@ -1,6 +1,6 @@
 import React, { useMemo, memo, useState, useCallback, useEffect } from 'react'
 import { Table, Button, Space, Tooltip, Input, Select, AutoComplete, InputNumber } from 'antd'
-import { EditOutlined, DeleteOutlined, CopyOutlined, PlusOutlined, BgColorsOutlined, RobotOutlined } from '@ant-design/icons'
+import { EditOutlined, DeleteOutlined, CopyOutlined, PlusOutlined, BgColorsOutlined } from '@ant-design/icons'
 import type { ColumnsType, ColumnType } from 'antd/es/table'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
@@ -8,7 +8,6 @@ import { ratesApi } from '@/entities/rates/api/rates-api'
 import { RowColorPicker } from './RowColorPicker'
 import { CommentsCell } from './CommentsCell'
 import { FloorQuantitiesModal } from './FloorQuantitiesModal'
-import { AIAnalysisModal } from '@/entities/ml'
 import type { RowData, TableMode, RowColor, FloorModalRow, FloorModalInfo } from '../types'
 import { COLUMN_KEYS, TABLE_SCROLL_CONFIG, LARGE_TABLE_CONFIG, MATERIAL_TYPE_OPTIONS } from '../utils/constants'
 import { parseFloorsFromString, hasMultipleFloors as checkMultipleFloors, distributeQuantitiesAcrossFloors } from '../utils/floors'
@@ -21,7 +20,6 @@ const STABLE_STYLES = {
   fullWidth: { width: '100%' } as const,
   fullWidthFlex: { width: '100%', flex: 1 } as const,
   floorButton: { flexShrink: 0 } as const,
-  aiButton: { color: '#1677ff' } as const,
   compactSpace: { width: '100%' } as const,
   dropdownStyle: {
     zIndex: 10000,
@@ -29,6 +27,95 @@ const STABLE_STYLES = {
     overflowY: 'auto' as const
   } as const,
 } as const
+
+// КОНФИГУРАЦИЯ: Точные настройки ширины столбцов для оптимизации пространства
+const COLUMN_WIDTH_CONFIG: Record<string, { width?: number; minWidth?: number; maxWidth?: number }> = {
+  [COLUMN_KEYS.ACTIONS]: { width: 120 }, // 4 кнопки в режиме добавления
+  [COLUMN_KEYS.DOCUMENTATION_SECTION]: { minWidth: 60, maxWidth: 80 }, // "Раздел" + 10px = ~60px
+  [COLUMN_KEYS.DOCUMENTATION_CODE]: { width: 60, minWidth: 60, maxWidth: 60 }, // Фиксированная
+  [COLUMN_KEYS.DOCUMENTATION_PROJECT_NAME]: { width: 120, minWidth: 120, maxWidth: 120 }, // Фиксированная
+  [COLUMN_KEYS.DOCUMENTATION_VERSION]: { width: 40 }, // "Вер." + 10px = ~40px
+  [COLUMN_KEYS.BLOCK]: { minWidth: 60, maxWidth: 90 }, // "Корпус" + 10px = ~60px
+  [COLUMN_KEYS.FLOORS]: { width: 50 }, // "Этажи" + 10px = ~50px
+  [COLUMN_KEYS.COST_CATEGORY]: { minWidth: 80, maxWidth: 120 }, // По требованию
+  [COLUMN_KEYS.COST_TYPE]: { minWidth: 80, maxWidth: 120 }, // "Вид затрат"
+  [COLUMN_KEYS.WORK_NAME]: { minWidth: 100, maxWidth: 200 }, // "Наименование работ"
+  [COLUMN_KEYS.LOCATION]: { minWidth: 80, maxWidth: 120 }, // "Локализация"
+  [COLUMN_KEYS.MATERIAL]: { minWidth: 120, maxWidth: 180 }, // "Материал"
+  [COLUMN_KEYS.MATERIAL_TYPE]: { width: 60 }, // "Тип материала" - короткий
+  [COLUMN_KEYS.QUANTITY_PD]: { width: 70 }, // "Кол-во по ПД"
+  [COLUMN_KEYS.QUANTITY_SPEC]: { width: 80 }, // "Кол-во по спеке РД"
+  [COLUMN_KEYS.QUANTITY_RD]: { width: 80 }, // "Кол-во по пересчету РД"
+  [COLUMN_KEYS.NOMENCLATURE]: { minWidth: 120, maxWidth: 180 }, // "Номенклатура"
+  [COLUMN_KEYS.SUPPLIER]: { minWidth: 100, maxWidth: 150 }, // "Наименование поставщика"
+  [COLUMN_KEYS.UNIT]: { width: 60 }, // "Ед.изм." - короткий
+  [COLUMN_KEYS.COMMENTS]: { minWidth: 100, maxWidth: 200 }, // "Комментарии"
+}
+
+const DEFAULT_COLUMN_WIDTH = { minWidth: 100, maxWidth: 150 } // Для остальных столбцов
+
+// Столбцы, которые поддерживают перенос текста (многострочные)
+const MULTILINE_COLUMNS = new Set([
+  COLUMN_KEYS.WORK_NAME,
+  COLUMN_KEYS.MATERIAL,
+  COLUMN_KEYS.NOMENCLATURE,
+  COLUMN_KEYS.COMMENTS
+])
+
+function normalizeColumns(cols: ColumnsType<RowData>): ColumnsType<RowData> {
+  const walk = (arr: ColumnsType<RowData>): ColumnsType<RowData> =>
+    arr.map((c) => {
+      if ((c as ColumnType<RowData> & { children?: ColumnsType<RowData> }).children?.length) {
+        return {
+          ...c,
+          children: walk((c as ColumnType<RowData> & { children: ColumnsType<RowData> }).children)
+        }
+      }
+
+      // Получаем конфигурацию для конкретного столбца или используем по умолчанию
+      const columnKey = (c as ColumnType<RowData>).key as string
+      const config = COLUMN_WIDTH_CONFIG[columnKey] || DEFAULT_COLUMN_WIDTH
+      const isMultiline = MULTILINE_COLUMNS.has(columnKey)
+
+      // Определяем настройки ширины
+      const width = config.width
+      const minWidth = config.minWidth || width || DEFAULT_COLUMN_WIDTH.minWidth
+      const maxWidth = config.maxWidth || width || DEFAULT_COLUMN_WIDTH.maxWidth
+
+      return {
+        ...c,
+        width,
+        ellipsis: !isMultiline, // Отключаем ellipsis для многострочных столбцов
+        onHeaderCell: (col?: unknown) => ({
+          ...(c.onHeaderCell?.(col) || {}),
+          style: {
+            ...(c.onHeaderCell?.(col)?.style || {}),
+            width: width ? `${width}px` : undefined,
+            minWidth: `${minWidth}px`,
+            maxWidth: `${maxWidth}px`,
+            whiteSpace: isMultiline ? 'normal' as const : 'nowrap' as const,
+            overflow: 'hidden' as const,
+            textOverflow: isMultiline ? 'clip' as const : 'ellipsis' as const
+          }
+        }),
+        onCell: (record?: RowData, index?: number) => ({
+          ...(c.onCell?.(record, index) || {}),
+          style: {
+            ...(c.onCell?.(record, index)?.style || {}),
+            width: width ? `${width}px` : undefined,
+            minWidth: `${minWidth}px`,
+            maxWidth: `${maxWidth}px`,
+            whiteSpace: isMultiline ? 'normal' as const : 'nowrap' as const,
+            overflow: 'hidden' as const,
+            textOverflow: isMultiline ? 'clip' as const : 'ellipsis' as const,
+            wordBreak: isMultiline ? 'break-word' as const : 'normal' as const,
+            padding: isMultiline ? '8px 12px' : undefined
+          }
+        })
+      }
+    })
+  return walk(cols)
+}
 
 // Компонент для каскадного выбора работ - ИСПРАВЛЕНИЕ Rules of Hooks
 interface WorkNameSelectProps {
@@ -992,10 +1079,6 @@ export const ChessboardTable = memo(({
   const [floorModalIsEdit, setFloorModalIsEdit] = useState(false)
   const [floorModalCurrentRowId, setFloorModalCurrentRowId] = useState<string>('')
 
-  // Состояние для модального окна AI анализа
-  const [aiModalOpen, setAiModalOpen] = useState(false)
-  const [aiModalMaterial, setAiModalMaterial] = useState('')
-
 
   // Функция для открытия модального окна этажей по ID записи (с принудительной очисткой)
   const openFloorModalById = async (recordId: string, isEdit: boolean = false) => {
@@ -1107,20 +1190,6 @@ export const ChessboardTable = memo(({
     closeFloorModal()
   }, [floorModalCurrentRowId, onRowUpdate, closeFloorModal])
 
-  // Функции для AI модального окна
-  const openAiModal = useCallback((materialName: string) => {
-    setAiModalMaterial(materialName)
-    setAiModalOpen(true)
-  }, [])
-
-  const closeAiModal = useCallback(() => {
-    setAiModalOpen(false)
-    setAiModalMaterial('')
-  }, [])
-
-  const handleAiResultSelect = useCallback((result: string) => {
-    // TODO: здесь можно обновить поле supplier в записи
-  }, [])
 
   // Функция для проверки, есть ли у записи множественные этажи
   const hasMultipleFloors = useCallback((record: RowData) => {
@@ -1181,7 +1250,6 @@ export const ChessboardTable = memo(({
   const handleRowDelete = useCallback((recordId: string) => () => onRowDelete(recordId), [onRowDelete])
   const handleRowCopy = useCallback((recordId: string) => () => onRowCopy(recordId), [onRowCopy])
   const handleOpenFloorModal = useCallback((recordId: string) => () => openFloorModalById(recordId, true), [openFloorModalById])
-  const handleOpenAiModal = useCallback((materialName: string) => () => openAiModal(materialName), [openAiModal])
 
   // ОПТИМИЗАЦИЯ DOM: динамическая конфигурация для больших таблиц
   const isLargeDataset = useMemo(() => data.length > LARGE_TABLE_CONFIG.virtualThreshold, [data.length])
@@ -1191,7 +1259,11 @@ export const ChessboardTable = memo(({
       // Для больших данных используем оптимизированную конфигурацию
       return LARGE_TABLE_CONFIG.scroll
     }
-    return { x: 'max-content' as const }
+    // Обновленная конфигурация скролла для предотвращения сжатия столбцов
+    return {
+      x: 'max-content' as const,
+      y: 'calc(100vh - 300px)'
+    }
   }, [isLargeDataset])
 
   // Логирование для мониторинга производительности больших таблиц
@@ -2420,35 +2492,6 @@ export const ChessboardTable = memo(({
       },
     },
 
-    // AI Анализ материалов
-    {
-      title: 'AI',
-      key: COLUMN_KEYS.AI_ANALYSIS,
-      width: 50,
-      onHeaderCell: () => ({
-        className: 'chessboard-header-cell',
-        style: {
-          whiteSpace: 'nowrap',
-          textAlign: 'center',
-          verticalAlign: 'middle',
-          lineHeight: '20px',
-          padding: '4px 8px',
-        },
-      }),
-      render: (_, record) => (
-        <Tooltip title="AI анализ материала">
-          <div>
-            <Button
-              type="text"
-              size="small"
-              icon={<RobotOutlined />}
-              onClick={handleOpenAiModal(record.material)}
-              style={STABLE_STYLES.aiButton}
-            />
-          </div>
-        </Tooltip>
-      ),
-    },
 
     // Ед.изм.
     {
@@ -2522,13 +2565,14 @@ export const ChessboardTable = memo(({
         />
       ),
     },
-  ], [tableMode, onRowColorChange, handleStartEditing, handleRowDelete, handleRowCopy, handleOpenFloorModal, hasMultipleFloors, handleOpenAiModal])
+  ], [tableMode, onRowColorChange, handleStartEditing, handleRowDelete, handleRowCopy, handleOpenFloorModal, hasMultipleFloors])
 
-  // Фильтрация столбцов по видимости
+  // Фильтрация столбцов по видимости с нормализацией ширины
   const visibleColumnsData = useMemo(() => {
-    return allColumns.filter(column =>
+    const filteredColumns = allColumns.filter(column =>
       visibleColumns.includes(column.key as string)
     )
+    return normalizeColumns(filteredColumns)
   }, [allColumns, visibleColumns])
 
   // Настройки выбора строк для режимов add/edit/delete
@@ -2555,6 +2599,7 @@ export const ChessboardTable = memo(({
     <>
       <Table<RowData>
         className="chessboard-table"
+        tableLayout="fixed"
         columns={visibleColumnsData}
         dataSource={data}
         loading={loading}
@@ -2584,12 +2629,6 @@ export const ChessboardTable = memo(({
         onSave={saveFloorModal}
       />
 
-      <AIAnalysisModal
-        visible={aiModalOpen}
-        onClose={closeAiModal}
-        materialName={aiModalMaterial}
-        onResultSelect={handleAiResultSelect}
-      />
     </>
   )
 })

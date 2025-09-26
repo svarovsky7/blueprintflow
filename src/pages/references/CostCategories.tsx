@@ -1006,6 +1006,30 @@ export default function CostCategories() {
         </Row>
       </div>
 
+      {/* Кнопки управления режимами */}
+      {addMode && (
+        <div style={{ marginBottom: 16 }}>
+          <Space>
+            <Button
+              type="primary"
+              icon={<CheckOutlined />}
+              onClick={handleSave}
+            >
+              Сохранить
+            </Button>
+            <Button
+              icon={<CloseOutlined />}
+              onClick={() => {
+                setAddMode(null)
+                form.resetFields()
+              }}
+            >
+              Отменить
+            </Button>
+          </Space>
+        </div>
+      )}
+
       {/* Контейнер таблицы */}
       <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
         <Form form={form} component={false}>

@@ -99,6 +99,44 @@ body[data-theme='dark'] {
   padding-bottom: calc(2px * var(--app-scale)) !important;
 }
 
+/* Стили для предотвращения сжатия столбцов в шахматке */
+.chessboard-table {
+  table-layout: fixed !important;
+}
+
+.chessboard-table .ant-table-thead > tr > th,
+.chessboard-table .ant-table-tbody > tr > td {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  min-width: 160px !important;
+}
+
+.chessboard-table .ant-table-tbody > tr > td .ant-select,
+.chessboard-table .ant-table-tbody > tr > td .ant-input,
+.chessboard-table .ant-table-tbody > tr > td .ant-input-number {
+  width: 100% !important;
+}
+
+/* Исключения для служебных столбцов */
+.chessboard-table .ant-table-selection-column,
+.chessboard-table .ant-table-thead > tr > th[data-key="actions"],
+.chessboard-table .ant-table-tbody > tr > td[data-key="actions"] {
+  min-width: 85px !important;
+  width: 85px !important;
+}
+
+/* Настройки для контейнера таблицы */
+.chessboard-table .ant-table-container {
+  width: 100% !important;
+  overflow-x: auto !important;
+}
+
+.chessboard-table .ant-table-body {
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
 /* Layout and table scrolling */
 .app-root {
   height: 100vh;

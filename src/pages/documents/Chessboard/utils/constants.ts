@@ -63,7 +63,6 @@ export const COLUMN_KEYS = {
   QUANTITY_RD: 'quantityRd', // Кол-во по пересчету РД
   NOMENCLATURE: 'nomenclature', // Номенклатура
   SUPPLIER: 'supplier', // Наименование поставщика
-  AI_ANALYSIS: 'ai_analysis', // AI анализ материалов
   UNIT: 'unit', // Ед.изм.
   COMMENTS: 'comments', // Комментарии
 } as const
@@ -90,7 +89,6 @@ export const DEFAULT_COLUMN_ORDER = [
   COLUMN_KEYS.QUANTITY_RD,
   COLUMN_KEYS.NOMENCLATURE,
   COLUMN_KEYS.SUPPLIER,
-  COLUMN_KEYS.AI_ANALYSIS,
   COLUMN_KEYS.UNIT,
   COLUMN_KEYS.COMMENTS,
 ]
