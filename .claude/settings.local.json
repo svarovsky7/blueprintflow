@@ -75,7 +75,9 @@
       "WebFetch(domain:tanstack.com)",
       "Bash(cat:*)",
       "Bash(timeout 30 npm run dev:local)",
-      "Bash(ren:*)"
+      "Bash(ren:*)",
+      "Bash(timeout 30 npx playwright test tests/chessboard-simple.spec.ts --reporter=line --timeout=20000 --workers=1)",
+      "Bash(timeout 15 npm run dev:local)"
     ],
     "deny": [],
     "ask": []

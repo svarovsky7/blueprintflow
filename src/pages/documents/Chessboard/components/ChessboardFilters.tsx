@@ -28,6 +28,8 @@ interface ChessboardFiltersProps {
   filtersCollapsed: boolean
   hasActiveFilters: boolean
   hasAppliedFilters: boolean
+  isLoading?: boolean // LOG: индикатор загрузки для фильтров
+  statistics?: { totalRows: number; totalQuantityPd: number; totalQuantitySpec: number; totalQuantityRd: number } // LOG: статистика записей
   onFilterChange: (key: keyof ChessboardFilters, value: any) => void
   onCascadingFilterChange: (key: keyof ChessboardFilters, value: any) => void
   onApplyFilters: () => void
@@ -53,6 +55,8 @@ export const ChessboardFilters = memo(
     filtersCollapsed,
     hasActiveFilters,
     hasAppliedFilters,
+    isLoading = false,
+    statistics,
     onFilterChange,
     onCascadingFilterChange,
     onApplyFilters,
@@ -277,6 +281,7 @@ export const ChessboardFilters = memo(
                 icon={<FilterOutlined />}
                 onClick={handleApplyFilters}
                 disabled={!hasActiveFilters}
+                loading={isLoading}
               >
                 Применить
               </Button>
@@ -291,6 +296,23 @@ export const ChessboardFilters = memo(
               >
                 {filtersCollapsed ? 'Развернуть' : 'Свернуть'}
               </Button>
+
+              {/* Статистика найденных записей */}
+              {statistics && hasAppliedFilters && (
+                <div style={{
+                  fontSize: '12px',
+                  color: '#666',
+                  background: '#f5f5f5',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  whiteSpace: 'nowrap'
+                }}>
+                  📊 Найдено: <strong>{statistics.totalRows}</strong> записей
+                  {statistics.totalQuantityPd > 0 && (
+                    <> • ПД: <strong>{Math.round(statistics.totalQuantityPd)}</strong></>
+                  )}
+                </div>
+              )}
             </Space>
           </Space>
 

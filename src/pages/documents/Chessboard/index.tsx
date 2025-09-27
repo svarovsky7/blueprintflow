@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { Typography, Pagination } from 'antd'
 import { useScale } from '@/shared/contexts/ScaleContext'
 import { useFiltersState } from './hooks/useFiltersState'
@@ -13,6 +13,16 @@ const { Title } = Typography
 
 export default function Chessboard() {
   const { scale } = useScale()
+
+  // Состояние пагинации
+  const [currentPage, setCurrentPage] = useState(() => {
+    const saved = localStorage.getItem('chessboard-pagination-page')
+    return saved ? parseInt(saved, 10) : 1
+  })
+  const [pageSize, setPageSize] = useState(() => {
+    const saved = localStorage.getItem('chessboard-pagination-size')
+    return saved ? parseInt(saved, 10) : 100
+  })
 
   // Хуки для управления состоянием
   const {
@@ -138,10 +148,36 @@ export default function Chessboard() {
     [tableMode.mode, removeNewRow],
   )
 
+  // Обработчики пагинации
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page)
+    localStorage.setItem('chessboard-pagination-page', page.toString())
+  }, [])
+
+  const handlePageSizeChange = useCallback((current: number, size: number) => {
+    setCurrentPage(1) // Сбрасываем на первую страницу при изменении размера
+    setPageSize(size)
+    localStorage.setItem('chessboard-pagination-page', '1')
+    localStorage.setItem('chessboard-pagination-size', size.toString())
+  }, [])
+
   // Получение финальных данных для отображения
-  const displayData = getDisplayData(data)
+  const allDisplayData = getDisplayData(data)
   const visibleColumns = getVisibleColumns()
   const allColumnsWithVisibility = getAllColumnsWithVisibility()
+
+  // Применение пагинации к данным
+  const startIndex = (currentPage - 1) * pageSize
+  const endIndex = startIndex + pageSize
+  const displayData = allDisplayData.slice(startIndex, endIndex)
+
+  // Сброс пагинации при изменении данных
+  useEffect(() => {
+    if (currentPage > 1 && allDisplayData.length <= (currentPage - 1) * pageSize) {
+      setCurrentPage(1)
+      localStorage.setItem('chessboard-pagination-page', '1')
+    }
+  }, [allDisplayData.length, currentPage, pageSize])
 
   // Проверка наличия примененного проекта
   const hasAppliedProject = !!appliedFilters.project_id
@@ -186,6 +222,8 @@ export default function Chessboard() {
           filtersCollapsed={filtersCollapsed}
           hasActiveFilters={hasActiveFilters}
           hasAppliedFilters={hasAppliedFilters}
+          isLoading={isLoading}
+          statistics={statistics}
           onFilterChange={updateFilter}
           onCascadingFilterChange={updateCascadingFilter}
           onApplyFilters={applyFilters}
@@ -248,11 +286,13 @@ export default function Chessboard() {
         }}>
           <Pagination
             size="small"
-            current={1}
-            total={displayData.length}
-            pageSize={100}
+            current={currentPage}
+            total={allDisplayData.length}
+            pageSize={pageSize}
             showSizeChanger
             showQuickJumper
+            onChange={handlePageChange}
+            onShowSizeChange={handlePageSizeChange}
             showTotal={(total, range) => `${range[0]}-${range[1]} из ${total} записей`}
             pageSizeOptions={['10', '20', '50', '100', '200', '500']}
           />

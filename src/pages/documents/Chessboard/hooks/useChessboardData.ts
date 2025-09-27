@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { AppliedFilters, ViewRow, DbRow, RowData } from '../types'
@@ -8,7 +8,88 @@ interface UseChessboardDataProps {
   enabled?: boolean
 }
 
+// Проверяет, нужен ли INNER JOIN для chessboard_mapping
+function needsInnerJoinForMapping(appliedFilters: AppliedFilters): boolean {
+  return !!(
+    appliedFilters.block_ids?.length ||
+    appliedFilters.cost_category_ids?.length ||
+    appliedFilters.detail_cost_category_ids?.length
+  )
+}
+
+// Генерирует правильный SELECT запрос с учетом фильтров
+function buildSelectQuery(appliedFilters: AppliedFilters): string {
+  const useInnerJoin = needsInnerJoinForMapping(appliedFilters)
+  const joinType = useInnerJoin ? 'inner' : 'left'
+
+  console.log(`🔧 Using ${joinType.toUpperCase()} JOIN for chessboard_mapping due to filters`) // LOG
+
+  return `
+    id,
+    material,
+    color,
+    created_at,
+    updated_at,
+    unit_id,
+
+    materials!chessboard_material_fkey(name),
+    units!chessboard_unit_id_fkey(name),
+
+    chessboard_mapping!${joinType}(
+      cost_category_id,
+      cost_type_id,
+      location_id,
+      block_id,
+      cost_categories!chessboard_mapping_cost_category_id_fkey(name, number),
+      detail_cost_categories!chessboard_mapping_cost_type_id_fkey(name),
+      location!chessboard_mapping_location_id_fkey(name),
+      blocks!chessboard_mapping_block_id_fkey(name)
+    ),
+
+    chessboard_nomenclature_mapping!left(
+      nomenclature_id,
+      supplier_name,
+      nomenclature!chessboard_nomenclature_mapping_nomenclature_id_fkey(name)
+    )
+  `
+}
+
+// Универсальная функция для применения серверных фильтров
+function applyServerSideFilters(query: any, appliedFilters: AppliedFilters) {
+  // Логируем какие фильтры применяются
+  const filtersToApply = []
+
+  if (appliedFilters.block_ids?.length) {
+    query = query.in('chessboard_mapping.block_id', appliedFilters.block_ids)
+    filtersToApply.push(`blocks: ${appliedFilters.block_ids.length}`)
+  }
+
+  if (appliedFilters.cost_category_ids?.length) {
+    query = query.in('chessboard_mapping.cost_category_id', appliedFilters.cost_category_ids)
+    filtersToApply.push(`cost_categories: ${appliedFilters.cost_category_ids.length}`)
+  }
+
+  if (appliedFilters.detail_cost_category_ids?.length) {
+    query = query.in('chessboard_mapping.cost_type_id', appliedFilters.detail_cost_category_ids)
+    filtersToApply.push(`detail_categories: ${appliedFilters.detail_cost_category_ids.length}`)
+  }
+
+  if (appliedFilters.material_search) {
+    query = query.ilike('materials.name', `%${appliedFilters.material_search}%`)
+    filtersToApply.push(`material_search: "${appliedFilters.material_search}"`)
+  }
+
+  if (filtersToApply.length > 0) {
+    console.log(`🔧 Applying server-side filters: ${filtersToApply.join(', ')}`) // LOG: применение серверных фильтров
+  }
+
+  return query
+}
+
 export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessboardDataProps) => {
+  // Состояние для хранения результата batch processing
+  const [filteredRawData, setFilteredRawData] = useState<any[] | null>(null)
+
   // ИСПРАВЛЕНИЕ: Стабилизируем queryKey для предотвращения бесконечного рендеринга
   const stableQueryKey = useMemo(() => {
     return [
@@ -44,157 +125,128 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
         return []
       }
 
+      console.log('🔄 Chessboard query started:', { // LOG: запрос шахматки
+        project_id: appliedFilters.project_id,
+        filters: {
+          blocks: appliedFilters.block_ids?.length || 0,
+          cost_categories: appliedFilters.cost_category_ids?.length || 0,
+          detail_categories: appliedFilters.detail_cost_category_ids?.length || 0,
+          doc_sections: appliedFilters.documentation_section_ids?.length || 0,
+          doc_codes: appliedFilters.documentation_code_ids?.length || 0,
+          material_search: !!appliedFilters.material_search
+        }
+      })
+      const startTime = performance.now() // LOG: замер времени
+
       // Строим запрос с серверной фильтрацией для производительности
       let query = supabase
         .from('chessboard')
-        .select(
-          `
-          id,
-          material,
-          material_type,
-          color,
-          created_at,
-          updated_at,
-          unit_id,
-
-          materials!chessboard_material_fkey(name),
-          units!chessboard_unit_id_fkey(name),
-
-          chessboard_mapping!left(
-            cost_category_id,
-            cost_type_id,
-            location_id,
-            block_id,
-            cost_categories!chessboard_mapping_cost_category_id_fkey(name, number),
-            detail_cost_categories!chessboard_mapping_cost_type_id_fkey(name),
-            location!chessboard_mapping_location_id_fkey(name),
-            blocks!chessboard_mapping_block_id_fkey(name)
-          ),
-
-          chessboard_nomenclature_mapping!left(
-            nomenclature_id,
-            supplier_name,
-            nomenclature!chessboard_nomenclature_mapping_nomenclature_id_fkey(name)
-          )
-        `,
-        )
+        .select(buildSelectQuery(appliedFilters))
         .eq('project_id', appliedFilters.project_id)
 
       // Применяем серверные фильтры для производительности
-      if (appliedFilters.block_ids?.length) {
-        query = query.in('chessboard_mapping.block_id', appliedFilters.block_ids)
-      }
-
-      if (appliedFilters.cost_category_ids?.length) {
-        query = query.in('chessboard_mapping.cost_category_id', appliedFilters.cost_category_ids)
-      }
-
-      if (appliedFilters.detail_cost_category_ids?.length) {
-        query = query.in('chessboard_mapping.cost_type_id', appliedFilters.detail_cost_category_ids)
-      }
-
-      if (appliedFilters.material_search) {
-        query = query.ilike('materials.name', `%${appliedFilters.material_search}%`)
-      }
+      query = applyServerSideFilters(query, appliedFilters)
 
       // Фильтрация по документации требует подзапроса из-за сложной связи
       if (
         appliedFilters.documentation_section_ids?.length ||
         appliedFilters.documentation_code_ids?.length
       ) {
-        // Получаем ID chessboard записей, которые соответствуют фильтрам документации
-        let docQuery = supabase.from('chessboard_documentation_mapping').select('chessboard_id')
+        console.log('📄 Starting documentation filtering with:', {
+          section_ids: appliedFilters.documentation_section_ids,
+          code_ids: appliedFilters.documentation_code_ids
+        }) // LOG: параметры фильтрации документации
 
-        if (appliedFilters.documentation_code_ids?.length) {
-          docQuery = docQuery
-            .select(
-              `
-              chessboard_id,
-              documentation_versions!fk_chessboard_documentation_mapping_version(
-                documentation_id
+        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Правильный запрос с INNER JOIN для фильтрации только существующих chessboard записей
+        console.log('🔧 Using INNER JOIN approach to filter existing chessboard records only') // LOG: исправленный подход
+
+        let docQuery = supabase
+          .from('chessboard_documentation_mapping')
+          .select(`
+            chessboard_id,
+            chessboard!inner(project_id),
+            documentation_versions!inner(
+              documentation_id,
+              documentations!inner(
+                id, code, tag_id,
+                documentation_tags!inner(id, name)
               )
-            `,
             )
-            .in('documentation_versions.documentation_id', appliedFilters.documentation_code_ids)
+          `)
+          .eq('chessboard.project_id', appliedFilters.project_id) // Фильтрация по проекту для производительности
+
+        // Применяем фильтры по документации
+        if (appliedFilters.documentation_code_ids?.length) {
+          docQuery = docQuery.in('documentation_versions.documentation_id', appliedFilters.documentation_code_ids)
         }
 
         if (appliedFilters.documentation_section_ids?.length) {
-          docQuery = docQuery
-            .select(
-              `
-              chessboard_id,
-              documentation_versions!fk_chessboard_documentation_mapping_version(
-                documentations!documentation_versions_documentation_id_fkey(
-                  tag_id
-                )
-              )
-            `,
-            )
-            .in(
-              'documentation_versions.documentations.tag_id',
-              appliedFilters.documentation_section_ids,
-            )
+          docQuery = docQuery.in('documentation_versions.documentations.tag_id', appliedFilters.documentation_section_ids)
         }
 
         // Выполняем подзапрос для получения chessboard_id
         const { data: docIds, error: docError } = await docQuery
 
         if (docError) {
-          console.error('Error filtering by documentation:', docError)
+          console.error('❌ Error filtering by documentation:', docError)
         } else if (docIds && docIds.length > 0) {
-          // Применяем фильтр только к найденным ID с батчингом для избежания длинных URL
-          const chessboardIds = docIds.map((d) => d.chessboard_id)
+          console.log(`✅ INNER JOIN documentation filter returned ${docIds.length} records from documentation_mapping`) // LOG: количество записей из маппинга
+
+          // Отладочная информация: показать разделы в результате
+          const sections = new Set()
+          docIds.forEach(item => {
+            const tagName = item.documentation_versions?.documentations?.documentation_tags?.name
+            if (tagName) sections.add(tagName)
+          })
+          console.log(`📋 Sections found in result: ${Array.from(sections).join(', ')}`) // LOG: разделы в результате
+
+          // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Убираем дубликаты chessboard_id (одна запись может иметь несколько версий документов)
+          const chessboardIds = [...new Set(docIds.map((d) => d.chessboard_id))]
+          console.log(`🔢 Unique chessboard IDs after deduplication: ${chessboardIds.length} (was ${docIds.length})`) // LOG: уникальные ID после дедупликации
 
           // Если ID слишком много, используем батчинг
-          if (chessboardIds.length > 500) {
-            // Выполняем запросы батчами по 500 ID (соответствует основному лимиту)
-            const batchSize = 500
+          if (chessboardIds.length > 200) {
+            // Выполняем запросы батчами по 200 ID для предотвращения переполнения URL
+            const batchSize = 200
             let allResults: any[] = []
+            const totalBatches = Math.ceil(chessboardIds.length / batchSize)
+            console.log(`🔄 Starting batch processing: ${chessboardIds.length} IDs in ${totalBatches} batches of ${batchSize}`) // LOG
 
             for (let i = 0; i < chessboardIds.length; i += batchSize) {
               const batch = chessboardIds.slice(i, i + batchSize)
-              const batchQuery = supabase
+              const batchNumber = Math.floor(i/batchSize) + 1
+
+              // LOG: мониторинг размера батча и потенциальной длины URL
+              const estimatedUrlLength = 500 + batch.length * 40 // приблизительная оценка
+              console.log(`🔍 Batch ${batchNumber}: ${batch.length} IDs, estimated URL length: ${estimatedUrlLength}`) // LOG
+
+              const batchStartTime = performance.now() // LOG: время начала батча
+              let batchQuery = supabase
                 .from('chessboard')
-                .select(
-                  `
-                  id,
-                  material,
-                  color,
-                  created_at,
-                  updated_at,
-                  unit_id,
-
-                  materials!chessboard_material_fkey(name),
-                  units!chessboard_unit_id_fkey(name),
-
-                  chessboard_mapping!left(
-                    cost_category_id,
-                    cost_type_id,
-                    location_id,
-                    block_id,
-                    cost_categories!chessboard_mapping_cost_category_id_fkey(name, number),
-                    detail_cost_categories!chessboard_mapping_cost_type_id_fkey(name),
-                    location!chessboard_mapping_location_id_fkey(name),
-                    blocks!chessboard_mapping_block_id_fkey(name)
-                  ),
-
-                  chessboard_nomenclature_mapping!left(
-                    nomenclature_id,
-                    supplier_name,
-                    nomenclature!chessboard_nomenclature_mapping_nomenclature_id_fkey(name)
-                  )
-                `,
-                )
+                .select(buildSelectQuery(appliedFilters))
                 .eq('project_id', appliedFilters.project_id)
                 .in('id', batch)
-                .limit(500)
+
+              // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Применяем серверные фильтры к batch запросу
+              batchQuery = applyServerSideFilters(batchQuery, appliedFilters)
+
+              batchQuery = batchQuery
+                .limit(1000)
                 .order('created_at', { ascending: false })
                 .order('id', { ascending: false })
 
               const { data: batchData, error: batchError } = await batchQuery
 
+              const batchEndTime = performance.now() // LOG: время завершения батча
+              const batchDuration = batchEndTime - batchStartTime // LOG: длительность батча
+              console.log(`⏱️ Batch ${batchNumber} completed in ${Math.round(batchDuration)}ms, returned ${batchData?.length || 0} records`) // LOG
+
               if (batchError) {
-                console.error('Error in batch query:', batchError)
+                console.error('❌ Error in batch query:', batchError) // LOG
+                // Проверяем, связана ли ошибка с длиной URL
+                if (batchError.message?.includes('URI') || batchError.message?.includes('414')) {
+                  console.warn('⚠️ URL length error detected, consider reducing batch size further') // LOG
+                }
                 continue
               }
 
@@ -203,30 +255,73 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
               }
             }
 
+            console.log(`✅ Batch processing completed: ${allResults.length} records from ${totalBatches} batches`) // LOG
+            console.log('💾 Saving batch results to filteredRawData state') // LOG: сохранение результатов batch processing
+            setFilteredRawData(allResults as DbRow[])
             return allResults as DbRow[]
           } else {
             // Если ID не слишком много, используем обычный запрос
             query = query.in('id', chessboardIds)
+
+            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Применяем серверные фильтры к малому batch запросу
+            query = applyServerSideFilters(query, appliedFilters)
+
+            query = query
+              .limit(1000)
+              .order('created_at', { ascending: false })
+              .order('id', { ascending: false })
+
+            const { data, error } = await query
+
+            if (error) {
+              console.error('❌ Chessboard query failed:', error) // LOG: ошибка запроса
+              throw error
+            }
+
+            const endTime = performance.now() // LOG: замер времени
+            const executionTime = Math.round(endTime - startTime)
+
+            console.log('✅ Chessboard query completed (small batch):', { // LOG: успешный запрос
+              records_found: data?.length || 0,
+              execution_time_ms: executionTime,
+              chessboard_ids_filtered: chessboardIds.length
+            })
+
+            console.log('💾 Saving small batch results to filteredRawData state') // LOG: сохранение результатов малого батча
+            setFilteredRawData(data as DbRow[])
+            return data as DbRow[]
           }
         } else {
           // Если документация не найдена, возвращаем пустой результат
           return []
         }
+      } else {
+        // Если нет фильтра по документации, выполняем обычный запрос
+        query = query
+          .limit(1000) // ОПТИМИЗАЦИЯ: увеличен с 500 до 1000 для лучшей производительности с большими данными
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false }) // Стабильная сортировка
+
+        const { data, error } = await query
+
+        if (error) {
+          console.error('❌ Chessboard query failed:', error) // LOG: ошибка запроса
+          throw error
+        }
+
+        const endTime = performance.now() // LOG: замер времени
+        const executionTime = Math.round(endTime - startTime)
+
+        console.log('✅ Chessboard query completed:', { // LOG: успешный запрос
+          records_found: data?.length || 0,
+          execution_time_ms: executionTime,
+          performance: executionTime < 1000 ? 'excellent' : executionTime < 3000 ? 'good' : 'slow'
+        })
+
+        console.log('🧹 Clearing filteredRawData state (no documentation filters)') // LOG: очистка состояния при отсутствии фильтра документации
+        setFilteredRawData(null)
+        return data as DbRow[]
       }
-
-      query = query
-        .limit(500) // ОПТИМИЗАЦИЯ: увеличен с 100 до 500 для лучшей производительности с индексами
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false }) // Стабильная сортировка
-
-      const { data, error } = await query
-
-      if (error) {
-        console.error('Error loading chessboard data:', error)
-        throw error
-      }
-
-      return data as DbRow[]
     },
     enabled: enabled && !!appliedFilters.project_id,
   })
@@ -236,19 +331,28 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
     () => [
       'chessboard-documentation',
       appliedFilters.project_id || 'no-project',
+      filteredRawData ? `filtered-${filteredRawData.length}` : `raw-${rawData?.length || 0}`,
     ],
-    [appliedFilters.project_id],
+    [appliedFilters.project_id, filteredRawData?.length, rawData?.length],
   )
 
   // Отдельный запрос для данных документации
   const { data: documentationData } = useQuery({
     queryKey: stableDocQueryKey,
     queryFn: async () => {
-      if (!appliedFilters.project_id || !rawData?.length) {
+      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: используем правильный источник данных
+      const dataSource = filteredRawData || rawData
+      if (!appliedFilters.project_id || !dataSource?.length) {
         return []
       }
 
-      const chessboardIds = rawData.map((row) => row.id)
+      const chessboardIds = dataSource.map((row) => row.id)
+
+      console.log('📄 Documentation query started with:', { // LOG: запрос документации
+        dataSource: filteredRawData ? 'filteredRawData (batch result)' : 'rawData (normal query)',
+        idsCount: chessboardIds.length,
+        hasDocumentationFilter: !!(appliedFilters.documentation_section_ids?.length || appliedFilters.documentation_code_ids?.length)
+      })
 
       const { data, error } = await supabase
         .from('chessboard_documentation_mapping')
@@ -277,7 +381,7 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
 
       return data || []
     },
-    enabled: enabled && !!appliedFilters.project_id && !!rawData,
+    enabled: enabled && !!appliedFilters.project_id && !!(filteredRawData || rawData),
   })
 
   // ИСПРАВЛЕНИЕ: Стабилизируем queryKey для этажей БЕЗ циклической зависимости
@@ -295,7 +399,7 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
       }
 
       const chessboardIds = rawData.map((row) => row.id)
-      const batchSize = 500 // Батчинг для производительности (соответствует основному лимиту)
+      const batchSize = 200 // Батчинг для производительности и предотвращения переполнения URL
       let allFloorsData: any[] = []
 
       // Загружаем данные этажей батчами
@@ -368,7 +472,15 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
 
   // ИСПРАВЛЕНИЕ: Оптимизируем зависимости useMemo для стабильности
   const transformedData = useMemo((): RowData[] => {
-    if (!rawData) return []
+    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: используем правильный источник данных
+    const dataToProcess = filteredRawData || rawData
+    if (!dataToProcess) return []
+
+    console.log('🔄 TransformedData processing:', { // LOG: обработка transformedData
+      dataToProcessLength: dataToProcess.length,
+      dataSource: filteredRawData ? 'filteredRawData (batch result)' : 'rawData (normal query)',
+      hasDocumentationFilter: !!(appliedFilters.documentation_section_ids?.length || appliedFilters.documentation_code_ids?.length)
+    })
 
     // ОПТИМИЗАЦИЯ: создаем индексы для O(1) поиска вместо O(n) для каждой строки
     const docMappingIndex = new Map()
@@ -389,7 +501,7 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
       ratesMappingIndex.set(rate.chessboard_id, rate)
     })
 
-    return rawData.map((row: any, index: number) => {
+    return dataToProcess.map((row: any, index: number) => {
       // Извлекаем данные из маппингов
       const mapping = Array.isArray(row.chessboard_mapping)
         ? row.chessboard_mapping[0]
@@ -403,16 +515,6 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
       const documentation = docMapping?.documentation_versions?.documentations
       const docTag = documentation?.documentation_tags
 
-      // LOG: отладочная информация для документации
-      if (row.id === '3bad03e2-d11a-4d19-bf12-cf600070d7d5') {
-        console.log('🔍 DEBUG documentation data:', {
-          rowId: row.id,
-          documentationId: documentation?.id,
-          documentationCode: documentation?.code,
-          documentationProjectName: documentation?.project_name,
-          docMappingVersionId: docMapping?.version_id
-        })
-      }
 
       const rowFloorsData = floorsByChessboardId.get(row.id) || []
 
@@ -511,12 +613,13 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
       }
     })
   }, [
-    rawData, // Возвращаем rawData но обеспечиваем его стабильность через правильные queryKey выше
+    rawData, // Основные данные
+    filteredRawData, // Отфильтрованные данные batch processing
     documentationData,
     floorsData,
     ratesData,
     appliedFilters.project_id,
-  ]) // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: стабилизированы зависимости для предотвращения infinite renders
+  ]) // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: добавлен filteredRawData для правильного отслеживания изменений
 
   // ИСПРАВЛЕНИЕ: Оптимизируем зависимости statistics
   const statistics = useMemo(() => {
