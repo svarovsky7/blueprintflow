@@ -101,7 +101,6 @@ export const chessboardCascadeApi = {
   async getAllNomenclature(): Promise<NomenclatureOption[]> {
     if (!supabase) throw new Error('Supabase is not configured')
 
-    console.log('🔍 Cascade API: Загрузка всех номенклатур...') // LOG: начало загрузки номенклатур
 
     // Сначала получаем общее количество записей
     const { count, error: countError } = await supabase
@@ -113,7 +112,6 @@ export const chessboardCascadeApi = {
       throw countError
     }
 
-    console.log(`🔍 Cascade API: Найдено ${count} номенклатур, загружаем через пагинацию...`) // LOG: количество записей
 
     // Загружаем все данные через пагинацию
     const allData = []
@@ -145,7 +143,6 @@ export const chessboardCascadeApi = {
       }
     }
 
-    console.log(`✅ Cascade API: Загружено ${allData.length} номенклатур`) // LOG: результат загрузки
 
     return allData
   },
@@ -157,7 +154,6 @@ export const chessboardCascadeApi = {
   async getAllSuppliers(): Promise<SupplierOption[]> {
     if (!supabase) throw new Error('Supabase is not configured')
 
-    console.log('🔍 Cascade API: Загрузка всех поставщиков...') // LOG: начало загрузки поставщиков
 
     // Сначала получаем общее количество записей
     const { count, error: countError } = await supabase
@@ -169,7 +165,6 @@ export const chessboardCascadeApi = {
       throw countError
     }
 
-    console.log(`🔍 Cascade API: Найдено ${count} поставщиков, загружаем через пагинацию...`) // LOG: количество записей
 
     // Загружаем все данные через пагинацию
     const allData = []
@@ -201,7 +196,6 @@ export const chessboardCascadeApi = {
       }
     }
 
-    console.log(`✅ Cascade API: Загружено ${allData.length} поставщиков`) // LOG: результат загрузки
 
     return allData
   },

@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from 'react'
+import { useCallback, useState, useEffect, useMemo } from 'react'
 import { Typography, Pagination } from 'antd'
 import { useScale } from '@/shared/contexts/ScaleContext'
 import { useFiltersState } from './hooks/useFiltersState'
@@ -161,15 +161,19 @@ export default function Chessboard() {
     localStorage.setItem('chessboard-pagination-size', size.toString())
   }, [])
 
-  // Получение финальных данных для отображения
-  const allDisplayData = getDisplayData(data)
-  const visibleColumns = getVisibleColumns()
-  const allColumnsWithVisibility = getAllColumnsWithVisibility()
+  // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Мемоизируем вызовы функций без зависимости от самих функций
+  const allDisplayData = useMemo(() => getDisplayData(data), [data, tableMode.mode, tableMode.selectedRowKeys?.length || 0, tableMode.newRows?.length || 0, tableMode.editedRows?.size || 0])
+  const visibleColumns = useMemo(() => getVisibleColumns(), [columnSettings.columnOrder, columnSettings.hiddenColumns])
+  const allColumnsWithVisibility = useMemo(() => getAllColumnsWithVisibility(), [columnSettings.columnOrder, columnSettings.hiddenColumns])
 
   // Применение пагинации к данным
-  const startIndex = (currentPage - 1) * pageSize
-  const endIndex = startIndex + pageSize
-  const displayData = allDisplayData.slice(startIndex, endIndex)
+  const paginatedData = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize
+    const endIndex = startIndex + pageSize
+    return allDisplayData.slice(startIndex, endIndex)
+  }, [allDisplayData, currentPage, pageSize])
+
+  const displayData = paginatedData
 
   // Сброс пагинации при изменении данных
   useEffect(() => {

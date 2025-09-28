@@ -1578,13 +1578,6 @@ export const ChessboardTable = memo(({
           const currentDocumentId = (record as any).documentationCodeId
           const currentVersionId = (record as any).documentationVersionId
 
-          console.log('🔍 Version column render (editing):', { // LOG: рендер столбца версии
-            recordId: record.id,
-            value,
-            currentDocumentId,
-            currentVersionId,
-            isEditing
-          })
 
           return (
             <VersionSelect
@@ -1603,7 +1596,6 @@ export const ChessboardTable = memo(({
             />
           )
         }
-        console.log('🔍 Version column render (view):', { value, recordId: record.id }) // LOG: рендер в режиме просмотра
         return <span>{value || ''}</span>
       },
     },

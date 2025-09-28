@@ -132,19 +132,19 @@ export const useColumnSettings = () => {
     [columnSettings.hiddenColumns],
   )
 
-  // Получение видимых колонок в правильном порядке
+  // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Убираем циклическую зависимость от isColumnVisible
   const getVisibleColumns = useCallback(() => {
-    return columnSettings.columnOrder.filter((columnKey) => isColumnVisible(columnKey))
-  }, [columnSettings.columnOrder, isColumnVisible])
+    return columnSettings.columnOrder.filter((columnKey) => !columnSettings.hiddenColumns.has(columnKey))
+  }, [columnSettings.columnOrder, columnSettings.hiddenColumns])
 
-  // Получение всех колонок с информацией о видимости
+  // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Убираем циклическую зависимость от isColumnVisible
   const getAllColumnsWithVisibility = useCallback(() => {
     return columnSettings.columnOrder.map((columnKey) => ({
       key: columnKey,
-      visible: isColumnVisible(columnKey),
+      visible: !columnSettings.hiddenColumns.has(columnKey),
       isService: ['color', 'actions'].includes(columnKey), // Служебные колонки
     }))
-  }, [columnSettings.columnOrder, isColumnVisible])
+  }, [columnSettings.columnOrder, columnSettings.hiddenColumns])
 
   // Показать/скрыть drawer настроек
   const openDrawer = useCallback(() => setDrawerVisible(true), [])
