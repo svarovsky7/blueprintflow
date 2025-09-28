@@ -41,6 +41,7 @@ export default function Chessboard() {
     applyFilters,
     updateDocumentVersions,
     toggleFiltersCollapsed,
+    setAppliedFilters,
   } = useFiltersState()
 
   const { data, isLoading, error, statistics, documentVersions, documentationInfo } = useChessboardData({
@@ -305,6 +306,15 @@ export default function Chessboard() {
         updates.push(() => updateFilter('project', setFilters.project_id))
       }
 
+      // Применяем фильтр раздела (тэг проекта)
+      if (setFilters.tag_id !== undefined) {
+        if (setFilters.tag_id === null) {
+          updates.push(() => updateFilter('documentationSection', []))
+        } else {
+          updates.push(() => updateFilter('documentationSection', [String(setFilters.tag_id)]))
+        }
+      }
+
       if (setFilters.block_ids && setFilters.block_ids.length > 0) {
         updates.push(() => updateFilter('block', setFilters.block_ids))
       }
@@ -334,33 +344,52 @@ export default function Chessboard() {
         updates.push(() => updateDocumentVersions({ [setFilters.documentation_id]: setFilters.version_id }))
       }
 
+      // Закрываем модал
+      setSetsModalOpen(false)
+
       // Применяем все обновления последовательно
+      console.log('🔍 Применяем обновления фильтров:', updates.length) // LOG: количество обновлений
       for (const update of updates) {
         update()
       }
 
-      // Закрываем модал
-      setSetsModalOpen(false)
+      // Устанавливаем статус комплекта сразу
+      if (set.status) {
+        console.log('🔍 Устанавливаем статус комплекта:', set.status) // LOG: установка статуса
+        setCurrentStatus(set.status.id)
+        statusSetManuallyRef.current = true // Помечаем как ручную установку
+      }
 
-      // Применяем фильтры с задержкой для завершения всех обновлений состояния
-      setTimeout(() => {
-        console.log('🔍 Применяем фильтры после установки комплекта') // LOG: применение фильтров
-        applyFilters()
-        console.log('✅ Фильтры комплекта применены') // LOG: успешное применение
+      console.log('✅ Все фильтры комплекта установлены, применяем немедленно') // LOG: завершение установки
 
-        // Устанавливаем статус комплекта
-        if (set.status) {
-          console.log('🔍 Устанавливаем статус комплекта:', set.status) // LOG: установка статуса
-          setCurrentStatus(set.status.id)
-          statusSetManuallyRef.current = true // Помечаем как ручную установку
-        }
-      }, 200)
+      // НЕМЕДЛЕННО применяем фильтры напрямую из данных комплекта (без ожидания состояния React)
+      const directAppliedFilters = {
+        // Постоянные фильтры
+        project_id: setFilters.project_id || '',
+        documentation_section_ids: setFilters.tag_id ? [String(setFilters.tag_id)] : [],
+        documentation_code_ids: set.documents && set.documents.length > 0
+          ? set.documents.map(doc => doc.documentation_id)
+          : [],
+        documentation_version_ids: appliedFilters.documentation_version_ids,
+
+        // Сворачиваемые фильтры
+        block_ids: setFilters.block_ids || [],
+        cost_category_ids: setFilters.cost_category_ids ? setFilters.cost_category_ids.map(String) : [],
+        detail_cost_category_ids: setFilters.cost_type_ids ? setFilters.cost_type_ids.map(String) : [],
+
+        // Дополнительные фильтры
+        material_search: '',
+      }
+
+      console.log('🔍 Применяем фильтры напрямую из комплекта:', directAppliedFilters) // LOG: прямое применение
+      setAppliedFilters(directAppliedFilters)
+      console.log('✅ Фильтры комплекта применены напрямую') // LOG: успешное применение
 
     } catch (error) {
       console.error('Ошибка при применении комплекта:', error) // LOG: ошибка
       setSetsModalOpen(false)
     }
-  }, [updateFilter, updateDocumentVersions, applyFilters])
+  }, [updateFilter, updateDocumentVersions, appliedFilters.documentation_version_ids, setAppliedFilters])
 
   // Обработчик изменения статуса
   const handleStatusChange = useCallback(async (statusId: string) => {
