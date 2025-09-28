@@ -37,6 +37,7 @@ interface ChessboardFiltersProps {
   onToggleCollapsed: () => void
   onOpenColumnSettings: () => void
   onOpenVersionsModal?: () => void
+  onOpenSetsModal?: () => void
   // Пропы для управления таблицей
   tableMode: TableMode
   hasAppliedProject: boolean
@@ -47,6 +48,8 @@ interface ChessboardFiltersProps {
   onCancelChanges: () => void
   onDeleteSelected: () => void
   onAddRow: () => void
+  currentStatus?: string
+  onStatusChange?: (statusId: string) => void
 }
 
 export const ChessboardFilters = memo(
@@ -65,6 +68,7 @@ export const ChessboardFilters = memo(
     onToggleCollapsed,
     onOpenColumnSettings,
     onOpenVersionsModal,
+    onOpenSetsModal,
     tableMode,
     hasAppliedProject,
     hasUnsavedChanges,
@@ -74,6 +78,8 @@ export const ChessboardFilters = memo(
     onCancelChanges,
     onDeleteSelected,
     onAddRow,
+    currentStatus,
+    onStatusChange,
   }: ChessboardFiltersProps) => {
     // Состояние для панели настроек ML
     const [mlConfigOpen, setMLConfigOpen] = useState(false)
@@ -299,6 +305,7 @@ export const ChessboardFilters = memo(
                 </Button>
               )}
 
+
               <Button
                 onClick={onToggleCollapsed}
                 icon={filtersCollapsed ? <CaretDownFilled /> : <CaretUpFilled />}
@@ -306,22 +313,6 @@ export const ChessboardFilters = memo(
                 {filtersCollapsed ? 'Развернуть' : 'Свернуть'}
               </Button>
 
-              {/* Статистика найденных записей */}
-              {statistics && hasAppliedFilters && (
-                <div style={{
-                  fontSize: '12px',
-                  color: '#666',
-                  background: '#f5f5f5',
-                  padding: '4px 8px',
-                  borderRadius: '4px',
-                  whiteSpace: 'nowrap'
-                }}>
-                  📊 Найдено: <strong>{statistics.totalRows}</strong> записей
-                  {statistics.totalQuantityPd > 0 && (
-                    <> • ПД: <strong>{Math.round(statistics.totalQuantityPd)}</strong></>
-                  )}
-                </div>
-              )}
             </Space>
           </Space>
 
@@ -336,6 +327,9 @@ export const ChessboardFilters = memo(
             onCancelChanges={onCancelChanges}
             onDeleteSelected={onDeleteSelected}
             onAddRow={onAddRow}
+            onOpenSetsModal={onOpenSetsModal}
+            currentStatus={currentStatus}
+            onStatusChange={onStatusChange}
           />
         </div>
 

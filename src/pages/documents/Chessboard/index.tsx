@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useMemo } from 'react'
+import { useCallback, useState, useEffect, useMemo, useRef } from 'react'
 import { Typography, Pagination } from 'antd'
 import { useScale } from '@/shared/contexts/ScaleContext'
 import { useFiltersState } from './hooks/useFiltersState'
@@ -10,6 +10,8 @@ import { ChessboardFilters } from './components/ChessboardFilters'
 import { ChessboardTable } from './components/ChessboardTable'
 import { ColumnSettingsDrawer } from './components/ColumnSettingsDrawer'
 import { VersionsModal } from './components/VersionsModal'
+import ChessboardSetsModal from '../ChessboardSetsModal'
+import { chessboardSetsApi } from '@/entities/chessboard/api/chessboard-sets-api'
 
 const { Title } = Typography
 
@@ -90,6 +92,77 @@ export default function Chessboard() {
     handleVersionSelect,
     applyVersions,
   } = useVersionsState()
+
+  // Состояние для управления модалом комплектов
+  const [setsModalOpen, setSetsModalOpen] = useState(false)
+
+  // Состояние для текущего статуса шахматки
+  const [currentStatus, setCurrentStatus] = useState<string | undefined>(undefined)
+
+  // Ref для отслеживания ручной установки статуса (чтобы избежать переопределения через useEffect)
+  const statusSetManuallyRef = useRef(false)
+
+  // Автоматическое определение статуса комплекта при изменении примененных фильтров
+  useEffect(() => {
+    const detectSetStatus = async () => {
+      if (!appliedFilters.project_id) {
+        setCurrentStatus(undefined)
+        statusSetManuallyRef.current = false
+        return
+      }
+
+      // Если статус был установлен вручную (из комплекта), не переопределяем его
+      if (statusSetManuallyRef.current) {
+        console.log('🔍 Пропускаем автоопределение - статус установлен вручную') // LOG: пропуск автоопределения
+        return
+      }
+
+      try {
+        // Формируем фильтры для поиска комплекта
+        const searchFilters = {
+          project_id: appliedFilters.project_id,
+          documentation_id: appliedFilters.documentation_code_ids.length > 0 ? appliedFilters.documentation_code_ids[0] : undefined,
+          tag_id: appliedFilters.documentation_section_ids.length > 0 ? Number(appliedFilters.documentation_section_ids[0]) : undefined,
+          block_ids: appliedFilters.block_ids.length > 0 ? appliedFilters.block_ids : undefined,
+          cost_category_ids: appliedFilters.cost_category_ids.length > 0 ? appliedFilters.cost_category_ids.map(Number) : undefined,
+          cost_type_ids: appliedFilters.detail_cost_category_ids.length > 0 ? appliedFilters.detail_cost_category_ids.map(Number) : undefined,
+        }
+
+        console.log('🔍 Поиск комплекта по фильтрам:', searchFilters) // LOG: поиск комплекта
+
+        const matchedSet = await chessboardSetsApi.findSetByFilters(searchFilters)
+
+        if (matchedSet && matchedSet.status) {
+          console.log('✅ Найден комплект с статусом:', matchedSet.status) // LOG: найден комплект
+          setCurrentStatus(matchedSet.status.id)
+          statusSetManuallyRef.current = false // Это автоматическое определение
+        } else {
+          console.log('❌ Комплект не найден или без статуса') // LOG: комплект не найден
+          setCurrentStatus(undefined)
+          statusSetManuallyRef.current = false
+        }
+      } catch (error) {
+        console.error('Ошибка поиска комплекта:', error) // LOG: ошибка поиска
+        setCurrentStatus(undefined)
+        statusSetManuallyRef.current = false
+      }
+    }
+
+    detectSetStatus()
+  }, [
+    appliedFilters.project_id,
+    appliedFilters.documentation_code_ids,
+    appliedFilters.documentation_section_ids,
+    appliedFilters.block_ids,
+    appliedFilters.cost_category_ids,
+    appliedFilters.detail_cost_category_ids,
+    appliedFilters.documentation_version_ids
+  ])
+
+  // Сбрасываем флаг ручной установки статуса при смене проекта
+  useEffect(() => {
+    statusSetManuallyRef.current = false
+  }, [appliedFilters.project_id])
 
   // Обработчики событий
   const handleAddRow = useCallback(() => {
@@ -197,6 +270,143 @@ export default function Chessboard() {
     })
   }, [documentationInfo, applyVersions, updateDocumentVersions])
 
+  // Обработчики комплектов
+  const handleOpenSetsModal = useCallback(() => {
+    if (filters.project) {
+      setSetsModalOpen(true)
+    }
+  }, [filters.project])
+
+  const handleCloseSetsModal = useCallback(() => {
+    setSetsModalOpen(false)
+  }, [])
+
+  const handleSelectSet = useCallback(async (setId: string) => {
+    console.log('🔍 Выбран комплект:', setId) // LOG: отладочная информация
+
+    try {
+      // Загружаем данные комплекта
+      const set = await chessboardSetsApi.getSetById(setId)
+      if (!set) {
+        console.error('Комплект не найден:', setId) // LOG: ошибка загрузки
+        return
+      }
+
+      console.log('🔍 Загружен комплект:', set) // LOG: данные комплекта
+
+      // Получаем фильтры из комплекта
+      const setFilters = chessboardSetsApi.getFiltersFromSet(set)
+      console.log('🔍 Фильтры комплекта:', setFilters) // LOG: фильтры
+
+      // Сначала обновляем все фильтры
+      const updates = []
+
+      if (setFilters.project_id) {
+        updates.push(() => updateFilter('project', setFilters.project_id))
+      }
+
+      if (setFilters.block_ids && setFilters.block_ids.length > 0) {
+        updates.push(() => updateFilter('block', setFilters.block_ids))
+      }
+
+      if (setFilters.cost_category_ids && setFilters.cost_category_ids.length > 0) {
+        updates.push(() => updateFilter('costCategory', setFilters.cost_category_ids.map(String)))
+      }
+
+      if (setFilters.cost_type_ids && setFilters.cost_type_ids.length > 0) {
+        updates.push(() => updateFilter('costType', setFilters.cost_type_ids.map(String)))
+      }
+
+      // Применяем документы если есть (новый формат)
+      if (set.documents && set.documents.length > 0) {
+        const docIds = set.documents.map(doc => doc.documentation_id)
+        updates.push(() => updateFilter('documentationCode', docIds))
+
+        // Применяем версии документов
+        const versionMapping = set.documents.reduce((acc, doc) => {
+          acc[doc.documentation_id] = doc.version_id
+          return acc
+        }, {} as Record<string, string>)
+        updates.push(() => updateDocumentVersions(versionMapping))
+      } else if (setFilters.documentation_id && setFilters.version_id) {
+        // Обратная совместимость для старого формата
+        updates.push(() => updateFilter('documentationCode', [setFilters.documentation_id]))
+        updates.push(() => updateDocumentVersions({ [setFilters.documentation_id]: setFilters.version_id }))
+      }
+
+      // Применяем все обновления последовательно
+      for (const update of updates) {
+        update()
+      }
+
+      // Закрываем модал
+      setSetsModalOpen(false)
+
+      // Применяем фильтры с задержкой для завершения всех обновлений состояния
+      setTimeout(() => {
+        console.log('🔍 Применяем фильтры после установки комплекта') // LOG: применение фильтров
+        applyFilters()
+        console.log('✅ Фильтры комплекта применены') // LOG: успешное применение
+
+        // Устанавливаем статус комплекта
+        if (set.status) {
+          console.log('🔍 Устанавливаем статус комплекта:', set.status) // LOG: установка статуса
+          setCurrentStatus(set.status.id)
+          statusSetManuallyRef.current = true // Помечаем как ручную установку
+        }
+      }, 200)
+
+    } catch (error) {
+      console.error('Ошибка при применении комплекта:', error) // LOG: ошибка
+      setSetsModalOpen(false)
+    }
+  }, [updateFilter, updateDocumentVersions, applyFilters])
+
+  // Обработчик изменения статуса
+  const handleStatusChange = useCallback(async (statusId: string) => {
+    console.log('🔍 Изменен статус шахматки:', statusId) // LOG: изменение статуса
+    setCurrentStatus(statusId)
+    statusSetManuallyRef.current = true // Помечаем как ручное изменение пользователем
+
+    // Если есть примененные фильтры, пытаемся найти соответствующий комплект и обновить его статус
+    if (appliedFilters.project_id) {
+      try {
+        const searchFilters = {
+          project_id: appliedFilters.project_id,
+          documentation_id: appliedFilters.documentation_code_ids.length > 0 ? appliedFilters.documentation_code_ids[0] : undefined,
+          tag_id: appliedFilters.documentation_section_ids.length > 0 ? Number(appliedFilters.documentation_section_ids[0]) : undefined,
+          block_ids: appliedFilters.block_ids.length > 0 ? appliedFilters.block_ids : undefined,
+          cost_category_ids: appliedFilters.cost_category_ids.length > 0 ? appliedFilters.cost_category_ids.map(Number) : undefined,
+          cost_type_ids: appliedFilters.detail_cost_category_ids.length > 0 ? appliedFilters.detail_cost_category_ids.map(Number) : undefined,
+        }
+
+        const matchedSet = await chessboardSetsApi.findSetByFilters(searchFilters)
+
+        if (matchedSet) {
+          console.log('🔍 Обновляем статус комплекта:', matchedSet.id, statusId) // LOG: обновление статуса комплекта
+          await chessboardSetsApi.addStatusToSet({
+            chessboard_set_id: matchedSet.id,
+            status_id: statusId,
+            comment: 'Статус обновлен через шахматку',
+          })
+          console.log('✅ Статус комплекта обновлен') // LOG: статус обновлен
+        } else {
+          console.log('❌ Комплект для обновления статуса не найден') // LOG: комплект не найден
+        }
+      } catch (error) {
+        console.error('Ошибка обновления статуса комплекта:', error) // LOG: ошибка обновления
+      }
+    }
+  }, [
+    appliedFilters.project_id,
+    appliedFilters.documentation_code_ids,
+    appliedFilters.documentation_section_ids,
+    appliedFilters.block_ids,
+    appliedFilters.cost_category_ids,
+    appliedFilters.detail_cost_category_ids
+  ])
+
+
   // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Мемоизируем вызовы функций без зависимости от самих функций
   const allDisplayData = useMemo(() => getDisplayData(data), [data, tableMode.mode, tableMode.selectedRowKeys?.length || 0, tableMode.newRows?.length || 0, tableMode.editedRows?.size || 0])
   const visibleColumns = useMemo(() => getVisibleColumns(), [columnSettings.columnOrder, columnSettings.hiddenColumns])
@@ -271,6 +481,7 @@ export default function Chessboard() {
           onToggleCollapsed={toggleFiltersCollapsed}
           onOpenColumnSettings={openDrawer}
           onOpenVersionsModal={handleOpenVersionsModal}
+          onOpenSetsModal={handleOpenSetsModal}
           tableMode={tableMode}
           hasAppliedProject={hasAppliedProject}
           hasUnsavedChanges={hasUnsavedChanges}
@@ -280,6 +491,8 @@ export default function Chessboard() {
           onCancelChanges={cancelChanges}
           onDeleteSelected={deleteSelectedRows}
           onAddRow={handleAddRow}
+          currentStatus={currentStatus}
+          onStatusChange={handleStatusChange}
         />
       </div>
 
@@ -360,6 +573,14 @@ export default function Chessboard() {
         documentVersions={documentVersions}
         selectedVersions={selectedVersions}
         onVersionSelect={handleVersionSelect}
+      />
+
+      {/* Модальное окно управления комплектами */}
+      <ChessboardSetsModal
+        open={setsModalOpen}
+        onClose={handleCloseSetsModal}
+        projectId={appliedFilters.project_id}
+        onSelectSet={handleSelectSet}
       />
     </div>
   )
