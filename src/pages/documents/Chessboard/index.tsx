@@ -5,9 +5,11 @@ import { useFiltersState } from './hooks/useFiltersState'
 import { useChessboardData } from './hooks/useChessboardData'
 import { useColumnSettings } from './hooks/useColumnSettings'
 import { useTableOperations } from './hooks/useTableOperations'
+import { useVersionsState } from './hooks/useVersionsState'
 import { ChessboardFilters } from './components/ChessboardFilters'
 import { ChessboardTable } from './components/ChessboardTable'
 import { ColumnSettingsDrawer } from './components/ColumnSettingsDrawer'
+import { VersionsModal } from './components/VersionsModal'
 
 const { Title } = Typography
 
@@ -35,11 +37,13 @@ export default function Chessboard() {
     updateCascadingFilter,
     resetFilters,
     applyFilters,
+    updateDocumentVersions,
     toggleFiltersCollapsed,
   } = useFiltersState()
 
-  const { data, isLoading, error, statistics } = useChessboardData({
+  const { data, isLoading, error, statistics, documentVersions, documentationInfo } = useChessboardData({
     appliedFilters,
+    filters,
     enabled: !!appliedFilters.project_id,
   })
 
@@ -76,6 +80,16 @@ export default function Chessboard() {
     deleteSelectedRows,
     getDisplayData,
   } = useTableOperations()
+
+  // Хук для управления версиями документов
+  const {
+    versionsModalOpen,
+    selectedVersions,
+    openVersionsModal,
+    closeVersionsModal,
+    handleVersionSelect,
+    applyVersions,
+  } = useVersionsState()
 
   // Обработчики событий
   const handleAddRow = useCallback(() => {
@@ -161,6 +175,28 @@ export default function Chessboard() {
     localStorage.setItem('chessboard-pagination-size', size.toString())
   }, [])
 
+  // Обработчики версий документов
+  const handleOpenVersionsModal = useCallback(() => {
+    // Проверяем что есть выбранные документы в фильтрах
+    if (filters.documentationCode.length > 0) {
+      // Если данные уже загружены - используем их
+      if (documentationInfo.length > 0 && documentVersions.length > 0) {
+        openVersionsModal(documentationInfo, documentVersions)
+      } else {
+        console.log('📋 Данные еще не загружены. Документы:', documentationInfo.length, 'Версии:', documentVersions.length) // LOG: информация о загрузке данных
+      }
+    }
+  }, [filters.documentationCode, documentationInfo, documentVersions, openVersionsModal])
+
+  const handleApplyVersions = useCallback(() => {
+    const requiredDocIds = documentationInfo.map(doc => doc.id)
+    applyVersions(requiredDocIds, (versions) => {
+      console.log('🔍 Применены версии документов:', versions) // LOG: применение версий
+      // Обновляем версии в appliedFilters
+      updateDocumentVersions(versions)
+    })
+  }, [documentationInfo, applyVersions, updateDocumentVersions])
+
   // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Мемоизируем вызовы функций без зависимости от самих функций
   const allDisplayData = useMemo(() => getDisplayData(data), [data, tableMode.mode, tableMode.selectedRowKeys?.length || 0, tableMode.newRows?.length || 0, tableMode.editedRows?.size || 0])
   const visibleColumns = useMemo(() => getVisibleColumns(), [columnSettings.columnOrder, columnSettings.hiddenColumns])
@@ -234,6 +270,7 @@ export default function Chessboard() {
           onResetFilters={resetFilters}
           onToggleCollapsed={toggleFiltersCollapsed}
           onOpenColumnSettings={openDrawer}
+          onOpenVersionsModal={handleOpenVersionsModal}
           tableMode={tableMode}
           hasAppliedProject={hasAppliedProject}
           hasUnsavedChanges={hasUnsavedChanges}
@@ -312,6 +349,17 @@ export default function Chessboard() {
         onMoveColumn={moveColumn}
         onToggleAll={toggleAllColumns}
         onResetToDefault={resetToDefault}
+      />
+
+      {/* Модальное окно выбора версий документов */}
+      <VersionsModal
+        open={versionsModalOpen}
+        onCancel={closeVersionsModal}
+        onOk={handleApplyVersions}
+        selectedDocumentations={documentationInfo}
+        documentVersions={documentVersions}
+        selectedVersions={selectedVersions}
+        onVersionSelect={handleVersionSelect}
       />
     </div>
   )

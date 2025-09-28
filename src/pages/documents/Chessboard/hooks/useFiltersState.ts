@@ -83,6 +83,7 @@ export const useFiltersState = () => {
       project_id: filters.project,
       documentation_section_ids: filters.documentationSection,
       documentation_code_ids: filters.documentationCode,
+      documentation_version_ids: appliedFilters.documentation_version_ids, // Сохраняем выбранные версии
 
       // Сворачиваемые фильтры
       block_ids: filters.block,
@@ -93,7 +94,15 @@ export const useFiltersState = () => {
       material_search: filters.material.trim(),
     }
     setAppliedFilters(applied)
-  }, [filters])
+  }, [filters, appliedFilters.documentation_version_ids])
+
+  // Обновление выбранных версий документов
+  const updateDocumentVersions = useCallback((versions: Record<string, string>) => {
+    setAppliedFilters(prev => ({
+      ...prev,
+      documentation_version_ids: versions
+    }))
+  }, [])
 
   // Проверка, есть ли активные фильтры
   const hasActiveFilters = useCallback(() => {
@@ -139,6 +148,7 @@ export const useFiltersState = () => {
     updateCascadingFilter,
     resetFilters,
     applyFilters,
+    updateDocumentVersions,
     toggleFiltersCollapsed,
 
     // Вычисленные значения

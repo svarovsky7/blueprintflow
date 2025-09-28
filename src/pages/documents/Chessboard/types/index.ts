@@ -86,6 +86,26 @@ export interface CommentWithMapping extends Comment {
   }[]
 }
 
+export interface DocumentVersion {
+  id: string
+  documentation_id: string
+  version_number: number
+  issue_date?: string
+  status: 'draft' | 'filled_spec' | 'filled_recalc' | 'vor_created'
+}
+
+export interface DocumentationForVersions {
+  id: string
+  code: string
+  project_name: string
+  tag_id: string
+  documentation_tags?: {
+    id: string
+    name: string
+    tag_number: string
+  }
+}
+
 export interface ViewRow {
   id: string
   project: { id: string; name: string }
@@ -216,6 +236,7 @@ export interface AppliedFilters {
   project_id: string // ID выбранного проекта
   documentation_section_ids: string[] // ID выбранных разделов (Тэги проекта)
   documentation_code_ids: string[] // ID выбранных шифров проектов (Документация)
+  documentation_version_ids: Record<string, string> // ID выбранных версий для каждого документа
 
   // Сворачиваемые фильтры
   block_ids: string[] // ID выбранных корпусов

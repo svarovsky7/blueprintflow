@@ -30,6 +30,7 @@ export const DEFAULT_APPLIED_FILTERS = {
   project_id: '',
   documentation_section_ids: [] as string[],
   documentation_code_ids: [] as string[],
+  documentation_version_ids: {} as Record<string, string>,
 
   // Сворачиваемые фильтры
   block_ids: [] as string[],

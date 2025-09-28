@@ -1,10 +1,11 @@
 import { useMemo, useState, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import type { AppliedFilters, ViewRow, DbRow, RowData } from '../types'
+import type { AppliedFilters, ChessboardFilters, ViewRow, DbRow, RowData } from '../types'
 
 interface UseChessboardDataProps {
   appliedFilters: AppliedFilters
+  filters?: ChessboardFilters
   enabled?: boolean
 }
 
@@ -93,7 +94,7 @@ function applyServerSideFilters(query: any, appliedFilters: AppliedFilters) {
   return query
 }
 
-export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessboardDataProps) => {
+export const useChessboardData = ({ appliedFilters, filters, enabled = true }: UseChessboardDataProps) => {
   // PERFORMANCE MONITORING: Отслеживание рендеров только при превышении лимита
   const renderCountRef = useRef(0)
   renderCountRef.current += 1
@@ -172,11 +173,13 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
       // Фильтрация по документации требует подзапроса из-за сложной связи
       if (
         appliedFilters.documentation_section_ids?.length ||
-        appliedFilters.documentation_code_ids?.length
+        appliedFilters.documentation_code_ids?.length ||
+        (appliedFilters.documentation_version_ids && Object.keys(appliedFilters.documentation_version_ids).length > 0)
       ) {
         console.log('📄 Starting documentation filtering with:', {
           section_ids: appliedFilters.documentation_section_ids,
-          code_ids: appliedFilters.documentation_code_ids
+          code_ids: appliedFilters.documentation_code_ids,
+          version_ids: appliedFilters.documentation_version_ids
         }) // LOG: параметры фильтрации документации
 
         // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Правильный запрос с INNER JOIN для фильтрации только существующих chessboard записей
@@ -209,6 +212,13 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
             console.warn(`⚠️ Documentation section filter: ${appliedFilters.documentation_section_ids.length} IDs > 100, consider pagination`) // LOG
           }
           docQuery = docQuery.in('documentation_versions.documentations.tag_id', appliedFilters.documentation_section_ids)
+        }
+
+        // Применяем фильтры по версиям документов
+        if (appliedFilters.documentation_version_ids && Object.keys(appliedFilters.documentation_version_ids).length > 0) {
+          const versionIds = Object.values(appliedFilters.documentation_version_ids)
+          console.log('🔍 Фильтрация по версиям документов:', versionIds) // LOG: применение фильтра версий
+          docQuery = docQuery.in('version_id', versionIds)
         }
 
         // Выполняем подзапрос для получения chessboard_id
@@ -742,6 +752,59 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
     }) // LOG
   }
 
+  // Загрузка версий документов для выбранного проекта
+  const { data: documentVersions = [] } = useQuery({
+    queryKey: ['document-versions', filters?.project, JSON.stringify(filters?.documentationCode?.slice().sort() || [])],
+    queryFn: async () => {
+      if (!filters?.project || !filters?.documentationCode?.length || !supabase) return []
+
+      const { data, error } = await supabase
+        .from('documentation_versions')
+        .select('id, documentation_id, version_number, issue_date, status')
+        .in('documentation_id', filters.documentationCode)
+        .order('version_number', { ascending: false })
+
+      if (error) {
+        console.error('Ошибка загрузки версий документов:', error)
+        return []
+      }
+
+      return data || []
+    },
+    enabled: !!filters?.project && !!filters?.documentationCode?.length,
+  })
+
+  // Загрузка информации о документации для модального окна версий
+  const { data: documentationInfo = [] } = useQuery({
+    queryKey: ['documentation-info', filters?.project, JSON.stringify(filters?.documentationCode?.slice().sort() || [])],
+    queryFn: async () => {
+      if (!filters?.project || !filters?.documentationCode?.length || !supabase) return []
+
+      const { data, error } = await supabase
+        .from('documentations')
+        .select(`
+          id,
+          code,
+          project_name,
+          tag_id,
+          documentation_tags:documentation_tags!inner(
+            id,
+            name,
+            tag_number
+          )
+        `)
+        .in('id', filters.documentationCode)
+
+      if (error) {
+        console.error('Ошибка загрузки информации о документации:', error)
+        return []
+      }
+
+      return data || []
+    },
+    enabled: !!filters?.project && !!filters?.documentationCode?.length,
+  })
+
   return {
     data: transformedData,
     rawData,
@@ -749,5 +812,7 @@ export const useChessboardData = ({ appliedFilters, enabled = true }: UseChessbo
     error,
     refetch,
     statistics,
+    documentVersions,
+    documentationInfo,
   }
 }

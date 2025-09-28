@@ -36,6 +36,7 @@ interface ChessboardFiltersProps {
   onResetFilters: () => void
   onToggleCollapsed: () => void
   onOpenColumnSettings: () => void
+  onOpenVersionsModal?: () => void
   // Пропы для управления таблицей
   tableMode: TableMode
   hasAppliedProject: boolean
@@ -63,6 +64,7 @@ export const ChessboardFilters = memo(
     onResetFilters,
     onToggleCollapsed,
     onOpenColumnSettings,
+    onOpenVersionsModal,
     tableMode,
     hasAppliedProject,
     hasUnsavedChanges,
@@ -289,6 +291,13 @@ export const ChessboardFilters = memo(
               <Button onClick={onResetFilters} disabled={!hasAppliedFilters}>
                 Сбросить
               </Button>
+
+              {/* Кнопка выбора версий документов */}
+              {filters.documentationCode.length > 0 && (
+                <Button onClick={onOpenVersionsModal}>
+                  Версии
+                </Button>
+              )}
 
               <Button
                 onClick={onToggleCollapsed}
