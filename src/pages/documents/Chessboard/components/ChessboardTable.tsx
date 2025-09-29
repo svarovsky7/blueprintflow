@@ -52,7 +52,7 @@ const getDynamicDropdownStyle = (options: Array<{ label: string; value: any }>) 
 
 // КОНФИГУРАЦИЯ: Точные настройки ширины столбцов для оптимизации пространства
 const COLUMN_WIDTH_CONFIG: Record<string, { width?: number; minWidth?: number; maxWidth?: number }> = {
-  [COLUMN_KEYS.ACTIONS]: { width: 60 }, // Уменьшенная ширина для действий
+  [COLUMN_KEYS.ACTIONS]: { width: 80 }, // Увеличенная ширина для действий (+20px)
   [COLUMN_KEYS.DOCUMENTATION_SECTION]: { minWidth: 40, maxWidth: 80 }, // "Раздел" динамический 40-80px
   [COLUMN_KEYS.DOCUMENTATION_CODE]: { width: 100 }, // "Шифр проекта" 100px
   [COLUMN_KEYS.DOCUMENTATION_PROJECT_NAME]: { width: 120, minWidth: 120, maxWidth: 120 }, // Фиксированная
@@ -189,7 +189,7 @@ const WorkNameSelect: React.FC<WorkNameSelectProps> = ({ value, costTypeId, cost
   return (
     <Select
       value={value || undefined}
-      placeholder="Выберите работу"
+      placeholder=""
       onChange={onChange}
       allowClear
       showSearch
@@ -287,7 +287,7 @@ const VersionSelect: React.FC<VersionSelectProps> = ({ value, documentId, isEdit
       value={displayValue}
       // ИСПРАВЛЕНИЕ: явно указываем что отображать в поле
       optionLabelProp="label"
-      placeholder="Версия"
+      placeholder=""
       onChange={async (versionId) => {
         console.log('🔄 Version changing:', { versionId, value }) // LOG
 
@@ -1532,7 +1532,7 @@ export const ChessboardTable = memo(({
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
-              placeholder="Выберите раздел"
+              placeholder=""
               size="small"
               style={{ width: '100%' }}
               dropdownStyle={getDynamicDropdownStyle(documentationTagsData)}
@@ -1612,7 +1612,7 @@ export const ChessboardTable = memo(({
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
-              placeholder="Выберите шифр проекта"
+              placeholder=""
               size="small"
               style={{ width: '100%' }}
               dropdownStyle={getDynamicDropdownStyle(documentationData)}
@@ -1723,7 +1723,7 @@ export const ChessboardTable = memo(({
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
-              placeholder="Выберите корпус"
+              placeholder=""
               size="small"
               style={{ width: '100%' }}
               dropdownStyle={getDynamicDropdownStyle(blocksData)}
@@ -1823,7 +1823,7 @@ export const ChessboardTable = memo(({
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
-              placeholder="Выберите категорию"
+              placeholder=""
               size="small"
               style={{ width: '100%' }}
               dropdownStyle={getDynamicDropdownStyle(costCategoriesData)}
@@ -1886,7 +1886,7 @@ export const ChessboardTable = memo(({
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
-              placeholder="Выберите вид затрат"
+              placeholder=""
               size="small"
               style={{
                 width: '100%',
@@ -2030,7 +2030,7 @@ export const ChessboardTable = memo(({
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
-              placeholder="Выберите локализацию"
+              placeholder=""
               size="small"
               style={{ width: '100%' }}
               dropdownStyle={getDynamicDropdownStyle(locationsData)}
@@ -2122,7 +2122,7 @@ export const ChessboardTable = memo(({
               size="small"
               style={STABLE_STYLES.fullWidth}
               dropdownStyle={getDynamicDropdownStyle(MATERIAL_TYPE_OPTIONS)}
-              placeholder="Выберите тип"
+              placeholder=""
             />
           )
         }
@@ -2469,7 +2469,7 @@ export const ChessboardTable = memo(({
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
-              placeholder="Выберите номенклатуру"
+              placeholder=""
               size="small"
               style={{
                 width: '100%',
@@ -2534,11 +2534,7 @@ export const ChessboardTable = memo(({
               allowClear
               showSearch
               size="small"
-              placeholder={
-                record.nomenclatureId
-                  ? "Выберите поставщика для номенклатуры"
-                  : "Сначала выберите номенклатуру"
-              }
+              placeholder=""
               disabled={!record.nomenclatureId}
               style={{ width: '100%' }}
               filterOption={(input, option) => {
@@ -2591,7 +2587,7 @@ export const ChessboardTable = memo(({
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
-              placeholder="Ед.изм."
+              placeholder=""
               size="small"
               style={{ width: '100%' }}
               dropdownStyle={getDynamicDropdownStyle(unitsData)}
@@ -2660,14 +2656,14 @@ export const ChessboardTable = memo(({
       <style>{`
         /* Действия - 1-й столбец */
         .chessboard-table .ant-table-thead > tr > th:nth-child(1) {
-          width: 60px !important;
-          min-width: 60px !important;
-          max-width: 60px !important;
+          width: 80px !important;
+          min-width: 80px !important;
+          max-width: 80px !important;
         }
         .chessboard-table .ant-table-tbody > tr > td:nth-child(1) {
-          width: 60px !important;
-          min-width: 60px !important;
-          max-width: 60px !important;
+          width: 80px !important;
+          min-width: 80px !important;
+          max-width: 80px !important;
         }
         /* Раздел - 2-й столбец */
         .chessboard-table .ant-table-thead > tr > th:nth-child(2) {
@@ -2884,6 +2880,23 @@ export const ChessboardTable = memo(({
           word-break: break-word !important;
           padding: 4px 6px !important;
           line-height: 1.2 !important;
+          vertical-align: middle !important;
+        }
+        /* Выравнивание полей ввода по центру ячеек */
+        .chessboard-table .ant-table-tbody > tr > td .ant-select,
+        .chessboard-table .ant-table-tbody > tr > td .ant-input,
+        .chessboard-table .ant-table-tbody > tr > td .ant-input-number {
+          display: flex !important;
+          align-items: center !important;
+          height: 24px !important;
+          min-height: 24px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td .ant-select-selector,
+        .chessboard-table .ant-table-tbody > tr > td .ant-input-number-input {
+          height: 24px !important;
+          min-height: 24px !important;
+          display: flex !important;
+          align-items: center !important;
         }
         .chessboard-table .ant-table-tbody > tr {
           height: auto !important;
