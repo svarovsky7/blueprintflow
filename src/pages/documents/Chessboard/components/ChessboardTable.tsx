@@ -2821,28 +2821,28 @@ export const ChessboardTable = memo(({
           height: auto !important;
           min-height: 32px !important;
         }
-        /* Компактные иконки в столбце действий */
+        /* Компактные иконки в столбце действий с поддержкой масштаба */
         .chessboard-table .ant-btn {
-          padding: 2px 4px !important;
-          height: 24px !important;
-          width: 24px !important;
-          font-size: 12px !important;
-          margin: 0 1px !important;
+          padding: calc(2px * var(--app-scale, 1)) calc(4px * var(--app-scale, 1)) !important;
+          height: calc(24px * var(--app-scale, 1)) !important;
+          width: calc(24px * var(--app-scale, 1)) !important;
+          font-size: calc(12px * var(--app-scale, 1)) !important;
+          margin: 0 calc(1px * var(--app-scale, 1)) !important;
         }
         .chessboard-table .ant-btn-icon-only {
-          padding: 2px !important;
+          padding: calc(2px * var(--app-scale, 1)) !important;
         }
         .chessboard-table .anticon {
-          font-size: 12px !important;
+          font-size: calc(12px * var(--app-scale, 1)) !important;
           line-height: 1 !important;
         }
-        /* Компактная цветовая кнопка */
+        /* Компактная цветовая кнопка с поддержкой масштаба */
         .chessboard-table .color-picker-button {
-          width: 20px !important;
-          height: 20px !important;
-          min-width: 20px !important;
+          width: calc(20px * var(--app-scale, 1)) !important;
+          height: calc(20px * var(--app-scale, 1)) !important;
+          min-width: calc(20px * var(--app-scale, 1)) !important;
           padding: 0 !important;
-          margin: 0 1px !important;
+          margin: 0 calc(1px * var(--app-scale, 1)) !important;
         }
         /* Компактные элементы управления */
         .chessboard-table .ant-select {
