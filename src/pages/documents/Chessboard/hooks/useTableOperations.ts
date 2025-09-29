@@ -1006,7 +1006,7 @@ export const useTableOperations = () => {
       return edits ? { ...row, ...edits, isEditing: true } : row
     })
 
-    return [...dataWithEdits, ...newRows]
+    return [...newRows, ...dataWithEdits]
   }, [editedRows, newRows, editingRows])
 
   // Проверка наличия несохраненных изменений

@@ -13,11 +13,16 @@ interface CommentsCellProps {
 export const CommentsCell: React.FC<CommentsCellProps> = ({ rowId, mode = 'view' }) => {
   const [modalVisible, setModalVisible] = useState(false)
 
-  // Загружаем комментарии для определения отображения кнопки
+  // Проверяем, является ли ID валидным UUID (не временным)
+  const isValidUUID = (id: string): boolean => {
+    return !id.startsWith('new-') && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+  }
+
+  // Загружаем комментарии для определения отображения кнопки (только для валидных UUID)
   const { data: comments = [] } = useQuery({
     queryKey: ['chessboard-comments', rowId],
     queryFn: () => chessboardCommentsApi.getByChessboardId(rowId),
-    enabled: !!rowId,
+    enabled: !!rowId && isValidUUID(rowId),
   })
 
   // Определяем, есть ли комментарии

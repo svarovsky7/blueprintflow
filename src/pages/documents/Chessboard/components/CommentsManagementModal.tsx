@@ -57,7 +57,7 @@ export const CommentsManagementModal: React.FC<CommentsManagementModalProps> = (
   } = useQuery({
     queryKey: ['chessboard-comments', chessboardId],
     queryFn: () => chessboardCommentsApi.getByChessboardId(chessboardId),
-    enabled: open && !!chessboardId,
+    enabled: open && !!chessboardId && !chessboardId.startsWith('new-'),
   })
 
   // Создание комментария

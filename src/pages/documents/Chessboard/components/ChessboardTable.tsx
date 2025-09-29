@@ -879,6 +879,7 @@ interface ChessboardTableProps {
   onRowDelete: (rowId: string) => void
   onRowColorChange: (rowId: string, color: RowColor) => void
   onStartEditing: (rowId: string) => void
+  onAddRow: () => void
 }
 
 export const ChessboardTable = memo(({
@@ -893,6 +894,7 @@ export const ChessboardTable = memo(({
   onRowDelete,
   onRowColorChange,
   onStartEditing,
+  onAddRow,
 }: ChessboardTableProps) => {
 
   // Каскадная зависимость номенклатуры и поставщиков
@@ -1343,23 +1345,13 @@ export const ChessboardTable = memo(({
                   onChange={(color) => onRowColorChange(record.id, color)}
                 />
               </Tooltip>
-              <Tooltip title="Редактировать">
-                <div>
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<EditOutlined />}
-                    onClick={handleStartEditing(record.id)}
-                  />
-                </div>
-              </Tooltip>
               <Tooltip title="Добавить строку">
                 <div>
                   <Button
                     type="text"
                     size="small"
                     icon={<PlusOutlined />}
-                    onClick={() => {/* TODO: добавить новую строку */}}
+                    onClick={onAddRow}
                   />
                 </div>
               </Tooltip>

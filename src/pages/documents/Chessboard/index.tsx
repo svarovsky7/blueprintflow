@@ -550,11 +550,11 @@ export default function Chessboard() {
             currentProjectId={appliedFilters.project_id}
             onSelectionChange={setSelectedRowKeys}
             onRowUpdate={handleRowUpdate}
-            onBackupRowUpdate={handleBackupRowUpdate}
             onRowCopy={copyRow}
             onRowDelete={handleRowDelete}
             onRowColorChange={updateRowColor}
             onStartEditing={handleStartEditing}
+            onAddRow={handleAddRow}
           />
         </div>
 
