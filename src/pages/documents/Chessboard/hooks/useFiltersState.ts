@@ -45,13 +45,22 @@ export const useFiltersState = () => {
     [saveFilters],
   )
 
-  // Сброс всех фильтров
+  // Сброс всех фильтров кроме проекта
   const resetFilters = useCallback(() => {
-    const resetFilters = { ...DEFAULT_FILTERS }
+    const resetFilters = {
+      ...DEFAULT_FILTERS,
+      project: filters.project // Сохраняем текущий проект
+    }
     setFilters(resetFilters)
     saveFilters(resetFilters)
-    setAppliedFilters(DEFAULT_APPLIED_FILTERS)
-  }, [saveFilters])
+
+    // Применяем сброшенные фильтры, сохраняя только проект
+    const resetAppliedFilters = {
+      ...DEFAULT_APPLIED_FILTERS,
+      project_id: filters.project // Сохраняем примененный проект
+    }
+    setAppliedFilters(resetAppliedFilters)
+  }, [saveFilters, filters.project])
 
   // Каскадные изменения фильтров
   const updateCascadingFilter = useCallback(

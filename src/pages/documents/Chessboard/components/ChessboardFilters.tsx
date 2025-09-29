@@ -294,7 +294,7 @@ export const ChessboardFilters = memo(
                 Применить
               </Button>
 
-              <Button onClick={onResetFilters} disabled={!hasAppliedFilters}>
+              <Button onClick={onResetFilters}>
                 Сбросить
               </Button>
 

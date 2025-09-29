@@ -381,6 +381,14 @@ export default function Chessboard() {
     }
   }, [updateFilter, updateDocumentVersions, appliedFilters.documentation_version_ids, setAppliedFilters])
 
+  // Обработчик сброса фильтров с очисткой статуса
+  const handleResetFilters = useCallback(() => {
+    resetFilters()
+    // Сбрасываем статус при сбросе фильтров
+    setCurrentStatus(undefined)
+    statusSetManuallyRef.current = false
+  }, [resetFilters])
+
   // Обработчик изменения статуса
   const handleStatusChange = useCallback(async (statusId: string) => {
     setCurrentStatus(statusId)
@@ -495,7 +503,7 @@ export default function Chessboard() {
           onFilterChange={updateFilter}
           onCascadingFilterChange={updateCascadingFilter}
           onApplyFilters={applyFilters}
-          onResetFilters={resetFilters}
+          onResetFilters={handleResetFilters}
           onToggleCollapsed={toggleFiltersCollapsed}
           onOpenColumnSettings={openDrawer}
           onOpenVersionsModal={handleOpenVersionsModal}
