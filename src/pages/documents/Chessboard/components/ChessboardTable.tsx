@@ -1254,16 +1254,49 @@ export const ChessboardTable = memo(({
       currentFloorQuantities: record.floorQuantities
     })
 
-    // Получаем текущие общие количества
-    const currentQuantityPd = parseFloat(record.quantityPd || '0')
-    const currentQuantitySpec = parseFloat(record.quantitySpec || '0')
-    const currentQuantityRd = parseFloat(record.quantityRd || '0')
+    // Получаем текущие значения из DOM элементов (для режима добавления/редактирования)
+    const getInputValue = (className: string): number => {
+      // Ищем input внутри строки с recordId
+      const rowElement = document.querySelector(`[data-row-key="${recordId}"]`)
+      if (!rowElement) {
+        console.log(`🏢 DOM: Row element not found for ${recordId}`) // LOG: строка не найдена
+        return 0
+      }
 
-    console.log('🏢 Current quantities:', {
+      // InputNumber создает сложную структуру, ищем настоящий input внутри
+      const antInputElement = rowElement.querySelector(`.${className}`)
+      const inputElement = antInputElement?.querySelector('input') as HTMLInputElement
+      const value = inputElement?.value || '0'
+      console.log(`🏢 DOM value for .${className}:`, value, 'element:', inputElement) // LOG: значение из DOM
+      return parseFloat(value) || 0
+    }
+
+    // Пробуем получить значения из DOM input'ов (приоритет для режима редактирования)
+    let currentQuantityPd = getInputValue('quantity-pd')
+    let currentQuantitySpec = getInputValue('quantity-spec')
+    let currentQuantityRd = getInputValue('quantity-rd')
+
+    // Fallback к значениям из record, если DOM значения не найдены или равны 0
+    if (currentQuantityPd === 0 && record.quantityPd) {
+      currentQuantityPd = parseFloat(record.quantityPd || '0')
+    }
+    if (currentQuantitySpec === 0 && record.quantitySpec) {
+      currentQuantitySpec = parseFloat(record.quantitySpec || '0')
+    }
+    if (currentQuantityRd === 0 && record.quantityRd) {
+      currentQuantityRd = parseFloat(record.quantityRd || '0')
+    }
+
+    console.log('🏢 Final quantities after DOM check:', {
       currentQuantityPd,
       currentQuantitySpec,
-      currentQuantityRd
-    })
+      currentQuantityRd,
+      fromRecord: {
+        quantityPd: record.quantityPd,
+        quantitySpec: record.quantitySpec,
+        quantityRd: record.quantityRd
+      }
+    }) // LOG: финальные количества после проверки DOM
 
     // Если количества есть, распределяем их по новым этажам
     const newFloorQuantities = distributeQuantitiesAcrossFloors(
@@ -1285,6 +1318,31 @@ export const ChessboardTable = memo(({
     onRowUpdate(recordId, updateData)
 
   }, [data, onRowUpdate])
+
+  // Обработчик изменения количеств с автоматическим перераспределением по этажам
+  const handleQuantityChange = useCallback((recordId: string, field: 'quantityPd' | 'quantitySpec' | 'quantityRd', newValue: number) => {
+    console.log('🏢💰 handleQuantityChange called:', { recordId, field, newValue }) // LOG: вызов обработчика количеств
+
+    // Сначала обновляем значение в записи
+    onRowUpdate(recordId, { [field]: newValue })
+
+    // Находим запись, чтобы получить этажи
+    const record = data.find(r => r.id === recordId)
+    if (!record) {
+      console.error('🏢💰 ERROR: Record not found for quantity change:', recordId) // LOG: запись не найдена
+      return
+    }
+
+    // Если есть этажи, запускаем перераспределение
+    if (record.floors && record.floors.trim()) {
+      console.log('🏢💰 Floors detected, triggering redistribution:', record.floors) // LOG: обнаружены этажи, запуск перераспределения
+
+      // Небольшая задержка, чтобы DOM успел обновиться
+      setTimeout(() => {
+        handleFloorsChange(recordId, record.floors)
+      }, 100)
+    }
+  }, [data, onRowUpdate, handleFloorsChange])
 
   // ОПТИМИЗАЦИЯ: стабильные обработчики событий (ИСПРАВЛЕНО: убираем циклические зависимости)
   const handleStartEditing = useCallback((recordId: string) => () => onStartEditing(recordId), [onStartEditing])
@@ -2164,10 +2222,11 @@ export const ChessboardTable = memo(({
             return (
               <Space.Compact style={{ width: '100%' }}>
                 <InputNumber
+                  className="quantity-pd"
                   value={value || 0}
                   onChange={(newValue) => {
                     const quantity = newValue || 0
-                    onRowUpdate(record.id, { quantityPd: quantity })
+                    handleQuantityChange(record.id, 'quantityPd', quantity)
                   }}
                   size="small"
                   style={{ width: '100%', flex: 1 }}
@@ -2192,10 +2251,11 @@ export const ChessboardTable = memo(({
           } else {
             return (
               <InputNumber
+                className="quantity-pd"
                 value={value || 0}
                 onChange={(newValue) => {
                   const quantity = newValue || 0
-                  onRowUpdate(record.id, { quantityPd: quantity })
+                  handleQuantityChange(record.id, 'quantityPd', quantity)
                 }}
                 size="small"
                 style={{ width: '100%' }}
@@ -2260,10 +2320,11 @@ export const ChessboardTable = memo(({
             return (
               <Space.Compact style={{ width: '100%' }}>
                 <InputNumber
+                  className="quantity-spec"
                   value={value || 0}
                   onChange={(newValue) => {
                     const quantity = newValue || 0
-                    onRowUpdate(record.id, { quantitySpec: quantity })
+                    handleQuantityChange(record.id, 'quantitySpec', quantity)
                   }}
                   size="small"
                   style={{ width: '100%', flex: 1 }}
@@ -2288,10 +2349,11 @@ export const ChessboardTable = memo(({
           } else {
             return (
               <InputNumber
+                className="quantity-spec"
                 value={value || 0}
                 onChange={(newValue) => {
                   const quantity = newValue || 0
-                  onRowUpdate(record.id, { quantitySpec: quantity })
+                  handleQuantityChange(record.id, 'quantitySpec', quantity)
                 }}
                 size="small"
                 style={{ width: '100%' }}
@@ -2356,10 +2418,11 @@ export const ChessboardTable = memo(({
             return (
               <Space.Compact style={{ width: '100%' }}>
                 <InputNumber
+                  className="quantity-rd"
                   value={value || 0}
                   onChange={(newValue) => {
                     const quantity = newValue || 0
-                    onRowUpdate(record.id, { quantityRd: quantity })
+                    handleQuantityChange(record.id, 'quantityRd', quantity)
                   }}
                   size="small"
                   style={{ width: '100%', flex: 1 }}
@@ -2384,10 +2447,11 @@ export const ChessboardTable = memo(({
           } else {
             return (
               <InputNumber
+                className="quantity-rd"
                 value={value || 0}
                 onChange={(newValue) => {
                   const quantity = newValue || 0
-                  onRowUpdate(record.id, { quantityRd: quantity })
+                  handleQuantityChange(record.id, 'quantityRd', quantity)
                 }}
                 size="small"
                 style={{ width: '100%' }}

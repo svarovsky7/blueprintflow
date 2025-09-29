@@ -2,12 +2,15 @@
   /* VorView component */
 }
 import React, { useState, useEffect } from 'react'
-import { Table, Typography, Space, Spin, Alert, Button, InputNumber, message } from 'antd'
-import { ArrowLeftOutlined, DownloadOutlined } from '@ant-design/icons'
+import { Table, Typography, Space, Spin, Alert, Button, InputNumber, message, Checkbox } from 'antd'
+import { ArrowLeftOutlined, DownloadOutlined, EditOutlined, SaveOutlined, CloseOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import * as XLSX from 'xlsx'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { getVorTableData, type VorTableItem } from '@/entities/vor'
+import AddWorkModal from './VorView/components/AddWorkModal'
+import AddMaterialModal from './VorView/components/AddMaterialModal'
 
 const { Title, Text } = Typography
 
@@ -79,6 +82,9 @@ interface ProjectDocument {
   project_name: string
 }
 
+// Типы для режимов работы
+type ViewMode = 'view' | 'edit' | 'add' | 'delete'
+
 // Функция для создания компактных заголовков с максимум 3 строками
 const formatHeaderText = (text: string): JSX.Element => {
   // Предопределенные сокращенные варианты заголовков
@@ -121,6 +127,17 @@ const VorView = () => {
   const [vorItemsData, setVorItemsData] = useState<VorItem[]>([])
   const queryClient = useQueryClient()
   const [messageApi, contextHolder] = message.useMessage()
+
+  // Состояния для режимов работы
+  const [viewMode, setViewMode] = useState<ViewMode>('view')
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([])
+  const [editableVorData, setEditableVorData] = useState<VorTableItem[]>([])
+  const [isEditingEnabled, setIsEditingEnabled] = useState(false)
+
+  // Состояния для модальных окон
+  const [addWorkModalVisible, setAddWorkModalVisible] = useState(false)
+  const [addMaterialModalVisible, setAddMaterialModalVisible] = useState(false)
+  const [selectedWorkForMaterial, setSelectedWorkForMaterial] = useState<{ id: string; name: string } | null>(null)
 
   // Загружаем данные ВОР и связанной информации
   const { data: vorData, isLoading: vorLoading } = useQuery({
@@ -648,12 +665,29 @@ const VorView = () => {
     enabled: !!vorData?.vor,
   })
 
+  // Загружаем редактируемые данные ВОР из новых таблиц
+  const { data: editableVorItems, isLoading: editableVorLoading } = useQuery({
+    queryKey: ['editable-vor-items', vorId],
+    queryFn: async () => {
+      if (!vorId) return []
+      return await getVorTableData(vorId)
+    },
+    enabled: !!vorId && isEditingEnabled,
+  })
+
   // Синхронизируем локальные данные с данными из запроса
   useEffect(() => {
     if (vorItems) {
       setVorItemsData(vorItems)
     }
   }, [vorItems])
+
+  // Синхронизируем редактируемые данные
+  useEffect(() => {
+    if (editableVorItems) {
+      setEditableVorData(editableVorItems)
+    }
+  }, [editableVorItems])
 
   // Функция для обновления коэффициента в строке работы
   const updateItemCoefficient = (itemId: string, newCoefficient: number) => {
@@ -671,6 +705,88 @@ const VorView = () => {
         return item
       })
     )
+  }
+
+  // Функции управления режимами
+  const handleEditMode = () => {
+    setViewMode('edit')
+    setIsEditingEnabled(true)
+    setSelectedRowKeys([])
+  }
+
+  const handleAddMode = () => {
+    setViewMode('add')
+    setIsEditingEnabled(true)
+    setSelectedRowKeys([])
+  }
+
+  const handleAddWork = () => {
+    setAddWorkModalVisible(true)
+  }
+
+  const handleAddWorkSuccess = () => {
+    setAddWorkModalVisible(false)
+    // Обновляем данные после добавления работы
+    queryClient.invalidateQueries({ queryKey: ['editable-vor-items', vorId] })
+    messageApi.success('Работа успешно добавлена')
+  }
+
+  const handleAddMaterial = (workId: string, workName: string) => {
+    setSelectedWorkForMaterial({ id: workId, name: workName })
+    setAddMaterialModalVisible(true)
+  }
+
+  const handleAddMaterialSuccess = () => {
+    setAddMaterialModalVisible(false)
+    setSelectedWorkForMaterial(null)
+    // Обновляем данные после добавления материала
+    queryClient.invalidateQueries({ queryKey: ['editable-vor-items', vorId] })
+    messageApi.success('Материал успешно добавлен')
+  }
+
+  const handleDeleteMode = () => {
+    setViewMode('delete')
+    setSelectedRowKeys([])
+  }
+
+  const handleViewMode = () => {
+    setViewMode('view')
+    setIsEditingEnabled(false)
+    setSelectedRowKeys([])
+    setEditableVorData([])
+  }
+
+  const handleSave = async () => {
+    try {
+      // TODO: Реализовать сохранение изменений
+      messageApi.success('Изменения сохранены')
+      setViewMode('view')
+      setIsEditingEnabled(false)
+      queryClient.invalidateQueries({ queryKey: ['vor-items', vorId] })
+    } catch (error) {
+      console.error('Ошибка сохранения:', error)
+      messageApi.error('Ошибка при сохранении изменений')
+    }
+  }
+
+  const handleCancel = () => {
+    setViewMode('view')
+    setIsEditingEnabled(false)
+    setSelectedRowKeys([])
+    setEditableVorData([])
+  }
+
+  const handleDeleteSelected = async () => {
+    try {
+      // TODO: Реализовать удаление выбранных элементов
+      messageApi.success(`Удалено ${selectedRowKeys.length} элементов`)
+      setSelectedRowKeys([])
+      setViewMode('view')
+      queryClient.invalidateQueries({ queryKey: ['vor-items', vorId] })
+    } catch (error) {
+      console.error('Ошибка удаления:', error)
+      messageApi.error('Ошибка при удалении элементов')
+    }
   }
 
   // Функция экспорта в Excel
@@ -956,6 +1072,32 @@ const VorView = () => {
     },
   ]
 
+  // Добавляем колонку действий для режима редактирования
+  if (viewMode === 'edit' || viewMode === 'add') {
+    columns.push({
+      title: 'Действия',
+      key: 'actions',
+      width: 100,
+      fixed: 'right' as const,
+      render: (_, record: VorItem) => {
+        // Показываем кнопку добавления материала только для строк работ
+        if (record.type === 'work') {
+          return (
+            <Button
+              type="link"
+              size="small"
+              onClick={() => handleAddMaterial(record.id, record.name)}
+              style={{ padding: 0 }}
+            >
+              + Материал
+            </Button>
+          )
+        }
+        return null
+      },
+    })
+  }
+
   // Формирование заголовка с перечислением шифров проектов из комплектов
   const projectCodes =
     setsData && setsData.length > 0
@@ -1044,24 +1186,66 @@ const VorView = () => {
             </Button>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Text strong>Коэффициент:</Text>
-                <InputNumber
-                  min={0.1}
-                  max={10}
-                  step={0.1}
-                  precision={1}
-                  value={coefficient}
-                  onChange={handleCoefficientChange}
-                  style={{ width: 80 }}
-                />
-              </div>
-              <Button icon={<DownloadOutlined />} onClick={handleExportToExcel} size="large">
-                Экспорт в Excel
-              </Button>
-              <Button type="primary" onClick={handleGoToChessboard} size="large">
-                Комплект
-              </Button>
+              {viewMode === 'view' && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Text strong>Коэффициент:</Text>
+                    <InputNumber
+                      min={0.1}
+                      max={10}
+                      step={0.1}
+                      precision={1}
+                      value={coefficient}
+                      onChange={handleCoefficientChange}
+                      style={{ width: 80 }}
+                    />
+                  </div>
+                  <Button icon={<EditOutlined />} onClick={handleEditMode} size="large">
+                    Редактировать
+                  </Button>
+                  <Button icon={<DownloadOutlined />} onClick={handleExportToExcel} size="large">
+                    Экспорт в Excel
+                  </Button>
+                  <Button type="primary" onClick={handleGoToChessboard} size="large">
+                    Комплект
+                  </Button>
+                </>
+              )}
+
+              {(viewMode === 'edit' || viewMode === 'add') && (
+                <>
+                  <Button icon={<PlusOutlined />} onClick={handleAddWork} size="large">
+                    Добавить работу
+                  </Button>
+                  <Button icon={<DeleteOutlined />} onClick={handleDeleteMode} size="large">
+                    Удалить
+                  </Button>
+                  <Button icon={<SaveOutlined />} onClick={handleSave} size="large" type="primary">
+                    Сохранить
+                  </Button>
+                  <Button icon={<CloseOutlined />} onClick={handleCancel} size="large">
+                    Отмена
+                  </Button>
+                </>
+              )}
+
+              {viewMode === 'delete' && (
+                <>
+                  <Button
+                    icon={<DeleteOutlined />}
+                    onClick={handleDeleteSelected}
+                    size="large"
+                    type="primary"
+                    danger
+                    disabled={selectedRowKeys.length === 0}
+                  >
+                    Удалить ({selectedRowKeys.length})
+                  </Button>
+                  <Button icon={<CloseOutlined />} onClick={handleCancel} size="large">
+                    Отмена
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
@@ -1111,7 +1295,7 @@ const VorView = () => {
           </style>
           <Table
             columns={columns}
-            dataSource={vorItemsData.length > 0 ? vorItemsData : vorItems}
+            dataSource={isEditingEnabled && editableVorData.length > 0 ? editableVorData : (vorItemsData.length > 0 ? vorItemsData : vorItems)}
             rowKey="id"
             pagination={false}
             scroll={{
@@ -1122,6 +1306,11 @@ const VorView = () => {
             size="middle"
             bordered
             rowClassName={getRowClassName}
+            rowSelection={viewMode === 'delete' ? {
+              selectedRowKeys,
+              onChange: setSelectedRowKeys,
+              type: 'checkbox',
+            } : undefined}
             summary={(data) => {
               // Суммируем номенклатуру только для материалов (не работ)
               const totalNomenclature = Math.round(
@@ -1163,6 +1352,29 @@ const VorView = () => {
           />
         </div>
       </div>
+
+      {/* Модальные окна */}
+      {vorId && (
+        <AddWorkModal
+          visible={addWorkModalVisible}
+          onCancel={() => setAddWorkModalVisible(false)}
+          onSuccess={handleAddWorkSuccess}
+          vorId={vorId}
+        />
+      )}
+
+      {selectedWorkForMaterial && (
+        <AddMaterialModal
+          visible={addMaterialModalVisible}
+          onCancel={() => {
+            setAddMaterialModalVisible(false)
+            setSelectedWorkForMaterial(null)
+          }}
+          onSuccess={handleAddMaterialSuccess}
+          vorWorkId={selectedWorkForMaterial.id}
+          workName={selectedWorkForMaterial.name}
+        />
+      )}
     </>
   )
 }

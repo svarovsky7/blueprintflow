@@ -44,7 +44,7 @@ export default function Chessboard() {
     setAppliedFilters,
   } = useFiltersState()
 
-  const { data, isLoading, error, statistics, documentVersions, documentationInfo } = useChessboardData({
+  const { data, isLoading, error, refetch, statistics, documentVersions, documentationInfo } = useChessboardData({
     appliedFilters,
     filters,
     enabled: !!appliedFilters.project_id,
@@ -81,8 +81,9 @@ export default function Chessboard() {
     saveChanges,
     cancelChanges,
     deleteSelectedRows,
+    deleteSingleRow,
     getDisplayData,
-  } = useTableOperations()
+  } = useTableOperations(refetch)
 
   // Хук для управления версиями документов
   const {
@@ -242,12 +243,15 @@ export default function Chessboard() {
   )
 
   const handleRowDelete = useCallback(
-    (rowId: string) => {
+    async (rowId: string) => {
       if (tableMode.mode === 'add') {
         removeNewRow(rowId)
+      } else {
+        // В режиме просмотра - каскадное удаление из базы данных
+        await deleteSingleRow(rowId)
       }
     },
-    [tableMode.mode, removeNewRow],
+    [tableMode.mode, removeNewRow, deleteSingleRow],
   )
 
   // Обработчики пагинации

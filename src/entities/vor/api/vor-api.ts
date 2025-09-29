@@ -23,8 +23,8 @@ export const getVorTableData = async (vor_id: string): Promise<VorTableItem[]> =
     const workItem: VorTableItem = {
       id: work.id,
       type: 'work',
-      name: work.name,
-      unit: work.units?.name || '',
+      name: work.rates?.work_name || '',
+      unit: work.rates?.units?.name || '',
       quantity: work.quantity,
       coefficient: work.coefficient,
       work_price: workPrice,

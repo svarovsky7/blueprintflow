@@ -4,24 +4,22 @@ export interface VorWork {
   id: string
   vor_id: string
   rate_id: string
-  name: string
-  unit_id: string | null
   quantity: number
   coefficient: number
   base_rate: number | null
   sort_order: number
   created_at: string
   updated_at: string
-  // Связанные данные
+  // Связанные данные через JOIN
   rates?: {
     id: string
     work_name: string
     base_rate: number
     unit_id: string | null
-  }
-  units?: {
-    id: string
-    name: string
+    units?: {
+      id: string
+      name: string
+    }
   }
 }
 
@@ -46,8 +44,6 @@ export interface VorMaterial {
 export interface CreateVorWorkDto {
   vor_id: string
   rate_id: string
-  name: string
-  unit_id?: string
   quantity?: number
   coefficient?: number
   base_rate?: number
@@ -56,8 +52,6 @@ export interface CreateVorWorkDto {
 
 // DTO для обновления работы
 export interface UpdateVorWorkDto {
-  name?: string
-  unit_id?: string
   quantity?: number
   coefficient?: number
   base_rate?: number

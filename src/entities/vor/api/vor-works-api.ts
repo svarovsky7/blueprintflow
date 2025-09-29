@@ -15,8 +15,13 @@ export const getVorWorks = async (filters: VorWorksFilters): Promise<VorWork[]> 
     .from('vor_works')
     .select(`
       *,
-      rates:rate_id(id, work_name, base_rate, unit_id),
-      units:unit_id(id, name)
+      rates:rate_id(
+        id,
+        work_name,
+        base_rate,
+        unit_id,
+        units:unit_id(id, name)
+      )
     `)
     .eq('vor_id', filters.vor_id)
     .order('sort_order', { ascending: true })
@@ -51,8 +56,13 @@ export const createVorWork = async (workData: CreateVorWorkDto): Promise<VorWork
     .insert(workData)
     .select(`
       *,
-      rates:rate_id(id, work_name, base_rate, unit_id),
-      units:unit_id(id, name)
+      rates:rate_id(
+        id,
+        work_name,
+        base_rate,
+        unit_id,
+        units:unit_id(id, name)
+      )
     `)
     .single()
 
@@ -74,8 +84,13 @@ export const updateVorWork = async (id: string, workData: UpdateVorWorkDto): Pro
     .eq('id', id)
     .select(`
       *,
-      rates:rate_id(id, work_name, base_rate, unit_id),
-      units:unit_id(id, name)
+      rates:rate_id(
+        id,
+        work_name,
+        base_rate,
+        unit_id,
+        units:unit_id(id, name)
+      )
     `)
     .single()
 

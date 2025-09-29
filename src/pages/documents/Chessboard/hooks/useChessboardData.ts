@@ -440,8 +440,9 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
       'chessboard-floors',
       stableFilterStrings.projectId,
       stableQueryKey.join('|'),
+      rawData?.length || 0, // Добавляем зависимость от количества основных данных
     ],
-    [stableFilterStrings, stableQueryKey]
+    [stableFilterStrings, stableQueryKey, rawData?.length]
   )
 
   // Отдельный запрос для данных этажей с батчингом
@@ -453,6 +454,7 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
       }
 
       const chessboardIds = rawData.map((row) => row.id)
+      console.log('🏢 Загружаем данные этажей для строк:', chessboardIds.length) // LOG
       const batchSize = 200 // Батчинг для производительности и предотвращения переполнения URL
       let allFloorsData: any[] = []
 
@@ -477,9 +479,10 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
         }
       }
 
+      console.log('🏢 Загружено данных этажей:', allFloorsData.length) // LOG
       return allFloorsData
     },
-    enabled: enabled && !!appliedFilters.project_id,
+    enabled: enabled && !!appliedFilters.project_id && !!rawData?.length,
   })
 
   // Стабилизируем queryKey для расценок используя стабильные строки
@@ -609,9 +612,17 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
       > = {}
 
       rowFloorsData.forEach((fd: any) => {
-        totalQuantityPd += parseFloat(fd.quantityPd) || 0
-        totalQuantitySpec += parseFloat(fd.quantitySpec) || 0
-        totalQuantityRd += parseFloat(fd.quantityRd) || 0
+        const pdValue = parseFloat(fd.quantityPd) || 0
+        const specValue = parseFloat(fd.quantitySpec) || 0
+        const rdValue = parseFloat(fd.quantityRd) || 0
+
+        totalQuantityPd += pdValue
+        totalQuantitySpec += specValue
+        totalQuantityRd += rdValue
+
+        if (pdValue > 0 || specValue > 0 || rdValue > 0) {
+          console.log(`🔢 Строка ${row.id}: PD=${pdValue}, Spec=${specValue}, RD=${rdValue}`) // LOG
+        }
 
         if (fd.floor_number !== null) {
           floorNumbers.push(fd.floor_number)

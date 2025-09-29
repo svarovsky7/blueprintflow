@@ -6,8 +6,6 @@ CREATE TABLE IF NOT EXISTS public.vor_works (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     vor_id uuid NOT NULL REFERENCES vor(id) ON DELETE CASCADE,
     rate_id uuid NOT NULL REFERENCES rates(id),
-    name text NOT NULL,
-    unit_id uuid REFERENCES units(id),
     quantity numeric(15,4) DEFAULT 0,
     coefficient numeric(10,4) DEFAULT 1.0,
     base_rate numeric(15,4),
@@ -52,12 +50,14 @@ END;
 $$ language 'plpgsql';
 
 -- Триггеры для vor_works
-CREATE TRIGGER IF NOT EXISTS update_vor_works_updated_at
+DROP TRIGGER IF EXISTS update_vor_works_updated_at ON vor_works;
+CREATE TRIGGER update_vor_works_updated_at
     BEFORE UPDATE ON vor_works
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Триггеры для vor_materials
-CREATE TRIGGER IF NOT EXISTS update_vor_materials_updated_at
+DROP TRIGGER IF EXISTS update_vor_materials_updated_at ON vor_materials;
+CREATE TRIGGER update_vor_materials_updated_at
     BEFORE UPDATE ON vor_materials
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 

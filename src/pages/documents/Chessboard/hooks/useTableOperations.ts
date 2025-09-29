@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import type { TableMode, RowData, RowColor } from '../types'
 import { parseFloorsFromString } from '../utils/floors'
 
-export const useTableOperations = () => {
+export const useTableOperations = (refetch?: () => void) => {
   const queryClient = useQueryClient()
   const { message } = App.useApp()
 
@@ -95,7 +95,7 @@ export const useTableOperations = () => {
       floorQuantities: {},
       // Технические поля
       isNew: true,
-      isEditing: true,
+      isEditing: tableMode.mode === 'add', // LOG: isEditing зависит от режима
       _insertPosition: insertPosition,
       _afterRowIndex: afterRowIndex,
     }
@@ -130,7 +130,7 @@ export const useTableOperations = () => {
       ...sourceRow,
       id: `copy-${Date.now()}-${Math.random()}`,
       isNew: true,
-      isEditing: true,
+      isEditing: tableMode.mode === 'add', // LOG: isEditing зависит от режима
       _insertPosition: insertPosition,
       _afterRowIndex: afterRowIndex,
     }
@@ -392,18 +392,69 @@ export const useTableOperations = () => {
           }
 
           // 5. Создаем связи с расценками (аналогично редактированию)
-          if (row.rateId) {
-            console.log('💰 Создание rates mapping для новой строки:', row.rateId) // LOG
-            const { error: rateError } = await supabase
-              .from('chessboard_rates_mapping')
-              .insert({
-                chessboard_id: newRowId,
-                rate_id: row.rateId
-              })
+          if (row.rateId || row.workName) {
+            console.log('💰 Создание rates mapping для новой строки:', { rateId: row.rateId, workName: row.workName }) // LOG
 
-            if (rateError) {
-              console.error('❌ Ошибка создания rates mapping:', rateError) // LOG
-              throw rateError
+            let finalRateId = row.rateId
+
+            // Если есть workName но нет rateId, ищем/создаем расценку
+            if (row.workName && row.workName.trim() && !finalRateId) {
+              const workNameValue = row.workName.trim()
+              console.log('💰 Поиск расценки по workName:', workNameValue) // LOG
+
+              // Ищем существующую расценку
+              const { data: existingRate, error: findRateError } = await supabase
+                .from('rates')
+                .select('id')
+                .eq('work_name', workNameValue)
+                .single()
+
+              if (findRateError && findRateError.code !== 'PGRST116') {
+                console.error('❌ Ошибка поиска расценки:', findRateError) // LOG
+                throw findRateError
+              }
+
+              if (existingRate) {
+                finalRateId = existingRate.id
+                console.log('✅ Найдена существующая расценка:', finalRateId) // LOG
+              } else {
+                // Создаем новую расценку со значениями по умолчанию
+                console.log('💰 Создание новой расценки:', workNameValue) // LOG
+                const { data: newRate, error: createRateError } = await supabase
+                  .from('rates')
+                  .insert({
+                    work_name: workNameValue,
+                    work_set: '',
+                    base_rate: 0,
+                    unit_id: row.unitId || null,
+                    active: true
+                  })
+                  .select('id')
+                  .single()
+
+                if (createRateError) {
+                  console.error('❌ Ошибка создания расценки:', createRateError) // LOG
+                  throw createRateError
+                }
+
+                finalRateId = newRate.id
+                console.log('✅ Создана новая расценка:', finalRateId) // LOG
+              }
+            }
+
+            // Создаем mapping только если есть finalRateId
+            if (finalRateId) {
+              const { error: rateError } = await supabase
+                .from('chessboard_rates_mapping')
+                .insert({
+                  chessboard_id: newRowId,
+                  rate_id: finalRateId
+                })
+
+              if (rateError) {
+                console.error('❌ Ошибка создания rates mapping:', rateError) // LOG
+                throw rateError
+              }
             }
           }
 
@@ -413,12 +464,13 @@ export const useTableOperations = () => {
 
             const floorRecords = []
             for (const [floorNumber, quantities] of Object.entries(row.floorQuantities)) {
+              console.log(`🏢 Обрабатываем этаж ${floorNumber}:`, quantities) // LOG
               floorRecords.push({
                 chessboard_id: newRowId,
                 floor_number: parseInt(floorNumber),
-                quantityPd: parseFloat(quantities.quantityPd) || 0,
-                quantitySpec: parseFloat(quantities.quantitySpec) || 0,
-                quantityRd: parseFloat(quantities.quantityRd) || 0
+                quantityPd: quantities.quantityPd ? Number(quantities.quantityPd) : null,
+                quantitySpec: quantities.quantitySpec ? Number(quantities.quantitySpec) : null,
+                quantityRd: quantities.quantityRd ? Number(quantities.quantityRd) : null
               })
             }
 
@@ -435,14 +487,15 @@ export const useTableOperations = () => {
           } else if (row.quantityPd || row.quantitySpec || row.quantityRd) {
             // Сохраняем общие количества без этажей
             console.log('🏢 Создание general quantities для новой строки') // LOG
+            console.log('📊 Общие количества для новой строки:', { quantityPd: row.quantityPd, quantitySpec: row.quantitySpec, quantityRd: row.quantityRd }) // LOG
             const { error: quantityError } = await supabase
               .from('chessboard_floor_mapping')
               .insert({
                 chessboard_id: newRowId,
                 floor_number: null,
-                quantityPd: parseFloat(row.quantityPd) || 0,
-                quantitySpec: parseFloat(row.quantitySpec) || 0,
-                quantityRd: parseFloat(row.quantityRd) || 0
+                quantityPd: row.quantityPd ? Number(row.quantityPd) : null,
+                quantitySpec: row.quantitySpec ? Number(row.quantitySpec) : null,
+                quantityRd: row.quantityRd ? Number(row.quantityRd) : null
               })
 
             if (quantityError) {
@@ -1158,6 +1211,36 @@ export const useTableOperations = () => {
     setMode('view')
   }, [setMode])
 
+  // Удаление одной строки (каскадное)
+  const deleteSingleRow = useCallback(async (rowId: string) => {
+    try {
+      const { error } = await supabase
+        .from('chessboard')
+        .delete()
+        .eq('id', rowId)
+
+      if (error) {
+        console.error('❌ Ошибка удаления строки:', error) // LOG
+        message.error(`Ошибка удаления строки: ${error.message}`)
+        return false
+      }
+
+      message.success('Строка успешно удалена')
+      // Обновляем данные
+      if (refetch) {
+        await refetch()
+      } else {
+        // Fallback: invalidate всех queries, которые начинаются с 'chessboard-'
+        await queryClient.invalidateQueries({ queryKey: ['chessboard-'] })
+      }
+      return true
+    } catch (error) {
+      console.error('❌ Ошибка при удалении строки:', error) // LOG
+      message.error('Произошла ошибка при удалении строки')
+      return false
+    }
+  }, [refetch, message, queryClient])
+
   // Удаление выбранных строк
   const deleteSelectedRows = useCallback(async () => {
     if (tableMode.selectedRowKeys.length === 0) {
@@ -1204,7 +1287,14 @@ export const useTableOperations = () => {
 
       // Иначе используем обычное одиночное редактирование
       const edits = editedRows.get(row.id)
-      return edits ? { ...row, ...edits, isEditing: true } : row
+      if (edits) {
+        return {
+          ...row,
+          ...edits,
+          isEditing: tableMode.mode === 'edit' || tableMode.mode === 'add' // LOG: устанавливаем isEditing только в режимах редактирования
+        }
+      }
+      return row
     })
 
     // Если нет новых строк, возвращаем данные с редактированием
@@ -1238,7 +1328,7 @@ export const useTableOperations = () => {
 
     // Сначала добавляем строки 'first' в начало
     for (const newRow of firstRows) {
-      result.unshift(newRow)
+      result.unshift({ ...newRow, isEditing: tableMode.mode === 'add' }) // LOG: обновляем isEditing в зависимости от режима
       console.log(`➕ Вставлена строка в начало: ${newRow.id}`) // LOG: вставка в начало
     }
 
@@ -1268,16 +1358,16 @@ export const useTableOperations = () => {
         console.log(`🎯 Вставка строки ${newRow.id}: originalIndex=${originalRowIndex}, firstRowsCount=${firstRows.length}, targetPosition=${insertPosition}`) // LOG: расчет позиции
 
         if (insertPosition <= result.length) {
-          result.splice(insertPosition, 0, newRow)
+          result.splice(insertPosition, 0, { ...newRow, isEditing: tableMode.mode === 'add' }) // LOG: обновляем isEditing в зависимости от режима
           console.log(`➕ Вставлена строка на позицию ${insertPosition}: ${newRow.id}`) // LOG: успешная вставка
         } else {
           // Если позиция за пределами, добавляем в конец
-          result.push(newRow)
+          result.push({ ...newRow, isEditing: tableMode.mode === 'add' }) // LOG: обновляем isEditing в зависимости от режима
           console.log(`⚠️ Позиция ${insertPosition} за пределами массива (${result.length}), добавлена в конец: ${newRow.id}`) // LOG: добавление в конец
         }
       } else {
         // По умолчанию добавляем в конец
-        result.push(newRow)
+        result.push({ ...newRow, isEditing: tableMode.mode === 'add' }) // LOG: обновляем isEditing в зависимости от режима
         console.log(`➕ Добавлена строка в конец (нет afterRowIndex): ${newRow.id}`) // LOG: добавление по умолчанию
       }
     }
@@ -1327,6 +1417,7 @@ export const useTableOperations = () => {
     saveChanges,
     cancelChanges,
     deleteSelectedRows,
+    deleteSingleRow,
 
     // Утилиты
     getDisplayData,
