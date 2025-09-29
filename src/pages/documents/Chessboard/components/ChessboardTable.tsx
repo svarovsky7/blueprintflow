@@ -28,6 +28,28 @@ const STABLE_STYLES = {
   } as const,
 } as const
 
+// Функция для динамического расчета ширины dropdown
+const calculateDropdownWidth = (options: Array<{ label: string; value: any }>) => {
+  if (!options || options.length === 0) return 200
+
+  // Приблизительный расчет ширины на основе самого длинного текста
+  const maxLength = Math.max(...options.map(option => String(option.label).length))
+
+  // Формула: базовая ширина 120px + 8px на символ, но не более 500px
+  const calculatedWidth = Math.min(120 + (maxLength * 8), 500)
+
+  return Math.max(calculatedWidth, 150) // Минимальная ширина 150px
+}
+
+// Стиль для динамического dropdown
+const getDynamicDropdownStyle = (options: Array<{ label: string; value: any }>) => ({
+  ...STABLE_STYLES.dropdownStyle,
+  minWidth: calculateDropdownWidth(options),
+  width: calculateDropdownWidth(options),
+  maxWidth: '500px',
+  zIndex: 9999,
+})
+
 // КОНФИГУРАЦИЯ: Точные настройки ширины столбцов для оптимизации пространства
 const COLUMN_WIDTH_CONFIG: Record<string, { width?: number; minWidth?: number; maxWidth?: number }> = {
   [COLUMN_KEYS.ACTIONS]: { width: 60 }, // Уменьшенная ширина для действий
@@ -1445,12 +1467,7 @@ export const ChessboardTable = memo(({
               placeholder="Выберите раздел"
               size="small"
               style={{ width: '100%' }}
-              dropdownStyle={{
-                minWidth: '300px',
-                maxWidth: '500px',
-                zIndex: 9999
-              }}
-              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+              dropdownStyle={getDynamicDropdownStyle(documentationTagsData)}
             />
           )
         }
@@ -1530,12 +1547,7 @@ export const ChessboardTable = memo(({
               placeholder="Выберите шифр проекта"
               size="small"
               style={{ width: '100%' }}
-              dropdownStyle={{
-                minWidth: '300px',
-                maxWidth: '500px',
-                zIndex: 9999
-              }}
-              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+              dropdownStyle={getDynamicDropdownStyle(documentationData)}
             />
           )
         }
@@ -1646,11 +1658,7 @@ export const ChessboardTable = memo(({
               placeholder="Выберите корпус"
               size="small"
               style={{ width: '100%' }}
-              dropdownStyle={{
-                minWidth: '300px',
-                maxWidth: '500px',
-                zIndex: 9999
-              }}
+              dropdownStyle={getDynamicDropdownStyle(blocksData)}
               placement="bottomLeft"
             />
           )
@@ -1750,12 +1758,7 @@ export const ChessboardTable = memo(({
               placeholder="Выберите категорию"
               size="small"
               style={{ width: '100%' }}
-              dropdownStyle={{
-                minWidth: '300px',
-                maxWidth: '500px',
-                zIndex: 9999
-              }}
-              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+              dropdownStyle={getDynamicDropdownStyle(costCategoriesData)}
             />
           )
         }
@@ -1822,12 +1825,13 @@ export const ChessboardTable = memo(({
                 minHeight: 'auto',
                 height: 'auto'
               }}
-              dropdownStyle={{
-                minWidth: '300px',
-                maxWidth: '500px',
-                zIndex: 9999
-              }}
-              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+              dropdownStyle={getDynamicDropdownStyle((() => {
+                const categoryId = record.costCategoryId ? record.costCategoryId.toString() : null
+                return allCostTypesData.filter(type => {
+                  const typeCategoryId = type.categoryId ? type.categoryId.toString() : null
+                  return typeCategoryId === categoryId
+                })
+              })())}
             />
           )
         }
@@ -1961,12 +1965,7 @@ export const ChessboardTable = memo(({
               placeholder="Выберите локализацию"
               size="small"
               style={{ width: '100%' }}
-              dropdownStyle={{
-                minWidth: '300px',
-                maxWidth: '500px',
-                zIndex: 9999
-              }}
-              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+              dropdownStyle={getDynamicDropdownStyle(locationsData)}
             />
           )
         }
@@ -2017,12 +2016,7 @@ export const ChessboardTable = memo(({
               size="small"
               style={{ width: '100%' }}
               placeholder="Введите материал..."
-              dropdownStyle={{
-                minWidth: '300px',
-                maxWidth: '500px',
-                zIndex: 9999
-              }}
-              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+              dropdownStyle={getDynamicDropdownStyle(materialsData)}
             />
           )
         }
@@ -2059,6 +2053,7 @@ export const ChessboardTable = memo(({
               options={MATERIAL_TYPE_OPTIONS}
               size="small"
               style={STABLE_STYLES.fullWidth}
+              dropdownStyle={getDynamicDropdownStyle(MATERIAL_TYPE_OPTIONS)}
               placeholder="Выберите тип"
             />
           )
@@ -2413,12 +2408,7 @@ export const ChessboardTable = memo(({
                 minHeight: 'auto',
                 height: 'auto'
               }}
-              dropdownStyle={{
-                minWidth: '500px',
-                maxWidth: '500px',
-                zIndex: 9999
-              }}
-              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+              dropdownStyle={getDynamicDropdownStyle(cascadeHook.nomenclatureOptions)}
             />
           )
         }
@@ -2487,7 +2477,6 @@ export const ChessboardTable = memo(({
                 const text = option?.label?.toString() || ""
                 return text.toLowerCase().includes(input.toLowerCase())
               }}
-              getPopupContainer={(triggerNode) => triggerNode.parentNode}
             />
           )
         }
@@ -2537,6 +2526,7 @@ export const ChessboardTable = memo(({
               placeholder="Ед.изм."
               size="small"
               style={{ width: '100%' }}
+              dropdownStyle={getDynamicDropdownStyle(unitsData)}
             />
           )
         }

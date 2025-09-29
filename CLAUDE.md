@@ -562,6 +562,53 @@ All entities follow the same structure:
 - При применении шаблона "Документ" все компоненты страницы должны следовать описанным выше принципам
 - НИКОГДА не используйте `scroll.y` в Table компоненте для управления высотой - используйте CSS контейнеры
 
+## Dropdown Best Practices (КРИТИЧЕСКИ ВАЖНО)
+
+### Проблема: Dropdown скрываются под строками таблицы
+**ГЛАВНАЯ ПРИЧИНА:** Использование `getPopupContainer` в Select компонентах внутри таблиц
+
+### ❌ НЕПРАВИЛЬНО - вызывает обрезание dropdown:
+```typescript
+<Select
+  getPopupContainer={(triggerNode) => triggerNode.parentNode}
+  // ... другие свойства
+/>
+```
+
+### ✅ ПРАВИЛЬНО - dropdown отображается поверх таблицы:
+```typescript
+// Функция для динамических dropdown с расширением до 500px
+const getDynamicDropdownStyle = (options: Array<{ label: string; value: any }>) => ({
+  ...STABLE_STYLES.dropdownStyle,
+  minWidth: calculateDropdownWidth(options),
+  width: calculateDropdownWidth(options),
+  maxWidth: '500px',
+  zIndex: 9999,
+})
+
+<Select
+  value={value}
+  onChange={onChange}
+  options={data}
+  allowClear
+  showSearch
+  filterOption={(input, option) =>
+    (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+  }
+  placeholder="Выберите значение"
+  size="small"
+  style={{ width: '100%' }}
+  dropdownStyle={getDynamicDropdownStyle(data)}
+  // ❗ НЕ ДОБАВЛЯЙТЕ getPopupContainer!
+/>
+```
+
+### Правила для dropdown в таблицах:
+1. **НИКОГДА не используйте `getPopupContainer` в Select внутри таблиц**
+2. **Всегда используйте высокий z-index (9999)**
+3. **Применяйте динамическое расширение через `getDynamicDropdownStyle`**
+4. **Максимальная ширина dropdown: 500px, минимальная: 150px**
+
 # important-instruction-reminders
 Do what has been asked; nothing more, nothing less.
 NEVER create files unless they're absolutely necessary for achieving your goal.

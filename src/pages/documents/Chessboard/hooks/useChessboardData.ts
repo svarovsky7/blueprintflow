@@ -499,7 +499,7 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
 
       const chessboardIds = rawData.map((row) => row.id)
       const batchSize = 200 // Батчинг для производительности и предотвращения переполнения URL
-      let allRatesData: any[] = []
+      const allRatesData: any[] = []
 
       // Загружаем данные расценок батчами
       for (let i = 0; i < chessboardIds.length; i += batchSize) {

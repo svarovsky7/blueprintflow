@@ -1031,7 +1031,7 @@ export const useTableOperations = () => {
     const afterRowsNew = newRows.filter(row => row._insertPosition === 'after')
 
     // Сначала добавляем строки, которые должны быть первыми
-    let result = [...firstRowsNew, ...dataWithEdits]
+    const result = [...firstRowsNew, ...dataWithEdits]
 
     // Затем вставляем строки, которые должны быть после определенных позиций
     afterRowsNew.forEach(newRow => {
