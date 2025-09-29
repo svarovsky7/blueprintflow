@@ -553,10 +553,11 @@ export default function Chessboard() {
         <div
           style={{
             flex: 1,
-            overflow: 'auto', // Восстанавливаем прокрутку
-            border: '1px solid #f0f0f0',
-            borderRadius: '6px',
+            overflow: 'hidden', // Контейнер без прокрутки
             minHeight: 0,
+            position: 'relative', // Для корректной работы sticky
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           <ChessboardTable

@@ -2974,21 +2974,57 @@ export const ChessboardTable = memo(({
         .chessboard-table .ant-table-body {
           overflow: visible !important;
         }
-        /* Sticky заголовки БЕЗ создания отдельной прокручиваемой области */
+        /* Sticky заголовки с закреплением к блоку фильтров */
         .chessboard-table .ant-table-header {
           position: sticky !important;
           top: 0 !important;
-          z-index: 10 !important;
+          z-index: 100 !important;
           background: white !important;
           /* ВАЖНО: не создаем overflow для заголовков */
           overflow: visible !important;
         }
-        /* Синхронизируем прокрутку заголовков с телом таблицы */
-        .chessboard-table .ant-table-thead {
+        /* Восстанавливаем скроллы для таблицы */
+        .chessboard-table .ant-table-container {
+          height: calc(100vh - 300px) !important;
+          overflow: auto !important;
+          border: 1px solid #f0f0f0 !important;
+          border-radius: 6px !important;
+        }
+        .chessboard-table .ant-table-body {
+          height: auto !important;
           overflow: visible !important;
+        }
+        .chessboard-table .ant-table-thead {
+          position: sticky !important;
+          top: 0 !important;
+          z-index: 100 !important;
+          background: white !important;
         }
         .chessboard-table .ant-table-tbody {
           overflow: visible !important;
+        }
+        /* Обеспечиваем корректную работу sticky заголовков для каждой ячейки */
+        .chessboard-table .ant-table-thead > tr > th {
+          position: sticky !important;
+          top: 0 !important;
+          background: white !important;
+          z-index: 101 !important;
+          border-bottom: 1px solid #f0f0f0 !important;
+        }
+        /* Убираем лишние границы и тени, которые создают визуальные полосы */
+        .chessboard-table .ant-table {
+          border: none !important;
+        }
+        .chessboard-table .ant-table-content {
+          border: none !important;
+        }
+        .chessboard-table .ant-table-scroll {
+          border: none !important;
+        }
+        /* Исправляем отображение при горизонтальном скролле */
+        .chessboard-table .ant-table-container::before,
+        .chessboard-table .ant-table-container::after {
+          display: none !important;
         }
       `}</style>
       <Table<RowData>
@@ -2997,7 +3033,8 @@ export const ChessboardTable = memo(({
         style={{
           tableLayout: 'fixed',
           width: '100%',
-          height: '100%'
+          height: '100%',
+          flex: 1,
         }}
         columns={visibleColumnsData}
         dataSource={data}
@@ -3007,6 +3044,11 @@ export const ChessboardTable = memo(({
         rowClassName={rowClassName}
         pagination={false}
         size="small"
+        sticky={{
+          offsetHeader: 0,
+          offsetScroll: 0,
+        }}
+        scroll={TABLE_SCROLL_CONFIG}
       />
 
       <FloorQuantitiesModal
