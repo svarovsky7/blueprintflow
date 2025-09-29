@@ -1888,6 +1888,7 @@ export const ChessboardTable = memo(({
               }
               placeholder=""
               size="small"
+              disabled={!record.costCategoryId} // Отключаем если не выбрана категория затрат
               style={{
                 width: '100%',
                 minHeight: 'auto',
