@@ -283,7 +283,6 @@ export default function Chessboard() {
   }, [])
 
   const handleSelectSet = useCallback(async (setId: string) => {
-    console.log('🔍 Выбран комплект:', setId) // LOG: отладочная информация
 
     try {
       // Загружаем данные комплекта
@@ -293,11 +292,8 @@ export default function Chessboard() {
         return
       }
 
-      console.log('🔍 Загружен комплект:', set) // LOG: данные комплекта
-
       // Получаем фильтры из комплекта
       const setFilters = chessboardSetsApi.getFiltersFromSet(set)
-      console.log('🔍 Фильтры комплекта:', setFilters) // LOG: фильтры
 
       // Сначала обновляем все фильтры
       const updates = []
@@ -348,19 +344,15 @@ export default function Chessboard() {
       setSetsModalOpen(false)
 
       // Применяем все обновления последовательно
-      console.log('🔍 Применяем обновления фильтров:', updates.length) // LOG: количество обновлений
       for (const update of updates) {
         update()
       }
 
       // Устанавливаем статус комплекта сразу
       if (set.status) {
-        console.log('🔍 Устанавливаем статус комплекта:', set.status) // LOG: установка статуса
         setCurrentStatus(set.status.id)
         statusSetManuallyRef.current = true // Помечаем как ручную установку
       }
-
-      console.log('✅ Все фильтры комплекта установлены, применяем немедленно') // LOG: завершение установки
 
       // НЕМЕДЛЕННО применяем фильтры напрямую из данных комплекта (без ожидания состояния React)
       const directAppliedFilters = {
@@ -381,9 +373,7 @@ export default function Chessboard() {
         material_search: '',
       }
 
-      console.log('🔍 Применяем фильтры напрямую из комплекта:', directAppliedFilters) // LOG: прямое применение
       setAppliedFilters(directAppliedFilters)
-      console.log('✅ Фильтры комплекта применены напрямую') // LOG: успешное применение
 
     } catch (error) {
       console.error('Ошибка при применении комплекта:', error) // LOG: ошибка
@@ -393,7 +383,6 @@ export default function Chessboard() {
 
   // Обработчик изменения статуса
   const handleStatusChange = useCallback(async (statusId: string) => {
-    console.log('🔍 Изменен статус шахматки:', statusId) // LOG: изменение статуса
     setCurrentStatus(statusId)
     statusSetManuallyRef.current = true // Помечаем как ручное изменение пользователем
 

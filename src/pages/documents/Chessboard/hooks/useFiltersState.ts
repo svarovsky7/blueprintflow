@@ -36,10 +36,8 @@ export const useFiltersState = () => {
   // Обновление конкретного фильтра
   const updateFilter = useCallback(
     <K extends keyof ChessboardFilters>(key: K, value: ChessboardFilters[K]) => {
-      console.log(`🔍 Обновление фильтра ${key}:`, value) // LOG: обновление фильтра
       setFilters((prev) => {
         const newFilters = { ...prev, [key]: value }
-        console.log('🔍 Новое состояние фильтров после обновления:', newFilters) // LOG: новое состояние
         saveFilters(newFilters)
         return newFilters
       })
@@ -80,9 +78,6 @@ export const useFiltersState = () => {
 
   // Применение фильтров (преобразование UI фильтров в API фильтры)
   const applyFilters = useCallback(() => {
-    console.log('🔍 Применение фильтров - текущие UI фильтры:', filters) // LOG: состояние UI фильтров
-    console.log('🔍 Применение фильтров - предыдущие применённые фильтры:', appliedFilters) // LOG: предыдущие применённые фильтры
-
     const applied: AppliedFilters = {
       // Постоянные фильтры
       project_id: filters.project,
@@ -99,9 +94,7 @@ export const useFiltersState = () => {
       material_search: filters.material.trim(),
     }
 
-    console.log('🔍 Новые применённые фильтры:', applied) // LOG: новые применённые фильтры
     setAppliedFilters(applied)
-    console.log('✅ setAppliedFilters вызван') // LOG: подтверждение вызова
   }, [filters, appliedFilters.documentation_version_ids])
 
   // Обновление выбранных версий документов
