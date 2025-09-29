@@ -49,6 +49,7 @@ export const useTableOperations = () => {
 
   // Добавление новой строки
   const addNewRow = useCallback((projectId: string, insertPosition: 'first' | 'after' = 'first', afterRowIndex?: number) => {
+    console.log('🚀 addNewRow вызвана:', { projectId, insertPosition, afterRowIndex }) // LOG: вызов addNewRow
     if (!projectId) {
       message.warning('Выберите проект для добавления строки')
       return
@@ -100,14 +101,20 @@ export const useTableOperations = () => {
     }
 
     setNewRows((prev) => {
+      console.log('📝 setNewRows - текущее состояние:', { prevLength: prev.length, insertPosition, afterRowIndex }) // LOG: состояние перед добавлением
       if (insertPosition === 'first') {
-        return [newRow, ...prev]
+        const result = [newRow, ...prev]
+        console.log('✅ Добавлена строка в начало, новая длина:', result.length) // LOG: добавление в начало
+        return result
       } else if (insertPosition === 'after' && afterRowIndex !== undefined) {
         const newRows = [...prev]
         newRows.splice(afterRowIndex + 1, 0, newRow)
+        console.log('✅ Добавлена строка после индекса', afterRowIndex, 'новая длина:', newRows.length) // LOG: добавление после индекса
         return newRows
       }
-      return [...prev, newRow]
+      const result = [...prev, newRow]
+      console.log('✅ Добавлена строка в конец, новая длина:', result.length) // LOG: добавление в конец
+      return result
     })
   }, [message])
 
@@ -118,6 +125,7 @@ export const useTableOperations = () => {
 
   // Копирование строки
   const copyRow = useCallback((sourceRow: RowData, insertPosition: 'after' = 'after', afterRowIndex?: number) => {
+    console.log('🔄 copyRow вызвана:', { sourceRowId: sourceRow?.id, insertPosition, afterRowIndex }) // LOG: вызов copyRow
     const copiedRow: RowData = {
       ...sourceRow,
       id: `copy-${Date.now()}-${Math.random()}`,
@@ -1015,6 +1023,8 @@ export const useTableOperations = () => {
 
   // Получение итоговых данных для отображения (с учетом новых, отредактированных строк и backup редактирования)
   const getDisplayData = useCallback((originalData: RowData[]) => {
+    console.log('🔄 getDisplayData вызвана:', { originalDataLength: originalData.length, newRowsLength: newRows.length }) // LOG: вызов getDisplayData
+
     const dataWithEdits = originalData.map(row => {
       // Если строка в режиме backup редактирования, используем её данные
       if (editingRows[row.id]) {
@@ -1026,23 +1036,86 @@ export const useTableOperations = () => {
       return edits ? { ...row, ...edits, isEditing: true } : row
     })
 
-    // Сортируем новые строки для правильного позиционирования
-    const firstRowsNew = newRows.filter(row => row._insertPosition === 'first')
-    const afterRowsNew = newRows.filter(row => row._insertPosition === 'after')
+    // Если нет новых строк, возвращаем данные с редактированием
+    if (newRows.length === 0) {
+      console.log('✅ getDisplayData результат (без новых строк):', { resultLength: dataWithEdits.length }) // LOG
+      return dataWithEdits
+    }
 
-    // Сначала добавляем строки, которые должны быть первыми
-    const result = [...firstRowsNew, ...dataWithEdits]
+    console.log('📊 Состояние новых строк:', {
+      total: newRows.length,
+      first: newRows.filter(row => row._insertPosition === 'first').length,
+      after: newRows.filter(row => row._insertPosition === 'after').length,
+      newRowsDetail: newRows.map(row => ({
+        id: row.id,
+        position: row._insertPosition,
+        afterIndex: row._afterRowIndex
+      }))
+    }) // LOG: детальная информация о новых строках
 
-    // Затем вставляем строки, которые должны быть после определенных позиций
-    afterRowsNew.forEach(newRow => {
-      if (typeof newRow._afterRowIndex === 'number') {
-        const insertIndex = newRow._afterRowIndex + 1 + firstRowsNew.length
-        result.splice(insertIndex, 0, newRow)
-      } else {
-        // Если позиция не определена, добавляем в конец
-        result.push(newRow)
-      }
+    // ИСПРАВЛЕНИЕ: Создаем результирующий массив с правильным позиционированием
+    let result = [...dataWithEdits] // Начинаем с существующих данных
+
+    // Разделяем новые строки по типу позиционирования
+    const firstRows = newRows.filter(row => row._insertPosition === 'first')
+    const afterRows = newRows.filter(row => row._insertPosition === 'after')
+
+    console.log('📋 Разделенные новые строки:', {
+      firstRows: firstRows.map(r => ({ id: r.id, position: r._insertPosition })),
+      afterRows: afterRows.map(r => ({ id: r.id, position: r._insertPosition, afterIndex: r._afterRowIndex }))
+    }) // LOG: разделение строк
+
+    // Сначала добавляем строки 'first' в начало
+    for (const newRow of firstRows) {
+      result.unshift(newRow)
+      console.log(`➕ Вставлена строка в начало: ${newRow.id}`) // LOG: вставка в начало
+    }
+
+    // Затем добавляем строки 'after' - важно: обрабатываем в обратном порядке индексов,
+    // чтобы при вставке не сдвигались позиции следующих строк
+    const sortedAfterRows = afterRows.sort((a, b) => {
+      const aIndex = a._afterRowIndex ?? -1
+      const bIndex = b._afterRowIndex ?? -1
+      return bIndex - aIndex // ОБРАТНЫЙ порядок для правильной вставки
     })
+
+    console.log('📋 Отсортированные after строки (обратный порядок):', sortedAfterRows.map(row => ({
+      id: row.id,
+      afterIndex: row._afterRowIndex
+    }))) // LOG: порядок вставки
+
+    // Вставляем строки 'after'
+    for (const newRow of sortedAfterRows) {
+      if (typeof newRow._afterRowIndex === 'number') {
+        const originalRowIndex = newRow._afterRowIndex
+
+        // ИСПРАВЛЕНИЕ: Обработка специального значения -1 (вставка в самое начало)
+        const insertPosition = originalRowIndex === -1
+          ? 1 // Вставляем после первой firstRow, если есть, или в самое начало
+          : originalRowIndex + firstRows.length + 1
+
+        console.log(`🎯 Вставка строки ${newRow.id}: originalIndex=${originalRowIndex}, firstRowsCount=${firstRows.length}, targetPosition=${insertPosition}`) // LOG: расчет позиции
+
+        if (insertPosition <= result.length) {
+          result.splice(insertPosition, 0, newRow)
+          console.log(`➕ Вставлена строка на позицию ${insertPosition}: ${newRow.id}`) // LOG: успешная вставка
+        } else {
+          // Если позиция за пределами, добавляем в конец
+          result.push(newRow)
+          console.log(`⚠️ Позиция ${insertPosition} за пределами массива (${result.length}), добавлена в конец: ${newRow.id}`) // LOG: добавление в конец
+        }
+      } else {
+        // По умолчанию добавляем в конец
+        result.push(newRow)
+        console.log(`➕ Добавлена строка в конец (нет afterRowIndex): ${newRow.id}`) // LOG: добавление по умолчанию
+      }
+    }
+
+    console.log('✅ getDisplayData результат:', {
+      originalLength: originalData.length,
+      resultLength: result.length,
+      difference: result.length - originalData.length
+    }) // LOG: итоговый результат
 
     return result
   }, [editedRows, newRows, editingRows])

@@ -173,12 +173,16 @@ export default function Chessboard() {
   }, [appliedFilters.project_id, addNewRow])
 
   const handleAddRowAfter = useCallback((rowIndex: number) => {
+    console.log('🎯 handleAddRowAfter вызван:', { rowIndex, projectId: appliedFilters.project_id }) // LOG: вызов handleAddRowAfter
     if (appliedFilters.project_id) {
       addNewRow(appliedFilters.project_id, 'after', rowIndex)
+    } else {
+      console.warn('⚠️ Нет project_id для добавления строки') // LOG: нет project_id
     }
   }, [appliedFilters.project_id, addNewRow])
 
   const handleCopyRowAfter = useCallback((rowData: any, rowIndex: number) => {
+    console.log('🎯 handleCopyRowAfter вызван:', { rowIndex, rowDataId: rowData?.id }) // LOG: вызов handleCopyRowAfter
     copyRow(rowData, 'after', rowIndex)
   }, [copyRow])
 
@@ -443,8 +447,11 @@ export default function Chessboard() {
   ])
 
 
-  // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Мемоизируем вызовы функций без зависимости от самих функций
-  const allDisplayData = useMemo(() => getDisplayData(data), [data, tableMode.mode, tableMode.selectedRowKeys?.length || 0, tableMode.newRows?.length || 0, tableMode.editedRows?.size || 0])
+  // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Мемоизируем вызовы функций с правильными зависимостями
+  const allDisplayData = useMemo(() => {
+    console.log('🔄 allDisplayData пересчитывается:', { dataLength: data.length, mode: tableMode.mode }) // LOG: пересчет allDisplayData
+    return getDisplayData(data)
+  }, [data, getDisplayData, tableMode.mode])
   const visibleColumns = useMemo(() => getVisibleColumns(), [columnSettings.columnOrder, columnSettings.hiddenColumns])
   const allColumnsWithVisibility = useMemo(() => getAllColumnsWithVisibility(), [columnSettings.columnOrder, columnSettings.hiddenColumns])
 
@@ -554,6 +561,7 @@ export default function Chessboard() {
         >
           <ChessboardTable
             data={displayData}
+            originalData={data}
             loading={isLoading}
             tableMode={tableMode}
             visibleColumns={visibleColumns}

@@ -81,50 +81,10 @@ export const ChessboardActionButtons = memo(
     // Находим текущий статус для отображения только пиктограммы
     const currentStatusData = chessboardStatuses.find(s => s.id === currentStatus)
 
-    // В режиме добавления показываем специальные кнопки для работы со строками
+    // В режиме добавления показываем только кнопки сохранения
     if (mode === 'add') {
       return (
         <Space>
-          {/* Кнопка цвета - показываем пиктограмму цвета */}
-          {currentStatusData && (
-            <Button
-              icon={<StatusIcon color={currentStatusData.color || '#d9d9d9'} />}
-              title="Цвет строки"
-            >
-              Цвет
-            </Button>
-          )}
-
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={onAddRow}
-            title="Добавить строку в начало таблицы"
-          >
-            Добавить строку
-          </Button>
-
-          <Button
-            icon={<CopyOutlined />}
-            onClick={() => {
-              // Логика копирования будет реализована в таблице
-            }}
-            title="Скопировать строку со всеми введенными значениями"
-          >
-            Скопировать строку
-          </Button>
-
-          <Button
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => {
-              // Логика удаления строки будет реализована в таблице
-            }}
-            title="Удалить строку"
-          >
-            Удалить строку
-          </Button>
-
           <Button
             type="primary"
             icon={<SaveOutlined />}

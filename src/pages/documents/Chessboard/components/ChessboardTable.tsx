@@ -891,6 +891,7 @@ const forceHeaderHeight = () => {
 
 interface ChessboardTableProps {
   data: RowData[]
+  originalData: RowData[] // Оригинальные данные из БД без новых строк
   loading: boolean
   tableMode: TableMode
   visibleColumns: string[]
@@ -908,6 +909,7 @@ interface ChessboardTableProps {
 
 export const ChessboardTable = memo(({
   data,
+  originalData,
   loading,
   tableMode,
   visibleColumns,
@@ -1378,8 +1380,41 @@ export const ChessboardTable = memo(({
                     size="small"
                     icon={<PlusOutlined />}
                     onClick={() => {
-                      const rowIndex = data.findIndex(row => row.id === record.id)
-                      onAddRowAfter?.(rowIndex)
+                      console.log('🔍 Добавить строку - поиск индекса:', { recordId: record.id, isNew: record.id.startsWith('new-') || record.id.startsWith('copy-') }) // LOG: отладка добавления строки
+
+                      // Если это новая строка, ищем её позицию в отображаемых данных и преобразуем в оригинальный индекс
+                      if (record.id.startsWith('new-') || record.id.startsWith('copy-')) {
+                        const displayIndex = data.findIndex(row => row.id === record.id)
+                        console.log('📍 Новая строка найдена на позиции:', displayIndex) // LOG: позиция новой строки
+
+                        // Для новых строк находим предыдущую оригинальную строку
+                        let originalIndex = -1
+                        for (let i = displayIndex - 1; i >= 0; i--) {
+                          const prevRow = data[i]
+                          if (!prevRow.id.startsWith('new-') && !prevRow.id.startsWith('copy-')) {
+                            originalIndex = originalData.findIndex(row => row.id === prevRow.id)
+                            console.log('📍 Найдена предыдущая оригинальная строка на индексе:', originalIndex) // LOG: предыдущая оригинальная строка
+                            break
+                          }
+                        }
+
+                        if (originalIndex !== -1) {
+                          onAddRowAfter?.(originalIndex)
+                        } else {
+                          // Если предыдущей оригинальной строки нет, вставляем в начало (после первой строки или как первая)
+                          console.log('📍 Предыдущей оригинальной строки нет, вставляем в начало') // LOG: вставка в начало
+                          onAddRowAfter?.(-1) // Специальное значение для вставки в начало
+                        }
+                      } else {
+                        // Для оригинальных строк ищем в originalData
+                        const rowIndex = originalData.findIndex(row => row.id === record.id)
+                        console.log('📍 Оригинальная строка найдена на индексе:', rowIndex) // LOG: найденный индекс оригинальной строки
+                        if (rowIndex !== -1) {
+                          onAddRowAfter?.(rowIndex)
+                        } else {
+                          console.warn('⚠️ Оригинальная строка не найдена!') // LOG: строка не найдена
+                        }
+                      }
                     }}
                   />
                 </div>
@@ -1391,8 +1426,41 @@ export const ChessboardTable = memo(({
                     size="small"
                     icon={<CopyOutlined />}
                     onClick={() => {
-                      const rowIndex = data.findIndex(row => row.id === record.id)
-                      onCopyRowAfter?.(record, rowIndex)
+                      console.log('🔍 Копировать строку - поиск индекса:', { recordId: record.id, isNew: record.id.startsWith('new-') || record.id.startsWith('copy-') }) // LOG: отладка копирования строки
+
+                      // Если это новая строка, ищем её позицию в отображаемых данных и преобразуем в оригинальный индекс
+                      if (record.id.startsWith('new-') || record.id.startsWith('copy-')) {
+                        const displayIndex = data.findIndex(row => row.id === record.id)
+                        console.log('📍 Новая строка для копирования найдена на позиции:', displayIndex) // LOG: позиция новой строки
+
+                        // Для новых строк находим предыдущую оригинальную строку
+                        let originalIndex = -1
+                        for (let i = displayIndex - 1; i >= 0; i--) {
+                          const prevRow = data[i]
+                          if (!prevRow.id.startsWith('new-') && !prevRow.id.startsWith('copy-')) {
+                            originalIndex = originalData.findIndex(row => row.id === prevRow.id)
+                            console.log('📍 Найдена предыдущая оригинальная строка для копирования на индексе:', originalIndex) // LOG: предыдущая оригинальная строка
+                            break
+                          }
+                        }
+
+                        if (originalIndex !== -1) {
+                          onCopyRowAfter?.(record, originalIndex)
+                        } else {
+                          // Если предыдущей оригинальной строки нет, вставляем в начало
+                          console.log('📍 Предыдущей оригинальной строки нет, копируем в начало') // LOG: копирование в начало
+                          onCopyRowAfter?.(record, -1) // Специальное значение для вставки в начало
+                        }
+                      } else {
+                        // Для оригинальных строк ищем в originalData
+                        const rowIndex = originalData.findIndex(row => row.id === record.id)
+                        console.log('📍 Оригинальная строка для копирования найдена на индексе:', rowIndex) // LOG: найденный индекс оригинальной строки для копирования
+                        if (rowIndex !== -1) {
+                          onCopyRowAfter?.(record, rowIndex)
+                        } else {
+                          console.warn('⚠️ Оригинальная строка для копирования не найдена!') // LOG: оригинальная строка для копирования не найдена
+                        }
+                      }
                     }}
                   />
                 </div>

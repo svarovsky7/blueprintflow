@@ -135,12 +135,12 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
     return newQueryKey
   }, [
     appliedFilters.project_id,
-    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем JSON.stringify для стабильного сравнения массивов
-    JSON.stringify(appliedFilters.block_ids?.slice().sort() || []),
-    JSON.stringify(appliedFilters.cost_category_ids?.slice().sort() || []),
-    JSON.stringify(appliedFilters.detail_cost_category_ids?.slice().sort() || []),
-    JSON.stringify(appliedFilters.documentation_section_ids?.slice().sort() || []),
-    JSON.stringify(appliedFilters.documentation_code_ids?.slice().sort() || []),
+    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем стабилизированные строки вместо JSON.stringify
+    appliedFilters.block_ids ? appliedFilters.block_ids.slice().sort().join(',') : '',
+    appliedFilters.cost_category_ids ? appliedFilters.cost_category_ids.slice().sort().join(',') : '',
+    appliedFilters.detail_cost_category_ids ? appliedFilters.detail_cost_category_ids.slice().sort().join(',') : '',
+    appliedFilters.documentation_section_ids ? appliedFilters.documentation_section_ids.slice().sort().join(',') : '',
+    appliedFilters.documentation_code_ids ? appliedFilters.documentation_code_ids.slice().sort().join(',') : '',
     appliedFilters.material_search,
   ])
 
@@ -365,9 +365,9 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
     ],
     [
       appliedFilters.project_id,
-      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем JSON.stringify для стабильного сравнения
-      JSON.stringify(appliedFilters.documentation_code_ids?.slice().sort() || []),
-      JSON.stringify(appliedFilters.documentation_section_ids?.slice().sort() || [])
+      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем стабилизированные строки вместо JSON.stringify
+      appliedFilters.documentation_code_ids ? appliedFilters.documentation_code_ids.slice().sort().join(',') : '',
+      appliedFilters.documentation_section_ids ? appliedFilters.documentation_section_ids.slice().sort().join(',') : ''
     ],
   )
 
@@ -754,7 +754,7 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
 
   // Загрузка версий документов для выбранного проекта
   const { data: documentVersions = [] } = useQuery({
-    queryKey: ['document-versions', filters?.project, JSON.stringify(filters?.documentationCode?.slice().sort() || [])],
+    queryKey: ['document-versions', filters?.project, filters?.documentationCode?.slice().sort().join(',') || ''],
     queryFn: async () => {
       if (!filters?.project || !filters?.documentationCode?.length || !supabase) return []
 
@@ -776,7 +776,7 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
 
   // Загрузка информации о документации для модального окна версий
   const { data: documentationInfo = [] } = useQuery({
-    queryKey: ['documentation-info', filters?.project, JSON.stringify(filters?.documentationCode?.slice().sort() || [])],
+    queryKey: ['documentation-info', filters?.project, filters?.documentationCode?.slice().sort().join(',') || ''],
     queryFn: async () => {
       if (!filters?.project || !filters?.documentationCode?.length || !supabase) return []
 

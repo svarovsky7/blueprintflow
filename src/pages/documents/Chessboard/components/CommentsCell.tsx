@@ -13,11 +13,17 @@ interface CommentsCellProps {
 export const CommentsCell: React.FC<CommentsCellProps> = ({ rowId, mode = 'view' }) => {
   const [modalVisible, setModalVisible] = useState(false)
 
-  // Загружаем комментарии для определения отображения кнопки
+  // Проверяем, является ли rowId валидным UUID (не временным ID)
+  const isValidUUID = (id: string) => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    return uuidRegex.test(id)
+  }
+
+  // Загружаем комментарии только для существующих строк с валидными UUID
   const { data: comments = [] } = useQuery({
     queryKey: ['chessboard-comments', rowId],
     queryFn: () => chessboardCommentsApi.getByChessboardId(rowId),
-    enabled: !!rowId,
+    enabled: !!rowId && isValidUUID(rowId),
   })
 
   // Определяем, есть ли комментарии
@@ -36,6 +42,11 @@ export const CommentsCell: React.FC<CommentsCellProps> = ({ rowId, mode = 'view'
 
   const handleCloseModal = () => {
     setModalVisible(false)
+  }
+
+  // Не отображаем кнопки комментариев для новых строк
+  if (!isValidUUID(rowId)) {
+    return <div style={{ width: 24, height: 24 }} /> // Пустой placeholder для сохранения размера
   }
 
   return (
