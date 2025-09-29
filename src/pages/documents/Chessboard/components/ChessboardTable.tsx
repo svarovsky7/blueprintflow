@@ -2883,21 +2883,37 @@ export const ChessboardTable = memo(({
           line-height: 1.2 !important;
           vertical-align: middle !important;
         }
-        /* Выравнивание полей ввода по центру ячеек */
+        /* Выравнивание полей ввода по центру ячеек с автоматической высотой */
         .chessboard-table .ant-table-tbody > tr > td .ant-select,
         .chessboard-table .ant-table-tbody > tr > td .ant-input,
         .chessboard-table .ant-table-tbody > tr > td .ant-input-number {
           display: flex !important;
           align-items: center !important;
-          height: 24px !important;
+          height: auto !important;
           min-height: 24px !important;
         }
         .chessboard-table .ant-table-tbody > tr > td .ant-select-selector,
         .chessboard-table .ant-table-tbody > tr > td .ant-input-number-input {
-          height: 24px !important;
+          height: auto !important;
           min-height: 24px !important;
           display: flex !important;
           align-items: center !important;
+          white-space: normal !important;
+          word-wrap: break-word !important;
+          overflow-wrap: break-word !important;
+        }
+        /* Автоматическая высота для выбранных значений в Select */
+        .chessboard-table .ant-table-tbody > tr > td .ant-select-selection-item {
+          white-space: normal !important;
+          word-wrap: break-word !important;
+          overflow-wrap: break-word !important;
+          height: auto !important;
+          line-height: 1.2 !important;
+        }
+        /* Автоматическая высота для множественного выбора */
+        .chessboard-table .ant-table-tbody > tr > td .ant-select-selection-overflow {
+          height: auto !important;
+          min-height: 20px !important;
         }
         .chessboard-table .ant-table-tbody > tr {
           height: auto !important;
@@ -2933,13 +2949,19 @@ export const ChessboardTable = memo(({
         .chessboard-table .ant-select-selector {
           padding: 2px 4px !important;
           min-height: 24px !important;
+          height: auto !important;
           line-height: 1.2 !important;
+          white-space: normal !important;
+          word-wrap: break-word !important;
         }
         .chessboard-table .ant-input {
           padding: 2px 6px !important;
           font-size: 12px !important;
           line-height: 1.2 !important;
           min-height: 24px !important;
+          height: auto !important;
+          white-space: normal !important;
+          word-wrap: break-word !important;
         }
         .chessboard-table .ant-input-number {
           font-size: 12px !important;
@@ -2966,6 +2988,7 @@ export const ChessboardTable = memo(({
           min-height: 24px !important;
           padding: 0 4px !important;
           font-size: 12px !important;
+          white-space: nowrap !important;
         }
         .chessboard-table table {
           table-layout: fixed !important;
