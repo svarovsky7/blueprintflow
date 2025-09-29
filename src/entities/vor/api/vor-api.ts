@@ -122,7 +122,7 @@ export const createVorFromChessboardSet = async (dto: CreateVorFromChessboardSet
         project_id: dto.project_id,
         rate_coefficient: dto.rate_coefficient || 1.0
       })
-      .select('id')
+      .select('*')
       .single()
 
     if (vorError) {
@@ -130,6 +130,7 @@ export const createVorFromChessboardSet = async (dto: CreateVorFromChessboardSet
       throw vorError
     }
 
+    console.log('✅ VOR created successfully:', vorData) // LOG: проверка созданного ВОР
     const vorId = vorData.id
 
     // 2. Создаем связь ВОР с комплектом
