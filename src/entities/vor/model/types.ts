@@ -8,6 +8,7 @@ export interface VorWork {
   coefficient: number
   base_rate: number | null
   sort_order: number
+  is_modified: boolean // Отслеживание изменений: false - совпадает с комплектом шахматки, true - изменена или новая
   created_at: string
   updated_at: string
   // Связанные данные через JOIN
@@ -31,6 +32,7 @@ export interface VorMaterial {
   quantity: number
   price: number
   sort_order: number
+  is_modified: boolean // Отслеживание изменений: false - совпадает с комплектом шахматки, true - изменена или новая
   created_at: string
   updated_at: string
   // Связанные данные
@@ -48,6 +50,7 @@ export interface CreateVorWorkDto {
   coefficient?: number
   base_rate?: number
   sort_order?: number
+  is_modified?: boolean
 }
 
 // DTO для обновления работы
@@ -56,6 +59,7 @@ export interface UpdateVorWorkDto {
   coefficient?: number
   base_rate?: number
   sort_order?: number
+  is_modified?: boolean
 }
 
 // DTO для создания материала
@@ -66,6 +70,7 @@ export interface CreateVorMaterialDto {
   quantity?: number
   price?: number
   sort_order?: number
+  is_modified?: boolean
 }
 
 // DTO для обновления материала
@@ -75,6 +80,7 @@ export interface UpdateVorMaterialDto {
   quantity?: number
   price?: number
   sort_order?: number
+  is_modified?: boolean
 }
 
 // Комбинированный тип для отображения в таблице
@@ -84,6 +90,7 @@ export interface VorTableItem {
   name: string
   unit: string
   quantity: number
+  is_modified?: boolean // Отслеживание изменений строк
 
   // Для работ
   coefficient?: number
@@ -130,4 +137,28 @@ export interface VorWorksFilters {
 export interface VorMaterialsFilters {
   vor_work_id?: string
   vor_id?: string // Для загрузки всех материалов ВОР
+}
+
+// Типы для работы с ВОР в комплектах шахматки
+export interface CreateVorFromChessboardSetDto {
+  name: string
+  project_id: string
+  set_id: string
+  rate_coefficient?: number
+}
+
+export interface ChessboardSetVor {
+  id: string
+  name: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ChessboardSetWithVors {
+  id: string
+  name: string
+  set_number: string
+  project_id: string
+  // ... другие поля комплекта
+  vors?: ChessboardSetVor[] // Связанные ВОРы
 }

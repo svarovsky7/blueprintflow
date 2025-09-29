@@ -924,12 +924,15 @@ const VorView = () => {
   }
 
   // Функция для определения стилей строк таблицы
-  const getRowClassName = (record: VorItem) => {
-    // Строки с расценками работ получают серый фон
-    if (record.type === 'work') {
-      return 'vor-work-row'
+  const getRowClassName = (record: VorItem | VorTableItem) => {
+    const baseClass = record.type === 'work' ? 'vor-work-row' : ''
+
+    // Добавляем класс для измененных строк
+    if ('is_modified' in record && record.is_modified) {
+      return `${baseClass} vor-modified-row`.trim()
     }
-    return ''
+
+    return baseClass
   }
 
   const columns = [
@@ -965,19 +968,39 @@ const VorView = () => {
       dataIndex: 'name',
       key: 'name',
       // Динамическая ширина - не указываем width
-      render: (text: string, record: VorItem) => (
-        <div
-          style={{
-            paddingLeft: record.level === 2 ? 20 : 0,
-            fontWeight: record.type === 'work' ? 'bold' : 'normal',
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            lineHeight: '1.2',
-          }}
-        >
-          {text}
-        </div>
-      ),
+      render: (text: string, record: VorItem | VorTableItem) => {
+        const isModified = 'is_modified' in record && record.is_modified
+
+        return (
+          <div
+            style={{
+              paddingLeft: record.level === 2 ? 20 : 0,
+              fontWeight: record.type === 'work' ? 'bold' : 'normal',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              lineHeight: '1.2',
+              position: 'relative',
+            }}
+          >
+            {isModified && (
+              <span
+                style={{
+                  position: 'absolute',
+                  left: record.level === 2 ? 0 : -20,
+                  top: 0,
+                  color: '#ff4d4f',
+                  fontWeight: 'bold',
+                  fontSize: '16px',
+                }}
+                title="Строка была изменена или добавлена"
+              >
+                *
+              </span>
+            )}
+            {text}
+          </div>
+        )
+      },
     },
     {
       title: formatHeaderText('Ед Изм'),
@@ -1261,6 +1284,47 @@ const VorView = () => {
               <Title level={4} style={{ margin: '8px 0 0 0' }}>
                 {vorData.vor.name}
               </Title>
+
+              {/* Легенда цветовой индикации */}
+              <div
+                style={{
+                  margin: '16px 0 0 0',
+                  padding: '8px 16px',
+                  backgroundColor: '#f8f9fa',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  display: 'inline-block',
+                }}
+              >
+                <Space size="large">
+                  <Space>
+                    <div
+                      style={{
+                        width: '16px',
+                        height: '16px',
+                        backgroundColor: '#E6E6FA',
+                        borderRadius: '3px',
+                      }}
+                    />
+                    <Text style={{ fontSize: '12px' }}>Работы (из справочника расценок)</Text>
+                  </Space>
+                  <Space>
+                    <div
+                      style={{
+                        width: '16px',
+                        height: '16px',
+                        backgroundColor: '#fff2f0',
+                        borderLeft: '4px solid #ff4d4f',
+                        borderRadius: '3px',
+                      }}
+                    />
+                    <Text style={{ fontSize: '12px' }}>
+                      Изменённые строки
+                      <span style={{ color: '#ff4d4f', marginLeft: '4px' }}>*</span>
+                    </Text>
+                  </Space>
+                </Space>
+              </div>
             </Space>
           </div>
         </div>
@@ -1283,10 +1347,30 @@ const VorView = () => {
               .vor-work-row:hover > td {
                 background-color: #DDD2E6 !important;
               }
+
+              /* Стили для измененных строк */
+              .vor-modified-row > td {
+                border-left: 4px solid #ff4d4f !important;
+                background-color: #fff2f0 !important;
+              }
+              .vor-modified-row:hover > td {
+                background-color: #ffeaea !important;
+              }
+
+              /* Комбинированные стили для измененных строк работ */
+              .vor-work-row.vor-modified-row > td {
+                background-color: #f6f0ff !important;
+                border-left: 4px solid #ff4d4f !important;
+              }
+              .vor-work-row.vor-modified-row:hover > td {
+                background-color: #ede0ff !important;
+              }
+
               /* Заголовки таблицы */
               .ant-table-thead > tr > th {
                 background-color: #D8D2E6 !important;
               }
+
               /* Переопределяем встроенные hover стили Ant Design для предотвращения конфликтов */
               .ant-table-tbody > tr.vor-work-row:hover > td {
                 background-color: #DDD2E6 !important;

@@ -51,7 +51,9 @@ const Vor = () => {
     searchParams.get('cost_category') || undefined,
   )
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [editingVor, setEditingVor] = useState<VorRecord | null>(null)
+  const [deletingVor, setDeletingVor] = useState<VorRecord | null>(null)
   const [editingCoefficient, setEditingCoefficient] = useState<number>(1)
   const [form] = Form.useForm()
 
@@ -520,24 +522,31 @@ const Vor = () => {
     setIsEditModalOpen(true)
   }
 
-  const handleDeleteVor = async (vor: VorRecord) => {
+  const handleShowDeleteModal = (vor: VorRecord) => {
+    setDeletingVor(vor)
+    setIsDeleteModalOpen(true)
+  }
+
+  const handleDeleteVor = async () => {
     try {
-      if (!supabase) return
+      if (!supabase || !deletingVor) return
 
       // Сначала удаляем связи с комплектами
       const { error: mappingError } = await supabase
         .from('vor_chessboard_sets_mapping')
         .delete()
-        .eq('vor_id', vor.id)
+        .eq('vor_id', deletingVor.id)
 
       if (mappingError) throw mappingError
 
       // Затем удаляем сам ВОР
-      const { error: vorError } = await supabase.from('vor').delete().eq('id', vor.id)
+      const { error: vorError } = await supabase.from('vor').delete().eq('id', deletingVor.id)
 
       if (vorError) throw vorError
 
       message.success('ВОР успешно удален')
+      setIsDeleteModalOpen(false)
+      setDeletingVor(null)
       refetchVorRecords()
     } catch (error) {
       console.error('Ошибка при удалении ВОР:', error)
@@ -637,15 +646,13 @@ const Vor = () => {
             onClick={() => handleEditVor(record)}
             title="Редактировать"
           />
-          <Popconfirm
-            title="Удалить ВОР"
-            description="Вы уверены, что хотите удалить этот ВОР?"
-            onConfirm={() => handleDeleteVor(record)}
-            okText="Да"
-            cancelText="Нет"
-          >
-            <Button type="text" icon={<DeleteOutlined />} danger title="Удалить" />
-          </Popconfirm>
+          <Button
+            type="text"
+            icon={<DeleteOutlined />}
+            danger
+            title="Удалить"
+            onClick={() => handleShowDeleteModal(record)}
+          />
         </Space>
       ),
     },
@@ -814,6 +821,31 @@ const Vor = () => {
             />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Модальное окно подтверждения удаления */}
+      <Modal
+        title="Подтверждение удаления"
+        open={isDeleteModalOpen}
+        onCancel={() => {
+          setIsDeleteModalOpen(false)
+          setDeletingVor(null)
+        }}
+        onOk={handleDeleteVor}
+        okText="Удалить"
+        cancelText="Отмена"
+        okButtonProps={{ danger: true }}
+        width={400}
+      >
+        <p>Вы уверены, что хотите удалить ВОР?</p>
+        {deletingVor && (
+          <p>
+            <strong>Название:</strong> {deletingVor.name}
+          </p>
+        )}
+        <p style={{ color: '#ff4d4f', marginTop: 16 }}>
+          <strong>Внимание!</strong> Это действие нельзя отменить.
+        </p>
       </Modal>
     </div>
   )

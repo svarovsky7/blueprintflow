@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Modal, Table, Space, Button, Input, Select, Tag, Form, Row, Col, Card, App } from 'antd'
+import { Modal, Table, Space, Button, Input, Select, Tag, Form, Row, Col, Card, App, Spin } from 'antd'
 import {
   DeleteOutlined,
   EditOutlined,
@@ -15,7 +15,10 @@ import {
   type ChessboardSetTableRow,
   type ChessboardSetSearchFilters,
 } from '@/entities/chessboard'
+import { getVorsByChessboardSet } from '@/entities/vor'
 import { supabase } from '@/lib/supabase'
+import CreateVorModal from './CreateVorModal'
+import { useNavigate } from 'react-router-dom'
 
 interface ChessboardSetsModalProps {
   open: boolean
@@ -33,6 +36,7 @@ export default function ChessboardSetsModal({
   currentSetId,
 }: ChessboardSetsModalProps) {
   const { message } = App.useApp()
+  const navigate = useNavigate()
   const [searchFilters, setSearchFilters] = useState<ChessboardSetSearchFilters>({
     project_id: projectId,
   })
@@ -40,6 +44,8 @@ export default function ChessboardSetsModal({
   const [editingSet, setEditingSet] = useState<ChessboardSetTableRow | null>(null)
   const [copyModalOpen, setCopyModalOpen] = useState(false)
   const [copyingSet, setCopyingSet] = useState<ChessboardSetTableRow | null>(null)
+  const [createVorModalOpen, setCreateVorModalOpen] = useState(false)
+  const [selectedSetForVor, setSelectedSetForVor] = useState<ChessboardSetTableRow | null>(null)
   const [form] = Form.useForm()
   const [copyForm] = Form.useForm()
 
@@ -60,6 +66,36 @@ export default function ChessboardSetsModal({
     queryKey: ['chessboard-sets', searchFilters],
     queryFn: () => chessboardSetsApi.getSets(searchFilters),
     enabled: open && !!projectId,
+  })
+
+  // Загрузка ВОР для всех комплектов
+  const { data: setsVors, isLoading: vorsLoading } = useQuery({
+    queryKey: ['chessboard-sets-vors', sets?.map(s => s.id)],
+    queryFn: async () => {
+      if (!sets || sets.length === 0) return new Map()
+
+      const vorsMap = new Map()
+
+      // Загружаем ВОР для каждого комплекта параллельно
+      const vorsPromises = sets.map(async (set) => {
+        try {
+          const vors = await getVorsByChessboardSet(set.id)
+          return { setId: set.id, vors }
+        } catch (error) {
+          console.error(`Ошибка загрузки ВОР для комплекта ${set.id}:`, error)
+          return { setId: set.id, vors: [] }
+        }
+      })
+
+      const results = await Promise.all(vorsPromises)
+
+      results.forEach(({ setId, vors }) => {
+        vorsMap.set(setId, vors)
+      })
+
+      return vorsMap
+    },
+    enabled: !!sets && sets.length > 0,
   })
 
   // Загрузка справочников для форм копирования
@@ -346,6 +382,28 @@ export default function ChessboardSetsModal({
     copyForm.setFieldValue('cost_type_ids', filteredCostTypes)
   }
 
+  // Обработчик создания ВОР
+  const handleCreateVor = (set: ChessboardSetTableRow) => {
+    setSelectedSetForVor(set)
+    setCreateVorModalOpen(true)
+  }
+
+  // Обработчик успешного создания ВОР
+  const handleCreateVorSuccess = (vorId: string) => {
+    // Обновляем данные комплектов с ВОР
+    refetch()
+    // Переходим к созданной ВОР
+    navigate(`/documents/vor-view?vor_id=${vorId}`)
+    // Закрываем модальное окно комплектов
+    onClose()
+  }
+
+  // Обработчик перехода к ВОР
+  const handleGoToVor = (vorId: string) => {
+    navigate(`/documents/vor-view?vor_id=${vorId}`)
+    onClose()
+  }
+
   const columns: ColumnsType<ChessboardSetTableRow> = [
     {
       title: 'Номер комплекта',
@@ -416,6 +474,64 @@ export default function ChessboardSetsModal({
       width: '8%',
       render: (date) => new Date(date).toLocaleDateString('ru'),
       sorter: (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    },
+    {
+      title: 'ВОРы',
+      key: 'vors',
+      width: '10%',
+      render: (_, record) => {
+        const setVors = setsVors?.get(record.id) || []
+
+        if (vorsLoading) {
+          return <Spin size="small" />
+        }
+
+        return (
+          <Space direction="vertical" size="small" style={{ width: '100%' }}>
+            {/* Кнопка создания ВОР */}
+            <Button
+              type="link"
+              size="small"
+              icon={<PlusOutlined />}
+              onClick={() => handleCreateVor(record)}
+              style={{
+                padding: 0,
+                height: 'auto',
+                color: '#1890ff',
+              }}
+            >
+              Создать ВОР
+            </Button>
+
+            {/* Список существующих ВОР */}
+            {setVors.length > 0 && (
+              <div style={{ fontSize: 12 }}>
+                {setVors.map((vor, index) => (
+                  <div key={vor.id} style={{ marginBottom: 2 }}>
+                    <Button
+                      type="link"
+                      size="small"
+                      onClick={() => handleGoToVor(vor.id)}
+                      style={{
+                        padding: 0,
+                        height: 'auto',
+                        fontSize: 12,
+                        color: '#52c41a',
+                        textAlign: 'left',
+                      }}
+                      title={`Перейти к ВОР: ${vor.name}`}
+                    >
+                      {index + 1}. {vor.name.length > 20
+                        ? `${vor.name.substring(0, 20)}...`
+                        : vor.name}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Space>
+        )
+      },
     },
     {
       title: 'Действия',
@@ -783,6 +899,22 @@ export default function ChessboardSetsModal({
             </div>
           </Form>
         </Modal>
+
+        {/* Модальное окно создания ВОР */}
+        <CreateVorModal
+          open={createVorModalOpen}
+          onClose={() => {
+            setCreateVorModalOpen(false)
+            setSelectedSetForVor(null)
+          }}
+          onSuccess={handleCreateVorSuccess}
+          chessboardSet={selectedSetForVor ? {
+            id: selectedSetForVor.id,
+            name: selectedSetForVor.name || '',
+            project_id: selectedSetForVor.project_id,
+            set_number: selectedSetForVor.set_number,
+          } : null}
+        />
       </Modal>
     </>
   )
