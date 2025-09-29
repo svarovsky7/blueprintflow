@@ -40,15 +40,15 @@ export const useTableOperations = () => {
       setEditedRows(new Map())
       setEditingRows({})
     }
-  }, [])
+  }, [message])
 
   // Выбор строк для массовых операций
   const setSelectedRowKeys = useCallback((keys: Key[]) => {
     setTableMode((prev) => ({ ...prev, selectedRowKeys: keys }))
-  }, [])
+  }, [message])
 
   // Добавление новой строки
-  const addNewRow = useCallback((projectId: string) => {
+  const addNewRow = useCallback((projectId: string, insertPosition: 'first' | 'after' = 'first', afterRowIndex?: number) => {
     if (!projectId) {
       message.warning('Выберите проект для добавления строки')
       return
@@ -95,32 +95,52 @@ export const useTableOperations = () => {
       // Технические поля
       isNew: true,
       isEditing: true,
+      _insertPosition: insertPosition,
+      _afterRowIndex: afterRowIndex,
     }
 
-    setNewRows((prev) => [...prev, newRow])
-  }, [])
+    setNewRows((prev) => {
+      if (insertPosition === 'first') {
+        return [newRow, ...prev]
+      } else if (insertPosition === 'after' && afterRowIndex !== undefined) {
+        const newRows = [...prev]
+        newRows.splice(afterRowIndex + 1, 0, newRow)
+        return newRows
+      }
+      return [...prev, newRow]
+    })
+  }, [message])
 
   // Удаление новой строки
   const removeNewRow = useCallback((rowId: string) => {
     setNewRows((prev) => prev.filter((row) => row.id !== rowId))
-  }, [])
+  }, [message])
 
   // Копирование строки
-  const copyRow = useCallback((sourceRow: RowData) => {
+  const copyRow = useCallback((sourceRow: RowData, insertPosition: 'after' = 'after', afterRowIndex?: number) => {
     const copiedRow: RowData = {
       ...sourceRow,
       id: `copy-${Date.now()}-${Math.random()}`,
       isNew: true,
       isEditing: true,
+      _insertPosition: insertPosition,
+      _afterRowIndex: afterRowIndex,
     }
 
-    setNewRows((prev) => [...prev, copiedRow])
-  }, [])
+    setNewRows((prev) => {
+      if (insertPosition === 'after' && afterRowIndex !== undefined) {
+        const newRows = [...prev]
+        newRows.splice(afterRowIndex + 1, 0, copiedRow)
+        return newRows
+      }
+      return [...prev, copiedRow]
+    })
+  }, [message])
 
   // Обновление новой строки
   const updateNewRow = useCallback((rowId: string, updates: Partial<RowData>) => {
     setNewRows((prev) => prev.map((row) => (row.id === rowId ? { ...row, ...updates } : row)))
-  }, [])
+  }, [message])
 
   // Начало редактирования существующей строки
   const startEditing = useCallback((rowId: string) => {
@@ -131,7 +151,7 @@ export const useTableOperations = () => {
       }
       return newMap
     })
-  }, [])
+  }, [message])
 
   // Отмена редактирования строки
   const cancelEditing = useCallback((rowId: string) => {
@@ -140,7 +160,7 @@ export const useTableOperations = () => {
       newMap.delete(rowId)
       return newMap
     })
-  }, [])
+  }, [message])
 
   // Обновление редактируемой строки
   const updateEditedRow = useCallback((rowId: string, updates: Partial<RowData>) => {
@@ -152,7 +172,7 @@ export const useTableOperations = () => {
       newMap.set(rowId, { ...currentEdits, ...updates })
       return newMap
     })
-  }, [])
+  }, [message])
 
   // Функции для множественного редактирования (backup подход)
   const startEditBackup = useCallback((rowId: string, originalRow: RowData) => {
@@ -161,7 +181,7 @@ export const useTableOperations = () => {
       ...prev,
       [rowId]: { ...originalRow, isEditing: true }
     }))
-  }, [])
+  }, [message])
 
   const stopEditBackup = useCallback((rowId: string) => {
     console.log('🔍 DEBUG: Останавливаем backup редактирование строки:', rowId) // LOG: отладочная информация
@@ -170,7 +190,7 @@ export const useTableOperations = () => {
       delete updated[rowId]
       return updated
     })
-  }, [])
+  }, [message])
 
   const updateEditingRow = useCallback((rowId: string, updates: Partial<RowData>) => {
     console.log('🔍 DEBUG: Обновляем backup редактируемую строку:', { rowId, updates }) // LOG: отладочная информация
@@ -183,7 +203,7 @@ export const useTableOperations = () => {
       }
       return prev
     })
-  }, [])
+  }, [message])
 
   // Изменение цвета строки
   const updateRowColor = useCallback(
@@ -1006,7 +1026,25 @@ export const useTableOperations = () => {
       return edits ? { ...row, ...edits, isEditing: true } : row
     })
 
-    return [...dataWithEdits, ...newRows]
+    // Сортируем новые строки для правильного позиционирования
+    const firstRowsNew = newRows.filter(row => row._insertPosition === 'first')
+    const afterRowsNew = newRows.filter(row => row._insertPosition === 'after')
+
+    // Сначала добавляем строки, которые должны быть первыми
+    let result = [...firstRowsNew, ...dataWithEdits]
+
+    // Затем вставляем строки, которые должны быть после определенных позиций
+    afterRowsNew.forEach(newRow => {
+      if (typeof newRow._afterRowIndex === 'number') {
+        const insertIndex = newRow._afterRowIndex + 1 + firstRowsNew.length
+        result.splice(insertIndex, 0, newRow)
+      } else {
+        // Если позиция не определена, добавляем в конец
+        result.push(newRow)
+      }
+    })
+
+    return result
   }, [editedRows, newRows, editingRows])
 
   // Проверка наличия несохраненных изменений

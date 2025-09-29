@@ -7,6 +7,8 @@ import {
   SaveOutlined,
   CloseOutlined,
   AppstoreOutlined,
+  CopyOutlined,
+  BgColorsOutlined,
 } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { statusesApi } from '@/entities/statuses'
@@ -23,6 +25,9 @@ interface ChessboardActionButtonsProps {
   onCancelChanges: () => void
   onDeleteSelected: () => void
   onAddRow: () => void
+  onAddRowAfter?: (rowIndex: number) => void
+  onCopyRow?: (rowData: any, rowIndex: number) => void
+  onRemoveRow?: (rowId: string) => void
   onOpenSetsModal?: () => void
   currentStatus?: string
   onStatusChange?: (statusId: string) => void
@@ -39,6 +44,9 @@ export const ChessboardActionButtons = memo(
     onCancelChanges,
     onDeleteSelected,
     onAddRow,
+    onAddRowAfter,
+    onCopyRow,
+    onRemoveRow,
     onOpenSetsModal,
     currentStatus,
     onStatusChange,
@@ -73,8 +81,68 @@ export const ChessboardActionButtons = memo(
     // Находим текущий статус для отображения только пиктограммы
     const currentStatusData = chessboardStatuses.find(s => s.id === currentStatus)
 
-    // В режиме добавления или редактирования показываем кнопки сохранения
-    if (mode === 'add' || mode === 'edit') {
+    // В режиме добавления показываем специальные кнопки для работы со строками
+    if (mode === 'add') {
+      return (
+        <Space>
+          {/* Кнопка цвета - показываем пиктограмму цвета */}
+          {currentStatusData && (
+            <Button
+              icon={<StatusIcon color={currentStatusData.color || '#d9d9d9'} />}
+              title="Цвет строки"
+            >
+              Цвет
+            </Button>
+          )}
+
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={onAddRow}
+            title="Добавить строку в начало таблицы"
+          >
+            Добавить строку
+          </Button>
+
+          <Button
+            icon={<CopyOutlined />}
+            onClick={() => {
+              // Логика копирования будет реализована в таблице
+            }}
+            title="Скопировать строку со всеми введенными значениями"
+          >
+            Скопировать строку
+          </Button>
+
+          <Button
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => {
+              // Логика удаления строки будет реализована в таблице
+            }}
+            title="Удалить строку"
+          >
+            Удалить строку
+          </Button>
+
+          <Button
+            type="primary"
+            icon={<SaveOutlined />}
+            onClick={onSaveChanges}
+            disabled={!hasUnsavedChanges}
+          >
+            Сохранить
+          </Button>
+
+          <Button icon={<CloseOutlined />} onClick={onCancelChanges}>
+            Отмена
+          </Button>
+        </Space>
+      )
+    }
+
+    // В режиме редактирования показываем кнопки сохранения
+    if (mode === 'edit') {
       return (
         <Space>
           <Button

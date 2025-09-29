@@ -168,9 +168,19 @@ export default function Chessboard() {
   // Обработчики событий
   const handleAddRow = useCallback(() => {
     if (appliedFilters.project_id) {
-      addNewRow(appliedFilters.project_id)
+      addNewRow(appliedFilters.project_id, 'first')
     }
   }, [appliedFilters.project_id, addNewRow])
+
+  const handleAddRowAfter = useCallback((rowIndex: number) => {
+    if (appliedFilters.project_id) {
+      addNewRow(appliedFilters.project_id, 'after', rowIndex)
+    }
+  }, [appliedFilters.project_id, addNewRow])
+
+  const handleCopyRowAfter = useCallback((rowData: any, rowIndex: number) => {
+    copyRow(rowData, 'after', rowIndex)
+  }, [copyRow])
 
   const handleRowUpdate = useCallback(
     (rowId: string, updates: any) => {
@@ -550,11 +560,13 @@ export default function Chessboard() {
             currentProjectId={appliedFilters.project_id}
             onSelectionChange={setSelectedRowKeys}
             onRowUpdate={handleRowUpdate}
-            onBackupRowUpdate={handleBackupRowUpdate}
             onRowCopy={copyRow}
             onRowDelete={handleRowDelete}
             onRowColorChange={updateRowColor}
             onStartEditing={handleStartEditing}
+            onAddRowAfter={handleAddRowAfter}
+            onCopyRowAfter={handleCopyRowAfter}
+            onRemoveNewRow={removeNewRow}
           />
         </div>
 
