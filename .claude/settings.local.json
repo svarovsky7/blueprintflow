@@ -78,7 +78,8 @@
       "Bash(ren:*)",
       "Bash(timeout 30 npx playwright test tests/chessboard-simple.spec.ts --reporter=line --timeout=20000 --workers=1)",
       "Bash(timeout 15 npm run dev:local)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(tree:*)"
     ],
     "deny": [],
     "ask": []

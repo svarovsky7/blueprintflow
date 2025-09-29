@@ -257,29 +257,200 @@ export const useTableOperations = () => {
     try {
       const promises: Promise<any>[] = []
 
-      // Сохранение новых строк
+      // Сохранение новых строк - ИСПРАВЛЕНО: используем последовательную обработку как в редактировании
       if (newRows.length > 0) {
-        const newRowsData = newRows.map((row) => ({
-          project_id: row.projectId,
-          block_id: row.blockId || null,
-          cost_category_id: row.costCategoryId || null,
-          detail_cost_category_id: row.costTypeId || null,
-          location_id: row.locationId || null,
-          nomenclature_id: row.nomenclatureId || null,
-          quantity: row.quantity,
-          unit_id: row.unitId || null,
-          rate_id: row.rateId || null,
-          amount: row.amount,
-          color: row.color || null,
-          floor_quantities:
-            Object.keys(row.floorQuantities).length > 0 ? row.floorQuantities : null,
-          original_material: row.originalMaterial || null,
-          original_quantity: row.originalQuantity || null,
-          original_unit: row.originalUnit || null,
-          original_unit_id: row.originalUnitId || null,
-        }))
+        for (const row of newRows) {
+          // 1. Сначала создаем запись в основной таблице chessboard (только основные поля БД)
+          const chessboardData = {
+            project_id: row.projectId,
+            color: row.color || null,
+            unit_id: row.unitId || null,
+            material: row.materialId || null,
+            material_type: row.materialType || 'База',
+          }
 
-        promises.push(supabase.from('chessboard').insert(newRowsData))
+          // Обработка материала - если это UUID, используем как есть, если название - ищем/создаем
+          if (row.material && row.material.trim()) {
+            const materialValue = row.material.trim()
+            console.log('🔍 DEBUG: Обработка материала при добавлении:', materialValue) // LOG
+
+            // Проверяем, является ли значение UUID
+            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(materialValue)
+
+            if (isUUID) {
+              // Если это UUID, используем как есть
+              chessboardData.material = materialValue
+              console.log('🔍 DEBUG: Используем UUID материала:', materialValue) // LOG
+            } else {
+              // Если это название, ищем или создаем материал
+              const { data: existingMaterial, error: findError } = await supabase
+                .from('materials')
+                .select('uuid')
+                .eq('name', materialValue)
+                .single()
+
+              if (findError && findError.code !== 'PGRST116') {
+                console.error('🔍 ERROR: Ошибка поиска материала при добавлении:', findError) // LOG
+                throw findError
+              }
+
+              let materialId: string
+              if (existingMaterial) {
+                materialId = existingMaterial.uuid
+                console.log('🔍 DEBUG: Материал найден при добавлении, UUID:', materialId) // LOG
+              } else {
+                console.log('🔍 DEBUG: Создаем новый материал при добавлении:', materialValue) // LOG
+                const { data: newMaterial, error: createError } = await supabase
+                  .from('materials')
+                  .insert({ name: materialValue })
+                  .select('uuid')
+                  .single()
+
+                if (createError) {
+                  console.error('🔍 ERROR: Ошибка создания материала при добавлении:', createError) // LOG
+                  throw createError
+                }
+
+                materialId = newMaterial.uuid
+                console.log('🔍 DEBUG: Новый материал создан при добавлении, UUID:', materialId) // LOG
+              }
+
+              chessboardData.material = materialId
+            }
+          }
+
+          console.log('📊 Создание новой строки chessboard:', chessboardData) // LOG
+
+          const { data: newChessboardRow, error: insertError } = await supabase
+            .from('chessboard')
+            .insert(chessboardData)
+            .select('id')
+            .single()
+
+          if (insertError) {
+            console.error('❌ Ошибка создания строки chessboard:', insertError) // LOG
+            throw insertError
+          }
+
+          const newRowId = newChessboardRow.id
+          console.log('✅ Создана новая строка chessboard с ID:', newRowId) // LOG
+
+          // 2. Создаем запись в mapping таблице (аналогично редактированию)
+          const mappingData: any = {}
+          if (row.blockId) mappingData.block_id = row.blockId
+          if (row.costCategoryId) mappingData.cost_category_id = parseInt(row.costCategoryId)
+          if (row.costTypeId) mappingData.cost_type_id = parseInt(row.costTypeId)
+          if (row.locationId) mappingData.location_id = parseInt(row.locationId)
+
+          if (Object.keys(mappingData).length > 0) {
+            mappingData.chessboard_id = newRowId
+            mappingData.updated_at = new Date().toISOString()
+
+            console.log('📊 Создание mapping для новой строки:', mappingData) // LOG
+
+            const { error: mappingError } = await supabase
+              .from('chessboard_mapping')
+              .insert(mappingData)
+
+            if (mappingError) {
+              console.error('❌ Ошибка создания mapping для новой строки:', mappingError) // LOG
+              throw mappingError
+            }
+          }
+
+          // 3. Создаем связи с документацией (аналогично редактированию)
+          if (row.documentationVersionId) {
+            console.log('📄 Создание documentation mapping для новой строки:', row.documentationVersionId) // LOG
+            const { error: docError } = await supabase
+              .from('chessboard_documentation_mapping')
+              .insert({
+                chessboard_id: newRowId,
+                version_id: row.documentationVersionId
+              })
+
+            if (docError) {
+              console.error('❌ Ошибка создания documentation mapping:', docError) // LOG
+              throw docError
+            }
+          }
+
+          // 4. Создаем связи с номенклатурой (аналогично редактированию)
+          if (row.nomenclatureId) {
+            console.log('🏷️ Создание nomenclature mapping для новой строки:', row.nomenclatureId) // LOG
+            const { error: nomError } = await supabase
+              .from('chessboard_nomenclature_mapping')
+              .insert({
+                chessboard_id: newRowId,
+                nomenclature_id: row.nomenclatureId,
+                supplier_name: row.supplier || null
+              })
+
+            if (nomError) {
+              console.error('❌ Ошибка создания nomenclature mapping:', nomError) // LOG
+              throw nomError
+            }
+          }
+
+          // 5. Создаем связи с расценками (аналогично редактированию)
+          if (row.rateId) {
+            console.log('💰 Создание rates mapping для новой строки:', row.rateId) // LOG
+            const { error: rateError } = await supabase
+              .from('chessboard_rates_mapping')
+              .insert({
+                chessboard_id: newRowId,
+                rate_id: row.rateId
+              })
+
+            if (rateError) {
+              console.error('❌ Ошибка создания rates mapping:', rateError) // LOG
+              throw rateError
+            }
+          }
+
+          // 6. Сохраняем количества в chessboard_floor_mapping (аналогично редактированию)
+          if (row.floorQuantities && Object.keys(row.floorQuantities).length > 0) {
+            console.log('🏢 Создание floor mapping для новой строки:', row.floorQuantities) // LOG
+
+            const floorRecords = []
+            for (const [floorNumber, quantities] of Object.entries(row.floorQuantities)) {
+              floorRecords.push({
+                chessboard_id: newRowId,
+                floor_number: parseInt(floorNumber),
+                quantityPd: parseFloat(quantities.quantityPd) || 0,
+                quantitySpec: parseFloat(quantities.quantitySpec) || 0,
+                quantityRd: parseFloat(quantities.quantityRd) || 0
+              })
+            }
+
+            if (floorRecords.length > 0) {
+              const { error: floorError } = await supabase
+                .from('chessboard_floor_mapping')
+                .insert(floorRecords)
+
+              if (floorError) {
+                console.error('❌ Ошибка создания floor mapping:', floorError) // LOG
+                throw floorError
+              }
+            }
+          } else if (row.quantityPd || row.quantitySpec || row.quantityRd) {
+            // Сохраняем общие количества без этажей
+            console.log('🏢 Создание general quantities для новой строки') // LOG
+            const { error: quantityError } = await supabase
+              .from('chessboard_floor_mapping')
+              .insert({
+                chessboard_id: newRowId,
+                floor_number: null,
+                quantityPd: parseFloat(row.quantityPd) || 0,
+                quantitySpec: parseFloat(row.quantitySpec) || 0,
+                quantityRd: parseFloat(row.quantityRd) || 0
+              })
+
+            if (quantityError) {
+              console.error('❌ Ошибка создания general quantities:', quantityError) // LOG
+              throw quantityError
+            }
+          }
+        }
       }
 
       // Сохранение отредактированных строк

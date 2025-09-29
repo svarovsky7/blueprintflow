@@ -107,24 +107,44 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
   // Состояние для хранения результата batch processing
   const [filteredRawData, setFilteredRawData] = useState<any[] | null>(null)
 
-  // ИСПРАВЛЕНИЕ: Стабилизируем queryKey для предотвращения бесконечного рендеринга
-  const stableQueryKey = useMemo(() => {
-    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Предварительно стабилизируем массивы только один раз
-    const stableBlockIds = appliedFilters.block_ids ? [...appliedFilters.block_ids].sort().join(',') : 'no-blocks'
-    const stableCostCategoryIds = appliedFilters.cost_category_ids ? [...appliedFilters.cost_category_ids].sort().join(',') : 'no-cost-categories'
-    const stableDetailCategoryIds = appliedFilters.detail_cost_category_ids ? [...appliedFilters.detail_cost_category_ids].sort().join(',') : 'no-detail-categories'
-    const stableDocSectionIds = appliedFilters.documentation_section_ids ? [...appliedFilters.documentation_section_ids].sort().join(',') : 'no-doc-sections'
-    const stableDocCodeIds = appliedFilters.documentation_code_ids ? [...appliedFilters.documentation_code_ids].sort().join(',') : 'no-doc-codes'
+  // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Создаем стабильные строки с упрощенными зависимостями
+  const stableFilterStrings = useMemo(() => {
+    const blockIds = appliedFilters.block_ids ? [...appliedFilters.block_ids].sort().join(',') : 'no-blocks'
+    const costCategoryIds = appliedFilters.cost_category_ids ? [...appliedFilters.cost_category_ids].sort().join(',') : 'no-cost-categories'
+    const detailCategoryIds = appliedFilters.detail_cost_category_ids ? [...appliedFilters.detail_cost_category_ids].sort().join(',') : 'no-detail-categories'
+    const docSectionIds = appliedFilters.documentation_section_ids ? [...appliedFilters.documentation_section_ids].sort().join(',') : 'no-doc-sections'
+    const docCodeIds = appliedFilters.documentation_code_ids ? [...appliedFilters.documentation_code_ids].sort().join(',') : 'no-doc-codes'
 
+    return {
+      projectId: appliedFilters.project_id || 'no-project',
+      blockIds,
+      costCategoryIds,
+      detailCategoryIds,
+      docSectionIds,
+      docCodeIds,
+      materialSearch: appliedFilters.material_search || 'no-search',
+    }
+  }, [
+    appliedFilters.project_id,
+    appliedFilters.block_ids?.join(',') || '',
+    appliedFilters.cost_category_ids?.join(',') || '',
+    appliedFilters.detail_cost_category_ids?.join(',') || '',
+    appliedFilters.documentation_section_ids?.join(',') || '',
+    appliedFilters.documentation_code_ids?.join(',') || '',
+    appliedFilters.material_search,
+  ])
+
+  // Стабилизируем queryKey используя мемоизированные строки
+  const stableQueryKey = useMemo(() => {
     const newQueryKey = [
       'chessboard-data',
-      appliedFilters.project_id || 'no-project',
-      stableBlockIds,
-      stableCostCategoryIds,
-      stableDetailCategoryIds,
-      stableDocSectionIds,
-      stableDocCodeIds,
-      appliedFilters.material_search || 'no-search',
+      stableFilterStrings.projectId,
+      stableFilterStrings.blockIds,
+      stableFilterStrings.costCategoryIds,
+      stableFilterStrings.detailCategoryIds,
+      stableFilterStrings.docSectionIds,
+      stableFilterStrings.docCodeIds,
+      stableFilterStrings.materialSearch,
     ]
 
     // LOG: QueryKey только при первых 3 рендерах или при проблемах (> 10)
@@ -133,16 +153,7 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
     }
 
     return newQueryKey
-  }, [
-    appliedFilters.project_id,
-    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем стабилизированные строки вместо JSON.stringify
-    appliedFilters.block_ids ? appliedFilters.block_ids.slice().sort().join(',') : '',
-    appliedFilters.cost_category_ids ? appliedFilters.cost_category_ids.slice().sort().join(',') : '',
-    appliedFilters.detail_cost_category_ids ? appliedFilters.detail_cost_category_ids.slice().sort().join(',') : '',
-    appliedFilters.documentation_section_ids ? appliedFilters.documentation_section_ids.slice().sort().join(',') : '',
-    appliedFilters.documentation_code_ids ? appliedFilters.documentation_code_ids.slice().sort().join(',') : '',
-    appliedFilters.material_search,
-  ])
+  }, [stableFilterStrings])
 
   // Основной запрос данных шахматки
   const {
@@ -354,21 +365,15 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
     enabled: enabled && !!appliedFilters.project_id,
   })
 
-  // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Убираем циклическую зависимость - НЕ зависим от rawData или filteredRawData
+  // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем стабильные строки вместо дублирования логики
   const stableDocQueryKey = useMemo(
     () => [
       'chessboard-documentation',
-      appliedFilters.project_id || 'no-project',
-      // ИСПРАВЛЕНИЕ: Используем только appliedFilters для стабильности, без зависимости от данных
-      appliedFilters.documentation_code_ids ? [...appliedFilters.documentation_code_ids].sort().join(',') : 'no-doc-codes',
-      appliedFilters.documentation_section_ids ? [...appliedFilters.documentation_section_ids].sort().join(',') : 'no-doc-sections',
+      stableFilterStrings.projectId,
+      stableFilterStrings.docCodeIds,
+      stableFilterStrings.docSectionIds,
     ],
-    [
-      appliedFilters.project_id,
-      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем стабилизированные строки вместо JSON.stringify
-      appliedFilters.documentation_code_ids ? appliedFilters.documentation_code_ids.slice().sort().join(',') : '',
-      appliedFilters.documentation_section_ids ? appliedFilters.documentation_section_ids.slice().sort().join(',') : ''
-    ],
+    [stableFilterStrings]
   )
 
   // Отдельный запрос для данных документации
@@ -429,15 +434,14 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
     enabled: enabled && !!appliedFilters.project_id && !!(filteredRawData || rawData),
   })
 
-  // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Стабилизируем queryKey для этажей БЕЗ циклической зависимости
+  // Стабилизируем queryKey для этажей используя стабильные строки
   const stableFloorsQueryKey = useMemo(
     () => [
       'chessboard-floors',
-      appliedFilters.project_id || 'no-project',
-      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Не зависим от rawData для предотвращения бесконечного рендеринга
-      stableQueryKey.join('|') // Используем стабильный ключ основного запроса
+      stableFilterStrings.projectId,
+      stableQueryKey.join('|'),
     ],
-    [appliedFilters.project_id, stableQueryKey.join('|')], // ИСПРАВЛЕНИЕ: убираем зависимость от rawData
+    [stableFilterStrings, stableQueryKey]
   )
 
   // Отдельный запрос для данных этажей с батчингом
@@ -478,15 +482,14 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
     enabled: enabled && !!appliedFilters.project_id,
   })
 
-  // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Стабилизируем queryKey для расценок БЕЗ циклической зависимости
+  // Стабилизируем queryKey для расценок используя стабильные строки
   const stableRatesQueryKey = useMemo(
     () => [
       'chessboard-rates',
-      appliedFilters.project_id || 'no-project',
-      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Не зависим от rawData для предотвращения бесконечного рендеринга
-      stableQueryKey.join('|') // Используем стабильный ключ основного запроса
+      stableFilterStrings.projectId,
+      stableQueryKey.join('|'),
     ],
-    [appliedFilters.project_id, stableQueryKey.join('|')], // ИСПРАВЛЕНИЕ: убираем зависимость от rawData
+    [stableFilterStrings, stableQueryKey]
   )
 
   // Отдельный запрос для данных расценок
@@ -754,7 +757,7 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
 
   // Загрузка версий документов для выбранного проекта
   const { data: documentVersions = [] } = useQuery({
-    queryKey: ['document-versions', filters?.project, filters?.documentationCode?.slice().sort().join(',') || ''],
+    queryKey: ['document-versions', filters?.project, filters?.documentationCode ? [...filters.documentationCode].sort().join(',') : ''],
     queryFn: async () => {
       if (!filters?.project || !filters?.documentationCode?.length || !supabase) return []
 
@@ -776,7 +779,7 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
 
   // Загрузка информации о документации для модального окна версий
   const { data: documentationInfo = [] } = useQuery({
-    queryKey: ['documentation-info', filters?.project, filters?.documentationCode?.slice().sort().join(',') || ''],
+    queryKey: ['documentation-info', filters?.project, filters?.documentationCode ? [...filters.documentationCode].sort().join(',') : ''],
     queryFn: async () => {
       if (!filters?.project || !filters?.documentationCode?.length || !supabase) return []
 

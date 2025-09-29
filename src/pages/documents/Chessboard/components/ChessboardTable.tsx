@@ -2089,7 +2089,10 @@ export const ChessboardTable = memo(({
             />
           )
         }
-        return <span>{value || ''}</span>
+
+        // В режиме просмотра показываем название материала, если value содержит UUID
+        const materialName = materialsData.find(m => m.value === value)?.label || value || ''
+        return <span>{materialName}</span>
       },
     },
 
