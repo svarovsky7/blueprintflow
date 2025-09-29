@@ -372,8 +372,9 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
       stableFilterStrings.projectId,
       stableFilterStrings.docCodeIds,
       stableFilterStrings.docSectionIds,
+      rawData?.length || 0, // LOG: добавляем зависимость от количества основных данных для синхронизации
     ],
-    [stableFilterStrings]
+    [stableFilterStrings, rawData?.length]
   )
 
   // Отдельный запрос для данных документации
@@ -491,8 +492,9 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
       'chessboard-rates',
       stableFilterStrings.projectId,
       stableQueryKey.join('|'),
+      rawData?.length || 0, // LOG: добавляем зависимость от количества основных данных для синхронизации
     ],
-    [stableFilterStrings, stableQueryKey]
+    [stableFilterStrings, stableQueryKey, rawData?.length]
   )
 
   // Отдельный запрос для данных расценок

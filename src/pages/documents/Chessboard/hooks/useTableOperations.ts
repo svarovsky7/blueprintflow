@@ -260,6 +260,7 @@ export const useTableOperations = (refetch?: () => void) => {
       // Сохранение новых строк - ИСПРАВЛЕНО: используем последовательную обработку как в редактировании
       if (newRows.length > 0) {
         for (const row of newRows) {
+          console.log('🔍 DEBUG: Сохраняем новую строку с данными:', { blockId: row.blockId, block: row.block, costCategoryId: row.costCategoryId, locationId: row.locationId }) // LOG: отладочная информация
           // 1. Сначала создаем запись в основной таблице chessboard (только основные поля БД)
           const chessboardData = {
             project_id: row.projectId,
@@ -337,7 +338,11 @@ export const useTableOperations = (refetch?: () => void) => {
 
           // 2. Создаем запись в mapping таблице (аналогично редактированию)
           const mappingData: any = {}
-          if (row.blockId) mappingData.block_id = row.blockId
+          console.log('🔍 DEBUG: Проверяем blockId для mapping:', { blockId: row.blockId, hasBlockId: !!row.blockId }) // LOG: отладочная информация
+          if (row.blockId) {
+            mappingData.block_id = row.blockId
+            console.log('✅ DEBUG: Добавили block_id в mapping:', mappingData.block_id) // LOG: отладочная информация
+          }
           if (row.costCategoryId) mappingData.cost_category_id = parseInt(row.costCategoryId)
           if (row.costTypeId) mappingData.cost_type_id = parseInt(row.costTypeId)
           if (row.locationId) mappingData.location_id = parseInt(row.locationId)

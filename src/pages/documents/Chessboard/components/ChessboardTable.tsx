@@ -1773,8 +1773,19 @@ export const ChessboardTable = memo(({
         if (isEditing) {
           return (
             <Select
-              value={value || undefined}
-              onChange={(newValue) => onRowUpdate(record.id, { block: newValue })}
+              value={(() => {
+                // LOG: если есть blockId, используем его, иначе ищем по названию блока
+                if (record.blockId) return record.blockId
+                return blocksData.find(block => block.label === value)?.value || undefined
+              })()}
+              onChange={(newValue) => {
+                // newValue содержит ID блока, нужно найти название
+                const selectedBlock = blocksData.find(block => block.value === newValue)
+                onRowUpdate(record.id, {
+                  block: selectedBlock?.label || '', // LOG: название блока для отображения
+                  blockId: newValue || '' // LOG: ID блока для сохранения в mapping
+                })
+              }}
               options={blocksData}
               allowClear
               showSearch
