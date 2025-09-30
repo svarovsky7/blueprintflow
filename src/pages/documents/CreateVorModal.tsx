@@ -64,7 +64,6 @@ export default function CreateVorModal({
         rate_coefficient: 1.0, // По умолчанию коэффициент 1.0
       }
 
-      console.log('🔍 CreateVor DTO:', dto) // LOG: проверка данных для создания ВОР
       createVorMutation.mutate(dto)
     } catch (error) {
       console.error('Ошибка валидации формы:', error)

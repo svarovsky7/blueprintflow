@@ -108,12 +108,6 @@ export const createVorFromChessboardSet = async (dto: CreateVorFromChessboardSet
   if (!supabase) throw new Error('Supabase client not initialized')
 
   try {
-    console.log('🔍 Creating VOR with data:', { // LOG: проверка данных для создания ВОР
-      name: dto.name,
-      project_id: dto.project_id,
-      rate_coefficient: dto.rate_coefficient || 1.0
-    })
-
     // 1. Создаем основную запись ВОР
     const { data: vorData, error: vorError } = await supabase
       .from('vor')
@@ -130,7 +124,6 @@ export const createVorFromChessboardSet = async (dto: CreateVorFromChessboardSet
       throw vorError
     }
 
-    console.log('✅ VOR created successfully:', vorData) // LOG: проверка созданного ВОР
     const vorId = vorData.id
 
     // 2. Создаем связь ВОР с комплектом

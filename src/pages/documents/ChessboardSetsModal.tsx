@@ -384,7 +384,6 @@ export default function ChessboardSetsModal({
 
   // Обработчик создания ВОР
   const handleCreateVor = (set: ChessboardSetTableRow) => {
-    console.log('🔍 Creating VOR for set:', set) // LOG: проверка данных комплекта
     setSelectedSetForVor(set)
     setCreateVorModalOpen(true)
   }
@@ -916,9 +915,6 @@ export default function ChessboardSetsModal({
               project_id: selectedSetForVor.project_id || projectId, // FALLBACK: используем projectId если в комплекте нет
               set_number: selectedSetForVor.set_number,
             }
-            console.log('🔍 Passing to CreateVorModal:', setData) // LOG: проверка данных для модального окна
-            console.log('🔍 selectedSetForVor.project_id:', selectedSetForVor.project_id) // LOG: проверка project_id комплекта
-            console.log('🔍 fallback projectId:', projectId) // LOG: проверка fallback projectId
             return setData
           })() : null}
         />
