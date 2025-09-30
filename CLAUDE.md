@@ -501,6 +501,84 @@ From technical specification (`tech_task.md`):
    - `scroll.y: calc(100vh - 300px)` - фиксированная высота, НЕ используйте `100%` или `auto`
    - Для страниц с пагинацией: `scroll.y: calc(100vh - 350px)`
 
+### КРИТИЧЕСКИ ВАЖНО: Адаптивный расчёт высоты таблицы
+
+При настройке `scroll.y` в Ant Design Table **ОБЯЗАТЕЛЬНО** учитывайте ВСЕ элементы страницы для корректного отображения последних строк и Summary.
+
+#### Правильный расчёт всех элементов:
+
+```tsx
+// Добавить состояние для адаптивной высоты
+const [tableScrollHeight, setTableScrollHeight] = useState('calc(100vh - 350px)')
+
+// Адаптивный расчёт высоты таблицы
+useEffect(() => {
+  const calculateTableHeight = () => {
+    const viewportHeight = window.innerHeight
+
+    // Подробный расчёт ВСЕХ элементов:
+    const headerHeight = 96          // header приложения
+    const pageHeaderHeight = 160     // заголовок ВОР + описание + название
+    const legendHeight = 60          // легенда цветов
+    const tableHeaderHeight = 45     // заголовки столбцов таблицы ⭐ КРИТИЧНО
+    const summaryRowHeight = 40      // итоговая строка ⭐ КРИТИЧНО
+    const paddingAndMargins = 40     // отступы контейнера + borders
+
+    const totalOffset = headerHeight + pageHeaderHeight + legendHeight +
+                       tableHeaderHeight + summaryRowHeight + paddingAndMargins
+
+    // Адаптивный расчёт с учётом размера экрана
+    if (viewportHeight <= 768) {
+      // Маленькие экраны - минимальные отступы
+      setTableScrollHeight(`calc(100vh - ${totalOffset - 40}px)`)
+    } else if (viewportHeight <= 1080) {
+      // Средние экраны - стандартные отступы
+      setTableScrollHeight(`calc(100vh - ${totalOffset}px)`)
+    } else {
+      // Большие экраны - дополнительный запас
+      setTableScrollHeight(`calc(100vh - ${totalOffset + 20}px)`)
+    }
+  }
+
+  calculateTableHeight()
+  window.addEventListener('resize', calculateTableHeight)
+  return () => window.removeEventListener('resize', calculateTableHeight)
+}, [])
+
+// Использовать в Table
+<Table
+  scroll={{
+    x: 'max-content',
+    y: tableScrollHeight,  // Динамическое значение
+  }}
+/>
+```
+
+#### Элементы, которые ОБЯЗАТЕЛЬНО учитывать:
+
+1. **Внешние элементы страницы:**
+   - Header приложения (~96px)
+   - Заголовок секции/ВОР (~160px)
+   - Легенда/описание (~60px)
+
+2. **Внутренние элементы таблицы (часто забывают!):**
+   - **Заголовки столбцов (thead)** - обычно 40-50px ⚠️
+   - **Summary строка** - добавляет 35-45px ⚠️
+   - **Borders и padding таблицы** - ещё 20-40px ⚠️
+
+3. **Отступы контейнера:**
+   - Padding контейнера таблицы
+   - Margins между элементами
+
+#### Типичные ошибки:
+
+❌ **НЕ учитывать заголовки таблицы** - приводит к обрезке последних строк
+❌ **НЕ учитывать Summary строку** - итоги не видны при прокрутке
+❌ **Фиксированные значения** - не работают на разных экранах
+❌ **Использовать `100%` или `auto`** - ломает прокрутку Ant Design Table
+
+✅ **Правильно:** Детальный расчёт всех элементов + адаптивность
+
 ## Specialized Agents
 
 Проект включает специализированных агентов для решения сложных задач. Агенты находятся в папке `agents/`:

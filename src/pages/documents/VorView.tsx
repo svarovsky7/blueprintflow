@@ -148,6 +148,24 @@ const VorView = () => {
   // Состояния для модальных окон
   const [addWorkModalVisible, setAddWorkModalVisible] = useState(false)
 
+  // Функции форматирования для InputNumber - убирают лишние нули
+  const formatNumber = (value: string | number | undefined): string => {
+    if (!value) return ''
+    const num = typeof value === 'string' ? parseFloat(value) : value
+    if (isNaN(num)) return ''
+    // Убираем лишние нули после запятой
+    return num % 1 === 0 ? num.toString() : num.toString()
+  }
+
+  const parseNumber = (value: string | undefined): number => {
+    if (!value) return 0
+    const num = parseFloat(value.replace(/\s/g, ''))
+    return isNaN(num) ? 0 : num
+  }
+
+  // Адаптивная высота таблицы
+  const [tableScrollHeight, setTableScrollHeight] = useState('calc(100vh - 350px)')
+
   // Состояния для inline редактирования материалов
   const [inlineEditingMaterialId, setInlineEditingMaterialId] = useState<string | null>(null)
   const [newMaterialRows, setNewMaterialRows] = useState<Set<string>>(new Set())
@@ -748,6 +766,43 @@ const VorView = () => {
     }
   }, [editableVorItems])
 
+  // Адаптивный расчёт высоты таблицы
+  useEffect(() => {
+    const calculateTableHeight = () => {
+      const viewportHeight = window.innerHeight
+      // Подробный расчёт всех элементов:
+      const headerHeight = 96 // header приложения
+      const pageHeaderHeight = 160 // заголовок ВОР + описание + название
+      const legendHeight = 60 // легенда цветов
+      const tableHeaderHeight = 45 // заголовки столбцов таблицы
+      const summaryRowHeight = 40 // итоговая строка
+      const paddingAndMargins = 40 // отступы контейнера + borders
+
+      // Общий отступ с учётом ВСЕХ элементов
+      const totalOffset = headerHeight + pageHeaderHeight + legendHeight +
+                         tableHeaderHeight + summaryRowHeight + paddingAndMargins
+
+      // Адаптивный расчёт с учётом размера экрана
+      if (viewportHeight <= 768) {
+        // Маленькие экраны - минимальные отступы
+        setTableScrollHeight(`calc(100vh - ${totalOffset - 40}px)`)
+      } else if (viewportHeight <= 1080) {
+        // Средние экраны - стандартные отступы
+        setTableScrollHeight(`calc(100vh - ${totalOffset}px)`)
+      } else {
+        // Большие экраны - дополнительный запас
+        setTableScrollHeight(`calc(100vh - ${totalOffset + 20}px)`)
+      }
+    }
+
+    calculateTableHeight()
+    window.addEventListener('resize', calculateTableHeight)
+
+    return () => {
+      window.removeEventListener('resize', calculateTableHeight)
+    }
+  }, [])
+
   // Функция для обновления коэффициента в строке работы
   const updateItemCoefficient = (itemId: string, newCoefficient: number) => {
     setVorItemsData(prevData =>
@@ -1256,6 +1311,57 @@ const VorView = () => {
         }
       }
 
+      // Сохраняем новые материалы
+      console.log('🔍 Сохраняем новые материалы...', newMaterialRows) // LOG: отладочная информация
+      for (const materialId of newMaterialRows) {
+        const tempData = tempMaterialData[materialId]
+        const materialItem = editableVorData.find(item => item.id === materialId)
+
+        if (!tempData || !materialItem || !materialItem.vor_work_id) {
+          console.log('🔍 Пропускаем материал:', { materialId, tempData, materialItem }) // LOG: отладочная информация
+          continue
+        }
+
+        if (!tempData.supplier_material_name) {
+          console.log('🔍 Материал без названия, пропускаем:', materialId) // LOG: отладочная информация
+          continue
+        }
+
+        const materialData = {
+          vor_work_id: materialItem.vor_work_id,
+          supplier_material_name: tempData.supplier_material_name,
+          unit_id: tempData.unit_id || undefined,
+          quantity: tempData.quantity,
+          price: tempData.price,
+        }
+
+        console.log('🔍 Создаем новый материал:', { materialId, materialData }) // LOG: отладочная информация
+        const newMaterial = await createVorMaterial(materialData)
+        console.log('🔍 Результат создания материала:', newMaterial) // LOG: результат API
+
+        // Заменяем временную строку на реальную
+        setEditableVorData(prevData =>
+          prevData.map(item =>
+            item.id === materialId
+              ? {
+                  ...item,
+                  id: newMaterial.id,
+                  name: tempData.supplier_material_name,
+                  unit: tempData.unit_id ? units?.find(u => u.id === tempData.unit_id)?.name || '' : '',
+                  quantity: tempData.quantity,
+                  material_price: tempData.price,
+                  material_total: tempData.price * tempData.quantity,
+                  is_modified: false
+                }
+              : item
+          )
+        )
+      }
+
+      // Очищаем временные состояния новых материалов
+      setNewMaterialRows(new Set())
+      setTempMaterialData({})
+
       console.log('✅ Все изменения сохранены') // LOG: успешное сохранение
       messageApi.success('Изменения сохранены')
 
@@ -1283,6 +1389,9 @@ const VorView = () => {
     // Очищаем отслеживание изменений
     setEditedItems(new Set())
     setEditedItemsData({})
+    // Очищаем новые материалы
+    setNewMaterialRows(new Set())
+    setTempMaterialData({})
   }
 
   const handleDeleteSelected = async () => {
@@ -1654,6 +1763,8 @@ const VorView = () => {
               onChange={(newValue) => {
                 handleTempMaterialDataChange(record.id, 'quantity', newValue || 1)
               }}
+              formatter={formatNumber}
+              parser={parseNumber}
               style={{ width: '100%' }}
               size="small"
               placeholder="1"
@@ -1676,6 +1787,8 @@ const VorView = () => {
                   updateItemQuantity(record.id, newValue || 0, record.type)
                 }
               }}
+              formatter={formatNumber}
+              parser={parseNumber}
               style={{ width: '100%' }}
               size="small"
             />
@@ -1710,9 +1823,11 @@ const VorView = () => {
               onChange={(newValue) => {
                 handleTempMaterialDataChange(record.id, 'price', newValue || 0)
               }}
+              formatter={formatNumber}
+              parser={parseNumber}
               style={{ width: '100%' }}
               size="small"
-              placeholder="0.00"
+              placeholder="0"
             />
           )
         }
@@ -1732,6 +1847,8 @@ const VorView = () => {
                   updateMaterialPrice(record.id, newValue || 0)
                 }
               }}
+              formatter={formatNumber}
+              parser={parseNumber}
               style={{ width: '100%' }}
               size="small"
             />
@@ -1767,6 +1884,8 @@ const VorView = () => {
                   updateWorkPrice(record.id, newValue || 0)
                 }
               }}
+              formatter={formatNumber}
+              parser={parseNumber}
               style={{ width: '100%' }}
               size="small"
             />
@@ -1943,6 +2062,8 @@ const VorView = () => {
                       precision={1}
                       value={coefficient}
                       onChange={handleCoefficientChange}
+                      formatter={formatNumber}
+                      parser={parseNumber}
                       style={{ width: 80 }}
                     />
                   </div>
@@ -2058,9 +2179,10 @@ const VorView = () => {
             flex: 1,
             overflow: 'hidden',
             minHeight: 0,
+            padding: '0 24px 16px 24px',
           }}
         >
-          <div style={{ padding: '0 24px 24px 24px', height: '100%' }}>
+          <div style={{ height: '100%' }}>
           <style>
             {`
               /* Стили для строк с работами из справочника Расценок */
@@ -2108,7 +2230,7 @@ const VorView = () => {
             pagination={false}
             scroll={{
               x: 'max-content',
-              y: 'calc(100vh - 350px)',
+              y: tableScrollHeight,
             }}
             sticky
             size="middle"
@@ -2145,16 +2267,16 @@ const VorView = () => {
 
               return (
                 <Table.Summary.Row>
-                  <Table.Summary.Cell index={0} colSpan={6}>
+                  <Table.Summary.Cell index={0} colSpan={7}>
                     <Text strong>Итого:</Text>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={6}>
+                  <Table.Summary.Cell index={7}>
                     <Text strong>{totalNomenclature.toLocaleString('ru-RU')}</Text>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={7}>
+                  <Table.Summary.Cell index={8}>
                     <Text strong>{totalWork.toLocaleString('ru-RU')}</Text>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={8}>
+                  <Table.Summary.Cell index={9}>
                     <Text strong>{grandTotal.toLocaleString('ru-RU')}</Text>
                   </Table.Summary.Cell>
                 </Table.Summary.Row>

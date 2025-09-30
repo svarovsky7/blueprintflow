@@ -28,6 +28,7 @@ export interface ChessboardSetFilters {
 
   // Новый формат - массив документов
   documents?: ChessboardSetDocument[] // Массив документов с версиями (неограниченное количество)
+  documentation_ids?: string[] // Массив ID документов (для поиска комплектов)
 
   // Старый формат для обратной совместимости (deprecated)
   documentation_id?: string

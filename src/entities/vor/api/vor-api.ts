@@ -180,6 +180,7 @@ const populateVorFromChessboardSet = async (vorId: string, setId: string): Promi
       id,
       material,
       unit_id,
+      material_type,
       materials:material(name),
       units:unit_id(id, name),
       chessboard_rates_mapping(
@@ -226,6 +227,8 @@ const populateVorFromChessboardSet = async (vorId: string, setId: string): Promi
   }
 
   // 3. Группируем данные по работам (rates)
+  // ВАЖНО: Количество для работы считается только по материалам типа "База"
+  // с совпадающими единицами измерения с работой
   const worksMap = new Map<string, {
     rate: {
       id: string
@@ -252,8 +255,14 @@ const populateVorFromChessboardSet = async (vorId: string, setId: string): Promi
     if (!rateMapping.rates) return
 
     const rateId = rateMapping.rate_id
-    const quantity = item.chessboard_floor_mapping?.reduce((sum: number, floor: any) =>
-      sum + (floor.quantityRd || 0), 0) || 0
+    const rateUnitId = rateMapping.rates.unit_id
+
+    // Учитываем количество только для материалов типа "База" с совпадающей ед.изм.
+    let quantity = 0
+    if (item.material_type === 'База' && item.unit_id === rateUnitId) {
+      quantity = item.chessboard_floor_mapping?.reduce((sum: number, floor: any) =>
+        sum + (floor.quantityRd || 0), 0) || 0
+    }
 
     if (!worksMap.has(rateId)) {
       worksMap.set(rateId, {
@@ -266,7 +275,7 @@ const populateVorFromChessboardSet = async (vorId: string, setId: string): Promi
     const workData = worksMap.get(rateId)!
     workData.totalQuantity += quantity
 
-    // Добавляем материалы
+    // Добавляем все материалы независимо от типа и ед.изм. (для номенклатуры)
     if (item.chessboard_nomenclature_mapping) {
       item.chessboard_nomenclature_mapping.forEach((nomenclatureMapping: any) => {
         if (nomenclatureMapping.nomenclature) {
@@ -278,9 +287,13 @@ const populateVorFromChessboardSet = async (vorId: string, setId: string): Promi
               )[0].price
             : 0
 
+          // Используем общее количество материала для номенклатуры
+          const materialQuantity = item.chessboard_floor_mapping?.reduce((sum: number, floor: any) =>
+            sum + (floor.quantityRd || 0), 0) || 0
+
           workData.materials.push({
             name: nomenclatureMapping.nomenclature.name,
-            quantity: quantity,
+            quantity: materialQuantity,
             price: latestPrice,
             unit_id: item.unit_id
           })

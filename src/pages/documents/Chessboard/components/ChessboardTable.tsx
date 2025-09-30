@@ -55,7 +55,7 @@ const COLUMN_WIDTH_CONFIG: Record<string, { width?: number; minWidth?: number; m
   [COLUMN_KEYS.ACTIONS]: { width: 80 }, // Служебный столбец 80px
   [COLUMN_KEYS.DOCUMENTATION_SECTION]: { minWidth: 40, maxWidth: 80 }, // "Раздел" динамический 40-80px
   [COLUMN_KEYS.DOCUMENTATION_CODE]: { width: 100 }, // "Шифр проекта" 100px
-  [COLUMN_KEYS.DOCUMENTATION_PROJECT_NAME]: { width: 120, minWidth: 120, maxWidth: 120 }, // Фиксированная
+  [COLUMN_KEYS.DOCUMENTATION_PROJECT_NAME]: { width: 150, minWidth: 150, maxWidth: 150 }, // Наименование проекта 150px
   [COLUMN_KEYS.DOCUMENTATION_VERSION]: { width: 40 }, // "Вер." фиксированная 40px
   [COLUMN_KEYS.BLOCK]: { minWidth: 60, maxWidth: 90 }, // "Корпус" + 10px = ~60px
   [COLUMN_KEYS.FLOORS]: { width: 50 }, // "Этажи" 50px
@@ -1070,7 +1070,8 @@ export const ChessboardTable = memo(({
       if (error) throw error
       return data.map(item => ({
         value: item.id,
-        label: item.code,
+        label: `${item.code} - ${item.project_name || ''}`.trim(),
+        code: item.code,
         projectName: item.project_name,
         tagId: item.tag_id
       }))
@@ -1774,16 +1775,21 @@ export const ChessboardTable = memo(({
           return (
             <Select
               value={(() => {
-                // LOG: если есть blockId, используем его, иначе ищем по названию блока
-                if (record.blockId) return record.blockId
+                // Если есть blockId, используем его
+                if (record.blockId) {
+                  // Проверяем, что blockId существует в blocksData
+                  const blockExists = blocksData.find(block => block.value === record.blockId)
+                  return blockExists ? record.blockId : undefined
+                }
+                // Иначе ищем по названию блока
                 return blocksData.find(block => block.label === value)?.value || undefined
               })()}
               onChange={(newValue) => {
                 // newValue содержит ID блока, нужно найти название
                 const selectedBlock = blocksData.find(block => block.value === newValue)
                 onRowUpdate(record.id, {
-                  block: selectedBlock?.label || '', // LOG: название блока для отображения
-                  blockId: newValue || '' // LOG: ID блока для сохранения в mapping
+                  block: selectedBlock?.label || '',
+                  blockId: newValue || ''
                 })
               }}
               options={blocksData}

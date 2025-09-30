@@ -102,6 +102,9 @@ export default function Chessboard() {
   // Состояние для текущего статуса шахматки
   const [currentStatus, setCurrentStatus] = useState<string | undefined>(undefined)
 
+  // Состояние для названия текущего комплекта
+  const [currentSetName, setCurrentSetName] = useState<string | undefined>(undefined)
+
   // Ref для отслеживания ручной установки статуса (чтобы избежать переопределения через useEffect)
   const statusSetManuallyRef = useRef(false)
 
@@ -124,7 +127,7 @@ export default function Chessboard() {
         // Формируем фильтры для поиска комплекта
         const searchFilters = {
           project_id: appliedFilters.project_id,
-          documentation_id: appliedFilters.documentation_code_ids.length > 0 ? appliedFilters.documentation_code_ids[0] : undefined,
+          documentation_ids: appliedFilters.documentation_code_ids.length > 0 ? appliedFilters.documentation_code_ids : undefined,
           tag_id: appliedFilters.documentation_section_ids.length > 0 ? Number(appliedFilters.documentation_section_ids[0]) : undefined,
           block_ids: appliedFilters.block_ids.length > 0 ? appliedFilters.block_ids : undefined,
           cost_category_ids: appliedFilters.cost_category_ids.length > 0 ? appliedFilters.cost_category_ids.map(Number) : undefined,
@@ -138,15 +141,18 @@ export default function Chessboard() {
         if (matchedSet && matchedSet.status) {
           console.log('✅ Найден комплект с статусом:', matchedSet.status) // LOG: найден комплект
           setCurrentStatus(matchedSet.status.id)
+          setCurrentSetName(matchedSet.name)
           statusSetManuallyRef.current = false // Это автоматическое определение
         } else {
           console.log('❌ Комплект не найден или без статуса') // LOG: комплект не найден
           setCurrentStatus(undefined)
+          setCurrentSetName(undefined)
           statusSetManuallyRef.current = false
         }
       } catch (error) {
         console.error('Ошибка поиска комплекта:', error) // LOG: ошибка поиска
         setCurrentStatus(undefined)
+        setCurrentSetName(undefined)
         statusSetManuallyRef.current = false
       }
     }
@@ -370,6 +376,7 @@ export default function Chessboard() {
       // Устанавливаем статус комплекта сразу
       if (set.status) {
         setCurrentStatus(set.status.id)
+        setCurrentSetName(set.name)
         statusSetManuallyRef.current = true // Помечаем как ручную установку
       }
 
@@ -439,7 +446,7 @@ export default function Chessboard() {
       try {
         const searchFilters = {
           project_id: appliedFilters.project_id,
-          documentation_id: appliedFilters.documentation_code_ids.length > 0 ? appliedFilters.documentation_code_ids[0] : undefined,
+          documentation_ids: appliedFilters.documentation_code_ids.length > 0 ? appliedFilters.documentation_code_ids : undefined,
           tag_id: appliedFilters.documentation_section_ids.length > 0 ? Number(appliedFilters.documentation_section_ids[0]) : undefined,
           block_ids: appliedFilters.block_ids.length > 0 ? appliedFilters.block_ids : undefined,
           cost_category_ids: appliedFilters.cost_category_ids.length > 0 ? appliedFilters.cost_category_ids.map(Number) : undefined,
@@ -561,6 +568,7 @@ export default function Chessboard() {
           onDeleteSelected={deleteSelectedRows}
           onAddRow={handleAddRow}
           currentStatus={currentStatus}
+          currentSetName={currentSetName}
           onStatusChange={handleStatusChange}
         />
       </div>

@@ -15,11 +15,14 @@ import Documents from './pages/Documents'
 import Chessboard from './pages/documents/Chessboard'
 import Vor from './pages/documents/Vor'
 import VorView from './pages/documents/VorView'
+import Finishing from './pages/documents/Finishing'
+import FinishingPieType from './pages/documents/FinishingPieType'
 import References from './pages/References'
 import Units from './pages/references/Units'
 import CostCategories from './pages/references/CostCategories'
 import Projects from './pages/references/Projects'
 import Locations from './pages/references/Locations'
+import Rooms from './pages/references/Rooms'
 import Rates from './pages/references/Rates'
 import Nomenclature from './pages/references/Nomenclature'
 import Documentation from './pages/documents/Documentation'
@@ -238,6 +241,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             { key: 'chessboard', label: 'Шахматка', path: '/documents/chessboard' },
             { key: 'vor', label: 'ВОР', path: '/documents/vor' },
             { key: 'docs', label: 'Документация', path: '/documents/documentation' },
+            { key: 'finishing', label: 'Отделка', path: '/documents/finishing' },
           ])}
         >
           <FileTextOutlined />
@@ -252,6 +256,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             { key: 'chessboard', label: <Link to="/documents/chessboard">Шахматка</Link> },
             { key: 'vor', label: <Link to="/documents/vor">ВОР</Link> },
             { key: 'docs', label: <Link to="/documents/documentation">Документация</Link> },
+            { key: 'finishing', label: <Link to="/documents/finishing">Отделка</Link> },
           ],
     },
     {
@@ -294,6 +299,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             },
             { key: 'projects', label: 'Проекты', path: '/references/projects' },
             { key: 'locations', label: 'Локализации', path: '/references/locations' },
+            { key: 'rooms', label: 'Помещения', path: '/references/rooms' },
             { key: 'rates', label: 'Расценки', path: '/references/rates' },
             { key: 'nomenclature', label: 'Номенклатура', path: '/references/nomenclature' },
           ])}
@@ -314,6 +320,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             },
             { key: 'projects', label: <Link to="/references/projects">Проекты</Link> },
             { key: 'locations', label: <Link to="/references/locations">Локализации</Link> },
+            { key: 'rooms', label: <Link to="/references/rooms">Помещения</Link> },
             { key: 'rates', label: <Link to="/references/rates">Расценки</Link> },
             { key: 'nomenclature', label: <Link to="/references/nomenclature">Номенклатура</Link> },
           ],
@@ -654,13 +661,17 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                     ? 'vor'
                     : location.pathname.startsWith('/documents/documentation')
                       ? 'docs'
-                      : location.pathname.startsWith('/references/cost-categories')
+                      : location.pathname.startsWith('/documents/finishing')
+                        ? 'finishing'
+                        : location.pathname.startsWith('/references/cost-categories')
                         ? 'cost-categories'
                         : location.pathname.startsWith('/references/projects')
                           ? 'projects'
                           : location.pathname.startsWith('/references/locations')
                             ? 'locations'
-                            : location.pathname.startsWith('/references/rates')
+                            : location.pathname.startsWith('/references/rooms')
+                              ? 'rooms'
+                              : location.pathname.startsWith('/references/rates')
                               ? 'rates'
                               : location.pathname.startsWith('/references/nomenclature')
                                 ? 'nomenclature'
@@ -707,12 +718,15 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                   <Route path="vor" element={<Vor />} />
                   <Route path="vor-view" element={<VorView />} />
                   <Route path="documentation" element={<Documentation />} />
+                  <Route path="finishing" element={<Finishing />} />
+                  <Route path="finishing-pie-type/:id" element={<FinishingPieType />} />
                 </Route>
                 <Route path="/references" element={<References />}>
                   <Route path="units" element={<Units />} />
                   <Route path="cost-categories" element={<CostCategories />} />
                   <Route path="projects" element={<Projects />} />
                   <Route path="locations" element={<Locations />} />
+                  <Route path="rooms" element={<Rooms />} />
                   <Route path="rates" element={<Rates />} />
                   <Route path="nomenclature" element={<Nomenclature />} />
                 </Route>
@@ -779,6 +793,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               { key: 'chessboard', label: 'Шахматка', path: '/documents/chessboard' },
               { key: 'vor', label: 'ВОР', path: '/documents/vor' },
               { key: 'docs', label: 'Документация', path: '/documents/documentation' },
+              { key: 'finishing', label: 'Отделка', path: '/documents/finishing' },
             ].map((item) => (
               <div
                 key={item.key}
@@ -850,6 +865,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               },
               { key: 'projects', label: 'Проекты', path: '/references/projects' },
               { key: 'locations', label: 'Локализации', path: '/references/locations' },
+              { key: 'rooms', label: 'Помещения', path: '/references/rooms' },
               { key: 'rates', label: 'Расценки', path: '/references/rates' },
               { key: 'nomenclature', label: 'Номенклатура', path: '/references/nomenclature' },
             ].map((item) => (

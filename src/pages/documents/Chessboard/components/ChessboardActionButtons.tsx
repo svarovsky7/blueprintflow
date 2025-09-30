@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { Button, Space, Select } from 'antd'
+import { Button, Space, Select, Tooltip } from 'antd'
 import {
   PlusOutlined,
   EditOutlined,
@@ -30,6 +30,7 @@ interface ChessboardActionButtonsProps {
   onRemoveRow?: (rowId: string) => void
   onOpenSetsModal?: () => void
   currentStatus?: string
+  currentSetName?: string
   onStatusChange?: (statusId: string) => void
 }
 
@@ -49,6 +50,7 @@ export const ChessboardActionButtons = memo(
     onRemoveRow,
     onOpenSetsModal,
     currentStatus,
+    currentSetName,
     onStatusChange,
   }: ChessboardActionButtonsProps) => {
     const { mode, selectedRowKeys } = tableMode
@@ -146,29 +148,39 @@ export const ChessboardActionButtons = memo(
       <Space>
         {/* Поле статусов с пиктограммами */}
         {hasAppliedProject && (
-          <Select
-            value={currentStatus}
-            onChange={onStatusChange}
-            style={{ width: 40 }}
-            placeholder=""
-            allowClear={false}
-            suffixIcon={null}
-            popupMatchSelectWidth={200}
-            optionLabelProp="label"
-          >
-            {chessboardStatuses.map(status => (
-              <Select.Option
-                key={status.id}
-                value={status.id}
-                label={<StatusIcon color={status.color || '#d9d9d9'} />}
+          <Tooltip title={currentSetName ? `Комплект: ${currentSetName}` : undefined}>
+            <div style={{ display: 'inline-block' }}>
+              <Select
+                value={currentStatus}
+                onChange={onStatusChange}
+                style={{ width: 40 }}
+                placeholder=""
+                allowClear={false}
+                suffixIcon={null}
+                popupMatchSelectWidth={200}
+                optionLabelProp="label"
               >
-                <Space>
-                  <StatusIcon color={status.color || '#d9d9d9'} />
-                  {status.name}
-                </Space>
-              </Select.Option>
-            ))}
-          </Select>
+                {chessboardStatuses.map(status => (
+                  <Select.Option
+                    key={status.id}
+                    value={status.id}
+                    label={<StatusIcon color={status.color || '#d9d9d9'} />}
+                  >
+                    <Space>
+                      <StatusIcon color={status.color || '#d9d9d9'} />
+                      {status.name}
+                    </Space>
+                  </Select.Option>
+                ))}
+              </Select>
+            </div>
+          </Tooltip>
+        )}
+
+        {hasAppliedProject && onOpenSetsModal && (
+          <Button icon={<AppstoreOutlined />} onClick={onOpenSetsModal}>
+            Комплект
+          </Button>
         )}
 
         <Button
@@ -182,12 +194,6 @@ export const ChessboardActionButtons = memo(
         >
           Добавить
         </Button>
-
-        {hasAppliedProject && onOpenSetsModal && (
-          <Button icon={<AppstoreOutlined />} onClick={onOpenSetsModal}>
-            Комплект
-          </Button>
-        )}
 
         {hasAppliedProject && (
           <Button icon={<DeleteOutlined />} onClick={() => onSetMode('delete')}>

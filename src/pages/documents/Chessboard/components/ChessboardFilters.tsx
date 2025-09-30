@@ -49,6 +49,7 @@ interface ChessboardFiltersProps {
   onDeleteSelected: () => void
   onAddRow: () => void
   currentStatus?: string
+  currentSetName?: string
   onStatusChange?: (statusId: string) => void
 }
 
@@ -79,6 +80,7 @@ export const ChessboardFilters = memo(
     onDeleteSelected,
     onAddRow,
     currentStatus,
+    currentSetName,
     onStatusChange,
   }: ChessboardFiltersProps) => {
     // Состояние для панели настроек ML
@@ -333,6 +335,7 @@ export const ChessboardFilters = memo(
             onAddRow={onAddRow}
             onOpenSetsModal={onOpenSetsModal}
             currentStatus={currentStatus}
+            currentSetName={currentSetName}
             onStatusChange={onStatusChange}
           />
         </div>
