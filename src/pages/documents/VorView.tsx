@@ -8,7 +8,7 @@ import * as XLSX from 'xlsx'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { getVorTableData, type VorTableItem } from '@/entities/vor'
+import { getVorTableData, type VorTableItem, updateVorWork, updateVorMaterial } from '@/entities/vor'
 import AddWorkModal from './VorView/components/AddWorkModal'
 import AddMaterialModal from './VorView/components/AddMaterialModal'
 
@@ -127,6 +127,10 @@ const VorView = () => {
   const [vorItemsData, setVorItemsData] = useState<VorItem[]>([])
   const queryClient = useQueryClient()
   const [messageApi, contextHolder] = message.useMessage()
+
+  // Отслеживание изменений для новой схемы ВОР
+  const [editedItems, setEditedItems] = useState<Set<string>>(new Set())
+  const [editedItemsData, setEditedItemsData] = useState<Record<string, any>>({})
 
   // Состояния для режимов работы
   const [viewMode, setViewMode] = useState<ViewMode>('view')
@@ -665,14 +669,14 @@ const VorView = () => {
     enabled: !!vorData?.vor,
   })
 
-  // Загружаем редактируемые данные ВОР из новых таблиц
+  // Загружаем данные ВОР из БД (новая схема)
   const { data: editableVorItems, isLoading: editableVorLoading } = useQuery({
     queryKey: ['editable-vor-items', vorId],
     queryFn: async () => {
       if (!vorId) return []
       return await getVorTableData(vorId)
     },
-    enabled: !!vorId && isEditingEnabled,
+    enabled: !!vorId, // Загружаем всегда, не только при редактировании
   })
 
   // Синхронизируем локальные данные с данными из запроса
@@ -681,6 +685,13 @@ const VorView = () => {
       setVorItemsData(vorItems)
     }
   }, [vorItems])
+
+  // Логирование загруженных данных из БД
+  useEffect(() => {
+    if (editableVorItems && editableVorItems.length > 0) {
+      console.log('🔍 Загружены данные ВОР из БД:', editableVorItems) // LOG: данные из БД
+    }
+  }, [editableVorItems])
 
   // Синхронизируем редактируемые данные
   useEffect(() => {
@@ -705,6 +716,207 @@ const VorView = () => {
         return item
       })
     )
+  }
+
+  // Функция для обновления количества
+  const updateItemQuantity = (itemId: string, newQuantity: number, itemType: 'work' | 'material') => {
+    setVorItemsData(prevData =>
+      prevData.map(item => {
+        if (item.id === itemId && item.type === itemType) {
+          if (itemType === 'work') {
+            const baseRate = item.base_rate || 0
+            const workPrice = baseRate * item.coefficient
+            return {
+              ...item,
+              quantity: newQuantity,
+              work_total: workPrice * newQuantity,
+            }
+          } else {
+            // Для материалов
+            return {
+              ...item,
+              quantity: newQuantity,
+              material_total: item.material_price * newQuantity,
+            }
+          }
+        }
+        return item
+      })
+    )
+  }
+
+  // Функция для обновления цены материала
+  const updateMaterialPrice = (itemId: string, newPrice: number) => {
+    setVorItemsData(prevData =>
+      prevData.map(item => {
+        if (item.id === itemId && item.type === 'material') {
+          return {
+            ...item,
+            material_price: newPrice,
+            material_total: newPrice * item.quantity,
+          }
+        }
+        return item
+      })
+    )
+  }
+
+  // Функция для обновления цены работы (с пересчетом коэффициента или base_rate)
+  const updateWorkPrice = (itemId: string, newPrice: number) => {
+    setVorItemsData(prevData =>
+      prevData.map(item => {
+        if (item.id === itemId && item.type === 'work') {
+          const baseRateFromRates = item.rates?.base_rate
+
+          if (baseRateFromRates && baseRateFromRates > 0) {
+            // Есть базовая цена в справочнике - пересчитываем коэффициент
+            const newCoefficient = newPrice / baseRateFromRates
+            return {
+              ...item,
+              coefficient: newCoefficient,
+              work_price: newPrice,
+              work_total: newPrice * item.quantity,
+            }
+          } else {
+            // Нет базовой цены - сохраняем как base_rate, коэффициент = 1
+            return {
+              ...item,
+              base_rate: newPrice,
+              coefficient: 1,
+              work_price: newPrice,
+              work_total: newPrice * item.quantity,
+            }
+          }
+        }
+        return item
+      })
+    )
+  }
+
+  // Функции для работы с новой схемой ВОР (VorTableItem)
+  const updateTableItemQuantity = (itemId: string, newQuantity: number, itemType: 'work' | 'material') => {
+    setEditableVorData(prevData =>
+      prevData.map(item => {
+        if (item.id === itemId && item.type === itemType) {
+          const updatedItem = { ...item, quantity: newQuantity }
+
+          if (itemType === 'work') {
+            const workPrice = (item.base_rate || 0) * (item.coefficient || 1)
+            updatedItem.work_total = workPrice * newQuantity
+          } else {
+            updatedItem.material_total = (item.material_price || 0) * newQuantity
+          }
+
+          return updatedItem
+        }
+        return item
+      })
+    )
+
+    // Отмечаем элемент как измененный
+    setEditedItems(prev => new Set([...prev, itemId]))
+    setEditedItemsData(prev => ({
+      ...prev,
+      [itemId]: {
+        ...prev[itemId],
+        quantity: newQuantity
+      }
+    }))
+  }
+
+  const updateTableMaterialPrice = (itemId: string, newPrice: number) => {
+    setEditableVorData(prevData =>
+      prevData.map(item => {
+        if (item.id === itemId && item.type === 'material') {
+          return {
+            ...item,
+            material_price: newPrice,
+            material_total: newPrice * item.quantity
+          }
+        }
+        return item
+      })
+    )
+
+    // Отмечаем элемент как измененный
+    setEditedItems(prev => new Set([...prev, itemId]))
+    setEditedItemsData(prev => ({
+      ...prev,
+      [itemId]: {
+        ...prev[itemId],
+        material_price: newPrice
+      }
+    }))
+  }
+
+  const updateTableWorkPrice = (itemId: string, newPrice: number) => {
+    setEditableVorData(prevData =>
+      prevData.map(item => {
+        if (item.id === itemId && item.type === 'work') {
+          // Логика пересчета согласно алгоритму
+          const ratesBaseRate = item.rates?.base_rate || 0
+
+          if (ratesBaseRate > 0) {
+            // Есть базовая цена в справочнике - пересчитываем коэффициент
+            const newCoefficient = newPrice / ratesBaseRate
+            return {
+              ...item,
+              coefficient: newCoefficient,
+              work_price: newPrice,
+              work_total: newPrice * item.quantity
+            }
+          } else {
+            // Нет базовой цены - сохраняем как base_rate, коэффициент = 1
+            return {
+              ...item,
+              base_rate: newPrice,
+              coefficient: 1,
+              work_price: newPrice,
+              work_total: newPrice * item.quantity
+            }
+          }
+        }
+        return item
+      })
+    )
+
+    // Отмечаем элемент как измененный
+    setEditedItems(prev => new Set([...prev, itemId]))
+    setEditedItemsData(prev => ({
+      ...prev,
+      [itemId]: {
+        ...prev[itemId],
+        work_price: newPrice
+      }
+    }))
+  }
+
+  const updateTableItemCoefficient = (itemId: string, newCoefficient: number) => {
+    setEditableVorData(prevData =>
+      prevData.map(item => {
+        if (item.id === itemId && item.type === 'work') {
+          const baseRate = item.base_rate || 0
+          const workPrice = baseRate * newCoefficient
+          return {
+            ...item,
+            coefficient: newCoefficient,
+            work_price: workPrice,
+            work_total: workPrice * item.quantity
+          }
+        }
+        return item
+      })
+    )
+
+    // Отмечаем элемент как измененный
+    setEditedItems(prev => new Set([...prev, itemId]))
+    setEditedItemsData(prev => ({
+      ...prev,
+      [itemId]: {
+        ...prev[itemId],
+        coefficient: newCoefficient
+      }
+    }))
   }
 
   // Функции управления режимами
@@ -757,14 +969,101 @@ const VorView = () => {
   }
 
   const handleSave = async () => {
+    console.log('🔍 Начинаем сохранение изменений...', editedItems) // LOG: отладочная информация
+
     try {
-      // TODO: Реализовать сохранение изменений
+      for (const itemId of editedItems) {
+        const item = editableVorData.find(item => item.id === itemId)
+        const editedData = editedItemsData[itemId]
+
+        if (!item || !editedData) continue
+
+        console.log('🔍 Сохраняем элемент:', { itemId, item, editedData, itemType: item.type }) // LOG: отладочная информация
+
+        if (item.type === 'material') {
+          // Материал - обновляем согласно алгоритму
+          const updateData: any = {}
+          let shouldModify = false
+
+          // 1. Номенклатура цена за ед - is_modified остается неизменным
+          if (editedData.material_price !== undefined) {
+            updateData.price = editedData.material_price
+          }
+
+          // 2. Кол-во - is_modified меняется на true
+          if (editedData.quantity !== undefined) {
+            updateData.quantity = editedData.quantity
+            shouldModify = true
+          }
+
+          // Если нужно изменить is_modified
+          if (shouldModify) {
+            updateData.is_modified = true
+          }
+
+          console.log('🔍 Обновляем материал:', { itemId, updateData }) // LOG: отладочная информация
+          const result = await updateVorMaterial(itemId, updateData)
+          console.log('🔍 Результат обновления материала:', result) // LOG: результат API
+
+        } else if (item.type === 'work') {
+          // Работа - обновляем согласно алгоритму
+          const updateData: any = {}
+          let shouldModify = false
+
+          // 3. Кол-во и коэффициент - is_modified меняется на true
+          if (editedData.quantity !== undefined) {
+            updateData.quantity = editedData.quantity
+            shouldModify = true
+          }
+
+          if (editedData.coefficient !== undefined) {
+            updateData.coefficient = editedData.coefficient
+            shouldModify = true
+          }
+
+          // 4. Работа цена за ед - сложная логика
+          if (editedData.work_price !== undefined) {
+            const ratesBaseRate = item.rates?.base_rate || 0
+
+            if (ratesBaseRate > 0) {
+              // Есть базовая цена в справочнике - пересчитываем коэффициент
+              const newCoefficient = editedData.work_price / ratesBaseRate
+              updateData.coefficient = newCoefficient
+              console.log('🔍 Пересчитываем коэффициент:', { work_price: editedData.work_price, ratesBaseRate, newCoefficient }) // LOG: отладочная информация
+            } else {
+              // Нет базовой цены - сохраняем в base_rate, коэффициент = 1
+              updateData.base_rate = editedData.work_price
+              updateData.coefficient = 1.0
+              console.log('🔍 Сохраняем в base_rate:', { work_price: editedData.work_price }) // LOG: отладочная информация
+            }
+          }
+
+          // Если нужно изменить is_modified (только для кол-ва и коэффициента)
+          if (shouldModify) {
+            updateData.is_modified = true
+          }
+
+          console.log('🔍 Обновляем работу:', { itemId, updateData }) // LOG: отладочная информация
+          const result = await updateVorWork(itemId, updateData)
+          console.log('🔍 Результат обновления работы:', result) // LOG: результат API
+        }
+      }
+
+      console.log('✅ Все изменения сохранены') // LOG: успешное сохранение
       messageApi.success('Изменения сохранены')
+
+      // Перезагружаем данные
+      console.log('🔍 Инвалидируем кеш для vor_id:', vorId) // LOG: инвалидация кеша
+      await queryClient.invalidateQueries({ queryKey: ['editable-vor-items', vorId] })
+      console.log('🔍 Кеш инвалидирован') // LOG: инвалидация завершена
+
       setViewMode('view')
       setIsEditingEnabled(false)
-      queryClient.invalidateQueries({ queryKey: ['vor-items', vorId] })
+      setEditedItems(new Set())
+      setEditedItemsData({})
+
     } catch (error) {
-      console.error('Ошибка сохранения:', error)
+      console.error('❌ Ошибка сохранения:', error) // LOG: ошибка сохранения
       messageApi.error('Ошибка при сохранении изменений')
     }
   }
@@ -774,6 +1073,9 @@ const VorView = () => {
     setIsEditingEnabled(false)
     setSelectedRowKeys([])
     setEditableVorData([])
+    // Очищаем отслеживание изменений
+    setEditedItems(new Set())
+    setEditedItemsData({})
   }
 
   const handleDeleteSelected = async () => {
@@ -1023,7 +1325,13 @@ const VorView = () => {
               step={0.1}
               precision={1}
               value={value || coefficient}
-              onChange={(newValue) => updateItemCoefficient(record.id, newValue || 1)}
+              onChange={(newValue) => {
+                if (isEditingEnabled && editableVorData.length > 0) {
+                  updateTableItemCoefficient(record.id, newValue || 1)
+                } else {
+                  updateItemCoefficient(record.id, newValue || 1)
+                }
+              }}
               style={{ width: '100%' }}
               size="small"
             />
@@ -1038,7 +1346,30 @@ const VorView = () => {
       dataIndex: 'quantity',
       key: 'quantity',
       width: 80,
-      render: (value: number) => value.toLocaleString('ru-RU'),
+      render: (value: number, record: VorItem) => {
+        // В режиме редактирования показываем InputNumber
+        if (viewMode === 'edit') {
+          return (
+            <InputNumber
+              min={0}
+              step={0.1}
+              precision={3}
+              value={value}
+              onChange={(newValue) => {
+                if (isEditingEnabled && editableVorData.length > 0) {
+                  updateTableItemQuantity(record.id, newValue || 0, record.type)
+                } else {
+                  updateItemQuantity(record.id, newValue || 0, record.type)
+                }
+              }}
+              style={{ width: '100%' }}
+              size="small"
+            />
+          )
+        }
+
+        return value.toLocaleString('ru-RU')
+      },
     },
     {
       title: formatHeaderText('Номенклатура цены за ед руб вкл НДС'),
@@ -1050,6 +1381,28 @@ const VorView = () => {
         if (record.type === 'work') {
           return '0'
         }
+
+        // В режиме редактирования показываем InputNumber для материалов
+        if (viewMode === 'edit' && record.type === 'material') {
+          return (
+            <InputNumber
+              min={0}
+              step={1}
+              precision={2}
+              value={record.material_price || 0}
+              onChange={(newValue) => {
+                if (isEditingEnabled && editableVorData.length > 0) {
+                  updateTableMaterialPrice(record.id, newValue || 0)
+                } else {
+                  updateMaterialPrice(record.id, newValue || 0)
+                }
+              }}
+              style={{ width: '100%' }}
+              size="small"
+            />
+          )
+        }
+
         return Math.round(value).toLocaleString('ru-RU')
       },
     },
@@ -1058,7 +1411,35 @@ const VorView = () => {
       dataIndex: 'work_price',
       key: 'work_price',
       width: 120,
-      render: (value: number) => Math.round(value).toLocaleString('ru-RU'),
+      render: (value: number, record: VorItem) => {
+        // Для материалов всегда показываем 0
+        if (record.type === 'material') {
+          return '0'
+        }
+
+        // В режиме редактирования показываем InputNumber для работ
+        if (viewMode === 'edit' && record.type === 'work') {
+          return (
+            <InputNumber
+              min={0}
+              step={1}
+              precision={2}
+              value={value || 0}
+              onChange={(newValue) => {
+                if (isEditingEnabled && editableVorData.length > 0) {
+                  updateTableWorkPrice(record.id, newValue || 0)
+                } else {
+                  updateWorkPrice(record.id, newValue || 0)
+                }
+              }}
+              style={{ width: '100%' }}
+              size="small"
+            />
+          )
+        }
+
+        return Math.round(value).toLocaleString('ru-RU')
+      },
     },
     {
       title: formatHeaderText('Номенклатура Итого руб вкл НДС'),
@@ -1348,22 +1729,14 @@ const VorView = () => {
                 background-color: #DDD2E6 !important;
               }
 
-              /* Стили для измененных строк */
-              .vor-modified-row > td {
+              /* Стили для измененных строк - красная граница только в первом столбце */
+              .vor-modified-row > td:first-child {
                 border-left: 4px solid #ff4d4f !important;
-                background-color: #fff2f0 !important;
-              }
-              .vor-modified-row:hover > td {
-                background-color: #ffeaea !important;
               }
 
-              /* Комбинированные стили для измененных строк работ */
-              .vor-work-row.vor-modified-row > td {
-                background-color: #f6f0ff !important;
+              /* Комбинированные стили для измененных строк работ - красная граница только в первом столбце */
+              .vor-work-row.vor-modified-row > td:first-child {
                 border-left: 4px solid #ff4d4f !important;
-              }
-              .vor-work-row.vor-modified-row:hover > td {
-                background-color: #ede0ff !important;
               }
 
               /* Заголовки таблицы */
@@ -1379,7 +1752,16 @@ const VorView = () => {
           </style>
           <Table
             columns={columns}
-            dataSource={isEditingEnabled && editableVorData.length > 0 ? editableVorData : (vorItemsData.length > 0 ? vorItemsData : vorItems)}
+            dataSource={
+              // Приоритет: 1) editableVorData (в режиме редактирования), 2) editableVorItems (данные из БД), 3) vorItemsData (локальные), 4) vorItems (из шахматки)
+              isEditingEnabled && editableVorData.length > 0
+                ? editableVorData
+                : editableVorItems && editableVorItems.length > 0
+                  ? editableVorItems
+                  : vorItemsData.length > 0
+                    ? vorItemsData
+                    : vorItems
+            }
             rowKey="id"
             pagination={false}
             scroll={{
