@@ -172,9 +172,14 @@ export const getSupplierNamesOptions = async (searchTerm?: string): Promise<Supp
 
   if (searchTerm) {
     query = query.ilike('name', `%${searchTerm}%`)
+    // При поиске увеличиваем лимит для лучших результатов
+    query = query.limit(1000)
+  } else {
+    // Без поиска показываем первые 200 записей для начальной загрузки
+    query = query.limit(200)
   }
 
-  const { data, error } = await query.limit(50) // Ограничиваем количество для производительности
+  const { data, error } = await query
 
   if (error) {
     console.error('Ошибка загрузки названий поставщиков:', error)

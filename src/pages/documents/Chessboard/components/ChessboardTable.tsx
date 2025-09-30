@@ -52,7 +52,7 @@ const getDynamicDropdownStyle = (options: Array<{ label: string; value: any }>) 
 
 // КОНФИГУРАЦИЯ: Точные настройки ширины столбцов для оптимизации пространства
 const COLUMN_WIDTH_CONFIG: Record<string, { width?: number; minWidth?: number; maxWidth?: number }> = {
-  [COLUMN_KEYS.ACTIONS]: { width: 80 }, // Увеличенная ширина для действий (+20px)
+  [COLUMN_KEYS.ACTIONS]: { width: 80 }, // Служебный столбец 80px
   [COLUMN_KEYS.DOCUMENTATION_SECTION]: { minWidth: 40, maxWidth: 80 }, // "Раздел" динамический 40-80px
   [COLUMN_KEYS.DOCUMENTATION_CODE]: { width: 100 }, // "Шифр проекта" 100px
   [COLUMN_KEYS.DOCUMENTATION_PROJECT_NAME]: { width: 120, minWidth: 120, maxWidth: 120 }, // Фиксированная
@@ -63,13 +63,13 @@ const COLUMN_WIDTH_CONFIG: Record<string, { width?: number; minWidth?: number; m
   [COLUMN_KEYS.COST_TYPE]: { minWidth: 80, maxWidth: 120 }, // "Вид затрат"
   [COLUMN_KEYS.WORK_NAME]: { minWidth: 140, maxWidth: 240 }, // "Наименование работ" +40px
   [COLUMN_KEYS.LOCATION]: { width: 80 }, // "Локализация" 80px
-  [COLUMN_KEYS.MATERIAL]: { width: 120 }, // "Материал" 120px
+  [COLUMN_KEYS.MATERIAL]: { width: 200 }, // "Материал" 200px
   [COLUMN_KEYS.MATERIAL_TYPE]: { width: 60 }, // "Тип материала" 60px
   [COLUMN_KEYS.QUANTITY_PD]: { width: 60 }, // "Кол-во по ПД" 60px
   [COLUMN_KEYS.QUANTITY_SPEC]: { width: 90 }, // "Кол-во по спеке РД" 90px
   [COLUMN_KEYS.QUANTITY_RD]: { width: 80 }, // "Кол-во по пересчету РД" 80px
-  [COLUMN_KEYS.NOMENCLATURE]: { minWidth: 120, maxWidth: 180 }, // "Номенклатура"
-  [COLUMN_KEYS.SUPPLIER]: { minWidth: 100, maxWidth: 150 }, // "Наименование поставщика"
+  [COLUMN_KEYS.NOMENCLATURE]: { width: 200 }, // "Номенклатура" 200px
+  [COLUMN_KEYS.SUPPLIER]: { width: 200 }, // "Наименование номенклатуры поставщика" 200px
   [COLUMN_KEYS.UNIT]: { width: 40 }, // "Ед.изм." 40px
   [COLUMN_KEYS.COMMENTS]: { width: 80 }, // "Комментарии" 80px
 }
@@ -3125,6 +3125,12 @@ export const ChessboardTable = memo(({
           background: white !important;
           z-index: 101 !important;
           border-bottom: 1px solid #f0f0f0 !important;
+        }
+        /* Закрепление заголовка служебного столбца (fixed left) */
+        .chessboard-table .ant-table-thead > tr > th.ant-table-cell-fix-left {
+          position: sticky !important;
+          z-index: 102 !important;
+          background: white !important;
         }
         /* Убираем лишние границы и тени, которые создают визуальные полосы */
         .chessboard-table .ant-table {

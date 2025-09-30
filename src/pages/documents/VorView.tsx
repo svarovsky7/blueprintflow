@@ -1,16 +1,23 @@
 {
   /* VorView component */
 }
-import React, { useState, useEffect } from 'react'
-import { Table, Typography, Space, Spin, Alert, Button, InputNumber, message, Checkbox } from 'antd'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { Table, Typography, Space, Spin, Alert, Button, InputNumber, message, Select } from 'antd'
 import { ArrowLeftOutlined, DownloadOutlined, EditOutlined, SaveOutlined, CloseOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import * as XLSX from 'xlsx'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { getVorTableData, type VorTableItem, updateVorWork, updateVorMaterial } from '@/entities/vor'
+import {
+  getVorTableData,
+  type VorTableItem,
+  updateVorWork,
+  updateVorMaterial,
+  createVorMaterial,
+  getSupplierNamesOptions,
+  getUnitsOptions
+} from '@/entities/vor'
 import AddWorkModal from './VorView/components/AddWorkModal'
-import AddMaterialModal from './VorView/components/AddMaterialModal'
 
 const { Title, Text } = Typography
 
@@ -140,8 +147,34 @@ const VorView = () => {
 
   // Состояния для модальных окон
   const [addWorkModalVisible, setAddWorkModalVisible] = useState(false)
-  const [addMaterialModalVisible, setAddMaterialModalVisible] = useState(false)
-  const [selectedWorkForMaterial, setSelectedWorkForMaterial] = useState<{ id: string; name: string } | null>(null)
+
+  // Состояния для inline редактирования материалов
+  const [inlineEditingMaterialId, setInlineEditingMaterialId] = useState<string | null>(null)
+  const [newMaterialRows, setNewMaterialRows] = useState<Set<string>>(new Set())
+  const [tempMaterialData, setTempMaterialData] = useState<Record<string, {
+    supplier_material_name: string
+    unit_id: string
+    quantity: number
+    price: number
+  }>>({})
+
+  // Состояние для поиска материалов
+  const [materialSearchTerm, setMaterialSearchTerm] = useState('')
+  const searchTimeoutRef = useRef<NodeJS.Timeout>()
+
+  // Debounced функция для поиска материалов
+  const debouncedSetMaterialSearchTerm = useCallback((value: string) => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setMaterialSearchTerm(value)
+    }, 300)
+  }, [])
+
+  // Убираем старые состояния модального окна материалов
+  // const [addMaterialModalVisible, setAddMaterialModalVisible] = useState(false)
+  // const [selectedWorkForMaterial, setSelectedWorkForMaterial] = useState<{ id: string; name: string } | null>(null)
 
   // Загружаем данные ВОР и связанной информации
   const { data: vorData, isLoading: vorLoading } = useQuery({
@@ -679,6 +712,20 @@ const VorView = () => {
     enabled: !!vorId, // Загружаем всегда, не только при редактировании
   })
 
+  // Загружаем единицы измерения для inline редактирования материалов
+  const { data: units = [] } = useQuery({
+    queryKey: ['units-options'],
+    queryFn: getUnitsOptions,
+    enabled: viewMode === 'edit' || viewMode === 'add', // Загружаем только в режиме редактирования
+  })
+
+  // Загружаем поставщиков для inline редактирования материалов с поиском
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ['supplier-names-options', materialSearchTerm],
+    queryFn: () => getSupplierNamesOptions(materialSearchTerm || undefined),
+    enabled: (viewMode === 'edit' || viewMode === 'add'), // Загружаем только в режиме редактирования
+  })
+
   // Синхронизируем локальные данные с данными из запроса
   useEffect(() => {
     if (vorItems) {
@@ -690,6 +737,7 @@ const VorView = () => {
   useEffect(() => {
     if (editableVorItems && editableVorItems.length > 0) {
       console.log('🔍 Загружены данные ВОР из БД:', editableVorItems) // LOG: данные из БД
+      console.log('🔍 Пример элемента из БД:', editableVorItems[0]) // LOG: структура данных
     }
   }, [editableVorItems])
 
@@ -944,16 +992,175 @@ const VorView = () => {
   }
 
   const handleAddMaterial = (workId: string, workName: string) => {
-    setSelectedWorkForMaterial({ id: workId, name: workName })
-    setAddMaterialModalVisible(true)
+    // Создаем временный ID для новой строки материала
+    const tempId = `temp-material-${Date.now()}`
+
+    // Создаем новую временную строку материала
+    const newMaterialItem: VorTableItem = {
+      id: tempId,
+      type: 'material',
+      name: '', // Будет заполняться через inline редактирование
+      unit: '',
+      quantity: 1,
+      material_price: 0,
+      material_total: 0,
+      vor_work_id: workId,
+      level: 2,
+      sort_order: 1,
+      parent_id: workId,
+      is_modified: true
+    }
+
+    // Добавляем новую строку в данные таблицы сразу после работы
+    setEditableVorData(prevData => {
+      const workIndex = prevData.findIndex(item => item.id === workId && item.type === 'work')
+      if (workIndex === -1) return prevData
+
+      // Находим последний материал этой работы или сразу после работы
+      let insertIndex = workIndex + 1
+      while (insertIndex < prevData.length &&
+             prevData[insertIndex].type === 'material' &&
+             prevData[insertIndex].vor_work_id === workId) {
+        insertIndex++
+      }
+
+      const newData = [...prevData]
+      newData.splice(insertIndex, 0, newMaterialItem)
+      return newData
+    })
+
+    // Отмечаем как новую строку для редактирования
+    setNewMaterialRows(prev => new Set([...prev, tempId]))
+    setInlineEditingMaterialId(tempId)
+
+    // Инициализируем временные данные
+    setTempMaterialData(prev => ({
+      ...prev,
+      [tempId]: {
+        supplier_material_name: '',
+        unit_id: '',
+        quantity: 1,
+        price: 0
+      }
+    }))
   }
 
-  const handleAddMaterialSuccess = () => {
-    setAddMaterialModalVisible(false)
-    setSelectedWorkForMaterial(null)
-    // Обновляем данные после добавления материала
-    queryClient.invalidateQueries({ queryKey: ['editable-vor-items', vorId] })
-    messageApi.success('Материал успешно добавлен')
+  // Функции для inline редактирования материалов
+  const handleSaveInlineMaterial = async (materialId: string) => {
+    const tempData = tempMaterialData[materialId]
+    if (!tempData || !tempData.supplier_material_name) {
+      messageApi.warning('Заполните название материала')
+      return
+    }
+
+    try {
+      // Если это новая строка - создаем материал в БД
+      if (newMaterialRows.has(materialId)) {
+        const materialItem = editableVorData.find(item => item.id === materialId)
+        if (!materialItem || !materialItem.vor_work_id) {
+          messageApi.error('Ошибка: не найдена связанная работа')
+          return
+        }
+
+        const materialData = {
+          vor_work_id: materialItem.vor_work_id,
+          supplier_material_name: tempData.supplier_material_name,
+          unit_id: tempData.unit_id || undefined,
+          quantity: tempData.quantity,
+          price: tempData.price,
+        }
+
+        const newMaterial = await createVorMaterial(materialData)
+
+        // Заменяем временную строку на реальную
+        setEditableVorData(prevData =>
+          prevData.map(item =>
+            item.id === materialId
+              ? {
+                  ...item,
+                  id: newMaterial.id,
+                  name: tempData.supplier_material_name,
+                  unit: tempData.unit_id ? units?.find(u => u.id === tempData.unit_id)?.name || '' : '',
+                  quantity: tempData.quantity,
+                  material_price: tempData.price,
+                  material_total: tempData.price * tempData.quantity,
+                  is_modified: false
+                }
+              : item
+          )
+        )
+
+        // Убираем из временных состояний
+        setNewMaterialRows(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(materialId)
+          return newSet
+        })
+
+        setTempMaterialData(prev => {
+          const newData = { ...prev }
+          delete newData[materialId]
+          return newData
+        })
+
+        messageApi.success('Материал успешно добавлен')
+      }
+
+      setInlineEditingMaterialId(null)
+    } catch (error) {
+      console.error('Ошибка сохранения материала:', error)
+      messageApi.error('Ошибка при сохранении материала')
+    }
+  }
+
+  const handleCancelInlineMaterial = (materialId: string) => {
+    if (newMaterialRows.has(materialId)) {
+      // Удаляем новую строку
+      setEditableVorData(prevData => prevData.filter(item => item.id !== materialId))
+      setNewMaterialRows(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(materialId)
+        return newSet
+      })
+      setTempMaterialData(prev => {
+        const newData = { ...prev }
+        delete newData[materialId]
+        return newData
+      })
+    }
+    setInlineEditingMaterialId(null)
+  }
+
+  const handleTempMaterialDataChange = (materialId: string, field: string, value: any) => {
+    setTempMaterialData(prev => ({
+      ...prev,
+      [materialId]: {
+        ...prev[materialId],
+        [field]: value
+      }
+    }))
+
+    // Обновляем отображение в таблице
+    setEditableVorData(prevData =>
+      prevData.map(item => {
+        if (item.id === materialId) {
+          const updatedItem = { ...item }
+          if (field === 'supplier_material_name') {
+            updatedItem.name = value
+          } else if (field === 'quantity') {
+            updatedItem.quantity = value
+            updatedItem.material_total = value * (tempMaterialData[materialId]?.price || 0)
+          } else if (field === 'price') {
+            updatedItem.material_price = value
+            updatedItem.material_total = (tempMaterialData[materialId]?.quantity || 1) * value
+          } else if (field === 'unit_id') {
+            updatedItem.unit = units?.find(u => u.id === value)?.name || ''
+          }
+          return updatedItem
+        }
+        return item
+      })
+    )
   }
 
   const handleDeleteMode = () => {
@@ -1272,6 +1479,64 @@ const VorView = () => {
       // Динамическая ширина - не указываем width
       render: (text: string, record: VorItem | VorTableItem) => {
         const isModified = 'is_modified' in record && record.is_modified
+        const isNewMaterial = newMaterialRows.has(record.id)
+        const isInlineEditing = inlineEditingMaterialId === record.id
+
+        // Если это новый материал в режиме редактирования - показываем селект
+        if (isNewMaterial && isInlineEditing && record.type === 'material') {
+          return (
+            <div style={{ paddingLeft: 20 }}>
+              <Select
+                showSearch
+                placeholder="Выберите материал"
+                style={{ width: '100%' }}
+                value={tempMaterialData[record.id]?.supplier_material_name}
+                onSearch={(value) => {
+                  // Обновляем локальные данные немедленно для отзывчивости UI
+                  handleTempMaterialDataChange(record.id, 'supplier_material_name', value)
+                  // Запускаем debounced поиск в API
+                  debouncedSetMaterialSearchTerm(value)
+                }}
+                onChange={(value) => {
+                  handleTempMaterialDataChange(record.id, 'supplier_material_name', value)
+                  // При выборе из списка также можем обновить поиск
+                  if (value) {
+                    debouncedSetMaterialSearchTerm(value)
+                  }
+                }}
+                filterOption={false}
+                notFoundContent="Введите название материала"
+                dropdownRender={(menu) => (
+                  <>
+                    {menu}
+                    <div style={{ padding: 8, borderTop: '1px solid #d9d9d9' }}>
+                      <Button
+                        size="small"
+                        type="primary"
+                        onClick={() => handleSaveInlineMaterial(record.id)}
+                        style={{ marginRight: 8 }}
+                      >
+                        Сохранить
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => handleCancelInlineMaterial(record.id)}
+                      >
+                        Отмена
+                      </Button>
+                    </div>
+                  </>
+                )}
+              >
+                {suppliers.map(supplier => (
+                  <Select.Option key={supplier.id} value={supplier.name}>
+                    {supplier.name}
+                  </Select.Option>
+                ))}
+              </Select>
+            </div>
+          )
+        }
 
         return (
           <div
@@ -1308,7 +1573,35 @@ const VorView = () => {
       title: formatHeaderText('Ед Изм'),
       dataIndex: 'unit',
       key: 'unit',
-      width: 60,
+      width: 80,
+      render: (text: string, record: VorItem | VorTableItem) => {
+        const isNewMaterial = newMaterialRows.has(record.id)
+        const isInlineEditing = inlineEditingMaterialId === record.id
+
+        // Если это новый материал в режиме редактирования - показываем селект
+        if (isNewMaterial && isInlineEditing && record.type === 'material') {
+          return (
+            <Select
+              placeholder="Ед.изм."
+              style={{ width: '100%' }}
+              size="small"
+              value={tempMaterialData[record.id]?.unit_id}
+              onChange={(value) => {
+                handleTempMaterialDataChange(record.id, 'unit_id', value)
+              }}
+              allowClear
+            >
+              {units.map(unit => (
+                <Select.Option key={unit.id} value={unit.id}>
+                  {unit.name}
+                </Select.Option>
+              ))}
+            </Select>
+          )
+        }
+
+        return text
+      },
     },
     {
       title: formatHeaderText('Коэффициент'),
@@ -1346,8 +1639,29 @@ const VorView = () => {
       dataIndex: 'quantity',
       key: 'quantity',
       width: 80,
-      render: (value: number, record: VorItem) => {
-        // В режиме редактирования показываем InputNumber
+      render: (value: number, record: VorItem | VorTableItem) => {
+        const isNewMaterial = newMaterialRows.has(record.id)
+        const isInlineEditing = inlineEditingMaterialId === record.id
+
+        // Если это новый материал в режиме редактирования - показываем специальный InputNumber
+        if (isNewMaterial && isInlineEditing && record.type === 'material') {
+          return (
+            <InputNumber
+              min={0}
+              step={0.1}
+              precision={3}
+              value={tempMaterialData[record.id]?.quantity || 1}
+              onChange={(newValue) => {
+                handleTempMaterialDataChange(record.id, 'quantity', newValue || 1)
+              }}
+              style={{ width: '100%' }}
+              size="small"
+              placeholder="1"
+            />
+          )
+        }
+
+        // В режиме редактирования показываем InputNumber для обычных элементов
         if (viewMode === 'edit') {
           return (
             <InputNumber
@@ -1373,23 +1687,44 @@ const VorView = () => {
     },
     {
       title: formatHeaderText('Номенклатура цены за ед руб вкл НДС'),
-      dataIndex: 'nomenclature_price',
-      key: 'nomenclature_price',
+      dataIndex: 'material_price',
+      key: 'material_price',
       width: 120,
-      render: (value: number, record: VorItem) => {
-        // Для строк с работами из справочника Расценок всегда показываем 0
+      render: (value: number, record: VorItem | VorTableItem) => {
+        // Для строк с работами из справочника Расценок не показываем ничего
         if (record.type === 'work') {
-          return '0'
+          return ''
         }
 
-        // В режиме редактирования показываем InputNumber для материалов
+        const isNewMaterial = newMaterialRows.has(record.id)
+        const isInlineEditing = inlineEditingMaterialId === record.id
+
+        // Если это новый материал в режиме редактирования - показываем специальный InputNumber
+        if (isNewMaterial && isInlineEditing && record.type === 'material') {
+          return (
+            <InputNumber
+              min={0}
+              step={1}
+              precision={2}
+              value={tempMaterialData[record.id]?.price || 0}
+              onChange={(newValue) => {
+                handleTempMaterialDataChange(record.id, 'price', newValue || 0)
+              }}
+              style={{ width: '100%' }}
+              size="small"
+              placeholder="0.00"
+            />
+          )
+        }
+
+        // В режиме редактирования показываем InputNumber для обычных материалов
         if (viewMode === 'edit' && record.type === 'material') {
           return (
             <InputNumber
               min={0}
               step={1}
               precision={2}
-              value={record.material_price || 0}
+              value={value || 0}
               onChange={(newValue) => {
                 if (isEditingEnabled && editableVorData.length > 0) {
                   updateTableMaterialPrice(record.id, newValue || 0)
@@ -1412,9 +1747,9 @@ const VorView = () => {
       key: 'work_price',
       width: 120,
       render: (value: number, record: VorItem) => {
-        // Для материалов всегда показываем 0
+        // Для материалов не показываем ничего
         if (record.type === 'material') {
-          return '0'
+          return ''
         }
 
         // В режиме редактирования показываем InputNumber для работ
@@ -1443,13 +1778,13 @@ const VorView = () => {
     },
     {
       title: formatHeaderText('Номенклатура Итого руб вкл НДС'),
-      dataIndex: 'nomenclature_total',
-      key: 'nomenclature_total',
+      dataIndex: 'material_total',
+      key: 'material_total',
       width: 120,
-      render: (value: number, record: VorItem) => {
-        // Для строк с работами из справочника Расценок всегда показываем 0
+      render: (value: number, record: VorItem | VorTableItem) => {
+        // Для строк с работами из справочника Расценок не показываем ничего
         if (record.type === 'work') {
-          return '0'
+          return ''
         }
         return Math.round(value).toLocaleString('ru-RU')
       },
@@ -1459,19 +1794,26 @@ const VorView = () => {
       dataIndex: 'work_total',
       key: 'work_total',
       width: 120,
-      render: (value: number) => Math.round(value).toLocaleString('ru-RU'),
+      render: (value: number, record: VorItem) => {
+        // Для материалов не показываем ничего
+        if (record.type === 'material') {
+          return ''
+        }
+        return Math.round(value).toLocaleString('ru-RU')
+      },
     },
     {
       title: formatHeaderText('Сумма Итого руб вкл НДС'),
       key: 'total_sum',
       width: 120,
-      render: (_, record: VorItem) => {
+      render: (_, record: VorItem | VorTableItem) => {
         // Для строк с работами показываем значение из столбца "Работа Итого"
         if (record.type === 'work') {
-          return <strong>{Math.round(record.work_total).toLocaleString('ru-RU')}</strong>
+          return <strong>{Math.round(record.work_total || 0).toLocaleString('ru-RU')}</strong>
         }
         // Для строк с материалами показываем значение из столбца "Номенклатура Итого"
-        return <strong>{Math.round(record.nomenclature_total).toLocaleString('ru-RU')}</strong>
+        const materialTotal = 'material_total' in record ? record.material_total : (record as VorItem).nomenclature_total
+        return <strong>{Math.round(materialTotal || 0).toLocaleString('ru-RU')}</strong>
       },
     },
   ]
@@ -1716,9 +2058,9 @@ const VorView = () => {
             flex: 1,
             overflow: 'hidden',
             minHeight: 0,
-            padding: '0 24px 24px 24px',
           }}
         >
+          <div style={{ padding: '0 24px 24px 24px', height: '100%' }}>
           <style>
             {`
               /* Стили для строк с работами из справочника Расценок */
@@ -1766,7 +2108,7 @@ const VorView = () => {
             pagination={false}
             scroll={{
               x: 'max-content',
-              y: 'calc(100vh - 300px)',
+              y: 'calc(100vh - 350px)',
             }}
             sticky
             size="middle"
@@ -1781,19 +2123,22 @@ const VorView = () => {
               // Суммируем номенклатуру только для материалов (не работ)
               const totalNomenclature = Math.round(
                 data.reduce((sum, item) => {
-                  return item.type === 'work' ? sum : sum + item.nomenclature_total
+                  if (item.type === 'work') return sum
+                  const materialTotal = 'material_total' in item ? item.material_total : (item as VorItem).nomenclature_total
+                  return sum + (materialTotal || 0)
                 }, 0),
               )
-              const totalWork = Math.round(data.reduce((sum, item) => sum + item.work_total, 0))
+              const totalWork = Math.round(data.reduce((sum, item) => sum + (item.work_total || 0), 0))
               // Для столбца "Сумма Итого" суммируем по новой логике:
               // - для работ берем значение из work_total
-              // - для материалов берем значение из nomenclature_total
+              // - для материалов берем значение из material_total
               const grandTotal = Math.round(
                 data.reduce((sum, item) => {
                   if (item.type === 'work') {
-                    return sum + item.work_total
+                    return sum + (item.work_total || 0)
                   } else {
-                    return sum + item.nomenclature_total
+                    const materialTotal = 'material_total' in item ? item.material_total : (item as VorItem).nomenclature_total
+                    return sum + (materialTotal || 0)
                   }
                 }, 0),
               )
@@ -1816,6 +2161,7 @@ const VorView = () => {
               )
             }}
           />
+          </div>
         </div>
       </div>
 
@@ -1829,18 +2175,6 @@ const VorView = () => {
         />
       )}
 
-      {selectedWorkForMaterial && (
-        <AddMaterialModal
-          visible={addMaterialModalVisible}
-          onCancel={() => {
-            setAddMaterialModalVisible(false)
-            setSelectedWorkForMaterial(null)
-          }}
-          onSuccess={handleAddMaterialSuccess}
-          vorWorkId={selectedWorkForMaterial.id}
-          workName={selectedWorkForMaterial.name}
-        />
-      )}
     </>
   )
 }

@@ -249,7 +249,7 @@ export const ChessboardFilters = memo(
             </div>
 
             {/* Раздел (Тэги проекта) */}
-            <div style={{ minWidth: 250 }}>
+            <div style={{ minWidth: 250, maxWidth: 250 }}>
               <Select
                 mode="multiple"
                 value={filters.documentationSection}
@@ -258,6 +258,8 @@ export const ChessboardFilters = memo(
                 allowClear
                 showSearch
                 style={{ width: '100%' }}
+                maxTagCount={2}
+                maxTagPlaceholder={(omittedValues) => `+${omittedValues.length}`}
                 filterOption={(input, option) =>
                   (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
                 }
@@ -266,7 +268,7 @@ export const ChessboardFilters = memo(
             </div>
 
             {/* Шифр проекта */}
-            <div style={{ minWidth: 300 }}>
+            <div style={{ minWidth: 300, maxWidth: 300 }}>
               <Select
                 mode="multiple"
                 value={filters.documentationCode}
@@ -275,6 +277,8 @@ export const ChessboardFilters = memo(
                 allowClear
                 showSearch
                 style={{ width: '100%' }}
+                maxTagCount={1}
+                maxTagPlaceholder={(omittedValues) => `+${omittedValues.length} ещё`}
                 filterOption={(input, option) =>
                   (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
                 }

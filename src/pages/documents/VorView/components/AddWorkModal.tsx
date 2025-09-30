@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
-import { Modal, Table, Button, Input, Space, message, InputNumber } from 'antd'
-import { SearchOutlined } from '@ant-design/icons'
-import { useQuery } from '@tanstack/react-query'
-import { getRatesOptions, createVorWork, type RateOption, type CreateVorWorkDto } from '@/entities/vor'
+import { Modal, Table, Button, Input, Space, message, InputNumber, Tabs, Form, Select } from 'antd'
+import { SearchOutlined, PlusOutlined } from '@ant-design/icons'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getRatesOptions, createVorWork, getUnitsOptions, type RateOption, type CreateVorWorkDto } from '@/entities/vor'
+import { ratesApi, type RateFormData, type Rate } from '@/entities/rates'
 
 interface AddWorkModalProps {
   visible: boolean
@@ -17,13 +18,58 @@ const AddWorkModal: React.FC<AddWorkModalProps> = ({ visible, onCancel, onSucces
   const [selectedRates, setSelectedRates] = useState<RateOption[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState('select')
+  const [createForm] = Form.useForm()
   const [messageApi, contextHolder] = message.useMessage()
+  const queryClient = useQueryClient()
 
   // Загружаем расценки
   const { data: rates = [], isLoading } = useQuery({
     queryKey: ['rates-options'],
     queryFn: getRatesOptions,
     enabled: visible,
+  })
+
+  // Загружаем единицы измерения
+  const { data: units = [], isLoading: isUnitsLoading } = useQuery({
+    queryKey: ['units-options'],
+    queryFn: getUnitsOptions,
+    enabled: visible && activeTab === 'create',
+  })
+
+  // Мутация для создания новой расценки
+  const createRateMutation = useMutation({
+    mutationFn: (data: RateFormData) => ratesApi.create(data),
+    onSuccess: async (newRate: Rate) => {
+      messageApi.success('Расценка успешно создана')
+
+      // Обновляем кеш расценок
+      await queryClient.invalidateQueries({ queryKey: ['rates-options'] })
+
+      // Автоматически добавляем созданную расценку в ВОР
+      const workData: CreateVorWorkDto = {
+        vor_id: vorId,
+        rate_id: newRate.id,
+        quantity: 1,
+        coefficient: 1.0,
+        base_rate: newRate.base_rate,
+      }
+
+      try {
+        await createVorWork(workData)
+        messageApi.success('Работа добавлена в ВОР')
+        createForm.resetFields()
+        setActiveTab('select')
+        onSuccess()
+      } catch (error) {
+        console.error('Ошибка добавления работы в ВОР:', error)
+        messageApi.error('Ошибка при добавлении работы в ВОР')
+      }
+    },
+    onError: (error: unknown) => {
+      console.error('Ошибка создания расценки:', error)
+      messageApi.error('Ошибка при создании расценки')
+    },
   })
 
   // Фильтруем расценки по поисковому запросу
@@ -68,7 +114,26 @@ const AddWorkModal: React.FC<AddWorkModalProps> = ({ visible, onCancel, onSucces
   const handleCancel = () => {
     setSelectedRates([])
     setSearchTerm('')
+    setActiveTab('select')
+    createForm.resetFields()
     onCancel()
+  }
+
+  // Обработчик создания новой расценки
+  const handleCreateRate = async () => {
+    try {
+      const values = await createForm.validateFields()
+      const rateData: RateFormData = {
+        work_name: values.work_name,
+        base_rate: values.base_rate,
+        unit_id: values.unit_id,
+        active: true,
+      }
+
+      createRateMutation.mutate(rateData)
+    } catch (error) {
+      console.error('Ошибка валидации формы:', error)
+    }
   }
 
   const columns = [
@@ -108,6 +173,40 @@ const AddWorkModal: React.FC<AddWorkModalProps> = ({ visible, onCancel, onSucces
     type: 'checkbox' as const,
   }
 
+  const getModalFooter = () => {
+    if (activeTab === 'create') {
+      return [
+        <Button key="cancel" onClick={handleCancel}>
+          Отмена
+        </Button>,
+        <Button
+          key="create"
+          type="primary"
+          onClick={handleCreateRate}
+          loading={createRateMutation.isPending}
+          icon={<PlusOutlined />}
+        >
+          Создать и добавить
+        </Button>,
+      ]
+    }
+
+    return [
+      <Button key="cancel" onClick={handleCancel}>
+        Отмена
+      </Button>,
+      <Button
+        key="add"
+        type="primary"
+        onClick={handleAddWorks}
+        loading={loading}
+        disabled={selectedRates.length === 0}
+      >
+        Добавить ({selectedRates.length})
+      </Button>,
+    ]
+  }
+
   return (
     <>
       {contextHolder}
@@ -116,68 +215,160 @@ const AddWorkModal: React.FC<AddWorkModalProps> = ({ visible, onCancel, onSucces
         open={visible}
         onCancel={handleCancel}
         width={1000}
-        footer={[
-          <Button key="cancel" onClick={handleCancel}>
-            Отмена
-          </Button>,
-          <Button
-            key="add"
-            type="primary"
-            onClick={handleAddWorks}
-            loading={loading}
-            disabled={selectedRates.length === 0}
-          >
-            Добавить ({selectedRates.length})
-          </Button>,
-        ]}
+        footer={getModalFooter()}
       >
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <Search
-            placeholder="Поиск по наименованию работы или единице измерения"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ width: '100%' }}
-            prefix={<SearchOutlined />}
-            allowClear
-          />
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          items={[
+            {
+              key: 'select',
+              label: 'Выбрать существующую',
+              children: (
+                <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                  <Search
+                    placeholder="Поиск по наименованию работы или единице измерения"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    style={{ width: '100%' }}
+                    prefix={<SearchOutlined />}
+                    allowClear
+                  />
 
-          <Table
-            columns={columns}
-            dataSource={filteredRates}
-            rowKey="id"
-            rowSelection={rowSelection}
-            loading={isLoading}
-            pagination={{
-              pageSize: 10,
-              showSizeChanger: true,
-              showQuickJumper: true,
-              showTotal: (total, range) =>
-                `${range[0]}-${range[1]} из ${total} расценок`,
-            }}
-            scroll={{ y: 400 }}
-            size="small"
-          />
+                  <Table
+                    columns={columns}
+                    dataSource={filteredRates}
+                    rowKey="id"
+                    rowSelection={rowSelection}
+                    loading={isLoading}
+                    pagination={{
+                      pageSize: 10,
+                      showSizeChanger: true,
+                      showQuickJumper: true,
+                      showTotal: (total, range) =>
+                        `${range[0]}-${range[1]} из ${total} расценок`,
+                    }}
+                    scroll={{ y: 400 }}
+                    size="small"
+                  />
 
-          {selectedRates.length > 0 && (
-            <div style={{
-              background: '#f6f6f6',
-              padding: 12,
-              borderRadius: 4,
-              border: '1px solid #d9d9d9'
-            }}>
-              <div style={{ marginBottom: 8, fontWeight: 'bold' }}>
-                Выбрано работ: {selectedRates.length}
-              </div>
-              <div style={{ maxHeight: 100, overflow: 'auto' }}>
-                {selectedRates.map((rate, index) => (
-                  <div key={rate.id} style={{ fontSize: '12px', marginBottom: 4 }}>
-                    {index + 1}. {rate.work_name}
+                  {selectedRates.length > 0 && (
+                    <div style={{
+                      background: '#f6f6f6',
+                      padding: 12,
+                      borderRadius: 4,
+                      border: '1px solid #d9d9d9'
+                    }}>
+                      <div style={{ marginBottom: 8, fontWeight: 'bold' }}>
+                        Выбрано работ: {selectedRates.length}
+                      </div>
+                      <div style={{ maxHeight: 100, overflow: 'auto' }}>
+                        {selectedRates.map((rate, index) => (
+                          <div key={rate.id} style={{ fontSize: '12px', marginBottom: 4 }}>
+                            {index + 1}. {rate.work_name}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </Space>
+              ),
+            },
+            {
+              key: 'create',
+              label: (
+                <span>
+                  <PlusOutlined /> Создать новую
+                </span>
+              ),
+              children: (
+                <Form
+                  form={createForm}
+                  layout="vertical"
+                  style={{ maxWidth: 600 }}
+                >
+                  <Form.Item
+                    name="work_name"
+                    label="Наименование работы"
+                    rules={[
+                      { required: true, message: 'Введите наименование работы' },
+                      { min: 3, message: 'Минимум 3 символа' },
+                      { max: 500, message: 'Максимум 500 символов' },
+                    ]}
+                  >
+                    <Input.TextArea
+                      placeholder="Введите наименование работы"
+                      autoSize={{ minRows: 2, maxRows: 4 }}
+                      showCount
+                      maxLength={500}
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="base_rate"
+                    label="Базовая расценка"
+                    rules={[
+                      { required: true, message: 'Введите базовую расценку' },
+                      { type: 'number', min: 0, message: 'Расценка должна быть больше 0' },
+                    ]}
+                  >
+                    <InputNumber
+                      placeholder="0.00"
+                      style={{ width: '100%' }}
+                      min={0}
+                      step={0.01}
+                      precision={2}
+                      formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
+                      parser={(value) => value!.replace(/\s?/g, '')}
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="unit_id"
+                    label="Единица измерения"
+                    rules={[
+                      { required: true, message: 'Выберите единицу измерения' },
+                    ]}
+                  >
+                    <Select
+                      placeholder="Выберите единицу измерения"
+                      loading={isUnitsLoading}
+                      allowClear
+                      showSearch
+                      filterOption={(input, option) => {
+                        const text = option?.children?.toString() || ''
+                        return text.toLowerCase().includes(input.toLowerCase())
+                      }}
+                    >
+                      {units.map((unit) => (
+                        <Select.Option key={unit.id} value={unit.id}>
+                          {unit.name}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+
+                  <div style={{
+                    marginTop: 16,
+                    padding: 12,
+                    backgroundColor: '#e6f7ff',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    color: '#666',
+                  }}>
+                    💡 <strong>Что произойдет при создании:</strong>
+                    <br />
+                    • Будет создана новая расценка в справочнике
+                    <br />
+                    • Расценка автоматически добавится в текущую ВОР
+                    <br />
+                    • Количество и коэффициент будут установлены в 1.0
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </Space>
+                </Form>
+              ),
+            },
+          ]}
+        />
       </Modal>
     </>
   )

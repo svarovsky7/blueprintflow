@@ -6,12 +6,13 @@ import { useChessboardData } from './hooks/useChessboardData'
 import { useColumnSettings } from './hooks/useColumnSettings'
 import { useTableOperations } from './hooks/useTableOperations'
 import { useVersionsState } from './hooks/useVersionsState'
-import { ChessboardFilters } from './components/ChessboardFilters'
+import { ChessboardFilters as ChessboardFiltersComponent } from './components/ChessboardFilters'
 import { ChessboardTable } from './components/ChessboardTable'
 import { ColumnSettingsDrawer } from './components/ColumnSettingsDrawer'
 import { VersionsModal } from './components/VersionsModal'
 import ChessboardSetsModal from '../ChessboardSetsModal'
 import { chessboardSetsApi } from '@/entities/chessboard/api/chessboard-sets-api'
+import type { ChessboardFilters } from './types'
 
 const { Title } = Typography
 
@@ -399,6 +400,27 @@ export default function Chessboard() {
     }
   }, [updateFilter, updateDocumentVersions, appliedFilters.documentation_version_ids, setAppliedFilters])
 
+  // Обёртка для updateFilter - сбрасываем флаг ручной установки статуса
+  const handleUpdateFilter = useCallback(<K extends keyof ChessboardFilters>(key: K, value: ChessboardFilters[K]) => {
+    updateFilter(key, value)
+    // Сбрасываем флаг ручной установки, чтобы при применении фильтров статус определился заново
+    statusSetManuallyRef.current = false
+  }, [updateFilter])
+
+  // Обёртка для updateCascadingFilter - сбрасываем флаг ручной установки статуса
+  const handleUpdateCascadingFilter = useCallback(<K extends keyof ChessboardFilters>(key: K, value: ChessboardFilters[K]) => {
+    updateCascadingFilter(key, value)
+    // Сбрасываем флаг ручной установки, чтобы при применении фильтров статус определился заново
+    statusSetManuallyRef.current = false
+  }, [updateCascadingFilter])
+
+  // Обёртка для applyFilters - сбрасываем флаг ручной установки статуса
+  const handleApplyFilters = useCallback(() => {
+    applyFilters()
+    // Сбрасываем флаг ручной установки, чтобы статус определился заново
+    statusSetManuallyRef.current = false
+  }, [applyFilters])
+
   // Обработчик сброса фильтров с очисткой статуса
   const handleResetFilters = useCallback(() => {
     resetFilters()
@@ -513,7 +535,7 @@ export default function Chessboard() {
 
       {/* Фильтры */}
       <div style={{ flexShrink: 0, padding: '16px 24px 0 24px' }}>
-        <ChessboardFilters
+        <ChessboardFiltersComponent
           filters={filters}
           appliedFilters={appliedFilters}
           filtersCollapsed={filtersCollapsed}
@@ -521,9 +543,9 @@ export default function Chessboard() {
           hasAppliedFilters={hasAppliedFilters}
           isLoading={isLoading}
           statistics={statistics}
-          onFilterChange={updateFilter}
-          onCascadingFilterChange={updateCascadingFilter}
-          onApplyFilters={applyFilters}
+          onFilterChange={handleUpdateFilter}
+          onCascadingFilterChange={handleUpdateCascadingFilter}
+          onApplyFilters={handleApplyFilters}
           onResetFilters={handleResetFilters}
           onToggleCollapsed={toggleFiltersCollapsed}
           onOpenColumnSettings={openDrawer}
