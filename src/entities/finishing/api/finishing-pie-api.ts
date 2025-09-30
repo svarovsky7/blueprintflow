@@ -1,56 +1,54 @@
 import { supabase } from '@/lib/supabase'
 import type {
+  FinishingPie,
   FinishingPieType,
   FinishingPieRow,
+  CreateFinishingPieDto,
+  UpdateFinishingPieDto,
   CreateFinishingPieTypeDto,
   UpdateFinishingPieTypeDto,
   CreateFinishingPieRowDto,
   UpdateFinishingPieRowDto,
 } from '../model/types'
 
-// ========== CRUD для типов пирогов (заголовки документов) ==========
+// ========== CRUD для документов типов пирогов (заголовки) ==========
 
-export async function getFinishingPieTypes(projectId: string): Promise<FinishingPieType[]> {
-  const { data, error } = await supabase
-    .from('finishing_pie_types')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('name')
+export async function getFinishingPies(
+  projectId: string,
+  blockId?: string
+): Promise<FinishingPie[]> {
+  let query = supabase.from('finishing_pie').select('*').eq('project_id', projectId)
+
+  if (blockId) {
+    query = query.eq('block_id', blockId)
+  }
+
+  const { data, error } = await query.order('name')
 
   if (error) throw error
   return data || []
 }
 
-export async function getFinishingPieTypeById(id: string): Promise<FinishingPieType | null> {
-  const { data, error } = await supabase
-    .from('finishing_pie_types')
-    .select('*')
-    .eq('id', id)
-    .single()
+export async function getFinishingPieById(id: string): Promise<FinishingPie | null> {
+  const { data, error } = await supabase.from('finishing_pie').select('*').eq('id', id).single()
 
   if (error) throw error
   return data
 }
 
-export async function createFinishingPieType(
-  dto: CreateFinishingPieTypeDto
-): Promise<FinishingPieType> {
-  const { data, error } = await supabase
-    .from('finishing_pie_types')
-    .insert([dto])
-    .select()
-    .single()
+export async function createFinishingPie(dto: CreateFinishingPieDto): Promise<FinishingPie> {
+  const { data, error } = await supabase.from('finishing_pie').insert([dto]).select().single()
 
   if (error) throw error
   return data
 }
 
-export async function updateFinishingPieType(
+export async function updateFinishingPie(
   id: string,
-  dto: UpdateFinishingPieTypeDto
-): Promise<FinishingPieType> {
+  dto: UpdateFinishingPieDto
+): Promise<FinishingPie> {
   const { data, error } = await supabase
-    .from('finishing_pie_types')
+    .from('finishing_pie')
     .update({ ...dto, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select()
@@ -60,15 +58,22 @@ export async function updateFinishingPieType(
   return data
 }
 
-export async function deleteFinishingPieType(id: string): Promise<void> {
-  const { error } = await supabase.from('finishing_pie_types').delete().eq('id', id)
+export async function deleteFinishingPie(id: string): Promise<void> {
+  const { error } = await supabase.from('finishing_pie').delete().eq('id', id)
 
   if (error) throw error
 }
 
+// Алиасы для обратной совместимости
+export const getFinishingPieTypes = getFinishingPies
+export const getFinishingPieTypeById = getFinishingPieById
+export const createFinishingPieType = createFinishingPie
+export const updateFinishingPieType = updateFinishingPie
+export const deleteFinishingPieType = deleteFinishingPie
+
 // ========== CRUD для строк табличной части ==========
 
-export async function getFinishingPieRows(pieTypeId: string): Promise<FinishingPieRow[]> {
+export async function getFinishingPieRows(finishingPieId: string): Promise<FinishingPieRow[]> {
   const { data, error } = await supabase
     .from('finishing_pie_mapping')
     .select(
@@ -80,7 +85,7 @@ export async function getFinishingPieRows(pieTypeId: string): Promise<FinishingP
       rate_units:rate_unit_id (name)
     `
     )
-    .eq('pie_type_id', pieTypeId)
+    .eq('finishing_pie_id', finishingPieId)
     .order('created_at')
 
   if (error) throw error
@@ -89,7 +94,7 @@ export async function getFinishingPieRows(pieTypeId: string): Promise<FinishingP
   return (
     data?.map((row: any) => ({
       id: row.id,
-      pie_type_id: row.pie_type_id,
+      finishing_pie_id: row.finishing_pie_id,
       material_id: row.material_id,
       material_name: row.materials?.name || null,
       unit_id: row.unit_id,

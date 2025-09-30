@@ -13,6 +13,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { statusesApi } from '@/entities/statuses'
 import { PAGE_FORMATS, normalizeColorToHex } from '@/shared/constants/statusColors'
+import { useScale } from '@/shared/contexts/ScaleContext'
 import type { TableMode } from '../types'
 
 interface ChessboardActionButtonsProps {
@@ -54,6 +55,7 @@ export const ChessboardActionButtons = memo(
     onStatusChange,
   }: ChessboardActionButtonsProps) => {
     const { mode, selectedRowKeys } = tableMode
+    const { scale } = useScale()
 
     // Загрузка статусов для Шахматки
     const { data: chessboardStatuses = [] } = useQuery({
@@ -148,33 +150,47 @@ export const ChessboardActionButtons = memo(
       <Space>
         {/* Поле статусов с пиктограммами */}
         {hasAppliedProject && (
-          <Tooltip title={currentSetName ? `Комплект: ${currentSetName}` : undefined}>
-            <div style={{ display: 'inline-block' }}>
-              <Select
-                value={currentStatus}
-                onChange={onStatusChange}
-                style={{ width: 40 }}
-                placeholder=""
-                allowClear={false}
-                suffixIcon={null}
-                popupMatchSelectWidth={200}
-                optionLabelProp="label"
-              >
-                {chessboardStatuses.map(status => (
-                  <Select.Option
-                    key={status.id}
-                    value={status.id}
-                    label={<StatusIcon color={status.color || '#d9d9d9'} />}
+          <Select
+            value={currentStatus}
+            onChange={onStatusChange}
+            style={{ width: 40 }}
+            placeholder=""
+            allowClear={false}
+            suffixIcon={null}
+            popupMatchSelectWidth={200}
+            optionLabelProp="label"
+            dropdownRender={(menu) => (
+              <>
+                {currentSetName && (
+                  <div
+                    style={{
+                      padding: '8px 12px',
+                      borderBottom: '1px solid #f0f0f0',
+                      fontWeight: 500,
+                      fontSize: `${13 * scale}px`,
+                      color: '#1890ff',
+                    }}
                   >
-                    <Space>
-                      <StatusIcon color={status.color || '#d9d9d9'} />
-                      {status.name}
-                    </Space>
-                  </Select.Option>
-                ))}
-              </Select>
-            </div>
-          </Tooltip>
+                    Комплект: {currentSetName}
+                  </div>
+                )}
+                {menu}
+              </>
+            )}
+          >
+            {chessboardStatuses.map(status => (
+              <Select.Option
+                key={status.id}
+                value={status.id}
+                label={<StatusIcon color={status.color || '#d9d9d9'} />}
+              >
+                <Space>
+                  <StatusIcon color={status.color || '#d9d9d9'} />
+                  {status.name}
+                </Space>
+              </Select.Option>
+            ))}
+          </Select>
         )}
 
         {hasAppliedProject && onOpenSetsModal && (

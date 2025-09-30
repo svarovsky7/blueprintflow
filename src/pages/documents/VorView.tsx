@@ -14,6 +14,9 @@ import {
   updateVorWork,
   updateVorMaterial,
   createVorMaterial,
+  deleteVorWork,
+  deleteVorMaterial,
+  deleteVorMaterialsByWorkId,
   getSupplierNamesOptions,
   getUnitsOptions
 } from '@/entities/vor'
@@ -175,6 +178,14 @@ const VorView = () => {
     quantity: number
     price: number
   }>>({})
+
+  // Состояния для редактирования названий
+  const [editingNameId, setEditingNameId] = useState<string | null>(null)
+  const [editingNameValue, setEditingNameValue] = useState<string>('')
+
+  // Состояния для отслеживания удалений и изменений названий (применяются при сохранении)
+  const [deletedItems, setDeletedItems] = useState<Set<string>>(new Set())
+  const [nameChanges, setNameChanges] = useState<Record<string, string>>({})
 
   // Состояние для поиска материалов
   const [materialSearchTerm, setMaterialSearchTerm] = useState('')
@@ -1358,9 +1369,44 @@ const VorView = () => {
         )
       }
 
-      // Очищаем временные состояния новых материалов
+      // Применяем изменения названий
+      console.log('🔍 Применяем изменения названий...', nameChanges) // LOG: отладочная информация
+      for (const [itemId, newName] of Object.entries(nameChanges)) {
+        const item = editableVorData.find(item => item.id === itemId)
+        if (!item) continue
+
+        if (item.type === 'material') {
+          console.log('🔍 Обновляем название материала:', { itemId, newName }) // LOG: отладочная информация
+          await updateVorMaterial(itemId, {
+            supplier_material_name: newName
+          })
+        }
+        // TODO: Добавить обновление названий работ когда будет API
+      }
+
+      // Применяем удаления
+      console.log('🔍 Применяем удаления...', deletedItems) // LOG: отладочная информация
+      for (const itemId of deletedItems) {
+        const item = editableVorData.find(item => item.id === itemId)
+        if (!item) continue
+
+        console.log('🔍 Удаляем элемент:', { itemId, type: item.type }) // LOG: отладочная информация
+
+        if (item.type === 'work') {
+          // Сначала удаляем все материалы этой работы
+          await deleteVorMaterialsByWorkId(itemId)
+          // Затем удаляем саму работу
+          await deleteVorWork(itemId)
+        } else if (item.type === 'material') {
+          await deleteVorMaterial(itemId)
+        }
+      }
+
+      // Очищаем временные состояния
       setNewMaterialRows(new Set())
       setTempMaterialData({})
+      setDeletedItems(new Set())
+      setNameChanges({})
 
       console.log('✅ Все изменения сохранены') // LOG: успешное сохранение
       messageApi.success('Изменения сохранены')
@@ -1392,6 +1438,12 @@ const VorView = () => {
     // Очищаем новые материалы
     setNewMaterialRows(new Set())
     setTempMaterialData({})
+    // Очищаем редактирование названий
+    setEditingNameId(null)
+    setEditingNameValue('')
+    // Очищаем удаления и изменения названий
+    setDeletedItems(new Set())
+    setNameChanges({})
   }
 
   const handleDeleteSelected = async () => {
@@ -1405,6 +1457,92 @@ const VorView = () => {
       console.error('Ошибка удаления:', error)
       messageApi.error('Ошибка при удалении элементов')
     }
+  }
+
+  // Пометка работы как удаленной (не удаляем сразу)
+  const handleDeleteWork = (workId: string) => {
+    console.log('🔍 Помечаем работу для удаления:', workId) // LOG: отладочная информация
+
+    // Помечаем работу как удаленную
+    setDeletedItems(prev => new Set([...prev, workId]))
+
+    // Находим все материалы этой работы и тоже помечаем их как удаленные
+    const workMaterials = editableVorData.filter(item =>
+      item.type === 'material' && item.vor_work_id === workId
+    )
+
+    if (workMaterials.length > 0) {
+      setDeletedItems(prev => {
+        const newSet = new Set(prev)
+        workMaterials.forEach(material => newSet.add(material.id))
+        return newSet
+      })
+    }
+
+    messageApi.success(`Работа помечена для удаления (${workMaterials.length} материалов тоже)`)
+  }
+
+  // Пометка материала как удаленного (не удаляем сразу)
+  const handleDeleteMaterial = (materialId: string) => {
+    console.log('🔍 Помечаем материал для удаления:', materialId) // LOG: отладочная информация
+
+    // Если это новый материал (еще не сохранен в БД)
+    if (newMaterialRows.has(materialId)) {
+      // Просто убираем из временных состояний
+      setEditableVorData(prevData => prevData.filter(item => item.id !== materialId))
+      setNewMaterialRows(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(materialId)
+        return newSet
+      })
+      setTempMaterialData(prev => {
+        const newData = { ...prev }
+        delete newData[materialId]
+        return newData
+      })
+      messageApi.success('Новый материал удален')
+      return
+    }
+
+    // Если это существующий материал - помечаем как удаленный
+    setDeletedItems(prev => new Set([...prev, materialId]))
+    messageApi.success('Материал помечен для удаления')
+  }
+
+  // Функции для редактирования названий
+  const handleStartEditName = (id: string, currentName: string) => {
+    setEditingNameId(id)
+    setEditingNameValue(currentName)
+  }
+
+  const handleSaveEditName = (itemId: string, itemType: 'work' | 'material') => {
+    console.log('🔍 Сохраняем изменение названия во временное состояние:', { itemId, itemType, newName: editingNameValue }) // LOG: отладочная информация
+
+    // Сохраняем изменение названия во временном состоянии
+    setNameChanges(prev => ({
+      ...prev,
+      [itemId]: editingNameValue
+    }))
+
+    // Обновляем локальные данные для отображения
+    setEditableVorData(prevData =>
+      prevData.map(item =>
+        item.id === itemId
+          ? { ...item, name: editingNameValue, is_modified: true }
+          : item
+      )
+    )
+
+    // Сбрасываем состояние редактирования
+    setEditingNameId(null)
+    setEditingNameValue('')
+
+    messageApi.success('Изменение названия сохранено (будет применено при общем сохранении)')
+  }
+
+  const handleCancelEditName = () => {
+    setEditingNameId(null)
+    setEditingNameValue('')
   }
 
   // Функция экспорта в Excel
@@ -1647,6 +1785,37 @@ const VorView = () => {
           )
         }
 
+        // В режиме редактирования показываем возможность редактирования названий
+        if (viewMode === 'edit' && editingNameId === record.id) {
+          return (
+            <div style={{ paddingLeft: record.level === 2 ? 20 : 0 }}>
+              <Input.TextArea
+                value={editingNameValue}
+                onChange={(e) => setEditingNameValue(e.target.value)}
+                autoSize={{ minRows: 2, maxRows: 4 }}
+                style={{ marginBottom: 8 }}
+              />
+              <Space>
+                <Button
+                  size="small"
+                  type="primary"
+                  onClick={() => handleSaveEditName(record.id, record.type)}
+                >
+                  Сохранить
+                </Button>
+                <Button
+                  size="small"
+                  onClick={handleCancelEditName}
+                >
+                  Отмена
+                </Button>
+              </Space>
+            </div>
+          )
+        }
+
+        const isDeleted = deletedItems.has(record.id)
+
         return (
           <div
             style={{
@@ -1656,7 +1825,21 @@ const VorView = () => {
               wordBreak: 'break-word',
               lineHeight: '1.2',
               position: 'relative',
+              cursor: viewMode === 'edit' && !isNewMaterial && !isDeleted ? 'pointer' : 'default',
+              opacity: isDeleted ? 0.5 : 1,
+              textDecoration: isDeleted ? 'line-through' : 'none',
+              backgroundColor: isDeleted ? '#ffebee' : 'transparent',
             }}
+            onClick={() => {
+              if (viewMode === 'edit' && !isNewMaterial && !isDeleted) {
+                handleStartEditName(record.id, text)
+              }
+            }}
+            title={
+              isDeleted
+                ? 'Элемент помечен для удаления'
+                : (viewMode === 'edit' && !isNewMaterial ? 'Нажмите для редактирования' : undefined)
+            }
           >
             {isModified && (
               <span
@@ -1674,6 +1857,29 @@ const VorView = () => {
               </span>
             )}
             {text}
+            {isDeleted && (
+              <span
+                style={{
+                  marginLeft: 8,
+                  color: '#f50',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                }}
+              >
+                🗑 К удалению
+              </span>
+            )}
+            {viewMode === 'edit' && !isNewMaterial && !isDeleted && (
+              <span
+                style={{
+                  marginLeft: 8,
+                  color: '#999',
+                  fontSize: '12px',
+                }}
+              >
+                ✏️
+              </span>
+            )}
           </div>
         )
       },
@@ -1945,18 +2151,100 @@ const VorView = () => {
       width: 100,
       fixed: 'right' as const,
       render: (_, record: VorItem) => {
-        // Показываем кнопку добавления материала только для строк работ
-        if (record.type === 'work') {
-          return (
-            <Button
-              type="link"
-              size="small"
-              onClick={() => handleAddMaterial(record.id, record.name)}
-              style={{ padding: 0 }}
-            >
-              + Материал
-            </Button>
-          )
+        const isDeleted = deletedItems.has(record.id)
+
+        // В режиме редактирования показываем кнопки удаления/восстановления
+        if (viewMode === 'edit') {
+          if (record.type === 'work') {
+            return (
+              <Space direction="vertical" size={4}>
+                {!isDeleted && (
+                  <Button
+                    type="link"
+                    size="small"
+                    onClick={() => handleAddMaterial(record.id, record.name)}
+                    style={{ padding: 0, fontSize: '12px' }}
+                  >
+                    + Материал
+                  </Button>
+                )}
+                {isDeleted ? (
+                  <Button
+                    type="link"
+                    size="small"
+                    onClick={() => {
+                      setDeletedItems(prev => {
+                        const newSet = new Set(prev)
+                        newSet.delete(record.id)
+                        // Также восстанавливаем материалы этой работы
+                        const workMaterials = editableVorData.filter(item =>
+                          item.type === 'material' && item.vor_work_id === record.id
+                        )
+                        workMaterials.forEach(material => newSet.delete(material.id))
+                        return newSet
+                      })
+                      messageApi.success('Работа восстановлена')
+                    }}
+                    style={{ padding: 0, fontSize: '12px', color: '#52c41a' }}
+                  >
+                    ↺ Восстановить
+                  </Button>
+                ) : (
+                  <Button
+                    type="link"
+                    size="small"
+                    danger
+                    onClick={() => handleDeleteWork(record.id)}
+                    style={{ padding: 0, fontSize: '12px' }}
+                  >
+                    🗑 Удалить
+                  </Button>
+                )}
+              </Space>
+            )
+          } else if (record.type === 'material') {
+            return isDeleted ? (
+              <Button
+                type="link"
+                size="small"
+                onClick={() => {
+                  setDeletedItems(prev => {
+                    const newSet = new Set(prev)
+                    newSet.delete(record.id)
+                    return newSet
+                  })
+                  messageApi.success('Материал восстановлен')
+                }}
+                style={{ padding: 0, fontSize: '12px', color: '#52c41a' }}
+              >
+                ↺ Восстановить
+              </Button>
+            ) : (
+              <Button
+                type="link"
+                size="small"
+                danger
+                onClick={() => handleDeleteMaterial(record.id)}
+                style={{ padding: 0, fontSize: '12px' }}
+              >
+                🗑 Удалить
+              </Button>
+            )
+          }
+        } else {
+          // В режиме просмотра показываем только добавление материала для работ
+          if (record.type === 'work') {
+            return (
+              <Button
+                type="link"
+                size="small"
+                onClick={() => handleAddMaterial(record.id, record.name)}
+                style={{ padding: 0 }}
+              >
+                + Материал
+              </Button>
+            )
+          }
         }
         return null
       },
@@ -2083,9 +2371,6 @@ const VorView = () => {
                 <>
                   <Button icon={<PlusOutlined />} onClick={handleAddWork} size="large">
                     Добавить работу
-                  </Button>
-                  <Button icon={<DeleteOutlined />} onClick={handleDeleteMode} size="large">
-                    Удалить
                   </Button>
                   <Button icon={<SaveOutlined />} onClick={handleSave} size="large" type="primary">
                     Сохранить
@@ -2265,9 +2550,14 @@ const VorView = () => {
                 }, 0),
               )
 
+              // Индексы цифровых столбцов остаются фиксированными:
+              // 7 - Номенклатура Итого, 8 - Работа Итого, 9 - Сумма Итого
+              // В режиме редактирования добавляется колонка "Действия" в конец (индекс 10)
+              const summaryColSpan = 7
+
               return (
                 <Table.Summary.Row>
-                  <Table.Summary.Cell index={0} colSpan={7}>
+                  <Table.Summary.Cell index={0} colSpan={summaryColSpan}>
                     <Text strong>Итого:</Text>
                   </Table.Summary.Cell>
                   <Table.Summary.Cell index={7}>
