@@ -3,11 +3,12 @@
 }
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Table, Typography, Space, Spin, Alert, Button, InputNumber, message, Select } from 'antd'
-import { ArrowLeftOutlined, DownloadOutlined, EditOutlined, SaveOutlined, CloseOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, DownloadOutlined, EditOutlined, SaveOutlined, CloseOutlined, PlusOutlined, MinusOutlined, DeleteOutlined } from '@ant-design/icons'
 import * as XLSX from 'xlsx'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { useScale } from '@/shared/contexts/ScaleContext'
 import {
   getVorTableData,
   type VorTableItem,
@@ -186,6 +187,13 @@ const VorView = () => {
   // Состояния для отслеживания удалений и изменений названий (применяются при сохранении)
   const [deletedItems, setDeletedItems] = useState<Set<string>>(new Set())
   const [nameChanges, setNameChanges] = useState<Record<string, string>>({})
+
+  // Состояние для сворачивания/разворачивания заголовка
+  const [headerExpanded, setHeaderExpanded] = useState<boolean>(true)
+
+  // Получаем масштаб приложения
+  const { scale } = useScale()
+
 
   // Состояние для поиска материалов
   const [materialSearchTerm, setMaterialSearchTerm] = useState('')
@@ -730,6 +738,43 @@ const VorView = () => {
     },
     enabled: !!vorData?.vor,
   })
+
+  // Функция для вычисления среднего коэффициента по всем работам в таблице
+  const calculateAverageCoefficient = useCallback(() => {
+    // Используем текущие данные таблицы для расчета
+    const currentData = isEditingEnabled && editableVorData.length > 0
+      ? editableVorData
+      : (vorItemsData.length > 0 ? vorItemsData : (vorItems || []))
+
+    // Фильтруем только работы (type === 'work') и исключаем удаленные элементы
+    const workItems = currentData.filter(item =>
+      item.type === 'work' && !deletedItems.has(item.id)
+    )
+
+    if (workItems.length === 0) return 1.0
+
+    // Вычисляем средний коэффициент
+    const totalCoefficient = workItems.reduce((sum, item) => {
+      return sum + (item.coefficient || 1.0)
+    }, 0)
+
+    const averageCoefficient = totalCoefficient / workItems.length
+    return Math.round(averageCoefficient * 10) / 10 // Округляем до 1 знака после запятой
+  }, [isEditingEnabled, editableVorData, vorItemsData, vorItems, deletedItems])
+
+  // Вычисляем и устанавливаем средний коэффициент
+  const averageCoefficient = calculateAverageCoefficient()
+
+  // Автоматическое обновление среднего коэффициента в БД
+  useEffect(() => {
+    if (averageCoefficient !== coefficient) {
+      const timeoutId = setTimeout(() => {
+        updateCoefficientMutation.mutate(averageCoefficient)
+      }, 500) // Задержка 500мс для избежания частых обновлений
+
+      return () => clearTimeout(timeoutId)
+    }
+  }, [averageCoefficient, coefficient, updateCoefficientMutation])
 
   // Загружаем данные ВОР из БД (новая схема)
   const { data: editableVorItems, isLoading: editableVorLoading } = useQuery({
@@ -1558,11 +1603,10 @@ const VorView = () => {
       const exportData = []
 
       // Заголовок документа
-      exportData.push(['ВЕДОМОСТЬ ОБЪЕМОВ РАБОТ'])
+      exportData.push([`ВЕДОМОСТЬ ОБЪЕМОВ РАБОТ по комплекту ${setInfo}`])
       exportData.push([
         `Выполнение комплекса строительно-монтажных работ по комплекту: ${projectCodes}`,
       ])
-      exportData.push([vorData.vor.name])
       exportData.push(['']) // Пустая строка
 
       // Заголовки таблицы
@@ -1632,9 +1676,8 @@ const VorView = () => {
 
       // Объединяем ячейки для заголовков
       ws['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } }, // ВЕДОМОСТЬ ОБЪЕМОВ РАБОТ
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } }, // ВЕДОМОСТЬ ОБЪЕМОВ РАБОТ по комплекту
         { s: { r: 1, c: 0 }, e: { r: 1, c: 8 } }, // Выполнение комплекса...
-        { s: { r: 2, c: 0 }, e: { r: 2, c: 8 } }, // Название ВОР
       ]
 
       // Стили для заголовков
@@ -1656,9 +1699,6 @@ const VorView = () => {
 
         const cellAddress2 = XLSX.utils.encode_cell({ r: 1, c: i })
         if (ws[cellAddress2]) ws[cellAddress2].s = headerStyle
-
-        const cellAddress3 = XLSX.utils.encode_cell({ r: 2, c: i })
-        if (ws[cellAddress3]) ws[cellAddress3].s = headerStyle
       }
 
       // Применяем стили к заголовкам таблицы
@@ -1969,8 +2009,6 @@ const VorView = () => {
               onChange={(newValue) => {
                 handleTempMaterialDataChange(record.id, 'quantity', newValue || 1)
               }}
-              formatter={formatNumber}
-              parser={parseNumber}
               style={{ width: '100%' }}
               size="small"
               placeholder="1"
@@ -1993,8 +2031,6 @@ const VorView = () => {
                   updateItemQuantity(record.id, newValue || 0, record.type)
                 }
               }}
-              formatter={formatNumber}
-              parser={parseNumber}
               style={{ width: '100%' }}
               size="small"
             />
@@ -2029,8 +2065,6 @@ const VorView = () => {
               onChange={(newValue) => {
                 handleTempMaterialDataChange(record.id, 'price', newValue || 0)
               }}
-              formatter={formatNumber}
-              parser={parseNumber}
               style={{ width: '100%' }}
               size="small"
               placeholder="0"
@@ -2053,8 +2087,6 @@ const VorView = () => {
                   updateMaterialPrice(record.id, newValue || 0)
                 }
               }}
-              formatter={formatNumber}
-              parser={parseNumber}
               style={{ width: '100%' }}
               size="small"
             />
@@ -2090,8 +2122,6 @@ const VorView = () => {
                   updateWorkPrice(record.id, newValue || 0)
                 }
               }}
-              formatter={formatNumber}
-              parser={parseNumber}
               style={{ width: '100%' }}
               size="small"
             />
@@ -2282,6 +2312,16 @@ const VorView = () => {
           .join('; ')
       : ''
 
+  // Формирование информации о комплекте для заголовка
+  const setInfo = setsData && setsData.length > 0
+    ? setsData.map((set) => {
+        const setCode = set.code || 'SET-20250910' // Fallback если нет кода
+        const setName = set.name || 'Название комплекта'
+        const createdDate = set.created_at ? new Date(set.created_at).toLocaleDateString('ru-RU') : '30.09.2025'
+        return `${setCode} ${setName} от ${createdDate}`
+      }).join(', ')
+    : 'SET-20250910 Название комплекта от 30.09.2025'
+
   if (!vorId) {
     return (
       <div style={{ padding: 24 }}>
@@ -2348,12 +2388,14 @@ const VorView = () => {
                       max={10}
                       step={0.1}
                       precision={1}
-                      value={coefficient}
+                      value={averageCoefficient}
                       onChange={handleCoefficientChange}
-                      formatter={formatNumber}
-                      parser={parseNumber}
                       style={{ width: 80 }}
+                      title={`Средний коэффициент по всем работам: ${averageCoefficient}`}
                     />
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      (средний по таблице)
+                    </Text>
                   </div>
                   <Button icon={<EditOutlined />} onClick={handleEditMode} size="large">
                     Редактировать
@@ -2403,57 +2445,87 @@ const VorView = () => {
 
           <div style={{ textAlign: 'center' }}>
             <Space direction="vertical" size="small">
-              <Title level={3} style={{ margin: 0 }}>
-                ВЕДОМОСТЬ ОБЪЕМОВ РАБОТ
-              </Title>
-              <Text style={{ fontSize: 16 }}>
-                Выполнение комплекса строительно-монтажных работ по комплекту:{' '}
-                {projectCodes || 'не указано'} {/* Debug: projectCodes = '{projectCodes}' */}
-              </Text>
-              <Title level={4} style={{ margin: '8px 0 0 0' }}>
-                {vorData.vor.name}
-              </Title>
+              {/* Основной заголовок с кнопкой в одной строке */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: `${8 * scale}px`,
+                position: 'relative'
+              }}>
+                {/* Кнопка сворачивания/разворачивания */}
+                <Button
+                  type="text"
+                  size="small"
+                  icon={headerExpanded ? <MinusOutlined /> : <PlusOutlined />}
+                  onClick={() => setHeaderExpanded(!headerExpanded)}
+                  style={{
+                    fontSize: `${16 * scale}px`,
+                    width: `${32 * scale}px`,
+                    height: `${32 * scale}px`,
+                    border: '1px solid #d9d9d9',
+                    borderRadius: `${6 * scale}px`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  title={headerExpanded ? 'Свернуть заголовок' : 'Развернуть заголовок'}
+                />
 
-              {/* Легенда цветовой индикации */}
-              <div
-                style={{
-                  margin: '16px 0 0 0',
-                  padding: '8px 16px',
-                  backgroundColor: '#f8f9fa',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  display: 'inline-block',
-                }}
-              >
-                <Space size="large">
-                  <Space>
-                    <div
-                      style={{
-                        width: '16px',
-                        height: '16px',
-                        backgroundColor: '#E6E6FA',
-                        borderRadius: '3px',
-                      }}
-                    />
-                    <Text style={{ fontSize: '12px' }}>Работы (из справочника расценок)</Text>
-                  </Space>
-                  <Space>
-                    <div
-                      style={{
-                        width: '16px',
-                        height: '16px',
-                        backgroundColor: '#fff2f0',
-                        borderLeft: '4px solid #ff4d4f',
-                        borderRadius: '3px',
-                      }}
-                    />
-                    <Text style={{ fontSize: '12px' }}>
-                      Изменённые строки
-                      <span style={{ color: '#ff4d4f', marginLeft: '4px' }}>*</span>
-                    </Text>
-                  </Space>
-                </Space>
+                <Title level={3} style={{ margin: 0 }}>
+                  ВЕДОМОСТЬ ОБЪЕМОВ РАБОТ по комплекту {setInfo}
+                </Title>
               </div>
+
+              {headerExpanded && (
+                <>
+                  <Text style={{ fontSize: 16 }}>
+                    Выполнение комплекса строительно-монтажных работ по комплекту:{' '}
+                    {projectCodes || 'не указано'}
+                  </Text>
+
+                  {/* Легенда цветовой индикации */}
+                  <div
+                    style={{
+                      margin: '16px 0 0 0',
+                      padding: '8px 16px',
+                      backgroundColor: '#f8f9fa',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      display: 'inline-block',
+                    }}
+                  >
+                    <Space size="large">
+                      <Space>
+                        <div
+                          style={{
+                            width: '16px',
+                            height: '16px',
+                            backgroundColor: '#E6E6FA',
+                            borderRadius: '3px',
+                          }}
+                        />
+                        <Text style={{ fontSize: '12px' }}>Работы (из справочника расценок)</Text>
+                      </Space>
+                      <Space>
+                        <div
+                          style={{
+                            width: '16px',
+                            height: '16px',
+                            backgroundColor: '#fff2f0',
+                            borderLeft: '4px solid #ff4d4f',
+                            borderRadius: '3px',
+                          }}
+                        />
+                        <Text style={{ fontSize: '12px' }}>
+                          Изменённые строки
+                          <span style={{ color: '#ff4d4f', marginLeft: '4px' }}>*</span>
+                        </Text>
+                      </Space>
+                    </Space>
+                  </div>
+                </>
+              )}
             </Space>
           </div>
         </div>

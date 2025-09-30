@@ -5,6 +5,7 @@ import type { ColumnsType, ColumnType } from 'antd/es/table'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { ratesApi } from '@/entities/rates/api/rates-api'
+import { useScale } from '@/shared/contexts/ScaleContext'
 import { RowColorPicker } from './RowColorPicker'
 import { CommentsCell } from './CommentsCell'
 import { FloorQuantitiesModal } from './FloorQuantitiesModal'
@@ -50,8 +51,24 @@ const getDynamicDropdownStyle = (options: Array<{ label: string; value: any }>) 
   zIndex: 9999,
 })
 
-// КОНФИГУРАЦИЯ: Точные настройки ширины столбцов для оптимизации пространства
-const COLUMN_WIDTH_CONFIG: Record<string, { width?: number; minWidth?: number; maxWidth?: number }> = {
+// Функция для расчета масштабированной ширины
+// Базовые размеры рассчитаны для scale = 0.7
+const BASE_SCALE = 0.7
+const getScaledWidth = (widthAt0_7: number, currentScale: number): number => {
+  const baseWidth = widthAt0_7 / BASE_SCALE
+  return Math.round(baseWidth * currentScale)
+}
+
+// Функция для расчета масштабированного размера шрифта
+// Базовый размер шрифта 14px для scale = 0.7
+const BASE_FONT_SIZE = 14
+const getScaledFontSize = (currentScale: number): number => {
+  const baseFontSize = BASE_FONT_SIZE / BASE_SCALE
+  return Math.round(baseFontSize * currentScale)
+}
+
+// КОНФИГУРАЦИЯ: Базовые настройки ширины столбцов для scale = 0.7
+const COLUMN_WIDTH_CONFIG_BASE: Record<string, { width?: number; minWidth?: number; maxWidth?: number }> = {
   [COLUMN_KEYS.ACTIONS]: { width: 80 }, // Служебный столбец 80px
   [COLUMN_KEYS.DOCUMENTATION_SECTION]: { minWidth: 40, maxWidth: 80 }, // "Раздел" динамический 40-80px
   [COLUMN_KEYS.DOCUMENTATION_CODE]: { width: 100 }, // "Шифр проекта" 100px
@@ -74,7 +91,44 @@ const COLUMN_WIDTH_CONFIG: Record<string, { width?: number; minWidth?: number; m
   [COLUMN_KEYS.COMMENTS]: { width: 80 }, // "Комментарии" 80px
 }
 
-const DEFAULT_COLUMN_WIDTH = { minWidth: 100, maxWidth: 150 } // Для остальных столбцов
+const DEFAULT_COLUMN_WIDTH_BASE = { minWidth: 100, maxWidth: 150 } // Для остальных столбцов (для scale = 0.7)
+
+// Функция для генерации конфигурации столбцов с учетом масштаба
+const getColumnWidthConfig = (scale: number) => {
+  const scaledConfig: Record<string, { width?: number; minWidth?: number; maxWidth?: number }> = {}
+
+  // Пересчитываем все размеры из базовой конфигурации
+  Object.entries(COLUMN_WIDTH_CONFIG_BASE).forEach(([key, config]) => {
+    scaledConfig[key] = {
+      width: config.width ? getScaledWidth(config.width, scale) : undefined,
+      minWidth: config.minWidth ? getScaledWidth(config.minWidth, scale) : undefined,
+      maxWidth: config.maxWidth ? getScaledWidth(config.maxWidth, scale) : undefined,
+    }
+  })
+
+  return scaledConfig
+}
+
+// Функция для получения размеров по умолчанию с учетом масштаба
+const getDefaultColumnWidth = (scale: number) => ({
+  minWidth: getScaledWidth(DEFAULT_COLUMN_WIDTH_BASE.minWidth, scale),
+  maxWidth: getScaledWidth(DEFAULT_COLUMN_WIDTH_BASE.maxWidth, scale),
+})
+
+// Функция для вычисления минимальной ширины таблицы с учетом масштаба
+// Суммируем базовые ширины всех столбцов и масштабируем результат
+const getTableMinWidth = (scale: number): number => {
+  let totalWidth = 0
+
+  // Суммируем ширины всех столбцов из базовой конфигурации
+  Object.values(COLUMN_WIDTH_CONFIG_BASE).forEach(config => {
+    const columnWidth = config.width || config.minWidth || DEFAULT_COLUMN_WIDTH_BASE.minWidth
+    totalWidth += columnWidth
+  })
+
+  // Масштабируем общую ширину
+  return getScaledWidth(totalWidth, scale)
+}
 
 // Столбцы, которые поддерживают перенос текста (многострочные) - ВСЕ СТОЛБЦЫ
 const MULTILINE_COLUMNS = new Set([
@@ -101,7 +155,11 @@ const MULTILINE_COLUMNS = new Set([
   COLUMN_KEYS.COMMENTS
 ])
 
-function normalizeColumns(cols: ColumnsType<RowData>): ColumnsType<RowData> {
+function normalizeColumns(cols: ColumnsType<RowData>, scale: number): ColumnsType<RowData> {
+  // Получаем конфигурацию с учетом масштаба
+  const COLUMN_WIDTH_CONFIG = getColumnWidthConfig(scale)
+  const DEFAULT_COLUMN_WIDTH = getDefaultColumnWidth(scale)
+
   const walk = (arr: ColumnsType<RowData>): ColumnsType<RowData> =>
     arr.map((c) => {
       if ((c as ColumnType<RowData> & { children?: ColumnsType<RowData> }).children?.length) {
@@ -120,6 +178,7 @@ function normalizeColumns(cols: ColumnsType<RowData>): ColumnsType<RowData> {
       const width = config.width
       const minWidth = config.minWidth || width || DEFAULT_COLUMN_WIDTH.minWidth
       const maxWidth = config.maxWidth || width || DEFAULT_COLUMN_WIDTH.maxWidth
+      const fontSize = getScaledFontSize(scale)
 
       return {
         ...c,
@@ -134,6 +193,7 @@ function normalizeColumns(cols: ColumnsType<RowData>): ColumnsType<RowData> {
             width: `${width || minWidth}px !important`,
             minWidth: `${minWidth}px !important`,
             maxWidth: `${maxWidth}px !important`,
+            fontSize: `${fontSize}px`,
             whiteSpace: 'normal' as const,
             overflow: 'hidden' as const,
             textOverflow: 'clip' as const,
@@ -924,6 +984,8 @@ export const ChessboardTable = memo(({
   onCopyRowAfter,
   onRemoveNewRow,
 }: ChessboardTableProps) => {
+  // Получаем текущий масштаб приложения
+  const { scale } = useScale()
 
   // Каскадная зависимость номенклатуры и поставщиков
   const cascadeHook = useNomenclatureSupplierCascade({
@@ -2713,8 +2775,8 @@ export const ChessboardTable = memo(({
     const filteredColumns = allColumns.filter(column =>
       visibleColumns.includes(column.key as string)
     )
-    return normalizeColumns(filteredColumns)
-  }, [allColumns, visibleColumns])
+    return normalizeColumns(filteredColumns, scale)
+  }, [allColumns, visibleColumns, scale])
 
   // Настройки выбора строк для режимов add/edit/delete
   const rowSelection = useMemo(() => {
@@ -2727,6 +2789,15 @@ export const ChessboardTable = memo(({
     }
     return undefined
   }, [tableMode, onSelectionChange])
+
+  // Конфигурация скролла с учетом масштаба
+  const scrollConfig = useMemo(() => {
+    const minWidth = getTableMinWidth(scale)
+    return {
+      x: minWidth,
+      y: 'calc(100vh - 300px)',
+    }
+  }, [scale])
 
   // Обработка цвета строк
   const rowClassName = (record: RowData) => {
@@ -3175,7 +3246,7 @@ export const ChessboardTable = memo(({
           offsetHeader: 0,
           offsetScroll: 0,
         }}
-        scroll={TABLE_SCROLL_CONFIG}
+        scroll={scrollConfig}
       />
 
       <FloorQuantitiesModal

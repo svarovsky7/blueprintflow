@@ -17,11 +17,13 @@ export async function getFinishingPies(
   projectId: string,
   blockId?: string
 ): Promise<FinishingPie[]> {
-  let query = supabase.from('finishing_pie').select('*').eq('project_id', projectId)
+  // Используем старую таблицу finishing_pie_types до миграции
+  let query = supabase.from('finishing_pie_types').select('*').eq('project_id', projectId)
 
-  if (blockId) {
-    query = query.eq('block_id', blockId)
-  }
+  // block_id пока не используется в старой структуре
+  // if (blockId) {
+  //   query = query.eq('block_id', blockId)
+  // }
 
   const { data, error } = await query.order('name')
 
@@ -30,46 +32,109 @@ export async function getFinishingPies(
 }
 
 export async function getFinishingPieById(id: string): Promise<FinishingPie | null> {
-  const { data, error } = await supabase.from('finishing_pie').select('*').eq('id', id).single()
+  const { data, error } = await supabase
+    .from('finishing_pie_types')
+    .select('*')
+    .eq('id', id)
+    .limit(1)
 
   if (error) throw error
-  return data
+  return data && data.length > 0 ? data[0] : null
 }
 
 export async function createFinishingPie(dto: CreateFinishingPieDto): Promise<FinishingPie> {
-  const { data, error } = await supabase.from('finishing_pie').insert([dto]).select().single()
+  // Используем старую таблицу, block_id игнорируем
+  const { block_id, ...rest } = dto
+  const { data, error } = await supabase
+    .from('finishing_pie_types')
+    .insert([rest])
+    .select()
+    .limit(1)
 
   if (error) throw error
-  return data
+  return data[0]
 }
 
 export async function updateFinishingPie(
   id: string,
   dto: UpdateFinishingPieDto
 ): Promise<FinishingPie> {
+  // Используем старую таблицу, block_id игнорируем
+  const { block_id, ...rest } = dto
   const { data, error } = await supabase
-    .from('finishing_pie')
-    .update({ ...dto, updated_at: new Date().toISOString() })
+    .from('finishing_pie_types')
+    .update({ ...rest, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select()
-    .single()
+    .limit(1)
 
   if (error) throw error
-  return data
+  return data[0]
 }
 
 export async function deleteFinishingPie(id: string): Promise<void> {
-  const { error } = await supabase.from('finishing_pie').delete().eq('id', id)
+  const { error } = await supabase.from('finishing_pie_types').delete().eq('id', id)
 
   if (error) throw error
 }
 
-// Алиасы для обратной совместимости
-export const getFinishingPieTypes = getFinishingPies
-export const getFinishingPieTypeById = getFinishingPieById
-export const createFinishingPieType = createFinishingPie
-export const updateFinishingPieType = updateFinishingPie
-export const deleteFinishingPieType = deleteFinishingPie
+// ========== CRUD для справочника типов пирогов ==========
+
+export async function getFinishingPieTypes(projectId: string): Promise<FinishingPieType[]> {
+  const { data, error } = await supabase
+    .from('finishing_pie_types')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('name')
+
+  if (error) throw error
+  return data || []
+}
+
+export async function getFinishingPieTypeById(id: string): Promise<FinishingPieType | null> {
+  const { data, error } = await supabase
+    .from('finishing_pie_types')
+    .select('*')
+    .eq('id', id)
+    .limit(1)
+
+  if (error) throw error
+  return data && data.length > 0 ? data[0] : null
+}
+
+export async function createFinishingPieType(
+  dto: CreateFinishingPieTypeDto
+): Promise<FinishingPieType> {
+  const { data, error } = await supabase
+    .from('finishing_pie_types')
+    .insert([dto])
+    .select()
+    .limit(1)
+
+  if (error) throw error
+  return data[0]
+}
+
+export async function updateFinishingPieType(
+  id: string,
+  dto: UpdateFinishingPieTypeDto
+): Promise<FinishingPieType> {
+  const { data, error } = await supabase
+    .from('finishing_pie_types')
+    .update({ ...dto, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .limit(1)
+
+  if (error) throw error
+  return data[0]
+}
+
+export async function deleteFinishingPieType(id: string): Promise<void> {
+  const { error } = await supabase.from('finishing_pie_types').delete().eq('id', id)
+
+  if (error) throw error
+}
 
 // ========== CRUD для строк табличной части ==========
 
@@ -79,6 +144,7 @@ export async function getFinishingPieRows(finishingPieId: string): Promise<Finis
     .select(
       `
       *,
+      pie_types:pie_type_id (name),
       materials:material_id (name),
       units:unit_id (name),
       rates:rate_id (work_name),
@@ -94,6 +160,8 @@ export async function getFinishingPieRows(finishingPieId: string): Promise<Finis
   return (
     data?.map((row: any) => ({
       id: row.id,
+      pie_type_id: row.pie_type_id,
+      pie_type_name: row.pie_types?.name || null,
       finishing_pie_id: row.finishing_pie_id,
       material_id: row.material_id,
       material_name: row.materials?.name || null,
@@ -113,14 +181,19 @@ export async function getFinishingPieRows(finishingPieId: string): Promise<Finis
 export async function createFinishingPieRow(
   dto: CreateFinishingPieRowDto
 ): Promise<FinishingPieRow> {
+  console.log('Создание строки с DTO:', dto)
   const { data, error } = await supabase
     .from('finishing_pie_mapping')
     .insert([dto])
     .select()
-    .single()
+    .limit(1)
 
-  if (error) throw error
-  return data
+  if (error) {
+    console.error('Ошибка при создании строки finishing_pie_mapping:', error)
+    throw error
+  }
+  console.log('Строка создана успешно:', data)
+  return data[0]
 }
 
 export async function updateFinishingPieRow(
@@ -132,10 +205,10 @@ export async function updateFinishingPieRow(
     .update({ ...dto, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select()
-    .single()
+    .limit(1)
 
   if (error) throw error
-  return data
+  return data[0]
 }
 
 export async function deleteFinishingPieRow(id: string): Promise<void> {
@@ -152,7 +225,7 @@ export async function getRateUnitId(rateId: string): Promise<string | null> {
     .from('rates')
     .select('unit_id')
     .eq('id', rateId)
-    .single()
+    .maybeSingle()
 
   if (error) throw error
   return data?.unit_id || null

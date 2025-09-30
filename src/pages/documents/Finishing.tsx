@@ -23,6 +23,7 @@ export default function Finishing() {
   const { scale } = useScale()
   const navigate = useNavigate()
   const [selectedProject, setSelectedProject] = useState<string>()
+  const [selectedBlock, setSelectedBlock] = useState<string>()
 
   // Загрузка проектов
   const { data: projects = [] } = useQuery<ProjectOption[]>({
@@ -38,6 +39,28 @@ export default function Finishing() {
     },
   })
 
+  // Загрузка корпусов для выбранного проекта
+  const { data: blocks = [] } = useQuery<ProjectOption[]>({
+    queryKey: ['blocks-for-finishing', selectedProject],
+    queryFn: async () => {
+      if (!selectedProject) return []
+
+      const { data, error } = await supabase
+        .from('projects_blocks')
+        .select('block_id, blocks(id, name)')
+        .eq('project_id', selectedProject)
+
+      if (error) throw error
+      return (
+        data?.map((pb: any) => ({
+          value: pb.blocks.id,
+          label: pb.blocks.name,
+        })) || []
+      )
+    },
+    enabled: !!selectedProject,
+  })
+
   // Временные данные для таблиц (будут заменены реальными данными из БД)
   const pieTypesData: FinishingDocument[] = useMemo(() => [], [])
   const calculationData: FinishingDocument[] = useMemo(() => [], [])
@@ -48,7 +71,8 @@ export default function Finishing() {
       message.error('Выберите проект')
       return
     }
-    navigate(`/documents/finishing-pie-type/new?projectId=${selectedProject}`)
+    const blockParam = selectedBlock ? `&blockId=${selectedBlock}` : ''
+    navigate(`/documents/finishing-pie-type/new?projectId=${selectedProject}${blockParam}`)
   }
 
   const handleAddCalculation = () => {
@@ -165,7 +189,7 @@ export default function Finishing() {
         </Title>
       </div>
 
-      {/* Фильтр выбора проекта */}
+      {/* Фильтр выбора проекта и корпуса */}
       <div style={{ padding: '0 24px 16px 24px', flexShrink: 0 }}>
         <Space size="middle">
           <span>Проект:</span>
@@ -173,7 +197,10 @@ export default function Finishing() {
             style={{ width: 300 }}
             placeholder="Выберите проект"
             value={selectedProject}
-            onChange={setSelectedProject}
+            onChange={(value) => {
+              setSelectedProject(value)
+              setSelectedBlock(undefined) // Сбрасываем корпус при смене проекта
+            }}
             allowClear
             showSearch
             filterOption={(input, option) =>
@@ -181,6 +208,23 @@ export default function Finishing() {
             }
             options={projects}
           />
+          {selectedProject && (
+            <>
+              <span>Корпус:</span>
+              <Select
+                style={{ width: 200 }}
+                placeholder="Выберите корпус"
+                value={selectedBlock}
+                onChange={setSelectedBlock}
+                allowClear
+                showSearch
+                filterOption={(input, option) =>
+                  (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+                }
+                options={blocks}
+              />
+            </>
+          )}
         </Space>
       </div>
 

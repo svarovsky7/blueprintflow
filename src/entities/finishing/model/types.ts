@@ -8,13 +8,21 @@ export interface FinishingPie {
   updated_at: string
 }
 
-// Старый интерфейс (для обратной совместимости)
-export interface FinishingPieType extends FinishingPie {}
+// Справочник типов пирогов отделки
+export interface FinishingPieType {
+  id: string
+  project_id: string
+  name: string
+  created_at: string
+  updated_at: string
+}
 
 // Строка табличной части типа пирога отделки
 export interface FinishingPieRow {
   id: string
-  finishing_pie_id: string
+  pie_type_id: string // FK на finishing_pie_types (тип строки)
+  pie_type_name?: string // Название типа (для отображения)
+  finishing_pie_id?: string // FK на finishing_pie (документ)
   material_id: string | null
   material_name?: string
   unit_id: string | null
@@ -41,13 +49,21 @@ export interface UpdateFinishingPieDto {
   block_id?: string | null
 }
 
-// Старые интерфейсы (для обратной совместимости)
-export interface CreateFinishingPieTypeDto extends CreateFinishingPieDto {}
-export interface UpdateFinishingPieTypeDto extends UpdateFinishingPieDto {}
+// DTO для создания типа пирога
+export interface CreateFinishingPieTypeDto {
+  project_id: string
+  name: string
+}
+
+// DTO для обновления типа пирога
+export interface UpdateFinishingPieTypeDto {
+  name?: string
+}
 
 // DTO для создания строки табличной части
 export interface CreateFinishingPieRowDto {
-  finishing_pie_id: string
+  finishing_pie_id: string // FK на документ
+  pie_type_id: string // FK на тип
   material_id: string | null
   unit_id: string | null
   consumption: number | null

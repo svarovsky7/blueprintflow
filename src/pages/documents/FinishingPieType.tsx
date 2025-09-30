@@ -21,14 +21,16 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import {
-  getFinishingPieTypeById,
-  createFinishingPieType,
-  updateFinishingPieType,
+  getFinishingPieById,
+  createFinishingPie,
+  updateFinishingPie,
   getFinishingPieRows,
   createFinishingPieRow,
   updateFinishingPieRow,
   deleteFinishingPieRow,
   getRateUnitId,
+  getFinishingPieTypes,
+  createFinishingPieType,
 } from '@/entities/finishing'
 import type {
   FinishingPieRow,
@@ -44,6 +46,7 @@ type Mode = 'view' | 'add' | 'edit' | 'delete'
 interface EditableRow extends Partial<FinishingPieRow> {
   isNew?: boolean
   isEditing?: boolean
+  newTypeName?: string // Временное название нового типа
   newMaterialName?: string // Временное название нового материала
 }
 
@@ -62,20 +65,26 @@ export default function FinishingPieType() {
   const [editingRows, setEditingRows] = useState<EditableRow[]>([])
   const [docName, setDocName] = useState('')
   const [selectedBlockId, setSelectedBlockId] = useState<string | undefined>(blockId || undefined)
-  const [isNewDocument, setIsNewDocument] = useState(!id)
 
   // Загрузка документа
   const { data: document, isLoading: docLoading } = useQuery({
-    queryKey: ['finishing-pie-type', id],
-    queryFn: () => getFinishingPieTypeById(id!),
-    enabled: !!id,
+    queryKey: ['finishing-pie', id],
+    queryFn: () => getFinishingPieById(id!),
+    enabled: !!id && id !== 'new',
   })
 
   // Загрузка строк табличной части
   const { data: rows = [], isLoading: rowsLoading } = useQuery<FinishingPieRow[]>({
     queryKey: ['finishing-pie-rows', id],
     queryFn: () => getFinishingPieRows(id!),
-    enabled: !!id,
+    enabled: !!id && id !== 'new',
+  })
+
+  // Загрузка типов для проекта
+  const { data: pieTypes = [] } = useQuery({
+    queryKey: ['finishing-pie-types', projectId],
+    queryFn: () => getFinishingPieTypes(projectId!),
+    enabled: !!projectId,
   })
 
   // Загрузка материалов
@@ -146,42 +155,14 @@ export default function FinishingPieType() {
     }
   }, [document])
 
-  // Мутация создания документа
-  const createDocMutation = useMutation({
-    mutationFn: async (data: { name: string; block_id?: string }) => {
+  // Мутация создания типа
+  const createTypeMutation = useMutation({
+    mutationFn: async (name: string) => {
       if (!projectId) throw new Error('Не указан проект')
-      return createFinishingPieType({
-        project_id: projectId,
-        name: data.name,
-        block_id: data.block_id || null,
-      })
-    },
-    onSuccess: (data) => {
-      message.success('Документ создан')
-      const blockParam = data.block_id ? `&blockId=${data.block_id}` : ''
-      navigate(`/documents/finishing-pie-type/${data.id}?projectId=${projectId}${blockParam}`)
-      setIsNewDocument(false)
-    },
-    onError: (error: any) => {
-      message.error(`Ошибка создания документа: ${error.message}`)
-    },
-  })
-
-  // Мутация обновления документа
-  const updateDocMutation = useMutation({
-    mutationFn: async (data: { name: string; block_id?: string }) => {
-      if (!id) throw new Error('Не указан ID документа')
-      return updateFinishingPieType(id, {
-        name: data.name,
-        block_id: data.block_id || null,
-      })
+      return createFinishingPieType({ project_id: projectId, name })
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['finishing-pie-type', id] })
-      message.success('Документ обновлён')
-    },
-    onError: (error: any) => {
-      message.error(`Ошибка обновления документа: ${error.message}`)
+      queryClient.invalidateQueries({ queryKey: ['finishing-pie-types', projectId] })
     },
   })
 
@@ -217,10 +198,10 @@ export default function FinishingPieType() {
         .from('materials')
         .insert([{ name }])
         .select()
-        .single()
+        .limit(1)
 
       if (error) throw error
-      return data
+      return data[0]
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['materials-for-finishing'] })
@@ -233,24 +214,102 @@ export default function FinishingPieType() {
       return
     }
 
-    if (isNewDocument) {
-      createDocMutation.mutate({ name: docName, block_id: selectedBlockId })
-    } else if (id) {
-      updateDocMutation.mutate({ name: docName, block_id: selectedBlockId })
+    if (!projectId) {
+      message.error('Не указан проект')
+      return
+    }
+
+    try {
+      let documentId = id
+
+      // 1. Создать или обновить заголовок документа в finishing_pie
+      if (id === 'new' || !id) {
+        const { data: newDocData, error: createError } = await supabase
+          .from('finishing_pie')
+          .insert([{ project_id: projectId, block_id: selectedBlockId || null, name: docName }])
+          .select()
+          .limit(1)
+
+        if (createError) throw createError
+        documentId = newDocData[0].id
+      } else {
+        const { data: existingDoc, error: checkError } = await supabase
+          .from('finishing_pie')
+          .select('id')
+          .eq('id', id)
+          .limit(1)
+
+        if (checkError) throw checkError
+
+        if (!existingDoc || existingDoc.length === 0) {
+          const { data: newDocData, error: createError } = await supabase
+            .from('finishing_pie')
+            .insert([
+              { id, project_id: projectId, block_id: selectedBlockId || null, name: docName },
+            ])
+            .select()
+            .limit(1)
+
+          if (createError) throw createError
+          documentId = newDocData[0].id
+        } else {
+          const { error: updateError } = await supabase
+            .from('finishing_pie')
+            .update({
+              name: docName,
+              block_id: selectedBlockId || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', id)
+
+          if (updateError) throw updateError
+        }
+      }
+
+      // 2. Создать новые типы (если есть) - уже созданы "на лету"
+      // 3. Создать новые материалы (если есть) - уже созданы "на лету"
+
+      // 4. Сохранить все новые строки табличной части
+      for (const row of editingRows) {
+        if (row.isNew) {
+          await createFinishingPieRow({
+            finishing_pie_id: documentId!,
+            pie_type_id: row.pie_type_id!,
+            material_id: row.material_id || null,
+            unit_id: row.unit_id || null,
+            consumption: row.consumption || null,
+            rate_id: row.rate_id || null,
+            rate_unit_id: row.rate_unit_id || null,
+          })
+        }
+      }
+
+      message.success('Документ сохранён')
+
+      // 5. Перейти на страницу созданного документа (если это был новый документ)
+      if (id === 'new' || !id) {
+        const blockParam = selectedBlockId ? `&blockId=${selectedBlockId}` : ''
+        navigate(`/documents/finishing-pie-type/${documentId}?projectId=${projectId}${blockParam}`)
+      }
+
+      // 6. Очистить состояние и обновить данные
+      setMode('view')
+      setEditingRows([])
+      queryClient.invalidateQueries({ queryKey: ['finishing-pie', documentId] })
+      queryClient.invalidateQueries({ queryKey: ['finishing-pie-rows', documentId] })
+    } catch (error: any) {
+      message.error(`Ошибка сохранения: ${error.message}`)
     }
   }
 
   const handleAddRow = () => {
-    if (isNewDocument) {
-      message.error('Сначала сохраните документ')
-      return
-    }
     setMode('add')
     setEditingRows([
+      ...editingRows,
       {
         id: `new-${Date.now()}`,
         isNew: true,
-        finishing_pie_id: id!,
+        pie_type_id: id || 'temp',
         material_id: null,
         unit_id: null,
         consumption: null,
@@ -261,16 +320,13 @@ export default function FinishingPieType() {
   }
 
   const handleCopyRow = (record: FinishingPieRow) => {
-    if (isNewDocument) {
-      message.error('Сначала сохраните документ')
-      return
-    }
     setMode('add')
     setEditingRows([
+      ...editingRows,
       {
         id: `new-${Date.now()}`,
         isNew: true,
-        finishing_pie_id: id!,
+        pie_type_id: id || 'temp',
         material_id: record.material_id,
         unit_id: record.unit_id,
         consumption: record.consumption,
@@ -284,47 +340,6 @@ export default function FinishingPieType() {
   const handleCancelEdit = () => {
     setMode('view')
     setEditingRows([])
-  }
-
-  const handleSaveRows = async () => {
-    try {
-      for (const row of editingRows) {
-        let materialId = row.material_id
-
-        // Если есть новое название материала, создаём его
-        if (row.newMaterialName) {
-          const newMaterial = await createMaterialMutation.mutateAsync(row.newMaterialName)
-          materialId = newMaterial.uuid
-        }
-
-        if (row.isNew) {
-          await createRowMutation.mutateAsync({
-            finishing_pie_id: id!,
-            material_id: materialId || null,
-            unit_id: row.unit_id || null,
-            consumption: row.consumption || null,
-            rate_id: row.rate_id || null,
-            rate_unit_id: row.rate_unit_id || null,
-          })
-        } else if (row.isEditing && row.id) {
-          await updateRowMutation.mutateAsync({
-            rowId: row.id,
-            dto: {
-              material_id: materialId,
-              unit_id: row.unit_id,
-              consumption: row.consumption,
-              rate_id: row.rate_id,
-              rate_unit_id: row.rate_unit_id,
-            },
-          })
-        }
-      }
-      message.success('Изменения сохранены')
-      setMode('view')
-      setEditingRows([])
-    } catch (error: any) {
-      message.error(`Ошибка сохранения: ${error.message}`)
-    }
   }
 
   const handleDeleteSingleRow = async (rowId: string) => {
@@ -342,22 +357,47 @@ export default function FinishingPieType() {
     )
   }
 
-  const handleMaterialChange = (rowId: string, value: string | null) => {
+  const handleTypeChange = async (rowId: string, value: string | null) => {
+    // Проверяем, существует ли тип в списке
+    const existingType = pieTypes.find((t) => t.id === value)
+
+    if (existingType) {
+      // Тип существует - сохраняем его ID
+      handleUpdateEditingRow(rowId, 'pie_type_id', value)
+    } else if (value) {
+      // Новый тип - создаём "на лету"
+      try {
+        const newType = await createTypeMutation.mutateAsync(value)
+        handleUpdateEditingRow(rowId, 'pie_type_id', newType.id)
+      } catch (error) {
+        message.error('Ошибка создания типа')
+        console.error(error)
+      }
+    } else {
+      // Очистка
+      handleUpdateEditingRow(rowId, 'pie_type_id', null)
+    }
+  }
+
+  const handleMaterialChange = async (rowId: string, value: string | null) => {
     // Проверяем, существует ли материал в списке
     const existingMaterial = materials.find((m) => m.uuid === value)
 
     if (existingMaterial) {
       // Материал существует - сохраняем его ID
       handleUpdateEditingRow(rowId, 'material_id', value)
-      handleUpdateEditingRow(rowId, 'newMaterialName', undefined)
     } else if (value) {
-      // Новый материал - сохраняем название во временную переменную
-      handleUpdateEditingRow(rowId, 'material_id', null)
-      handleUpdateEditingRow(rowId, 'newMaterialName', value)
+      // Новый материал - создаём "на лету"
+      try {
+        const newMaterial = await createMaterialMutation.mutateAsync(value)
+        handleUpdateEditingRow(rowId, 'material_id', newMaterial.uuid)
+      } catch (error) {
+        message.error('Ошибка создания материала')
+        console.error(error)
+      }
     } else {
       // Очистка
       handleUpdateEditingRow(rowId, 'material_id', null)
-      handleUpdateEditingRow(rowId, 'newMaterialName', undefined)
     }
   }
 
@@ -378,7 +418,7 @@ export default function FinishingPieType() {
 
   const dataSource = useMemo(() => {
     if (mode === 'add' || mode === 'edit') {
-      return editingRows
+      return [...rows, ...editingRows]
     }
     return rows
   }, [mode, editingRows, rows])
@@ -391,25 +431,62 @@ export default function FinishingPieType() {
       render: (_: any, __: any, index: number) => index + 1,
     },
     {
+      title: 'Тип',
+      dataIndex: 'pie_type_id',
+      key: 'pie_type_id',
+      width: 200,
+      render: (value: string | null, record: EditableRow) => {
+        if (mode === 'add' || mode === 'edit') {
+          return (
+            <Select
+              value={value}
+              onChange={(val) => handleTypeChange(record.id!, val)}
+              onSearch={(searchValue) => {
+                // Если пользователь ввёл текст, который не найден в списке
+                if (
+                  searchValue &&
+                  !pieTypes.some((t) => t.name.toLowerCase().includes(searchValue.toLowerCase()))
+                ) {
+                  // Создаём новый тип "на лету"
+                  handleTypeChange(record.id!, searchValue)
+                }
+              }}
+              options={pieTypes.map((t) => ({ value: t.id, label: t.name }))}
+              placeholder="Выберите или введите тип"
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              }
+              style={{ width: '100%' }}
+              dropdownRender={(menu) => (
+                <>
+                  {menu}
+                  <div
+                    style={{
+                      padding: '8px',
+                      borderTop: '1px solid #f0f0f0',
+                      textAlign: 'center',
+                      color: '#999',
+                    }}
+                  >
+                    Начните вводить для создания нового
+                  </div>
+                </>
+              )}
+            />
+          )
+        }
+        return record.pie_type_name || '-'
+      },
+    },
+    {
       title: 'Наименование материала',
       dataIndex: 'material_id',
       key: 'material_id',
       width: 250,
       render: (value: string | null, record: EditableRow) => {
         if (mode === 'add' || mode === 'edit') {
-          // Если есть новое название материала, показываем его
-          if (record.newMaterialName) {
-            return (
-              <Input
-                value={record.newMaterialName}
-                onChange={(e) => handleMaterialChange(record.id!, e.target.value)}
-                placeholder="Введите название материала"
-                style={{ width: '100%' }}
-              />
-            )
-          }
-
-          // Иначе показываем Select с существующими материалами
           return (
             <Select
               value={value}
@@ -418,11 +495,9 @@ export default function FinishingPieType() {
                 // Если пользователь ввёл текст, который не найден в списке
                 if (
                   searchValue &&
-                  !materials.some((m) =>
-                    m.name.toLowerCase().includes(searchValue.toLowerCase())
-                  )
+                  !materials.some((m) => m.name.toLowerCase().includes(searchValue.toLowerCase()))
                 ) {
-                  // Переключаемся на режим ввода нового материала
+                  // Создаём новый материал "на лету"
                   handleMaterialChange(record.id!, searchValue)
                 }
               }}
@@ -601,7 +676,7 @@ export default function FinishingPieType() {
         </Title>
       </div>
 
-      {/* Название документа и корпус */}
+      {/* Название документа, корпус и кнопка сохранения - всё в одной строке */}
       <div style={{ padding: '0 24px 16px 24px', flexShrink: 0 }}>
         <Space>
           <span>Название:</span>
@@ -624,40 +699,37 @@ export default function FinishingPieType() {
             }
             style={{ width: 200 }}
           />
-          <Button type="primary" onClick={handleSaveDocument}>
-            {isNewDocument ? 'Создать документ' : 'Обновить'}
+          <Button type="primary" icon={<SaveOutlined />} onClick={handleSaveDocument}>
+            Сохранить документ
           </Button>
         </Space>
       </div>
 
-      {/* Кнопки управления */}
-      {!isNewDocument && (mode === 'add' || mode === 'edit') && (
-        <div style={{ padding: '0 24px 16px 24px', flexShrink: 0 }}>
-          <Space>
-            <Button type="primary" icon={<SaveOutlined />} onClick={handleSaveRows}>
-              Сохранить
-            </Button>
-            <Button icon={<CloseOutlined />} onClick={handleCancelEdit}>
-              Отмена
-            </Button>
-          </Space>
-        </div>
-      )}
+      {/* Кнопка Добавить/Отмена под полем Название слева */}
+      <div style={{ padding: '0 24px 16px 24px', flexShrink: 0 }}>
+        {mode === 'view' ? (
+          <Button icon={<PlusOutlined />} onClick={handleAddRow}>
+            Добавить
+          </Button>
+        ) : (
+          <Button icon={<CloseOutlined />} onClick={handleCancelEdit}>
+            Отмена
+          </Button>
+        )}
+      </div>
 
-      {/* Таблица */}
-      {!isNewDocument && (
-        <div style={{ flex: 1, overflow: 'hidden', padding: '0 24px 24px 24px' }}>
-          <Table
-            columns={columns}
-            dataSource={dataSource}
-            rowKey="id"
-            loading={docLoading || rowsLoading}
-            pagination={{ defaultPageSize: 100, showSizeChanger: true }}
-            scroll={{ y: 'calc(100vh - 400px)', x: 'max-content' }}
-            locale={{ emptyText: 'Нет данных' }}
-          />
-        </div>
-      )}
+      {/* Таблица - всегда видима */}
+      <div style={{ flex: 1, overflow: 'hidden', padding: '0 24px 24px 24px' }}>
+        <Table
+          columns={columns}
+          dataSource={dataSource}
+          rowKey="id"
+          loading={docLoading || rowsLoading}
+          pagination={{ defaultPageSize: 100, showSizeChanger: true }}
+          scroll={{ y: 'calc(100vh - 400px)', x: 'max-content' }}
+          locale={{ emptyText: 'Нет данных' }}
+        />
+      </div>
     </div>
   )
 }
