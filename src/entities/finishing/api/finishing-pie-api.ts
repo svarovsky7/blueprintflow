@@ -33,7 +33,7 @@ export async function getFinishingPies(
 
 export async function getFinishingPieById(id: string): Promise<FinishingPie | null> {
   const { data, error } = await supabase
-    .from('finishing_pie_types')
+    .from('finishing_pie')
     .select('*')
     .eq('id', id)
     .limit(1)
@@ -43,11 +43,9 @@ export async function getFinishingPieById(id: string): Promise<FinishingPie | nu
 }
 
 export async function createFinishingPie(dto: CreateFinishingPieDto): Promise<FinishingPie> {
-  // Используем старую таблицу, block_id игнорируем
-  const { block_id, ...rest } = dto
   const { data, error } = await supabase
-    .from('finishing_pie_types')
-    .insert([rest])
+    .from('finishing_pie')
+    .insert([dto])
     .select()
     .limit(1)
 
@@ -59,11 +57,9 @@ export async function updateFinishingPie(
   id: string,
   dto: UpdateFinishingPieDto
 ): Promise<FinishingPie> {
-  // Используем старую таблицу, block_id игнорируем
-  const { block_id, ...rest } = dto
   const { data, error } = await supabase
-    .from('finishing_pie_types')
-    .update({ ...rest, updated_at: new Date().toISOString() })
+    .from('finishing_pie')
+    .update({ ...dto, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select()
     .limit(1)
@@ -73,7 +69,7 @@ export async function updateFinishingPie(
 }
 
 export async function deleteFinishingPie(id: string): Promise<void> {
-  const { error } = await supabase.from('finishing_pie_types').delete().eq('id', id)
+  const { error } = await supabase.from('finishing_pie').delete().eq('id', id)
 
   if (error) throw error
 }

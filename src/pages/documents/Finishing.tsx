@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Typography, Select, Button, Space, Table, message } from 'antd'
+import { Typography, Select, Button, Space, Table, App } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -22,6 +22,7 @@ interface ProjectOption {
 export default function Finishing() {
   const { scale } = useScale()
   const navigate = useNavigate()
+  const { message } = App.useApp()
   const [selectedProject, setSelectedProject] = useState<string>()
   const [selectedBlock, setSelectedBlock] = useState<string>()
 
@@ -61,8 +62,36 @@ export default function Finishing() {
     enabled: !!selectedProject,
   })
 
-  // Временные данные для таблиц (будут заменены реальными данными из БД)
-  const pieTypesData: FinishingDocument[] = useMemo(() => [], [])
+  // Загрузка документов finishing_pie для выбранного проекта
+  const { data: pieTypesData = [] } = useQuery<FinishingDocument[]>({
+    queryKey: ['finishing-pie-documents', selectedProject, selectedBlock],
+    queryFn: async () => {
+      if (!selectedProject) return []
+
+      let query = supabase
+        .from('finishing_pie')
+        .select('id, name, block_id, blocks(name)')
+        .eq('project_id', selectedProject)
+
+      if (selectedBlock) {
+        query = query.eq('block_id', selectedBlock)
+      }
+
+      const { data, error } = await query.order('name')
+
+      if (error) throw error
+      return (
+        data?.map((doc: any) => ({
+          id: doc.id,
+          name: doc.name,
+          location: doc.blocks?.name || '',
+        })) || []
+      )
+    },
+    enabled: !!selectedProject,
+  })
+
+  // Временные данные для второй таблицы
   const calculationData: FinishingDocument[] = useMemo(() => [], [])
 
   // Обработчики
@@ -90,9 +119,9 @@ export default function Finishing() {
     // TODO: Удаление документа
   }
 
-  const handleOpenDocument = (id: string, type: string) => {
-    message.info(`Открытие документа ${type}: ${id}`)
-    // TODO: Переход к документу
+  const handleOpenDocument = (id: string) => {
+    const blockParam = selectedBlock ? `&blockId=${selectedBlock}` : ''
+    navigate(`/documents/finishing-pie-type/${id}?projectId=${selectedProject}${blockParam}`)
   }
 
   // Колонки для таблицы "Типы пирогов отделки"
@@ -105,7 +134,7 @@ export default function Finishing() {
       render: (text: string, record: FinishingDocument) => (
         <Button
           type="link"
-          onClick={() => handleOpenDocument(record.id, 'Тип пирога')}
+          onClick={() => handleOpenDocument(record.id)}
           style={{ padding: 0 }}
         >
           {text || 'Без названия'}

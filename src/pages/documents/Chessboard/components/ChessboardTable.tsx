@@ -130,6 +130,26 @@ const getTableMinWidth = (scale: number): number => {
   return getScaledWidth(totalWidth, scale)
 }
 
+// Функция для вычисления вертикального отступа
+// Таблица должна касаться полосы над пагинацией (borderTop) на всех масштабах
+const getTableVerticalOffset = (scale: number): number => {
+  // Фиксированные элементы (не масштабируются):
+  // - header: 96px (вне контейнера)
+  // - пагинация с padding: 65px
+  // - padding контейнера снизу: 24px
+  const FIXED_OFFSET = 200 // Учитывает все фиксированные элементы + запас для скролла
+
+  // Масштабируемые элементы (заголовок + фильтры):
+  // При scale 1.0: ~40px (заголовок) + ~200px (фильтры) = 240px
+  const SCALABLE_OFFSET = 240
+
+  return Math.round(FIXED_OFFSET + SCALABLE_OFFSET * scale)
+  // Scale 0.7: 200 + 240*0.7 = 368px
+  // Scale 0.8: 200 + 240*0.8 = 392px
+  // Scale 0.9: 200 + 240*0.9 = 416px
+  // Scale 1.0: 200 + 240*1.0 = 440px (достаточно для видимости скролла)
+}
+
 // Столбцы, которые поддерживают перенос текста (многострочные) - ВСЕ СТОЛБЦЫ
 const MULTILINE_COLUMNS = new Set([
   COLUMN_KEYS.ACTIONS,
@@ -986,6 +1006,13 @@ export const ChessboardTable = memo(({
 }: ChessboardTableProps) => {
   // Получаем текущий масштаб приложения
   const { scale } = useScale()
+
+  // Динамическая высота таблицы с учетом масштаба
+  // Чем больше масштаб, тем больше отступ (элементы интерфейса крупнее)
+  const tableScrollHeight = useMemo(() => {
+    const verticalOffset = getTableVerticalOffset(scale)
+    return `calc(100vh - ${verticalOffset}px)`
+  }, [scale])
 
   // Каскадная зависимость номенклатуры и поставщиков
   const cascadeHook = useNomenclatureSupplierCascade({
@@ -2795,9 +2822,9 @@ export const ChessboardTable = memo(({
     const minWidth = getTableMinWidth(scale)
     return {
       x: minWidth,
-      y: 'calc(100vh - 300px)',
+      y: tableScrollHeight, // Динамическое значение с учётом всех элементов
     }
-  }, [scale])
+  }, [scale, tableScrollHeight])
 
   // Обработка цвета строк
   const rowClassName = (record: RowData) => {
@@ -3156,35 +3183,25 @@ export const ChessboardTable = memo(({
           width: 100% !important;
           height: 100% !important;
         }
-        /* КРИТИЧЕСКИ ВАЖНО: убираем overflow с внутренних элементов Ant Design */
-        .chessboard-table .ant-table-container {
-          overflow: visible !important;
-        }
-        .chessboard-table .ant-table-content {
-          overflow: visible !important;
-        }
-        .chessboard-table .ant-table-body {
-          overflow: visible !important;
-        }
         /* Sticky заголовки с закреплением к блоку фильтров */
         .chessboard-table .ant-table-header {
           position: sticky !important;
           top: 0 !important;
           z-index: 100 !important;
           background: white !important;
-          /* ВАЖНО: не создаем overflow для заголовков */
-          overflow: visible !important;
         }
-        /* Восстанавливаем скроллы для таблицы */
+        /* Главный контейнер с границей и скроллом */
         .chessboard-table .ant-table-container {
-          height: calc(100vh - 300px) !important;
-          overflow: auto !important;
           border: 1px solid #f0f0f0 !important;
           border-radius: 6px !important;
+          box-sizing: border-box !important;
+          overflow: hidden !important;
         }
-        .chessboard-table .ant-table-body {
-          height: auto !important;
-          overflow: visible !important;
+        /* Контент таблицы - здесь происходит скролл */
+        .chessboard-table .ant-table-content {
+          overflow: auto !important;
+          max-height: 100% !important;
+          box-sizing: border-box !important;
         }
         .chessboard-table .ant-table-thead {
           position: sticky !important;
@@ -3192,16 +3209,12 @@ export const ChessboardTable = memo(({
           z-index: 100 !important;
           background: white !important;
         }
-        .chessboard-table .ant-table-tbody {
-          overflow: visible !important;
-        }
         /* Обеспечиваем корректную работу sticky заголовков для каждой ячейки */
         .chessboard-table .ant-table-thead > tr > th {
           position: sticky !important;
           top: 0 !important;
           background: white !important;
           z-index: 101 !important;
-          border-bottom: 1px solid #f0f0f0 !important;
         }
         /* Закрепление заголовка служебного столбца (fixed left) */
         .chessboard-table .ant-table-thead > tr > th.ant-table-cell-fix-left {
@@ -3209,14 +3222,8 @@ export const ChessboardTable = memo(({
           z-index: 102 !important;
           background: white !important;
         }
-        /* Убираем лишние границы и тени, которые создают визуальные полосы */
+        /* Убираем внутренние границы */
         .chessboard-table .ant-table {
-          border: none !important;
-        }
-        .chessboard-table .ant-table-content {
-          border: none !important;
-        }
-        .chessboard-table .ant-table-scroll {
           border: none !important;
         }
         /* Исправляем отображение при горизонтальном скролле */

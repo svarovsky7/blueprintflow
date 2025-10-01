@@ -5,11 +5,11 @@ import {
   Button,
   Space,
   Table,
-  message,
   Input,
   InputNumber,
   Select,
   Popconfirm,
+  App,
 } from 'antd'
 import {
   PlusOutlined,
@@ -17,6 +17,7 @@ import {
   CloseOutlined,
   DeleteOutlined,
   CopyOutlined,
+  EditOutlined,
 } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
@@ -56,6 +57,7 @@ export default function FinishingPieType() {
   const location = useLocation()
   const { scale } = useScale()
   const queryClient = useQueryClient()
+  const { message } = App.useApp()
 
   const params = new URLSearchParams(location.search)
   const projectId = params.get('projectId')
@@ -209,11 +211,6 @@ export default function FinishingPieType() {
   })
 
   const handleSaveDocument = async () => {
-    if (!docName.trim()) {
-      message.error('Введите название документа')
-      return
-    }
-
     if (!projectId) {
       message.error('Не указан проект')
       return
@@ -221,9 +218,15 @@ export default function FinishingPieType() {
 
     try {
       let documentId = id
+      const isNewDocument = id === 'new' || !id
 
       // 1. Создать или обновить заголовок документа в finishing_pie
-      if (id === 'new' || !id) {
+      if (isNewDocument) {
+        if (!docName.trim()) {
+          message.error('Введите название документа')
+          return
+        }
+
         const { data: newDocData, error: createError } = await supabase
           .from('finishing_pie')
           .insert([{ project_id: projectId, block_id: selectedBlockId || null, name: docName }])
@@ -233,26 +236,8 @@ export default function FinishingPieType() {
         if (createError) throw createError
         documentId = newDocData[0].id
       } else {
-        const { data: existingDoc, error: checkError } = await supabase
-          .from('finishing_pie')
-          .select('id')
-          .eq('id', id)
-          .limit(1)
-
-        if (checkError) throw checkError
-
-        if (!existingDoc || existingDoc.length === 0) {
-          const { data: newDocData, error: createError } = await supabase
-            .from('finishing_pie')
-            .insert([
-              { id, project_id: projectId, block_id: selectedBlockId || null, name: docName },
-            ])
-            .select()
-            .limit(1)
-
-          if (createError) throw createError
-          documentId = newDocData[0].id
-        } else {
+        // Обновляем существующий документ (только если название изменилось)
+        if (docName.trim() && docName !== document?.name) {
           const { error: updateError } = await supabase
             .from('finishing_pie')
             .update({
@@ -269,12 +254,23 @@ export default function FinishingPieType() {
       // 2. Создать новые типы (если есть) - уже созданы "на лету"
       // 3. Создать новые материалы (если есть) - уже созданы "на лету"
 
-      // 4. Сохранить все новые строки табличной части
+      // 4. Сохранить все строки табличной части
       for (const row of editingRows) {
         if (row.isNew) {
+          // Создать новую строку
           await createFinishingPieRow({
             finishing_pie_id: documentId!,
-            pie_type_id: row.pie_type_id!,
+            pie_type_id: row.pie_type_id || null,
+            material_id: row.material_id || null,
+            unit_id: row.unit_id || null,
+            consumption: row.consumption || null,
+            rate_id: row.rate_id || null,
+            rate_unit_id: row.rate_unit_id || null,
+          })
+        } else if (row.isEditing) {
+          // Обновить существующую строку
+          await updateFinishingPieRow(row.id!, {
+            pie_type_id: row.pie_type_id || null,
             material_id: row.material_id || null,
             unit_id: row.unit_id || null,
             consumption: row.consumption || null,
@@ -287,7 +283,7 @@ export default function FinishingPieType() {
       message.success('Документ сохранён')
 
       // 5. Перейти на страницу созданного документа (если это был новый документ)
-      if (id === 'new' || !id) {
+      if (isNewDocument) {
         const blockParam = selectedBlockId ? `&blockId=${selectedBlockId}` : ''
         navigate(`/documents/finishing-pie-type/${documentId}?projectId=${projectId}${blockParam}`)
       }
@@ -309,10 +305,10 @@ export default function FinishingPieType() {
       {
         id: `new-${Date.now()}`,
         isNew: true,
-        pie_type_id: id || 'temp',
+        pie_type_id: null,
         material_id: null,
         unit_id: null,
-        consumption: null,
+        consumption: 1,
         rate_id: null,
         rate_unit_id: null,
       },
@@ -326,12 +322,17 @@ export default function FinishingPieType() {
       {
         id: `new-${Date.now()}`,
         isNew: true,
-        pie_type_id: id || 'temp',
+        pie_type_id: record.pie_type_id,
+        pie_type_name: record.pie_type_name,
         material_id: record.material_id,
+        material_name: record.material_name,
         unit_id: record.unit_id,
+        unit_name: record.unit_name,
         consumption: record.consumption,
         rate_id: record.rate_id,
+        rate_name: record.rate_name,
         rate_unit_id: record.rate_unit_id,
+        rate_unit_name: record.rate_unit_name,
       },
     ])
   }
@@ -425,6 +426,80 @@ export default function FinishingPieType() {
 
   const columns = [
     {
+      title: '',
+      key: 'actions',
+      width: 80,
+      align: 'center' as const,
+      fixed: 'left' as const,
+      render: (_: any, record: FinishingPieRow) => {
+        if (mode === 'view') {
+          return (
+            <Space size="small">
+              <Button
+                type="text"
+                icon={<EditOutlined />}
+                size="small"
+                title="Редактировать строку"
+                onClick={() => {
+                  setMode('edit')
+                  setEditingRows([{ ...record, isEditing: true }])
+                }}
+              />
+              <Popconfirm
+                title="Удалить эту строку?"
+                onConfirm={() => handleDeleteSingleRow(record.id)}
+                okText="Да"
+                cancelText="Нет"
+              >
+                <Button
+                  type="text"
+                  danger
+                  icon={<DeleteOutlined />}
+                  size="small"
+                  title="Удалить строку"
+                />
+              </Popconfirm>
+            </Space>
+          )
+        }
+        if (mode === 'add' || mode === 'edit') {
+          return (
+            <Space size="small">
+              <Button
+                type="text"
+                icon={<PlusOutlined />}
+                size="small"
+                title="Добавить строку"
+                onClick={handleAddRow}
+              />
+              <Button
+                type="text"
+                icon={<CopyOutlined />}
+                size="small"
+                title="Скопировать строку"
+                onClick={() => handleCopyRow(record)}
+              />
+              <Popconfirm
+                title="Удалить эту строку?"
+                onConfirm={() => handleDeleteSingleRow(record.id)}
+                okText="Да"
+                cancelText="Нет"
+              >
+                <Button
+                  type="text"
+                  danger
+                  icon={<DeleteOutlined />}
+                  size="small"
+                  title="Удалить строку"
+                />
+              </Popconfirm>
+            </Space>
+          )
+        }
+        return null
+      },
+    },
+    {
       title: '№',
       key: 'index',
       width: 50,
@@ -434,7 +509,7 @@ export default function FinishingPieType() {
       title: 'Тип',
       dataIndex: 'pie_type_id',
       key: 'pie_type_id',
-      width: 200,
+      width: 100,
       render: (value: string | null, record: EditableRow) => {
         if (mode === 'add' || mode === 'edit') {
           return (
@@ -534,7 +609,7 @@ export default function FinishingPieType() {
       title: 'Ед.Изм.',
       dataIndex: 'unit_id',
       key: 'unit_id',
-      width: 120,
+      width: 80,
       render: (value: string | null, record: EditableRow) => {
         if (mode === 'add' || mode === 'edit') {
           return (
@@ -559,7 +634,7 @@ export default function FinishingPieType() {
       title: 'Расход',
       dataIndex: 'consumption',
       key: 'consumption',
-      width: 120,
+      width: 80,
       render: (value: number | null, record: EditableRow) => {
         if (mode === 'add' || mode === 'edit') {
           return (
@@ -573,7 +648,9 @@ export default function FinishingPieType() {
             />
           )
         }
-        return value != null ? value.toFixed(4) : '-'
+        if (value == null) return '-'
+        // Показываем дробную часть только если она есть
+        return value % 1 === 0 ? value.toString() : value.toString()
       },
     },
     {
@@ -598,64 +675,24 @@ export default function FinishingPieType() {
             />
           )
         }
-        return record.rate_name || '-'
+        return (
+          <div style={{ whiteSpace: 'normal', wordWrap: 'break-word' }}>
+            {record.rate_name || '-'}
+          </div>
+        )
       },
     },
     {
       title: 'Ед.изм. работы',
       dataIndex: 'rate_unit_id',
       key: 'rate_unit_id',
-      width: 120,
+      width: 80,
       render: (value: string | null, record: EditableRow) => {
         if (mode === 'add' || mode === 'edit') {
           const unitName = units.find((u) => u.id === value)?.name || '-'
           return <span>{unitName}</span>
         }
         return record.rate_unit_name || '-'
-      },
-    },
-    {
-      title: '',
-      key: 'actions',
-      width: 120,
-      align: 'center' as const,
-      fixed: 'right' as const,
-      render: (_: any, record: FinishingPieRow) => {
-        if (mode === 'view') {
-          return (
-            <Space size="small">
-              <Button
-                type="text"
-                icon={<PlusOutlined />}
-                size="small"
-                title="Добавить строку"
-                onClick={handleAddRow}
-              />
-              <Button
-                type="text"
-                icon={<CopyOutlined />}
-                size="small"
-                title="Скопировать строку"
-                onClick={() => handleCopyRow(record)}
-              />
-              <Popconfirm
-                title="Удалить эту строку?"
-                onConfirm={() => handleDeleteSingleRow(record.id)}
-                okText="Да"
-                cancelText="Нет"
-              >
-                <Button
-                  type="text"
-                  danger
-                  icon={<DeleteOutlined />}
-                  size="small"
-                  title="Удалить строку"
-                />
-              </Popconfirm>
-            </Space>
-          )
-        }
-        return null
       },
     },
   ]

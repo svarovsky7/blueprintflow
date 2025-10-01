@@ -20,7 +20,7 @@ export interface FinishingPieType {
 // Строка табличной части типа пирога отделки
 export interface FinishingPieRow {
   id: string
-  pie_type_id: string // FK на finishing_pie_types (тип строки)
+  pie_type_id: string | null // FK на finishing_pie_types (тип строки)
   pie_type_name?: string // Название типа (для отображения)
   finishing_pie_id?: string // FK на finishing_pie (документ)
   material_id: string | null
@@ -63,7 +63,7 @@ export interface UpdateFinishingPieTypeDto {
 // DTO для создания строки табличной части
 export interface CreateFinishingPieRowDto {
   finishing_pie_id: string // FK на документ
-  pie_type_id: string // FK на тип
+  pie_type_id: string | null // FK на тип
   material_id: string | null
   unit_id: string | null
   consumption: number | null
@@ -73,6 +73,7 @@ export interface CreateFinishingPieRowDto {
 
 // DTO для обновления строки табличной части
 export interface UpdateFinishingPieRowDto {
+  pie_type_id?: string | null
   material_id?: string | null
   unit_id?: string | null
   consumption?: number | null

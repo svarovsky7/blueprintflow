@@ -1593,7 +1593,14 @@ const VorView = () => {
   // Функция экспорта в Excel
   const handleExportToExcel = () => {
     try {
-      const currentData = vorItemsData.length > 0 ? vorItemsData : (vorItems || [])
+      // Используем ту же логику выбора данных, что и таблица
+      const currentData = isEditingEnabled && editableVorData.length > 0
+        ? editableVorData
+        : editableVorItems && editableVorItems.length > 0
+          ? editableVorItems
+          : vorItemsData.length > 0
+            ? vorItemsData
+            : (vorItems || [])
       if (!vorData?.vor || !currentData.length || !projectCodes) {
         messageApi.error('Нет данных для экспорта')
         return
@@ -1623,7 +1630,7 @@ const VorView = () => {
       ])
 
       // Данные таблицы
-      currentData.forEach((item) => {
+      currentData.forEach((item, index) => {
         let rowNumber = ''
         if (item.type === 'work') {
           const workItems = currentData.filter((i) => i.type === 'work')
@@ -1642,22 +1649,66 @@ const VorView = () => {
           }
         }
 
-        const nomenclaturePrice = item.type === 'work' ? 0 : Math.round(item.nomenclature_price)
-        const nomenclatureTotal = item.type === 'work' ? 0 : Math.round(item.nomenclature_total)
-        const total = Math.round(item.nomenclature_total + item.work_total)
+        const currentRowIndex = 5 + index // Excel строка (начинаем с 5, так как Excel считает с 1)
+
+        const nomenclaturePrice = item.type === 'work' ? '' : Math.round(item.material_price || item.nomenclature_price || 0) || ''
+        const workPrice = Math.round(item.work_price) || ''
+
+        // Формулы для итоговых столбцов
+        let nomenclatureTotal, workTotal, total
+
+        if (item.type === 'work') {
+          // Для работ номенклатурные итоги пустые
+          nomenclatureTotal = ''
+          workTotal = item.quantity && workPrice
+            ? { f: `D${currentRowIndex}*F${currentRowIndex}` } // Количество * Работа цена за ед
+            : Math.round(item.work_total) || ''
+        } else {
+          // Для материалов
+          nomenclatureTotal = item.quantity && nomenclaturePrice
+            ? { f: `D${currentRowIndex}*E${currentRowIndex}` } // Количество * Номенклатура цена за ед
+            : Math.round(item.nomenclature_total) || ''
+          workTotal = ''
+        }
+
+        // Общая сумма - сумма номенклатуры и работы
+        if (item.type === 'work') {
+          total = workTotal ? { f: `SUM(G${currentRowIndex}:H${currentRowIndex})` } : Math.round(item.work_total) || ''
+        } else {
+          total = nomenclatureTotal ? { f: `SUM(G${currentRowIndex}:H${currentRowIndex})` } : Math.round(item.nomenclature_total) || ''
+        }
 
         exportData.push([
           rowNumber,
           item.name,
           item.unit,
-          item.quantity,
+          item.quantity || '',
           nomenclaturePrice,
-          Math.round(item.work_price),
+          workPrice,
           nomenclatureTotal,
-          Math.round(item.work_total),
+          workTotal,
           total,
         ])
       })
+
+      // Добавляем строку-разделитель
+      exportData.push([''])
+
+      // Добавляем строку итогов с формулами
+      const firstDataRow = 5 // Строка 5 в Excel (данные начинаются с 5-й строки)
+      const lastDataRow = firstDataRow + currentData.length - 1
+
+      exportData.push([
+        '', // № (пустая)
+        'Итого:', // Наименование
+        '', // Ед Изм (пустая)
+        '', // Кол-во (пустая)
+        '', // Номенклатура цены за ед (пустая)
+        '', // Работа цены за ед (пустая)
+        { f: `SUM(G${firstDataRow}:G${lastDataRow})` }, // Номенклатура Итого (формула)
+        { f: `SUM(H${firstDataRow}:H${lastDataRow})` }, // Работа Итого (формула)
+        { f: `SUM(I${firstDataRow}:I${lastDataRow})` }  // Сумма Итого (формула)
+      ])
 
       // Создаем workbook и worksheet
       const ws = XLSX.utils.aoa_to_sheet(exportData)
@@ -1670,6 +1721,12 @@ const VorView = () => {
           const cellValue = row[colIndex] ? String(row[colIndex]) : ''
           return Math.max(max, cellValue.length)
         }, 0)
+
+        // Для столбца A (индекс 0) делаем ширину в 4 раза меньше
+        if (colIndex === 0) {
+          return { wch: Math.min(Math.max(maxLength + 2, 10), 50) / 4 }
+        }
+
         return { wch: Math.min(Math.max(maxLength + 2, 10), 50) }
       })
       ws['!cols'] = colWidths
@@ -1690,22 +1747,17 @@ const VorView = () => {
         font: { bold: true, sz: 10 },
         alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
         fill: { fgColor: { rgb: 'E6E6FA' } },
+        border: {
+          top: { style: 'thin', color: { rgb: '000000' } },
+          bottom: { style: 'thin', color: { rgb: '000000' } },
+          left: { style: 'thin', color: { rgb: '000000' } },
+          right: { style: 'thin', color: { rgb: '000000' } }
+        }
       }
 
-      // Применяем стили к заголовкам документа
-      for (let i = 0; i <= 8; i++) {
-        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: i })
-        if (ws[cellAddress]) ws[cellAddress].s = headerStyle
 
-        const cellAddress2 = XLSX.utils.encode_cell({ r: 1, c: i })
-        if (ws[cellAddress2]) ws[cellAddress2].s = headerStyle
-      }
 
-      // Применяем стили к заголовкам таблицы
-      for (let i = 0; i <= 8; i++) {
-        const cellAddress = XLSX.utils.encode_cell({ r: 4, c: i })
-        if (ws[cellAddress]) ws[cellAddress].s = tableHeaderStyle
-      }
+      const totalRowIndex = firstDataRow + currentData.length + 1 // +1 для пустой строки разделителя
 
       // Генерируем имя файла
       const fileName = `ВОР_${vorData.vor.name.replace(/[^\w\s]/gi, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`
