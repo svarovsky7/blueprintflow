@@ -568,7 +568,14 @@ export default function Nomenclature() {
         columns={columns}
         rowKey="id"
         loading={isLoading}
-        pagination={{ pageSize: 100 }}
+        sticky
+        scroll={{
+          y: 'calc(100vh - 350px)',
+        }}
+        pagination={{
+          pageSize: 100,
+          showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
+        }}
       />
       <Modal
         open={modalMode !== null}

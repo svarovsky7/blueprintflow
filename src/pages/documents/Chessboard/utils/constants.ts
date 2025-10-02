@@ -54,6 +54,7 @@ export const COLUMN_KEYS = {
   FLOORS: 'floors', // Этажи
   COST_CATEGORY: 'costCategory', // Категория затрат
   COST_TYPE: 'costType', // Вид затрат
+  WORK_SET: 'workSet', // Рабочий набор
   WORK_NAME: 'workName', // Наименование работ
   WORK_UNIT: 'workUnit', // Ед.Изм. Работ
   LOCATION: 'location', // Локализация
@@ -80,6 +81,7 @@ export const DEFAULT_COLUMN_ORDER = [
   COLUMN_KEYS.FLOORS,
   COLUMN_KEYS.COST_CATEGORY,
   COLUMN_KEYS.COST_TYPE,
+  COLUMN_KEYS.WORK_SET,
   COLUMN_KEYS.WORK_NAME,
   COLUMN_KEYS.WORK_UNIT,
   COLUMN_KEYS.LOCATION,

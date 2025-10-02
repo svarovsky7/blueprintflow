@@ -11,10 +11,10 @@ import {
   Drawer,
   List,
   Input,
-  Popconfirm,
   Empty,
   App,
   InputNumber,
+  Progress,
 } from 'antd'
 import {
   UploadOutlined,
@@ -176,6 +176,10 @@ export default function Rates() {
   const [newRows, setNewRows] = useState<RateTableRow[]>([])
   const [editingRows, setEditingRows] = useState<Record<string, RateTableRow>>({})
 
+  // Модальное окно удаления
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'single' | 'bulk'; id?: string }>({ type: 'single' })
+
   // Фильтры
   const [filtersExpanded, setFiltersExpanded] = useState(true)
   const [costCategoryFilter, setCostCategoryFilter] = useState<number | undefined>()
@@ -199,7 +203,16 @@ export default function Rates() {
   // Импорт Excel
   const [importModalOpen, setImportModalOpen] = useState(false)
   const [fileList, setFileList] = useState<UploadFile[]>([])
-  const [, setImportLoading] = useState(false)
+  const [importLoading, setImportLoading] = useState(false)
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 })
+  const [importResult, setImportResult] = useState<{
+    success: boolean
+    created: number
+    updated: number
+    skipped: number
+    totalRows: number
+    errors: string[]
+  } | null>(null)
   const [conflicts, setConflicts] = useState<ConflictItem[]>([])
   const [conflictDialogVisible, setConflictDialogVisible] = useState(false)
   const [pendingImportData, setPendingImportData] = useState<RateExcelRow[]>([])
@@ -214,6 +227,8 @@ export default function Rates() {
   const { data: rates = [], isLoading } = useQuery({
     queryKey: ['rates'],
     queryFn: ratesApi.getAll,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 
   // Загрузка справочников
@@ -436,10 +451,35 @@ export default function Rates() {
     }
   }, [selectedRowsForDelete, queryClient, message, cancelMode])
 
+  // Обработчики модального окна удаления
+  const openDeleteModal = useCallback((type: 'single' | 'bulk', id?: string) => {
+    setDeleteTarget({ type, id })
+    setDeleteModalOpen(true)
+  }, [])
+
+  const handleConfirmDelete = useCallback(async () => {
+    try {
+      if (deleteTarget.type === 'single' && deleteTarget.id) {
+        await ratesApi.delete(deleteTarget.id)
+        await queryClient.invalidateQueries({ queryKey: ['rates'] })
+        message.success('Запись удалена')
+      } else if (deleteTarget.type === 'bulk') {
+        await handleBulkDelete()
+      }
+      setDeleteModalOpen(false)
+    } catch (error) {
+      console.error('Delete error:', error)
+      message.error('Ошибка при удалении')
+    }
+  }, [deleteTarget, queryClient, message, handleBulkDelete])
+
   // Excel импорт
   const processImportData = useCallback(
     async (data: RateExcelRow[], resolutions?: Map<number, 'skip' | 'replace'>) => {
       console.log('🔄 Начало обработки импорта данных', { dataLength: data.length, data })
+      const errors: string[] = []
+      let skippedCount = 0
+
       try {
         const processedData: RateFormData[] = []
 
@@ -451,6 +491,7 @@ export default function Rates() {
 
           if (resolution === 'skip') {
             console.log(`⏭️ Пропускаем строку ${i} по резолюции`)
+            skippedCount++
             continue
           }
 
@@ -493,6 +534,8 @@ export default function Rates() {
 
           if (!workName) {
             console.log(`❌ Пропускаем строку ${i} - пустое наименование работ`)
+            errors.push(`Строка ${i + 1}: Пропущена - пустое наименование работ`)
+            skippedCount++
             continue
           }
 
@@ -595,30 +638,42 @@ export default function Rates() {
         let createdCount = 0
         let updatedCount = 0
 
-        for (const rateData of processedData) {
-          const existing = rates.find(
-            (r) => r.work_name.toLowerCase() === rateData.work_name.toLowerCase(),
-          )
+        for (let idx = 0; idx < processedData.length; idx++) {
+          const rateData = processedData[idx]
 
-          if (
-            existing &&
-            resolutions?.get(
-              data.findIndex(
-                (d) =>
-                  d['НАИМЕНОВАНИЕ РАБОТ']?.toString().trim().toLowerCase() ===
-                  rateData.work_name.toLowerCase(),
-              ),
-            ) === 'replace'
-          ) {
-            console.log(`🔄 Обновляем существующую запись:`, { existing, rateData })
-            await ratesApi.update(existing.id, rateData)
-            updatedCount++
-          } else if (!existing) {
-            console.log(`➕ Создаем новую запись:`, rateData)
-            await ratesApi.create(rateData)
-            createdCount++
-          } else {
-            console.log(`⏭️ Пропускаем существующую запись:`, { existing, rateData })
+          // Обновление прогресса
+          setImportProgress({ current: idx + 1, total: processedData.length })
+
+          try {
+            const existing = rates.find(
+              (r) => r.work_name.toLowerCase() === rateData.work_name.toLowerCase(),
+            )
+
+            if (
+              existing &&
+              resolutions?.get(
+                data.findIndex(
+                  (d) =>
+                    d['НАИМЕНОВАНИЕ РАБОТ']?.toString().trim().toLowerCase() ===
+                    rateData.work_name.toLowerCase(),
+                ),
+              ) === 'replace'
+            ) {
+              console.log(`🔄 Обновляем существующую запись:`, { existing, rateData })
+              await ratesApi.update(existing.id, rateData)
+              updatedCount++
+            } else if (!existing) {
+              console.log(`➕ Создаем новую запись:`, rateData)
+              await ratesApi.create(rateData)
+              createdCount++
+            } else {
+              console.log(`⏭️ Пропускаем существующую запись:`, { existing, rateData })
+              skippedCount++
+            }
+          } catch (error) {
+            console.error(`Ошибка при сохранении записи "${rateData.work_name}":`, error)
+            errors.push(`Ошибка при сохранении "${rateData.work_name}": ${(error as Error).message}`)
+            skippedCount++
           }
         }
 
@@ -629,17 +684,30 @@ export default function Rates() {
         })
 
         await queryClient.invalidateQueries({ queryKey: ['rates'] })
-        message.success(
-          `Импортировано ${processedData.length} записей (создано: ${createdCount}, обновлено: ${updatedCount})`,
-        )
-        setImportModalOpen(false)
-        setFileList([])
+
+        // Сохраняем результат импорта
+        setImportResult({
+          success: true,
+          created: createdCount,
+          updated: updatedCount,
+          skipped: skippedCount,
+          totalRows: data.length,
+          errors,
+        })
       } catch (error) {
         console.error('Process import error:', error)
-        message.error('Ошибка при обработке импорта')
+        // Сохраняем результат с ошибкой
+        setImportResult({
+          success: false,
+          created: 0,
+          updated: 0,
+          skipped: skippedCount,
+          totalRows: data.length,
+          errors: [...errors, `Критическая ошибка: ${(error as Error).message}`],
+        })
       }
     },
-    [rates, units, detailCostCategories, queryClient, message],
+    [rates, units, detailCostCategories, queryClient],
   )
 
   const handleImport = useCallback(
@@ -650,6 +718,7 @@ export default function Rates() {
         fileType: file.type,
       })
       setImportLoading(true)
+      setImportProgress({ current: 0, total: 0 })
       try {
         const arrayBuffer = await file.arrayBuffer()
         console.log('📄 Файл прочитан, размер буфера:', arrayBuffer.byteLength)
@@ -702,6 +771,7 @@ export default function Rates() {
         message.error('Ошибка при импорте файла')
       } finally {
         setImportLoading(false)
+        setImportProgress({ current: 0, total: 0 })
       }
     },
     [rates, message, processImportData],
@@ -714,7 +784,14 @@ export default function Rates() {
         title: 'Наименование работ',
         dataIndex: 'work_name',
         key: 'work_name',
+        width: '30%',
         sorter: (a, b) => a.work_name.localeCompare(b.work_name),
+        onCell: () => ({
+          style: {
+            whiteSpace: 'normal',
+            wordBreak: 'break-word',
+          },
+        }),
         render: (text, record) => {
           if (record.isNew || editingRows[record.id]) {
             return (
@@ -745,7 +822,14 @@ export default function Rates() {
         title: 'Рабочий набор',
         dataIndex: 'work_set',
         key: 'work_set',
+        width: '15%',
         sorter: (a, b) => (a.work_set || '').localeCompare(b.work_set || ''),
+        onCell: () => ({
+          style: {
+            whiteSpace: 'normal',
+            wordBreak: 'break-word',
+          },
+        }),
         render: (text, record) => {
           if (record.isNew || editingRows[record.id]) {
             return (
@@ -776,6 +860,13 @@ export default function Rates() {
         title: 'Категория затрат',
         dataIndex: 'detail_cost_category',
         key: 'cost_category',
+        width: '15%',
+        onCell: () => ({
+          style: {
+            whiteSpace: 'normal',
+            wordBreak: 'break-word',
+          },
+        }),
         render: (_: unknown, record: RateTableRow) =>
           record.detail_cost_category?.cost_category?.name || '-',
       },
@@ -783,6 +874,13 @@ export default function Rates() {
         title: 'Вид затрат',
         dataIndex: 'detail_cost_category',
         key: 'detail_cost_category',
+        width: '15%',
+        onCell: () => ({
+          style: {
+            whiteSpace: 'normal',
+            wordBreak: 'break-word',
+          },
+        }),
         render: (detailCategory: { name: string } | undefined, record: RateTableRow) => {
           if (record.isNew || editingRows[record.id]) {
             return (
@@ -832,6 +930,13 @@ export default function Rates() {
         title: 'Ед.изм.',
         dataIndex: 'unit',
         key: 'unit',
+        width: 80,
+        onCell: () => ({
+          style: {
+            whiteSpace: 'normal',
+            wordBreak: 'break-word',
+          },
+        }),
         render: (unit, record) => {
           if (record.isNew || editingRows[record.id]) {
             return (
@@ -873,6 +978,7 @@ export default function Rates() {
         title: 'Расценка базовая',
         dataIndex: 'base_rate',
         key: 'base_rate',
+        width: 120,
         sorter: (a, b) => a.base_rate - b.base_rate,
         render: (value, record) => {
           if (record.isNew || editingRows[record.id]) {
@@ -979,21 +1085,13 @@ export default function Rates() {
                 }}
                 title="Редактировать"
               />
-              <Popconfirm
-                title="Удалить запись?"
-                onConfirm={async () => {
-                  try {
-                    await ratesApi.delete(record.id)
-                    await queryClient.invalidateQueries({ queryKey: ['rates'] })
-                    message.success('Запись удалена')
-                  } catch (error) {
-                    console.error('Delete error:', error)
-                    message.error('Ошибка при удалении')
-                  }
-                }}
-              >
-                <Button type="text" icon={<DeleteOutlined />} danger title="Удалить" />
-              </Popconfirm>
+              <Button
+                type="text"
+                icon={<DeleteOutlined />}
+                danger
+                title="Удалить"
+                onClick={() => openDeleteModal('single', record.id)}
+              />
             </Space>
           )
         },
@@ -1167,15 +1265,13 @@ export default function Rates() {
 
           {mode === 'delete' && (
             <Space>
-              <Popconfirm
-                title={`Удалить ${selectedRowsForDelete.size} записей?`}
-                onConfirm={handleBulkDelete}
+              <Button
+                danger
                 disabled={selectedRowsForDelete.size === 0}
+                onClick={() => openDeleteModal('bulk')}
               >
-                <Button danger disabled={selectedRowsForDelete.size === 0}>
-                  Удалить ({selectedRowsForDelete.size})
-                </Button>
-              </Popconfirm>
+                Удалить ({selectedRowsForDelete.size})
+              </Button>
               <Button onClick={cancelMode}>Отмена</Button>
             </Space>
           )}
@@ -1190,9 +1286,7 @@ export default function Rates() {
           rowKey="id"
           loading={isLoading}
           sticky
-          scroll={{
-            x: 'max-content',
-          }}
+          tableLayout="fixed"
           pagination={{
             current: 1,
             pageSize,
@@ -1272,38 +1366,156 @@ export default function Rates() {
 
       {/* Импорт Excel */}
       <Modal
-        title="Импорт расценок из Excel"
+        title={importResult ? 'Результат импорта' : 'Импорт расценок из Excel'}
         open={importModalOpen}
         onCancel={() => {
-          setImportModalOpen(false)
-          setFileList([])
+          if (!importLoading) {
+            setImportModalOpen(false)
+            setFileList([])
+            setImportProgress({ current: 0, total: 0 })
+            setImportResult(null)
+          }
         }}
-        footer={null}
+        footer={
+          importResult
+            ? [
+                <Button
+                  key="close"
+                  type="primary"
+                  onClick={() => {
+                    setImportModalOpen(false)
+                    setFileList([])
+                    setImportProgress({ current: 0, total: 0 })
+                    setImportResult(null)
+                  }}
+                >
+                  Закрыть
+                </Button>,
+              ]
+            : [
+                <Button
+                  key="cancel"
+                  onClick={() => {
+                    setImportModalOpen(false)
+                    setFileList([])
+                    setImportProgress({ current: 0, total: 0 })
+                    setImportResult(null)
+                  }}
+                  disabled={importLoading}
+                >
+                  Отмена
+                </Button>,
+                <Button
+                  key="import"
+                  type="primary"
+                  onClick={() => {
+                    if (fileList.length > 0) {
+                      handleImport(fileList[0] as unknown as File)
+                    }
+                  }}
+                  disabled={!fileList.length || importLoading}
+                  loading={importLoading}
+                >
+                  Импортировать
+                </Button>,
+              ]
+        }
         width={600}
+        closable={!importLoading}
       >
-        <div style={{ textAlign: 'center' }}>
-          <Upload.Dragger
-            accept=".xlsx,.xls"
-            fileList={fileList}
-            beforeUpload={(file) => {
-              setFileList([file])
-              handleImport(file)
-              return false
-            }}
-            onRemove={() => setFileList([])}
-          >
-            <p className="ant-upload-drag-icon">
-              <InboxOutlined />
-            </p>
-            <p className="ant-upload-text">Нажмите или перетащите файл Excel для загрузки</p>
-            <p className="ant-upload-hint">
-              Поддерживаются файлы .xlsx и .xls
-              <br />
-              Ожидаемые столбцы: Категории затрат, Вид затрат, РАБОЧИЙ НАБОР, НАИМЕНОВАНИЕ РАБОТ,
-              Ед.изм., Расценка БАЗОВАЯ
-            </p>
-          </Upload.Dragger>
-        </div>
+        {importResult ? (
+          <div style={{ padding: '20px 0' }}>
+            <div style={{ marginBottom: 24, textAlign: 'center' }}>
+              <Text
+                strong
+                style={{
+                  fontSize: 18,
+                  color: importResult.success ? '#52c41a' : '#ff4d4f',
+                }}
+              >
+                {importResult.success ? '✓ Импорт завершен успешно' : '✗ Импорт завершен с ошибками'}
+              </Text>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <Text>Всего строк обработано: {importResult.totalRows}</Text>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <Text style={{ color: '#52c41a' }}>Создано новых записей: {importResult.created}</Text>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <Text style={{ color: '#1890ff' }}>Обновлено записей: {importResult.updated}</Text>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <Text style={{ color: '#faad14' }}>Пропущено записей: {importResult.skipped}</Text>
+            </div>
+
+            {importResult.errors.length > 0 && (
+              <div style={{ marginTop: 24 }}>
+                <Text strong style={{ color: '#ff4d4f' }}>
+                  Ошибки и предупреждения:
+                </Text>
+                <div
+                  style={{
+                    marginTop: 8,
+                    maxHeight: 200,
+                    overflowY: 'auto',
+                    border: '1px solid #f0f0f0',
+                    borderRadius: 4,
+                    padding: 8,
+                    textAlign: 'left',
+                  }}
+                >
+                  {importResult.errors.map((error, index) => (
+                    <div key={index} style={{ marginBottom: 4, fontSize: 13 }}>
+                      <Text type="secondary">{error}</Text>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center' }}>
+            <Upload.Dragger
+              accept=".xlsx,.xls"
+              fileList={fileList}
+              beforeUpload={(file) => {
+                setFileList([file])
+                return false
+              }}
+              onRemove={() => setFileList([])}
+              disabled={importLoading}
+            >
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
+              <p className="ant-upload-text">Нажмите или перетащите файл Excel для загрузки</p>
+              <p className="ant-upload-hint">
+                Поддерживаются файлы .xlsx и .xls
+                <br />
+                Ожидаемые столбцы: Категории затрат, Вид затрат, РАБОЧИЙ НАБОР, НАИМЕНОВАНИЕ РАБОТ,
+                Ед.изм., Расценка БАЗОВАЯ
+              </p>
+            </Upload.Dragger>
+
+            {importLoading && (
+              <div style={{ marginTop: 24 }}>
+                <Progress
+                  percent={
+                    importProgress.total > 0
+                      ? Math.round((importProgress.current / importProgress.total) * 100)
+                      : 0
+                  }
+                  status="active"
+                />
+                <div style={{ marginTop: 8, color: '#666' }}>
+                  Обработано {importProgress.current} из {importProgress.total} записей
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
 
       {/* Диалог разрешения конфликтов */}
@@ -1367,6 +1579,23 @@ export default function Rates() {
             ))}
           </div>
         </div>
+      </Modal>
+
+      {/* Модальное окно подтверждения удаления */}
+      <Modal
+        title="Подтверждение удаления"
+        open={deleteModalOpen}
+        onOk={handleConfirmDelete}
+        onCancel={() => setDeleteModalOpen(false)}
+        okText="Удалить"
+        cancelText="Отмена"
+        okButtonProps={{ danger: true }}
+      >
+        <p>
+          {deleteTarget.type === 'single'
+            ? 'Вы уверены, что хотите удалить эту запись?'
+            : `Вы уверены, что хотите удалить ${selectedRowsForDelete.size} записей?`}
+        </p>
       </Modal>
     </div>
   )

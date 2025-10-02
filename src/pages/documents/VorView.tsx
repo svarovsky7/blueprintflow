@@ -2,8 +2,8 @@
   /* VorView component */
 }
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Table, Typography, Space, Spin, Alert, Button, InputNumber, message, Select } from 'antd'
-import { ArrowLeftOutlined, DownloadOutlined, EditOutlined, SaveOutlined, CloseOutlined, PlusOutlined, MinusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Table, Typography, Space, Spin, Alert, Button, InputNumber, message, Select, Input } from 'antd'
+import { ArrowLeftOutlined, DownloadOutlined, EditOutlined, SaveOutlined, CloseOutlined, PlusOutlined, MinusOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons'
 import * as XLSX from 'xlsx'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams, useNavigate } from 'react-router-dom'
@@ -19,7 +19,9 @@ import {
   deleteVorMaterial,
   deleteVorMaterialsByWorkId,
   getSupplierNamesOptions,
-  getUnitsOptions
+  getUnitsOptions,
+  getRatesOptions,
+  populateVorFromChessboardSet
 } from '@/entities/vor'
 import AddWorkModal from './VorView/components/AddWorkModal'
 
@@ -187,6 +189,7 @@ const VorView = () => {
   // Состояния для отслеживания удалений и изменений названий (применяются при сохранении)
   const [deletedItems, setDeletedItems] = useState<Set<string>>(new Set())
   const [nameChanges, setNameChanges] = useState<Record<string, string>>({})
+  const [pendingNameChanges, setPendingNameChanges] = useState<Record<string, string>>({})
 
   // Состояние для сворачивания/разворачивания заголовка
   const [headerExpanded, setHeaderExpanded] = useState<boolean>(false)
@@ -800,6 +803,13 @@ const VorView = () => {
     enabled: (viewMode === 'edit' || viewMode === 'add'), // Загружаем только в режиме редактирования
   })
 
+  // Загружаем расценки для inline редактирования работ
+  const { data: rates = [] } = useQuery({
+    queryKey: ['rates-options'],
+    queryFn: getRatesOptions,
+    enabled: viewMode === 'edit' || viewMode === 'add', // Загружаем только в режиме редактирования
+  })
+
   // Синхронизируем локальные данные с данными из запроса
   useEffect(() => {
     if (vorItems) {
@@ -1286,17 +1296,138 @@ const VorView = () => {
     setEditableVorData([])
   }
 
+  // Функция для применения pending изменений названий к реальным записям БД
+  const applyPendingNameChanges = async (pendingChanges: Record<string, string>) => {
+    if (Object.keys(pendingChanges).length === 0) return
+
+    console.log('🔄 Применяем pending изменения к реальным записям БД:', pendingChanges) // LOG: применение изменений
+
+    // Получаем свежие данные реальных записей
+    await queryClient.invalidateQueries({ queryKey: ['editable-vor-items', vorId] })
+    const freshEditableItems = queryClient.getQueryData<VorTableItem[]>(['editable-vor-items', vorId])
+
+    if (!freshEditableItems || freshEditableItems.length === 0) {
+      console.warn('⚠️ Нет реальных записей для применения pending изменений') // LOG: предупреждение
+      return
+    }
+
+    console.log('📊 Доступно реальных записей для обновления:', freshEditableItems.length) // LOG: количество записей
+
+    // Создаем маппинг синтетических ID к реальным записям
+    // Логика: work_1 -> первая работа, work_2 -> вторая работа, material_1_1 -> первый материал первой работы
+    const workIndex = new Map<string, VorTableItem>()
+    const materialIndex = new Map<string, VorTableItem>()
+
+    let workCounter = 1
+    const workMaterialCounters = new Map<number, number>()
+
+    freshEditableItems.forEach(item => {
+      if (item.type === 'work') {
+        workIndex.set(`work_${workCounter}`, item)
+        workMaterialCounters.set(workCounter, 1)
+        workCounter++
+      } else if (item.type === 'material') {
+        // Находим родительскую работу по parent_id или vor_work_id
+        const parentWorkItem = freshEditableItems.find(w =>
+          w.type === 'work' && (w.id === item.parent_id || w.id === item.vor_work_id)
+        )
+        if (parentWorkItem) {
+          // Находим номер работы
+          const parentWorkNumber = Array.from(workIndex.entries())
+            .find(([, work]) => work.id === parentWorkItem.id)?.[0]?.replace('work_', '')
+
+          if (parentWorkNumber) {
+            const materialCounter = workMaterialCounters.get(parseInt(parentWorkNumber)) || 1
+            materialIndex.set(`material_${parentWorkNumber}_${materialCounter}`, item)
+            workMaterialCounters.set(parseInt(parentWorkNumber), materialCounter + 1)
+          }
+        }
+      }
+    })
+
+    console.log('🗂️ Создан маппинг синтетических ID:', {
+      works: Array.from(workIndex.keys()),
+      materials: Array.from(materialIndex.keys())
+    }) // LOG: маппинг
+
+    // Применяем изменения
+    for (const [syntheticId, newName] of Object.entries(pendingChanges)) {
+      console.log('🔄 Обрабатываем pending изменение:', syntheticId, '->', newName) // LOG: обработка изменения
+
+      let realItem: VorTableItem | undefined
+
+      if (syntheticId.startsWith('work_')) {
+        realItem = workIndex.get(syntheticId)
+      } else if (syntheticId.startsWith('material_')) {
+        realItem = materialIndex.get(syntheticId)
+      }
+
+      if (realItem) {
+        console.log('✅ Найдена реальная запись для', syntheticId, '- ID:', realItem.id) // LOG: найдена запись
+
+        try {
+          if (realItem.type === 'work') {
+            // Обновляем работу
+            await updateVorWork(realItem.id, { rate_id: newName })
+            console.log('✅ Работа обновлена:', realItem.id, 'новый rate_id:', newName) // LOG: работа обновлена
+          } else if (realItem.type === 'material') {
+            // Обновляем материал
+            await updateVorMaterial(realItem.id, { supplier_material_name: newName })
+            console.log('✅ Материал обновлен:', realItem.id, 'новое название:', newName) // LOG: материал обновлен
+          }
+        } catch (error) {
+          console.error('❌ Ошибка обновления записи', realItem.id, ':', error) // LOG: ошибка обновления
+        }
+      } else {
+        console.warn('⚠️ Не найдена реальная запись для синтетического ID:', syntheticId) // LOG: запись не найдена
+      }
+    }
+
+    console.log('✅ Все pending изменения применены к реальным записям') // LOG: изменения применены
+  }
+
   const handleSave = async () => {
     console.log('🔍 Начинаем сохранение изменений...', editedItems) // LOG: отладочная информация
 
     try {
+      // Используем тот же приоритет данных, что и в таблице
+      const currentData = isEditingEnabled && editableVorData.length > 0
+        ? editableVorData
+        : editableVorItems && editableVorItems.length > 0
+          ? editableVorItems
+          : vorItemsData.length > 0
+            ? vorItemsData
+            : vorItems || []
+
+      console.log('🔍 Используем источник данных для сохранения:', {
+        isEditingEnabled,
+        editableVorDataLength: editableVorData.length,
+        editableVorItemsLength: editableVorItems?.length || 0,
+        vorItemsDataLength: vorItemsData.length,
+        vorItemsLength: vorItems?.length || 0,
+        selectedSource: currentData === editableVorData ? 'editableVorData' :
+                       currentData === editableVorItems ? 'editableVorItems' :
+                       currentData === vorItemsData ? 'vorItemsData' : 'vorItems'
+      }) // LOG: выбор источника данных
+
       for (const itemId of editedItems) {
-        const item = editableVorData.find(item => item.id === itemId)
+        const item = currentData.find(item => item.id === itemId)
         const editedData = editedItemsData[itemId]
 
-        if (!item || !editedData) continue
+        if (!item || !editedData) {
+          console.log('⚠️ Элемент не найден:', { itemId, hasItem: !!item, hasEditedData: !!editedData }) // LOG: элемент не найден
+          continue
+        }
 
-        console.log('🔍 Сохраняем элемент:', { itemId, item, editedData, itemType: item.type }) // LOG: отладочная информация
+        console.log('🔍 Сохраняем элемент:', { itemId, item, editedData, itemType: item.type, isSyntheticId: itemId.includes('_') }) // LOG: отладочная информация
+
+        // Проверяем, синтетический ли это ID (содержит подчеркивание)
+        const isSyntheticId = itemId.includes('_')
+
+        if (isSyntheticId) {
+          console.log('⚠️ Попытка сохранить элемент с синтетическим ID:', itemId, 'Пропускаем сохранение в БД') // LOG: синтетический ID
+          continue
+        }
 
         if (item.type === 'material') {
           // Материал - обновляем согласно алгоритму
@@ -1416,17 +1547,65 @@ const VorView = () => {
 
       // Применяем изменения названий
       console.log('🔍 Применяем изменения названий...', nameChanges) // LOG: отладочная информация
+      console.log('🔍 Доступные справочники:', { ratesCount: rates?.length || 0, suppliersCount: suppliers?.length || 0 }) // LOG: отладочная информация
+      // Используем тот же источник данных currentData, что и выше
+
+      console.log('🔍 Источники данных:', { // LOG: отладочная информация
+        editableVorDataLength: editableVorData.length,
+        editableVorItemsLength: editableVorItems?.length || 0,
+        vorItemsDataLength: vorItemsData.length,
+        vorItemsLength: vorItems?.length || 0,
+        selectedSourceLength: currentData.length
+      })
+      console.log('🔍 Доступные данные для поиска:', currentData.map(item => ({ id: item.id, type: item.type, name: item.name }))) // LOG: отладочная информация
       for (const [itemId, newName] of Object.entries(nameChanges)) {
-        const item = editableVorData.find(item => item.id === itemId)
-        if (!item) continue
+        console.log('🔍 Ищем элемент с ID:', itemId) // LOG: отладочная информация
+
+        // Проверяем, синтетический ли это ID (содержит подчеркивание)
+        const isSyntheticId = itemId.includes('_')
+        if (isSyntheticId) {
+          console.log('📝 Сохраняем изменение для синтетического ID в pending:', itemId, '->', newName) // LOG: синтетический ID
+          // Сохраняем изменения синтетических ID в pending для применения к реальным записям
+          setPendingNameChanges(prev => ({ ...prev, [itemId]: newName }))
+          continue
+        }
+
+        const item = currentData.find(item => item.id === itemId)
+        if (!item) {
+          console.warn('⚠️ Элемент не найден:', itemId) // LOG: предупреждение
+          continue
+        }
+        console.log('✅ Найден элемент:', { id: item.id, type: item.type, currentName: item.name }) // LOG: отладочная информация
 
         if (item.type === 'material') {
           console.log('🔍 Обновляем название материала:', { itemId, newName }) // LOG: отладочная информация
-          await updateVorMaterial(itemId, {
-            supplier_material_name: newName
-          })
+          // Нужно найти поставщика по названию номенклатуры из справочника
+          const selectedSupplier = suppliers.find(supplier => supplier.name === newName)
+          if (selectedSupplier) {
+            await updateVorMaterial(itemId, {
+              supplier_material_name: newName,
+              // Если у поставщика есть дополнительная информация, добавляем её
+              ...(selectedSupplier.supplier_name && { supplier_name: selectedSupplier.supplier_name })
+            })
+          } else {
+            // Если не найдено в справочнике, просто обновляем название
+            await updateVorMaterial(itemId, {
+              supplier_material_name: newName
+            })
+          }
+        } else if (item.type === 'work') {
+          console.log('🔍 Обновляем название работы:', { itemId, newName }) // LOG: отладочная информация
+          // Нужно найти rate_id по названию работы из справочника расценок
+          const selectedRate = rates.find(rate => rate.work_name === newName)
+          if (selectedRate) {
+            await updateVorWork(itemId, {
+              rate_id: selectedRate.id,
+              base_rate: selectedRate.base_rate
+            })
+          } else {
+            console.warn('Не найдена расценка для названия работы:', newName) // LOG: предупреждение
+          }
         }
-        // TODO: Добавить обновление названий работ когда будет API
       }
 
       // Применяем удаления
@@ -1447,11 +1626,38 @@ const VorView = () => {
         }
       }
 
-      // Очищаем временные состояния
+      // Проверяем наличие pending изменений для синтетических ID ПЕРЕД очисткой состояний
+      if (Object.keys(pendingNameChanges).length > 0) {
+        console.log('🔄 Обнаружены pending изменения для синтетических ID:', pendingNameChanges) // LOG: pending изменения
+        console.log('📊 Текущее состояние БД - editableVorItems:', editableVorItems?.length || 0, 'записей') // LOG: состояние БД
+
+        // Если нет реальных записей в БД, но есть pending изменения - создаем записи и применяем изменения
+        if ((!editableVorItems || editableVorItems.length === 0) && setsData && setsData.length > 0) {
+          console.log('⚡ Автоматически создаем реальные записи в БД и применяем pending изменения...') // LOG: создание записей
+
+          try {
+            // Создаем реальные записи в БД
+            await handleReloadFromChessboard()
+
+            // Ждем создания записей и получаем их
+            await queryClient.invalidateQueries({ queryKey: ['editable-vor-items', vorId] })
+
+            // Применяем pending изменения к созданным записям
+            await applyPendingNameChanges(pendingNameChanges)
+            console.log('✅ Реальные записи созданы и pending изменения применены') // LOG: записи созданы
+
+          } catch (error) {
+            console.error('❌ Ошибка создания реальных записей:', error) // LOG: ошибка создания
+          }
+        }
+      }
+
+      // Очищаем все состояния после обработки
       setNewMaterialRows(new Set())
       setTempMaterialData({})
       setDeletedItems(new Set())
       setNameChanges({})
+      setPendingNameChanges({})
 
       console.log('✅ Все изменения сохранены') // LOG: успешное сохранение
       messageApi.success('Изменения сохранены')
@@ -1590,6 +1796,66 @@ const VorView = () => {
     setEditingNameValue('')
   }
 
+  // Функция для принудительной загрузки данных из комплекта в БД
+  const handleReloadFromChessboard = async () => {
+    if (!vorId || !setsData || setsData.length === 0) {
+      messageApi.error('Нет данных комплекта для загрузки')
+      return
+    }
+
+    try {
+      const setId = setsData[0].id
+      console.log('🔄 Принудительная загрузка данных из комплекта в БД...', { vorId, setId }) // LOG: начало загрузки
+
+      // Очищаем существующие данные ВОР
+      console.log('🗑️ Очищаем существующие данные ВОР...') // LOG: очистка
+
+      // Сначала удаляем материалы (у них есть внешний ключ на работы)
+      const { error: deleteMaterialsError } = await supabase
+        .from('vor_materials')
+        .delete()
+        .in('vor_work_id',
+          supabase
+            .from('vor_works')
+            .select('id')
+            .eq('vor_id', vorId)
+        )
+
+      if (deleteMaterialsError) {
+        console.error('Ошибка удаления материалов ВОР:', deleteMaterialsError) // LOG: ошибка
+        throw deleteMaterialsError
+      }
+
+      // Затем удаляем работы
+      const { error: deleteWorksError } = await supabase
+        .from('vor_works')
+        .delete()
+        .eq('vor_id', vorId)
+
+      if (deleteWorksError) {
+        console.error('Ошибка удаления работ ВОР:', deleteWorksError) // LOG: ошибка
+        throw deleteWorksError
+      }
+
+      console.log('✅ Старые данные ВОР удалены') // LOG: успешная очистка
+
+      // Вызываем функцию заполнения ВОР данными из комплекта
+      console.log('⚡ Заполняем ВОР данными из комплекта...') // LOG: заполнение
+      await populateVorFromChessboardSet(vorId, setId)
+
+      console.log('✅ Данные ВОР успешно загружены из комплекта') // LOG: успех
+
+      // Инвалидируем кеш для обновления данных
+      queryClient.invalidateQueries({ queryKey: ['editable-vor-items', vorId] })
+      queryClient.invalidateQueries({ queryKey: ['vor-items', vorId] })
+
+      messageApi.success('Данные ВОР успешно загружены из комплекта')
+    } catch (error) {
+      console.error('Ошибка при загрузке данных из комплекта:', error) // LOG: ошибка
+      messageApi.error('Ошибка при загрузке данных из комплекта')
+    }
+  }
+
   // Функция экспорта в Excel
   const handleExportToExcel = () => {
     try {
@@ -1638,11 +1904,13 @@ const VorView = () => {
           rowNumber = `${workIndex}.`
         } else {
           const workItems = currentData.filter((i) => i.type === 'work')
-          const parentWork = workItems.find((i) => i.id === item.parent_id)
+          // Поддерживаем обе схемы: новую (vor_work_id) и старую (parent_id)
+          const parentWorkId = item.vor_work_id || item.parent_id
+          const parentWork = workItems.find((i) => i.id === parentWorkId)
           if (parentWork) {
             const workIndex = workItems.findIndex((i) => i.id === parentWork.id) + 1
             const materialsInWork = currentData.filter(
-              (i) => i.type === 'material' && i.parent_id === parentWork.id,
+              (i) => i.type === 'material' && (i.vor_work_id === parentWork.id || i.parent_id === parentWork.id),
             )
             const materialIndex = materialsInWork.findIndex((i) => i.id === item.id) + 1
             rowNumber = `${workIndex}.${materialIndex}`
@@ -1798,11 +2066,13 @@ const VorView = () => {
         } else {
           // Для материалов находим номер работы и номер материала внутри работы
           const workItems = currentData.filter((item) => item.type === 'work')
-          const parentWork = workItems.find((item) => item.id === record.parent_id)
+          // Поддерживаем обе схемы: новую (vor_work_id) и старую (parent_id)
+          const parentWorkId = record.vor_work_id || record.parent_id
+          const parentWork = workItems.find((item) => item.id === parentWorkId)
           if (parentWork) {
             const workIndex = workItems.findIndex((item) => item.id === parentWork.id) + 1
             const materialsInWork = currentData.filter(
-              (item) => item.type === 'material' && item.parent_id === parentWork.id,
+              (item) => item.type === 'material' && (item.vor_work_id === parentWork.id || item.parent_id === parentWork.id),
             )
             const materialIndex = materialsInWork.findIndex((item) => item.id === record.id) + 1
             return `${workIndex}.${materialIndex}`
@@ -1881,12 +2151,47 @@ const VorView = () => {
         if (viewMode === 'edit' && editingNameId === record.id) {
           return (
             <div style={{ paddingLeft: record.level === 2 ? 20 : 0 }}>
-              <Input.TextArea
-                value={editingNameValue}
-                onChange={(e) => setEditingNameValue(e.target.value)}
-                autoSize={{ minRows: 2, maxRows: 4 }}
-                style={{ marginBottom: 8 }}
-              />
+              {record.type === 'work' ? (
+                // Для работ показываем выпадающий список расценок
+                <Select
+                  value={editingNameValue}
+                  onChange={setEditingNameValue}
+                  style={{ width: '100%', marginBottom: 8 }}
+                  showSearch
+                  allowClear
+                  placeholder="Выберите расценку"
+                  filterOption={(input, option) => {
+                    const text = option?.children?.toString() || ""
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }}
+                >
+                  {rates.map(rate => (
+                    <Select.Option key={rate.id} value={rate.work_name}>
+                      {rate.work_name}
+                    </Select.Option>
+                  ))}
+                </Select>
+              ) : (
+                // Для материалов показываем выпадающий список номенклатуры
+                <Select
+                  value={editingNameValue}
+                  onChange={setEditingNameValue}
+                  style={{ width: '100%', marginBottom: 8 }}
+                  showSearch
+                  allowClear
+                  placeholder="Выберите номенклатуру"
+                  filterOption={(input, option) => {
+                    const text = option?.children?.toString() || ""
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }}
+                >
+                  {suppliers.map(supplier => (
+                    <Select.Option key={supplier.id} value={supplier.name}>
+                      {supplier.name}
+                    </Select.Option>
+                  ))}
+                </Select>
+              )}
               <Space>
                 <Button
                   size="small"
@@ -2367,12 +2672,19 @@ const VorView = () => {
   // Формирование информации о комплекте для заголовка
   const setInfo = setsData && setsData.length > 0
     ? setsData.map((set) => {
-        const setCode = set.code || 'SET-20250910' // Fallback если нет кода
+        console.log('🔍 Данные комплекта для заголовка:', { // LOG: отладочная информация
+          id: set.id,
+          code: set.code,
+          set_number: set.set_number,
+          name: set.name,
+          created_at: set.created_at
+        })
+        const setCode = set.code || set.set_number || set.name || `SET-${set.id.slice(0, 8)}`
         const setName = set.name || 'Название комплекта'
         const createdDate = set.created_at ? new Date(set.created_at).toLocaleDateString('ru-RU') : '30.09.2025'
         return `${setCode} ${setName} от ${createdDate}`
       }).join(', ')
-    : 'SET-20250910 Название комплекта от 30.09.2025'
+    : 'Комплект не указан'
 
   if (!vorId) {
     return (
@@ -2454,6 +2766,9 @@ const VorView = () => {
                   </Button>
                   <Button icon={<DownloadOutlined />} onClick={handleExportToExcel} size="large">
                     Экспорт в Excel
+                  </Button>
+                  <Button icon={<ReloadOutlined />} onClick={handleReloadFromChessboard} size="large">
+                    Перезагрузить из комплекта
                   </Button>
                   <Button type="primary" onClick={handleGoToChessboard} size="large">
                     Комплект

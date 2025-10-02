@@ -2,6 +2,7 @@ import { useMemo, useState, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { AppliedFilters, ChessboardFilters, ViewRow, DbRow, RowData } from '../types'
+import { formatFloorsForDisplay } from '../utils/floors'
 
 interface UseChessboardDataProps {
   appliedFilters: AppliedFilters
@@ -602,6 +603,8 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
       const workName = rateMapping?.rates?.work_name || ''
       const rateId = rateMapping?.rates?.id || ''
       const workUnit = rateMapping?.rates?.unit?.name || ''
+      const workSet = rateMapping?.rates?.work_set || ''
+      const workSetId = rateMapping?.rates?.id || '' // ID записи rates для work_set
 
       // ОПТИМИЗАЦИЯ: агрегируем количества и формируем данные этажей в одном проходе
       let totalQuantityPd = 0
@@ -636,14 +639,9 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
         }
       })
 
-      // Формируем диапазон этажей
+      // Формируем диапазон этажей с группировкой последовательных
       const sortedFloors = floorNumbers.sort((a, b) => a - b)
-      const floorsRange =
-        sortedFloors.length > 0
-          ? sortedFloors.length === 1
-            ? String(sortedFloors[0])
-            : `${Math.min(...sortedFloors)}-${Math.max(...sortedFloors)}`
-          : ''
+      const floorsRange = formatFloorsForDisplay(sortedFloors)
 
       return {
         id: row.id,
@@ -671,6 +669,8 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
         costType: mapping?.detail_cost_categories?.name || '',
         costTypeId: String(mapping?.cost_type_id || ''),
 
+        workSet: workSet,
+        workSetId: String(workSetId || ''), // ID записи rates для work_set
         workName: workName,
         rateId: String(rateId || ''), // ID расценки для сохранения в mapping
         workUnit: workUnit,

@@ -1038,11 +1038,13 @@ export const useTableOperations = (refetch?: () => void) => {
           )
           // Если есть rateId, создаём новую связь
           const rateId = updates.rateId !== undefined ? updates.rateId : null
+          const workSetId = updates.workSetId !== undefined ? updates.workSetId : null
           if (rateId) {
             promises.push(
               supabase.from('chessboard_rates_mapping').insert({
                 chessboard_id: rowId,
-                rate_id: rateId
+                rate_id: rateId,
+                work_set: workSetId
               })
             )
           }
@@ -1145,17 +1147,19 @@ export const useTableOperations = (refetch?: () => void) => {
         }
 
         // Обновляем rates mapping для backup строки
-        if (editedRowData.rateId !== undefined || editedRowData.workName !== undefined) {
-          console.log('💰 Backup: обновление расценки:', { rateId: editedRowData.rateId, workName: editedRowData.workName }) // LOG: отладочная информация
+        if (editedRowData.rateId !== undefined || editedRowData.workName !== undefined || editedRowData.workSetId !== undefined) {
+          console.log('💰 Backup: обновление расценки:', { rateId: editedRowData.rateId, workName: editedRowData.workName, workSetId: editedRowData.workSetId }) // LOG: отладочная информация
           promises.push(
             supabase.from('chessboard_rates_mapping').delete().eq('chessboard_id', rowId)
           )
           const rateId = editedRowData.rateId
+          const workSetId = editedRowData.workSetId
           if (rateId) {
             promises.push(
               supabase.from('chessboard_rates_mapping').insert({
                 chessboard_id: rowId,
-                rate_id: rateId
+                rate_id: rateId,
+                work_set: workSetId
               })
             )
           }

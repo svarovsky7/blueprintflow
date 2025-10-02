@@ -150,7 +150,7 @@ export const createVorFromChessboardSet = async (dto: CreateVorFromChessboardSet
 }
 
 // Заполнение ВОР данными из комплекта шахматки
-const populateVorFromChessboardSet = async (vorId: string, setId: string): Promise<void> => {
+export const populateVorFromChessboardSet = async (vorId: string, setId: string): Promise<void> => {
   if (!supabase) throw new Error('Supabase client not initialized')
 
   // 1. Получаем настройки комплекта
@@ -174,7 +174,25 @@ const populateVorFromChessboardSet = async (vorId: string, setId: string): Promi
   }
 
   // 2. Загружаем данные шахматки согласно фильтрам комплекта
-  const query = supabase
+  console.log('🔍 Комплект ID:', setId, 'Фильтры комплекта:', { // LOG: отладка фильтров комплекта
+    block_ids: setData.block_ids,
+    cost_category_ids: setData.cost_category_ids,
+    cost_type_ids: setData.cost_type_ids,
+    documentation_id: setData.documentation_id,
+    tag_id: setData.tag_id
+  })
+
+  // Определяем нужен ли INNER JOIN для фильтрации
+  const needsMapping = !!(
+    setData.block_ids?.length ||
+    setData.cost_category_ids?.length ||
+    setData.cost_type_ids?.length
+  )
+  const joinType = needsMapping ? 'inner' : 'left'
+
+  console.log('🔗 JOIN type для фильтрации:', joinType, 'needsMapping:', needsMapping) // LOG: тип соединения
+
+  let query = supabase
     .from('chessboard')
     .select(`
       id,
@@ -202,7 +220,7 @@ const populateVorFromChessboardSet = async (vorId: string, setId: string): Promi
         )
       ),
       chessboard_floor_mapping("quantityRd"),
-      chessboard_mapping(
+      chessboard_mapping!${joinType}(
         block_id,
         cost_category_id,
         cost_type_id,
@@ -211,8 +229,49 @@ const populateVorFromChessboardSet = async (vorId: string, setId: string): Promi
     `)
     .eq('project_id', setData.project_id)
 
-  // Применяем фильтры комплекта (упрощенная версия)
-  // В реальной реализации здесь нужна более сложная логика фильтрации
+  // Применяем фильтры комплекта по блокам
+  if (setData.block_ids?.length) {
+    console.log('🏗️ Применяем фильтр по блокам:', setData.block_ids.length, 'блоков') // LOG: фильтр блоков
+    query = query.in('chessboard_mapping.block_id', setData.block_ids)
+  }
+
+  // Применяем фильтры комплекта по категориям затрат
+  if (setData.cost_category_ids?.length) {
+    console.log('💰 Применяем фильтр по категориям затрат:', setData.cost_category_ids.length, 'категорий') // LOG: фильтр категорий
+    query = query.in('chessboard_mapping.cost_category_id', setData.cost_category_ids)
+  }
+
+  // Применяем фильтры комплекта по видам затрат
+  if (setData.cost_type_ids?.length) {
+    console.log('📊 Применяем фильтр по видам затрат:', setData.cost_type_ids.length, 'видов') // LOG: фильтр видов затрат
+    query = query.in('chessboard_mapping.cost_type_id', setData.cost_type_ids)
+  }
+
+  // Применяем фильтр по документации если указан
+  if (setData.documentation_id) {
+    console.log('📄 Применяем фильтр по документации:', setData.documentation_id) // LOG: фильтр документации
+
+    // Получаем ID записей шахматки, связанных с документацией
+    const { data: docMappingData, error: docMappingError } = await supabase
+      .from('chessboard_documentation_mapping')
+      .select('chessboard_id')
+      .eq('documentation_id', setData.documentation_id)
+
+    if (docMappingError) {
+      console.error('Ошибка получения связей документации:', docMappingError) // LOG
+      throw docMappingError
+    }
+
+    const chessboardIds = (docMappingData || []).map(item => item.chessboard_id)
+    if (chessboardIds.length > 0) {
+      console.log('🔗 Найдено записей шахматки для документации:', chessboardIds.length) // LOG: количество связанных записей
+      query = query.in('id', chessboardIds)
+    } else {
+      console.log('⚠️ Нет записей шахматки для документации:', setData.documentation_id) // LOG: нет связанных записей
+      // Если нет связанных записей, возвращаем пустой результат
+      return
+    }
+  }
 
   const { data: chessboardData, error: chessboardError } = await query
 
@@ -222,9 +281,11 @@ const populateVorFromChessboardSet = async (vorId: string, setId: string): Promi
   }
 
   if (!chessboardData || chessboardData.length === 0) {
-    console.warn('Нет данных шахматки для комплекта')
+    console.warn('⚠️ Нет данных шахматки для комплекта', setId) // LOG: нет данных для комплекта
     return
   }
+
+  console.log('✅ Загружено записей шахматки:', chessboardData.length, 'для комплекта', setId) // LOG: количество загруженных записей
 
   // 3. Группируем данные по работам (rates)
   // ВАЖНО: Количество для работы считается только по материалам типа "База"

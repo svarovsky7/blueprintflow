@@ -6,7 +6,8 @@ export {
   getUnitsOptions,
   calculateVorTotals,
   createVorFromChessboardSet,
-  getVorsByChessboardSet
+  getVorsByChessboardSet,
+  populateVorFromChessboardSet
 } from './vor-api'
 
 // API для работ

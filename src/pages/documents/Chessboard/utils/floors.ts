@@ -1,6 +1,10 @@
 /**
  * Парсинг строки с этажами и создание массива номеров этажей
- * Поддерживает форматы: "1", "1,2,3", "1-3", "2-4,6", "2-3,5-7"
+ * Поддерживает форматы:
+ * - Одиночные: "1", "-3", "5"
+ * - Через запятую: "1,2,3", "-3,-2,-1"
+ * - Диапазоны: "1-3", "-3-7", "-1--3", "5-2"
+ * - Смешанные: "2-4,6", "-3--1,2,5-7"
  */
 export function parseFloorsFromString(floorsStr: string): number[] {
   if (!floorsStr?.trim()) {
@@ -11,10 +15,20 @@ export function parseFloorsFromString(floorsStr: string): number[] {
   const parts = floorsStr.split(',').map(part => part.trim()).filter(Boolean)
 
   for (const part of parts) {
-    if (part.includes('-')) {
-      // Обрабатываем диапазон типа "2-4"
-      const [start, end] = part.split('-').map(num => parseInt(num.trim(), 10))
-      if (!isNaN(start) && !isNaN(end) && start <= end) {
+    // Regex для диапазона: захватывает "1-3", "-3-7", "-1--3", "5-2" и т.д.
+    const rangeMatch = part.match(/^(-?\d+)-(-?\d+)$/)
+
+    if (rangeMatch) {
+      // Обрабатываем диапазон
+      let start = parseInt(rangeMatch[1], 10)
+      let end = parseInt(rangeMatch[2], 10)
+
+      // Нормализуем порядок (если start > end, меняем местами)
+      if (start > end) {
+        [start, end] = [end, start]
+      }
+
+      if (!isNaN(start) && !isNaN(end)) {
         for (let i = start; i <= end; i++) {
           floors.push(i)
         }
@@ -42,6 +56,8 @@ export function hasMultipleFloors(floorsStr: string): boolean {
 
 /**
  * Формирование строки этажей из массива номеров этажей для отображения
+ * Группирует последовательные этажи в диапазоны
+ * Примеры: [-3,-2,-1,2,6] → "-3--1,2,6", [1,2,3,5,6,8] → "1-3,5-6,8"
  */
 export function formatFloorsForDisplay(floors: number[]): string {
   if (floors.length === 0) return ''
@@ -49,18 +65,38 @@ export function formatFloorsForDisplay(floors: number[]): string {
 
   const sortedFloors = [...floors].sort((a, b) => a - b)
 
-  // Простое форматирование - если этажи подряд, показываем как диапазон
-  if (sortedFloors.length > 2) {
-    const isSequential = sortedFloors.every((floor, index) =>
-      index === 0 || floor === sortedFloors[index - 1] + 1
-    )
+  // Группируем последовательные этажи
+  const groups: number[][] = []
+  let currentGroup: number[] = [sortedFloors[0]]
 
-    if (isSequential) {
-      return `${sortedFloors[0]}-${sortedFloors[sortedFloors.length - 1]}`
+  for (let i = 1; i < sortedFloors.length; i++) {
+    const prev = sortedFloors[i - 1]
+    const curr = sortedFloors[i]
+
+    if (curr === prev + 1) {
+      // Последовательный этаж - добавляем в текущую группу
+      currentGroup.push(curr)
+    } else {
+      // Разрыв - сохраняем текущую группу и начинаем новую
+      groups.push(currentGroup)
+      currentGroup = [curr]
     }
   }
+  // Добавляем последнюю группу
+  groups.push(currentGroup)
 
-  return sortedFloors.join(',')
+  // Форматируем каждую группу
+  const formatted = groups.map(group => {
+    if (group.length === 1) {
+      return group[0].toString()
+    } else if (group.length === 2) {
+      return `${group[0]},${group[1]}`
+    } else {
+      return `${group[0]}-${group[group.length - 1]}`
+    }
+  })
+
+  return formatted.join(',')
 }
 
 /**

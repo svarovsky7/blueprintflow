@@ -78,6 +78,7 @@ const COLUMN_WIDTH_CONFIG_BASE: Record<string, { width?: number; minWidth?: numb
   [COLUMN_KEYS.FLOORS]: { width: 50 }, // "Этажи" 50px
   [COLUMN_KEYS.COST_CATEGORY]: { width: 120 }, // "Категория затрат" 120px
   [COLUMN_KEYS.COST_TYPE]: { minWidth: 80, maxWidth: 120 }, // "Вид затрат"
+  [COLUMN_KEYS.WORK_SET]: { minWidth: 120, maxWidth: 180 }, // "Рабочий набор" 120-180px
   [COLUMN_KEYS.WORK_NAME]: { minWidth: 140, maxWidth: 240 }, // "Наименование работ" +40px
   [COLUMN_KEYS.LOCATION]: { width: 80 }, // "Локализация" 80px
   [COLUMN_KEYS.MATERIAL]: { width: 200 }, // "Материал" 200px
@@ -161,6 +162,7 @@ const MULTILINE_COLUMNS = new Set([
   COLUMN_KEYS.FLOORS,
   COLUMN_KEYS.COST_CATEGORY,
   COLUMN_KEYS.COST_TYPE,
+  COLUMN_KEYS.WORK_SET,
   COLUMN_KEYS.WORK_NAME,
   COLUMN_KEYS.WORK_UNIT,
   COLUMN_KEYS.LOCATION,
@@ -243,6 +245,48 @@ function normalizeColumns(cols: ColumnsType<RowData>, scale: number): ColumnsTyp
 }
 
 // Компонент для каскадного выбора работ - ИСПРАВЛЕНИЕ Rules of Hooks
+interface WorkSetSelectProps {
+  value: string
+  costTypeId: string | undefined
+  onChange: (value: string) => void
+}
+
+const WorkSetSelect: React.FC<WorkSetSelectProps> = ({ value, costTypeId, onChange }) => {
+  // Стабилизируем queryKey для предотвращения infinite render
+  const stableQueryKey = useMemo(() => {
+    const key = ['work-sets-by-category']
+    if (costTypeId) key.push(costTypeId)
+    return key
+  }, [costTypeId])
+
+  // Хук всегда вызывается на верхнем уровне компонента
+  const { data: workSetOptions = [] } = useQuery({
+    queryKey: stableQueryKey,
+    queryFn: () => ratesApi.getWorkSetsByCategory(costTypeId),
+    enabled: !!costTypeId, // Запрос только если есть вид затрат
+  })
+
+  return (
+    <Select
+      value={value || undefined}
+      placeholder="Выберите рабочий набор"
+      onChange={onChange}
+      allowClear={true}
+      showSearch={true}
+      size="small"
+      style={STABLE_STYLES.fullWidth}
+      dropdownStyle={getDynamicDropdownStyle(workSetOptions)}
+      filterOption={(input, option) => {
+        const text = option?.label?.toString() || ""
+        return text.toLowerCase().includes(input.toLowerCase())
+      }}
+      options={workSetOptions}
+      disabled={!costTypeId} // Отключаем если не выбран вид затрат
+      notFoundContent={costTypeId ? 'Рабочие наборы не найдены' : 'Выберите вид затрат'}
+    />
+  )
+}
+
 interface WorkNameSelectProps {
   value: string
   costTypeId: string | undefined
@@ -275,6 +319,7 @@ const WorkNameSelect: React.FC<WorkNameSelectProps> = ({ value, costTypeId, cost
       showSearch
       size="small"
       style={STABLE_STYLES.fullWidth}
+      dropdownStyle={getDynamicDropdownStyle(workOptions)}
       filterOption={(input, option) => {
         const text = option?.label?.toString() || ""
         return text.toLowerCase().includes(input.toLowerCase())
@@ -1923,7 +1968,8 @@ export const ChessboardTable = memo(({
       }),
       onCell: () => ({
         style: {
-          whiteSpace: 'nowrap', // НЕ переносить содержимое ячеек "Этажи"
+          whiteSpace: 'normal', // Переносить содержимое ячеек "Этажи"
+          wordBreak: 'break-word', // Разрывать длинные строки
           textAlign: 'center',
           minWidth: '100px',
           maxWidth: '100px',
@@ -2027,7 +2073,8 @@ export const ChessboardTable = memo(({
                 const selectedCostType = allCostTypesData.find(type => type.value === newValue)
                 onRowUpdate(record.id, {
                   costType: selectedCostType ? selectedCostType.label : '',
-                  costTypeId: newValue
+                  costTypeId: newValue,
+                  workSet: '' // Очищаем рабочий набор при изменении вида затрат
                 })
               }}
               // Фильтрация по выбранной категории затрат
@@ -2069,6 +2116,46 @@ export const ChessboardTable = memo(({
           )
         }
         return value
+      },
+    },
+
+    // Рабочий набор
+    {
+      title: 'Рабочий\nнабор',
+      key: COLUMN_KEYS.WORK_SET,
+      dataIndex: 'workSet',
+      width: 'auto',
+      minWidth: 120,
+      maxWidth: 180,
+      filterMode: 'tree' as const,
+      filterSearch: true,
+      onFilter: (value, record) => record.workSet?.includes(value as string),
+      onHeaderCell: () => ({
+        className: 'chessboard-header-cell',
+        style: {
+          whiteSpace: 'pre-line',
+          textAlign: 'center',
+          verticalAlign: 'middle',
+          lineHeight: '20px',
+          padding: '4px 8px',
+        },
+      }),
+      render: (value, record) => {
+        const isEditing = (record as any).isEditing
+        if (isEditing) {
+          const costTypeId = (record as RowData).costTypeId
+
+          return (
+            <WorkSetSelect
+              value={value || ''}
+              costTypeId={costTypeId}
+              onChange={(newValue) => {
+                onRowUpdate(record.id, { workSet: newValue })
+              }}
+            />
+          )
+        }
+        return <span>{value || ''}</span>
       },
     },
 

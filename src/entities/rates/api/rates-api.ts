@@ -9,27 +9,47 @@ export const ratesApi = {
       throw new Error('Supabase is not configured')
     }
 
-    const { data, error } = await supabase
-      .from('rates')
-      .select(
-        `
-        *,
-        unit:units(id, name),
-        detail_mapping:rates_detail_cost_categories_mapping(
-          detail_cost_category:detail_cost_categories(id, name, cost_category:cost_categories(id, name, number))
+    const BATCH_SIZE = 1000
+    let allData: any[] = []
+    let from = 0
+    let hasMore = true
+
+    while (hasMore) {
+      const to = from + BATCH_SIZE - 1
+      const { data, error } = await supabase
+        .from('rates')
+        .select(
+          `
+          *,
+          unit:units(id, name),
+          detail_mapping:rates_detail_cost_categories_mapping(
+            detail_cost_category:detail_cost_categories(id, name, cost_category:cost_categories(id, name, number))
+          )
+        `,
         )
-      `,
-      )
-      .order('created_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .range(from, to)
 
-    console.log('📊 SQL запрос выполнен', { data, error })
+      if (error) {
+        console.error('❌ Ошибка при получении rates:', error)
+        throw error
+      }
 
-    if (error) {
-      console.error('❌ Ошибка при получении rates:', error)
-      throw error
+      if (!data || data.length === 0) {
+        hasMore = false
+      } else {
+        allData = [...allData, ...data]
+        console.log(`📊 Загружен батч ${from}-${to}, всего записей: ${allData.length}`)
+
+        if (data.length < BATCH_SIZE) {
+          hasMore = false
+        } else {
+          from += BATCH_SIZE
+        }
+      }
     }
 
-    const result = data.map(({ detail_mapping, ...rate }) => {
+    const result = allData.map(({ detail_mapping, ...rate }) => {
       const detailCategory = detail_mapping?.[0]?.detail_cost_category
       return {
         ...rate,
@@ -38,7 +58,7 @@ export const ratesApi = {
       }
     }) as RateWithRelations[]
 
-    console.log('✅ Данные обработаны', { count: result.length, result })
+    console.log('✅ Все данные загружены', { count: result.length })
     return result
   },
 
@@ -239,6 +259,82 @@ export const ratesApi = {
       .sort((a, b) => a.label.localeCompare(b.label)) // Сортировка по названию работы
 
     console.log('✅ Результат обработки активных расценок:', result) // LOG: отладочная информация
+    return result
+  },
+
+  // Получение рабочих наборов по виду затрат для столбца "Рабочий набор" в шахматке
+  async getWorkSetsByCategory(costTypeId?: string): Promise<{ value: string; label: string }[]> {
+    if (!supabase) throw new Error('Supabase is not configured')
+
+    // Если не указан вид затрат - возвращаем пустой список
+    if (!costTypeId) {
+      return []
+    }
+
+    console.log('🔍 getWorkSetsByCategory called with costTypeId:', costTypeId) // LOG: отладочная информация
+
+    // Запрос: получаем активные расценки с рабочими наборами, связанные с видом затрат
+    const { data, error } = await supabase.from('rates').select(`
+        id,
+        work_set,
+        active,
+        rates_detail_cost_categories_mapping(detail_cost_category_id)
+      `)
+      .eq('active', true) // Только активные расценки
+      .not('work_set', 'is', null) // Только записи с заполненным work_set
+
+    console.log('📊 SQL результат getWorkSetsByCategory:', { data, error }) // LOG: отладочная информация
+
+    if (error) {
+      console.error('Failed to get work sets by category:', error)
+      throw error
+    }
+
+    if (!data || data.length === 0) {
+      console.log('⚠️ Нет активных расценок с рабочими наборами для costTypeId:', costTypeId) // LOG: отладочная информация
+      return []
+    }
+
+    // Фильтруем расценки по виду затрат
+    const filteredRates = data.filter((rate) => {
+      const categoryIds = rate.rates_detail_cost_categories_mapping?.map((m) => m.detail_cost_category_id.toString()) ?? []
+      const categoryIdsAsNumbers = rate.rates_detail_cost_categories_mapping?.map((m) => m.detail_cost_category_id) ?? []
+
+      const targetIdAsString = costTypeId.toString()
+      const targetIdAsNumber = parseInt(costTypeId)
+
+      console.log('🔍 Проверка расценки с рабочим набором:', { // LOG: отладочная информация фильтрации
+        rateId: rate.id,
+        workSet: rate.work_set,
+        categoryIds,
+        categoryIdsAsNumbers,
+        targetCostTypeId: costTypeId,
+        targetIdAsString,
+        targetIdAsNumber,
+        includesString: categoryIds.includes(targetIdAsString),
+        includesNumber: categoryIdsAsNumbers.includes(targetIdAsNumber)
+      })
+
+      return categoryIds.includes(targetIdAsString) || categoryIdsAsNumbers.includes(targetIdAsNumber)
+    })
+
+    // Убираем дубликаты рабочих наборов и преобразуем в нужный формат
+    const uniqueWorkSets = new Map<string, string>()
+    filteredRates.forEach((rate) => {
+      if (rate.work_set && !uniqueWorkSets.has(rate.id)) {
+        uniqueWorkSets.set(rate.id, rate.work_set)
+      }
+    })
+
+    // Преобразуем в нужный формат и сортируем
+    const result = Array.from(uniqueWorkSets.entries())
+      .map(([rateId, workSetName]) => ({
+        value: rateId, // ID записи rates для сохранения в chessboard_rates_mapping.work_set
+        label: workSetName, // Название рабочего набора для отображения
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+
+    console.log('✅ Результат обработки рабочих наборов:', result) // LOG: отладочная информация
     return result
   },
 }

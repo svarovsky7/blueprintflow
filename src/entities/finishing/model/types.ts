@@ -6,6 +6,9 @@ export interface FinishingPie {
   name: string
   status_finishing_pie: string | null
   status_type_calculation: string | null
+  cost_category_id: number | null // integer FK на cost_categories
+  documentation_tag_id: number | null // integer FK на documentation_tags
+  version_id: string | null // uuid FK на documentation_versions
   created_at: string
   updated_at: string
 }
@@ -41,8 +44,10 @@ export interface FinishingPieRow {
 // DTO для создания документа типа пирога
 export interface CreateFinishingPieDto {
   project_id: string
-  block_id?: string | null
   name: string
+  cost_category_id: number
+  documentation_tag_id: number
+  version_id: string
 }
 
 // DTO для обновления документа типа пирога
