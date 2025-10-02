@@ -18,6 +18,7 @@ import {
   DeleteOutlined,
   CopyOutlined,
   EditOutlined,
+  ArrowLeftOutlined,
 } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
@@ -67,6 +68,7 @@ export default function FinishingPieType() {
   const [editingRows, setEditingRows] = useState<EditableRow[]>([])
   const [docName, setDocName] = useState('')
   const [selectedBlockId, setSelectedBlockId] = useState<string | undefined>(blockId || undefined)
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
 
   // Загрузка документа
   const { data: document, isLoading: docLoading } = useQuery({
@@ -249,6 +251,25 @@ export default function FinishingPieType() {
 
           if (updateError) throw updateError
         }
+
+        // Присвоить статус "В работе" при первом сохранении
+        if (document && !document.status_finishing_pie) {
+          const { data: allStatuses } = await supabase
+            .from('statuses')
+            .select('id, name, applicable_pages')
+            .eq('name', 'В работе')
+
+          const status = allStatuses?.find(
+            (s) => s.applicable_pages && s.applicable_pages.includes('documents/finishing')
+          )
+
+          if (status) {
+            await supabase
+              .from('finishing_pie')
+              .update({ status_finishing_pie: status.id })
+              .eq('id', id)
+          }
+        }
       }
 
       // 2. Создать новые типы (если есть) - уже созданы "на лету"
@@ -341,6 +362,30 @@ export default function FinishingPieType() {
   const handleCancelEdit = () => {
     setMode('view')
     setEditingRows([])
+    setSelectedRowKeys([])
+  }
+
+  const handleEnterDeleteMode = () => {
+    setMode('delete')
+    setSelectedRowKeys([])
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('Выберите строки для удаления')
+      return
+    }
+
+    try {
+      for (const key of selectedRowKeys) {
+        await deleteRowMutation.mutateAsync(key as string)
+      }
+      message.success(`Удалено строк: ${selectedRowKeys.length}`)
+      setMode('view')
+      setSelectedRowKeys([])
+    } catch (error: any) {
+      message.error(`Ошибка удаления: ${error.message}`)
+    }
   }
 
   const handleDeleteSingleRow = async (rowId: string) => {
@@ -706,11 +751,19 @@ export default function FinishingPieType() {
         overflow: 'hidden',
       }}
     >
-      {/* Заголовок */}
+      {/* Заголовок с кнопкой Назад */}
       <div style={{ padding: '16px 24px', flexShrink: 0 }}>
-        <Title level={2} style={{ margin: 0, fontSize: Math.round(24 * scale) }}>
-          Тип пирога отделки
-        </Title>
+        <Space size="middle">
+          <Button
+            icon={<ArrowLeftOutlined />}
+            onClick={() => navigate(`/documents/finishing?project=${projectId}`)}
+          >
+            Назад
+          </Button>
+          <Title level={2} style={{ margin: 0, fontSize: Math.round(24 * scale) }}>
+            Типы пирога отделки
+          </Title>
+        </Space>
       </div>
 
       {/* Название документа, корпус и кнопка сохранения - всё в одной строке */}
@@ -742,12 +795,32 @@ export default function FinishingPieType() {
         </Space>
       </div>
 
-      {/* Кнопка Добавить/Отмена под полем Название слева */}
+      {/* Кнопки Добавить/Удалить/Отмена под полем Название слева */}
       <div style={{ padding: '0 24px 16px 24px', flexShrink: 0 }}>
         {mode === 'view' ? (
-          <Button icon={<PlusOutlined />} onClick={handleAddRow}>
-            Добавить
-          </Button>
+          <Space>
+            <Button icon={<PlusOutlined />} onClick={handleAddRow}>
+              Добавить
+            </Button>
+            <Button danger icon={<DeleteOutlined />} onClick={handleEnterDeleteMode}>
+              Удалить
+            </Button>
+          </Space>
+        ) : mode === 'delete' ? (
+          <Space>
+            <Button
+              danger
+              type="primary"
+              icon={<DeleteOutlined />}
+              onClick={handleDeleteSelected}
+              disabled={selectedRowKeys.length === 0}
+            >
+              Удалить ({selectedRowKeys.length})
+            </Button>
+            <Button icon={<CloseOutlined />} onClick={handleCancelEdit}>
+              Отмена
+            </Button>
+          </Space>
         ) : (
           <Button icon={<CloseOutlined />} onClick={handleCancelEdit}>
             Отмена
@@ -765,6 +838,14 @@ export default function FinishingPieType() {
           pagination={{ defaultPageSize: 100, showSizeChanger: true }}
           scroll={{ y: 'calc(100vh - 400px)', x: 'max-content' }}
           locale={{ emptyText: 'Нет данных' }}
+          rowSelection={
+            mode === 'delete'
+              ? {
+                  selectedRowKeys,
+                  onChange: setSelectedRowKeys,
+                }
+              : undefined
+          }
         />
       </div>
     </div>

@@ -17,6 +17,7 @@ import Vor from './pages/documents/Vor'
 import VorView from './pages/documents/VorView'
 import Finishing from './pages/documents/Finishing'
 import FinishingPieType from './pages/documents/FinishingPieType'
+import FinishingCalculation from './pages/documents/FinishingCalculation'
 import References from './pages/References'
 import Units from './pages/references/Units'
 import CostCategories from './pages/references/CostCategories'
@@ -25,6 +26,7 @@ import Locations from './pages/references/Locations'
 import Rooms from './pages/references/Rooms'
 import Rates from './pages/references/Rates'
 import Nomenclature from './pages/references/Nomenclature'
+import SurfaceTypes from './pages/references/SurfaceTypes'
 import Documentation from './pages/documents/Documentation'
 import Reports from './pages/Reports'
 import ProjectAnalysis from './pages/reports/ProjectAnalysis'
@@ -323,6 +325,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             { key: 'rooms', label: <Link to="/references/rooms">Помещения</Link> },
             { key: 'rates', label: <Link to="/references/rates">Расценки</Link> },
             { key: 'nomenclature', label: <Link to="/references/nomenclature">Номенклатура</Link> },
+            { key: 'surface-types', label: <Link to="/references/surface-types">Типы поверхностей</Link> },
           ],
     },
     {
@@ -720,6 +723,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                   <Route path="documentation" element={<Documentation />} />
                   <Route path="finishing" element={<Finishing />} />
                   <Route path="finishing-pie-type/:id" element={<FinishingPieType />} />
+                  <Route path="finishing-calculation/:id" element={<FinishingCalculation />} />
                 </Route>
                 <Route path="/references" element={<References />}>
                   <Route path="units" element={<Units />} />
@@ -729,6 +733,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                   <Route path="rooms" element={<Rooms />} />
                   <Route path="rates" element={<Rates />} />
                   <Route path="nomenclature" element={<Nomenclature />} />
+                  <Route path="surface-types" element={<SurfaceTypes />} />
                 </Route>
                 <Route path="/reports" element={<Reports />}>
                   <Route path="project-analysis" element={<ProjectAnalysis />} />

@@ -17,13 +17,14 @@ export async function getFinishingPies(
   projectId: string,
   blockId?: string
 ): Promise<FinishingPie[]> {
-  // Используем старую таблицу finishing_pie_types до миграции
-  let query = supabase.from('finishing_pie_types').select('*').eq('project_id', projectId)
+  let query = supabase
+    .from('finishing_pie')
+    .select('*')
+    .eq('project_id', projectId)
 
-  // block_id пока не используется в старой структуре
-  // if (blockId) {
-  //   query = query.eq('block_id', blockId)
-  // }
+  if (blockId) {
+    query = query.eq('block_id', blockId)
+  }
 
   const { data, error } = await query.order('name')
 

@@ -4,6 +4,8 @@ export interface FinishingPie {
   project_id: string
   block_id: string | null
   name: string
+  status_finishing_pie: string | null
+  status_type_calculation: string | null
   created_at: string
   updated_at: string
 }
@@ -47,6 +49,8 @@ export interface CreateFinishingPieDto {
 export interface UpdateFinishingPieDto {
   name?: string
   block_id?: string | null
+  status_finishing_pie?: string | null
+  status_type_calculation?: string | null
 }
 
 // DTO для создания типа пирога

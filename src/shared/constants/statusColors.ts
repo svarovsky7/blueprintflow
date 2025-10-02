@@ -74,5 +74,8 @@ export const CHESSBOARD_STATUS_COLORS = {
 // Формат страницы для applicable_pages
 export const PAGE_FORMATS = {
   CHESSBOARD: 'documents/chessboard',
-  // Добавьте другие страницы по мере необходимости
+  VOR: 'documents/vor',
+  DOCUMENTATION: 'documents/documentation',
+  FINISHING: 'documents/finishing',
+  PROJECT_ANALYSIS: 'reports/project-analysis',
 }

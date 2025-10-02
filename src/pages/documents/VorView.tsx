@@ -189,7 +189,7 @@ const VorView = () => {
   const [nameChanges, setNameChanges] = useState<Record<string, string>>({})
 
   // Состояние для сворачивания/разворачивания заголовка
-  const [headerExpanded, setHeaderExpanded] = useState<boolean>(true)
+  const [headerExpanded, setHeaderExpanded] = useState<boolean>(false)
 
   // Получаем масштаб приложения
   const { scale } = useScale()
