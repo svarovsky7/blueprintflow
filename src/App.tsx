@@ -38,7 +38,6 @@ import Experiments from './pages/experiments'
 import ChessboardML from './pages/experiments/ChessboardML'
 import PortalHeader from './components/PortalHeader'
 import TestTableStructure from './pages/TestTableStructure'
-import PortalSettings from './pages/admin/PortalSettings'
 import { useLogo } from './shared/contexts/LogoContext'
 import { useScale } from './shared/contexts/ScaleContext'
 
@@ -346,7 +345,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             },
             { key: 'statuses', label: 'Статусы', path: '/admin/statuses' },
             { key: 'api-settings', label: 'API', path: '/admin/api-settings' },
-            { key: 'portal-settings', label: 'Настройка портала', path: '/admin/portal-settings' },
           ])}
         >
           <SettingOutlined />
@@ -369,10 +367,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             {
               key: 'api-settings',
               label: <Link to="/admin/api-settings">API</Link>,
-            },
-            {
-              key: 'portal-settings',
-              label: <Link to="/admin/portal-settings">Настройка портала</Link>,
             },
             {
               key: 'scale',
@@ -688,11 +682,9 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                                         ? 'statuses'
                                         : location.pathname.startsWith('/admin/api-settings')
                                           ? 'api-settings'
-                                          : location.pathname.startsWith('/admin/portal-settings')
-                                            ? 'portal-settings'
-                                            : location.pathname.startsWith('/experiments')
-                                              ? 'experiments'
-                                              : location.pathname,
+                                          : location.pathname.startsWith('/experiments')
+                                            ? 'experiments'
+                                            : location.pathname,
             ]}
             openKeys={openKeys}
             onOpenChange={setOpenKeys}
@@ -742,7 +734,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                   <Route path="documentation-tags" element={<DocumentationTags />} />
                   <Route path="statuses" element={<Statuses />} />
                   <Route path="api-settings" element={<ApiSettings />} />
-                  <Route path="portal-settings" element={<PortalSettings />} />
                   {/* ОБРАТНАЯ СОВМЕСТИМОСТЬ: старый маршрут /admin/disk перенаправляет на /admin/api-settings */}
                   <Route path="disk" element={<Navigate to="/admin/api-settings" replace />} />
                 </Route>
@@ -948,11 +939,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                 },
                 { key: 'statuses', label: 'Статусы', path: '/admin/statuses' },
                 { key: 'api-settings', label: 'API', path: '/admin/api-settings' },
-                {
-                  key: 'portal-settings',
-                  label: 'Настройка портала',
-                  path: '/admin/portal-settings',
-                },
               ].map((item) => (
                 <div
                   key={item.key}

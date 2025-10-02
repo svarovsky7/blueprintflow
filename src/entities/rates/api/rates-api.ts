@@ -337,4 +337,45 @@ export const ratesApi = {
     console.log('✅ Результат обработки рабочих наборов:', result) // LOG: отладочная информация
     return result
   },
+
+  // Получение работ по конкретному рабочему набору (по rate_id)
+  async getWorksByWorkSet(workSetRateId?: string): Promise<{ value: string; label: string }[]> {
+    if (!supabase) throw new Error('Supabase is not configured')
+
+    // Если не указан ID рабочего набора - возвращаем пустой список
+    if (!workSetRateId) {
+      return []
+    }
+
+    console.log('🔍 getWorksByWorkSet called with workSetRateId:', workSetRateId) // LOG: отладочная информация
+
+    // Получаем конкретную расценку по ID рабочего набора
+    const { data, error } = await supabase
+      .from('rates')
+      .select('id, work_name, work_set, active')
+      .eq('id', workSetRateId)
+      .eq('active', true) // Только активные расценки
+      .single()
+
+    console.log('📊 SQL результат getWorksByWorkSet:', { data, error }) // LOG: отладочная информация
+
+    if (error) {
+      console.error('Failed to get works by work set:', error)
+      throw error
+    }
+
+    if (!data) {
+      console.log('⚠️ Нет данных для workSetRateId:', workSetRateId) // LOG: отладочная информация
+      return []
+    }
+
+    // Возвращаем единственную работу из выбранного рабочего набора
+    const result = [{
+      value: data.id.toString(), // ID расценки для сохранения в chessboard_rates_mapping
+      label: data.work_name, // Название работы для отображения
+    }]
+
+    console.log('✅ Результат обработки работ по рабочему набору:', result) // LOG: отладочная информация
+    return result
+  },
 }

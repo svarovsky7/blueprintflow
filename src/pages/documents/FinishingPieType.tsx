@@ -68,6 +68,9 @@ export default function FinishingPieType() {
   const [editingRows, setEditingRows] = useState<EditableRow[]>([])
   const [docName, setDocName] = useState('')
   const [selectedBlockId, setSelectedBlockId] = useState<string | undefined>(blockId || undefined)
+  const [selectedDetailCostCategoryId, setSelectedDetailCostCategoryId] = useState<
+    number | undefined
+  >(undefined)
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
 
   // Загрузка документа
@@ -152,10 +155,29 @@ export default function FinishingPieType() {
     enabled: !!projectId,
   })
 
+  // Загрузка видов затрат для выбранной категории затрат
+  const { data: detailCostCategories = [] } = useQuery({
+    queryKey: ['detail-cost-categories-for-finishing', document?.cost_category_id],
+    queryFn: async () => {
+      if (!document?.cost_category_id) return []
+
+      const { data, error } = await supabase
+        .from('detail_cost_categories')
+        .select('id, name')
+        .eq('cost_category_id', document.cost_category_id)
+        .order('name')
+
+      if (error) throw error
+      return data || []
+    },
+    enabled: !!document?.cost_category_id,
+  })
+
   useEffect(() => {
     if (document) {
       setDocName(document.name)
       setSelectedBlockId(document.block_id || undefined)
+      setSelectedDetailCostCategoryId(document.detail_cost_category_id || undefined)
     }
   }, [document])
 
@@ -238,37 +260,50 @@ export default function FinishingPieType() {
         if (createError) throw createError
         documentId = newDocData[0].id
       } else {
-        // Обновляем существующий документ (только если название изменилось)
+        // Обновляем существующий документ
+        const updateData: any = {
+          updated_at: new Date().toISOString(),
+        }
+
         if (docName.trim() && docName !== document?.name) {
+          updateData.name = docName
+        }
+
+        if (selectedBlockId !== document?.block_id) {
+          updateData.block_id = selectedBlockId || null
+        }
+
+        if (selectedDetailCostCategoryId !== document?.detail_cost_category_id) {
+          updateData.detail_cost_category_id = selectedDetailCostCategoryId || null
+        }
+
+        // Выполняем обновление если есть изменения
+        if (Object.keys(updateData).length > 1) {
           const { error: updateError } = await supabase
             .from('finishing_pie')
-            .update({
-              name: docName,
-              block_id: selectedBlockId || null,
-              updated_at: new Date().toISOString(),
-            })
+            .update(updateData)
             .eq('id', id)
 
           if (updateError) throw updateError
         }
+      }
 
-        // Присвоить статус "В работе" при первом сохранении
-        if (document && !document.status_finishing_pie) {
-          const { data: allStatuses } = await supabase
-            .from('statuses')
-            .select('id, name, applicable_pages')
-            .eq('name', 'В работе')
+      // Присвоить статус "В работе" при первом сохранении
+      if (document && !document.status_finishing_pie) {
+        const { data: allStatuses } = await supabase
+          .from('statuses')
+          .select('id, name, applicable_pages')
+          .eq('name', 'В работе')
 
-          const status = allStatuses?.find(
-            (s) => s.applicable_pages && s.applicable_pages.includes('documents/finishing')
-          )
+        const status = allStatuses?.find(
+          (s) => s.applicable_pages && s.applicable_pages.includes('documents/finishing')
+        )
 
-          if (status) {
-            await supabase
-              .from('finishing_pie')
-              .update({ status_finishing_pie: status.id })
-              .eq('id', id)
-          }
+        if (status) {
+          await supabase
+            .from('finishing_pie')
+            .update({ status_finishing_pie: status.id })
+            .eq('id', id)
         }
       }
 
@@ -551,6 +586,12 @@ export default function FinishingPieType() {
       render: (_: any, __: any, index: number) => index + 1,
     },
     {
+      title: 'Вид затрат',
+      key: 'detail_cost_category',
+      width: 150,
+      render: () => document?.detail_cost_category_name || '-',
+    },
+    {
       title: 'Тип',
       dataIndex: 'pie_type_id',
       key: 'pie_type_id',
@@ -761,12 +802,13 @@ export default function FinishingPieType() {
             Назад
           </Button>
           <Title level={2} style={{ margin: 0, fontSize: Math.round(24 * scale) }}>
-            Типы пирога отделки
+            Типы пирога отделки: Категория затрат "{document?.cost_category_name || '...'}"; Шифр "
+            {document?.documentation_code || '...'} {document?.documentation_name || ''}"
           </Title>
         </Space>
       </div>
 
-      {/* Название документа, корпус и кнопка сохранения - всё в одной строке */}
+      {/* Название документа, вид затрат и кнопка сохранения - всё в одной строке */}
       <div style={{ padding: '0 24px 16px 24px', flexShrink: 0 }}>
         <Space>
           <span>Название:</span>
@@ -776,18 +818,18 @@ export default function FinishingPieType() {
             placeholder="Тип-1, Тип-2, ..."
             style={{ width: 300 }}
           />
-          <span>Корпус:</span>
+          <span>Вид затрат:</span>
           <Select
-            value={selectedBlockId}
-            onChange={setSelectedBlockId}
-            options={blocks.map((b) => ({ value: b.id, label: b.name }))}
-            placeholder="Выберите корпус"
+            value={selectedDetailCostCategoryId}
+            onChange={setSelectedDetailCostCategoryId}
+            options={detailCostCategories.map((d) => ({ value: d.id, label: d.name }))}
+            placeholder="Выберите вид затрат"
             allowClear
             showSearch
             filterOption={(input, option) =>
               (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
             }
-            style={{ width: 200 }}
+            style={{ width: 250 }}
           />
           <Button type="primary" icon={<SaveOutlined />} onClick={handleSaveDocument}>
             Сохранить документ

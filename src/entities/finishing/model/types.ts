@@ -7,10 +7,16 @@ export interface FinishingPie {
   status_finishing_pie: string | null
   status_type_calculation: string | null
   cost_category_id: number | null // integer FK на cost_categories
+  detail_cost_category_id: number | null // integer FK на detail_cost_categories (вид затрат)
   documentation_tag_id: number | null // integer FK на documentation_tags
   version_id: string | null // uuid FK на documentation_versions
   created_at: string
   updated_at: string
+  // Дополнительные поля для отображения (загружаются через join)
+  cost_category_name?: string
+  detail_cost_category_name?: string
+  documentation_code?: string
+  documentation_name?: string
 }
 
 // Справочник типов пирогов отделки
@@ -54,6 +60,7 @@ export interface CreateFinishingPieDto {
 export interface UpdateFinishingPieDto {
   name?: string
   block_id?: string | null
+  detail_cost_category_id?: number | null
   status_finishing_pie?: string | null
   status_type_calculation?: string | null
 }

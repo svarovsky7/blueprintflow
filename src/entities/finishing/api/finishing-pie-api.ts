@@ -35,12 +35,32 @@ export async function getFinishingPies(
 export async function getFinishingPieById(id: string): Promise<FinishingPie | null> {
   const { data, error } = await supabase
     .from('finishing_pie')
-    .select('*')
+    .select(
+      `
+      *,
+      cost_categories(name),
+      detail_cost_categories(name),
+      documentation_versions(
+        documentations(code, name)
+      )
+    `
+    )
     .eq('id', id)
     .limit(1)
 
   if (error) throw error
-  return data && data.length > 0 ? data[0] : null
+
+  if (!data || data.length === 0) return null
+
+  // Маппинг результата с джоинами на плоский объект
+  const raw = data[0] as any
+  return {
+    ...raw,
+    cost_category_name: raw.cost_categories?.name,
+    detail_cost_category_name: raw.detail_cost_categories?.name,
+    documentation_code: raw.documentation_versions?.documentations?.code,
+    documentation_name: raw.documentation_versions?.documentations?.name,
+  }
 }
 
 export async function createFinishingPie(dto: CreateFinishingPieDto): Promise<FinishingPie> {
