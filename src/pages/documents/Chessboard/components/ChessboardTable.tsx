@@ -333,12 +333,11 @@ const WorkNameSelect: React.FC<WorkNameSelectProps> = ({ value, workSetId, onCha
 interface VersionSelectProps {
   value: string
   documentId: string | undefined
-  isEditing?: boolean // LOG: добавляем флаг режима редактирования
+  isEditing?: boolean
   onChange: (versionId: string, versionNumber: string, documentationCodeId?: string) => void
 }
 
 const VersionSelect: React.FC<VersionSelectProps> = ({ value, documentId, isEditing = false, onChange }) => {
-  console.log('🔍 VersionSelect render:', { value, documentId, isEditing, isValueUUID: value?.length === 36 }) // LOG: рендер компонента версий
 
   // ИСПРАВЛЕНИЕ: кэшируем отображаемое значение для предотвращения мерцания UUID
   const [displayValue, setDisplayValue] = useState<string | undefined>(undefined)
@@ -360,12 +359,8 @@ const VersionSelect: React.FC<VersionSelectProps> = ({ value, documentId, isEdit
     queryKey: stableQueryKey,
     queryFn: () => {
       if (documentId) {
-        // LOG: загрузка версий по documentId
-        console.log('🔍 Loading versions by documentId:', documentId)
         return documentationApi.getVersionsByDocumentId(documentId)
       } else if (value) {
-        // LOG: загрузка версий по versionId
-        console.log('🔍 Loading versions by versionId:', value)
         return documentationApi.getVersionsByVersionId(value)
       }
       return []
@@ -378,32 +373,22 @@ const VersionSelect: React.FC<VersionSelectProps> = ({ value, documentId, isEdit
     if (value && versionOptions.length > 0) {
       const currentVersion = versionOptions.find(v => v.value === value)
       if (currentVersion && (!isInitialized || displayValue !== value)) {
-        console.log('🔄 Setting displayValue with correct label:', { // LOG
-          versionId: value,
-          versionNumber: currentVersion.label,
-          previousDisplayValue: displayValue,
-          isInitialized
-        })
         // Устанавливаем displayValue только когда у нас есть правильная опция с label
         setDisplayValue(value)
         setIsInitialized(true)
       }
     } else if (!value) {
       // Если value пустое, сбрасываем displayValue
-      console.log('🧹 Clearing displayValue (no value)') // LOG
       setDisplayValue(undefined)
       setIsInitialized(false)
     }
   }, [value, versionOptions, isInitialized, displayValue])
 
-  console.log('📋 VersionSelect options loaded:', { versionOptions, displayValue, documentId }) // LOG: загруженные опции версий
 
   // Проверяем, есть ли активная версия (value - это UUID версии)
   const hasActiveVersion = value && versionOptions.length > 0
-  // LOG: Компонент активен в режиме редактирования или если есть активная версия
   const isDisabled = !isEditing && !documentId && !hasActiveVersion
 
-  console.log('🎛️ VersionSelect state:', { isEditing, hasActiveVersion, isDisabled, optionsCount: versionOptions.length }) // LOG: состояние компонента
 
   return (
     <Select
@@ -412,20 +397,17 @@ const VersionSelect: React.FC<VersionSelectProps> = ({ value, documentId, isEdit
       optionLabelProp="label"
       placeholder=""
       onChange={async (versionId) => {
-        console.log('🔄 Version changing:', { versionId, value }) // LOG
 
         // Немедленно обновляем displayValue чтобы избежать мерцания
         setDisplayValue(versionId)
 
         const selectedVersion = versionOptions.find(v => v.value === versionId)
         if (selectedVersion) {
-          console.log('✅ Version selected:', { versionId, versionNumber: selectedVersion.label }) // LOG: выбор версии
 
           // Получаем documentationCodeId если нет documentId
           let documentationCodeId = documentId
           if (!documentId && versionId) {
             try {
-              console.log('🔍 Getting documentationCodeId for versionId:', versionId) // LOG
               const { data: versionData, error } = await supabase
                 .from('documentation_versions')
                 .select('documentation_id')
@@ -433,13 +415,10 @@ const VersionSelect: React.FC<VersionSelectProps> = ({ value, documentId, isEdit
                 .single()
 
               if (error) {
-                console.error('❌ Error getting documentationCodeId:', error) // LOG
               } else {
                 documentationCodeId = versionData.documentation_id
-                console.log('✅ Got documentationCodeId:', documentationCodeId) // LOG
               }
             } catch (error) {
-              console.error('❌ Error in version change:', error) // LOG
             }
           }
 
@@ -447,7 +426,6 @@ const VersionSelect: React.FC<VersionSelectProps> = ({ value, documentId, isEdit
         }
       }}
       onClear={() => {
-        console.log('🧹 Version field cleared') // LOG
         setDisplayValue(undefined)
         onChange('', '', documentId)
       }}
@@ -1376,23 +1354,16 @@ export const ChessboardTable = memo(({
     // Находим запись, чтобы получить текущие количества
     const record = data.find(r => r.id === recordId)
     if (!record) {
-      console.error('🏢 ERROR: Record not found for floors change:', recordId)
+      console.error('ERROR: Record not found for floors change:', recordId)
       return
     }
 
-    console.log('🏢 Floor change START:', {
-      recordId,
-      newFloorsValue,
-      currentFloors: record.floors,
-      currentFloorQuantities: record.floorQuantities
-    })
 
     // Получаем текущие значения из DOM элементов (для режима добавления/редактирования)
     const getInputValue = (className: string): number => {
       // Ищем input внутри строки с recordId
       const rowElement = document.querySelector(`[data-row-key="${recordId}"]`)
       if (!rowElement) {
-        console.log(`🏢 DOM: Row element not found for ${recordId}`) // LOG: строка не найдена
         return 0
       }
 
@@ -1400,7 +1371,6 @@ export const ChessboardTable = memo(({
       const antInputElement = rowElement.querySelector(`.${className}`)
       const inputElement = antInputElement?.querySelector('input') as HTMLInputElement
       const value = inputElement?.value || '0'
-      console.log(`🏢 DOM value for .${className}:`, value, 'element:', inputElement) // LOG: значение из DOM
       return parseFloat(value) || 0
     }
 
@@ -1420,16 +1390,6 @@ export const ChessboardTable = memo(({
       currentQuantityRd = parseFloat(record.quantityRd || '0')
     }
 
-    console.log('🏢 Final quantities after DOM check:', {
-      currentQuantityPd,
-      currentQuantitySpec,
-      currentQuantityRd,
-      fromRecord: {
-        quantityPd: record.quantityPd,
-        quantitySpec: record.quantitySpec,
-        quantityRd: record.quantityRd
-      }
-    }) // LOG: финальные количества после проверки DOM
 
     // Если количества есть, распределяем их по новым этажам
     const newFloorQuantities = distributeQuantitiesAcrossFloors(
@@ -1454,7 +1414,6 @@ export const ChessboardTable = memo(({
 
   // Обработчик изменения количеств с автоматическим перераспределением по этажам
   const handleQuantityChange = useCallback((recordId: string, field: 'quantityPd' | 'quantitySpec' | 'quantityRd', newValue: number) => {
-    console.log('🏢💰 handleQuantityChange called:', { recordId, field, newValue }) // LOG: вызов обработчика количеств
 
     // Сначала обновляем значение в записи
     onRowUpdate(recordId, { [field]: newValue })
@@ -1462,13 +1421,11 @@ export const ChessboardTable = memo(({
     // Находим запись, чтобы получить этажи
     const record = data.find(r => r.id === recordId)
     if (!record) {
-      console.error('🏢💰 ERROR: Record not found for quantity change:', recordId) // LOG: запись не найдена
       return
     }
 
     // Если есть этажи, запускаем перераспределение
     if (record.floors && record.floors.trim()) {
-      console.log('🏢💰 Floors detected, triggering redistribution:', record.floors) // LOG: обнаружены этажи, запуск перераспределения
 
       // Небольшая задержка, чтобы DOM успел обновиться
       setTimeout(() => {
@@ -1497,11 +1454,6 @@ export const ChessboardTable = memo(({
   // Логирование для мониторинга производительности больших таблиц
   React.useEffect(() => {
     if (process.env.NODE_ENV === 'development' && isLargeDataset) {
-      console.log('🔍 Large dataset detected in ChessboardTable:', {
-        dataLength: data.length,
-        threshold: LARGE_TABLE_CONFIG.virtualThreshold,
-        usingOptimizedConfig: true
-      })
     }
   }, [isLargeDataset, data.length])
 
@@ -1571,12 +1523,10 @@ export const ChessboardTable = memo(({
                     size="small"
                     icon={<PlusOutlined />}
                     onClick={() => {
-                      console.log('🔍 Добавить строку - поиск индекса:', { recordId: record.id, isNew: record.id.startsWith('new-') || record.id.startsWith('copy-') }) // LOG: отладка добавления строки
 
                       // Если это новая строка, ищем её позицию в отображаемых данных и преобразуем в оригинальный индекс
                       if (record.id.startsWith('new-') || record.id.startsWith('copy-')) {
                         const displayIndex = data.findIndex(row => row.id === record.id)
-                        console.log('📍 Новая строка найдена на позиции:', displayIndex) // LOG: позиция новой строки
 
                         // Для новых строк находим предыдущую оригинальную строку
                         let originalIndex = -1
@@ -1584,7 +1534,6 @@ export const ChessboardTable = memo(({
                           const prevRow = data[i]
                           if (!prevRow.id.startsWith('new-') && !prevRow.id.startsWith('copy-')) {
                             originalIndex = originalData.findIndex(row => row.id === prevRow.id)
-                            console.log('📍 Найдена предыдущая оригинальная строка на индексе:', originalIndex) // LOG: предыдущая оригинальная строка
                             break
                           }
                         }
@@ -1593,17 +1542,14 @@ export const ChessboardTable = memo(({
                           onAddRowAfter?.(originalIndex)
                         } else {
                           // Если предыдущей оригинальной строки нет, вставляем в начало (после первой строки или как первая)
-                          console.log('📍 Предыдущей оригинальной строки нет, вставляем в начало') // LOG: вставка в начало
                           onAddRowAfter?.(-1) // Специальное значение для вставки в начало
                         }
                       } else {
                         // Для оригинальных строк ищем в originalData
                         const rowIndex = originalData.findIndex(row => row.id === record.id)
-                        console.log('📍 Оригинальная строка найдена на индексе:', rowIndex) // LOG: найденный индекс оригинальной строки
                         if (rowIndex !== -1) {
                           onAddRowAfter?.(rowIndex)
                         } else {
-                          console.warn('⚠️ Оригинальная строка не найдена!') // LOG: строка не найдена
                         }
                       }
                     }}
@@ -1617,12 +1563,10 @@ export const ChessboardTable = memo(({
                     size="small"
                     icon={<CopyOutlined />}
                     onClick={() => {
-                      console.log('🔍 Копировать строку - поиск индекса:', { recordId: record.id, isNew: record.id.startsWith('new-') || record.id.startsWith('copy-') }) // LOG: отладка копирования строки
 
                       // Если это новая строка, ищем её позицию в отображаемых данных и преобразуем в оригинальный индекс
                       if (record.id.startsWith('new-') || record.id.startsWith('copy-')) {
                         const displayIndex = data.findIndex(row => row.id === record.id)
-                        console.log('📍 Новая строка для копирования найдена на позиции:', displayIndex) // LOG: позиция новой строки
 
                         // Для новых строк находим предыдущую оригинальную строку
                         let originalIndex = -1
@@ -1630,7 +1574,6 @@ export const ChessboardTable = memo(({
                           const prevRow = data[i]
                           if (!prevRow.id.startsWith('new-') && !prevRow.id.startsWith('copy-')) {
                             originalIndex = originalData.findIndex(row => row.id === prevRow.id)
-                            console.log('📍 Найдена предыдущая оригинальная строка для копирования на индексе:', originalIndex) // LOG: предыдущая оригинальная строка
                             break
                           }
                         }
@@ -1639,17 +1582,14 @@ export const ChessboardTable = memo(({
                           onCopyRowAfter?.(record, originalIndex)
                         } else {
                           // Если предыдущей оригинальной строки нет, вставляем в начало
-                          console.log('📍 Предыдущей оригинальной строки нет, копируем в начало') // LOG: копирование в начало
                           onCopyRowAfter?.(record, -1) // Специальное значение для вставки в начало
                         }
                       } else {
                         // Для оригинальных строк ищем в originalData
                         const rowIndex = originalData.findIndex(row => row.id === record.id)
-                        console.log('📍 Оригинальная строка для копирования найдена на индексе:', rowIndex) // LOG: найденный индекс оригинальной строки для копирования
                         if (rowIndex !== -1) {
                           onCopyRowAfter?.(record, rowIndex)
                         } else {
-                          console.warn('⚠️ Оригинальная строка для копирования не найдена!') // LOG: оригинальная строка для копирования не найдена
                         }
                       }
                     }}
@@ -1862,9 +1802,8 @@ export const ChessboardTable = memo(({
             <VersionSelect
               value={currentVersionId || ''}
               documentId={currentDocumentId}
-              isEditing={true} // LOG: передаем флаг режима редактирования
+              isEditing={true}
               onChange={(versionId, versionNumber, documentCodeId) => {
-                console.log('📝 Version onChange called:', { versionId, versionNumber, documentCodeId }) // LOG: изменение версии
 
                 onRowUpdate(record.id, {
                   documentationVersionId: versionId,
@@ -2373,7 +2312,7 @@ export const ChessboardTable = memo(({
         if (isEditing) {
           return (
             <Select
-              value={value || 'База'}
+              value={value}
               onChange={(newValue) => onRowUpdate(record.id, { materialType: newValue })}
               options={MATERIAL_TYPE_OPTIONS}
               size="small"
@@ -2383,7 +2322,7 @@ export const ChessboardTable = memo(({
             />
           )
         }
-        return <span>{value || 'База'}</span>
+        return <span>{value}</span>
       },
     },
 
@@ -2786,7 +2725,7 @@ export const ChessboardTable = memo(({
                       }
                     })
                     .catch(error => {
-                      console.error('🔗 Cascade: Ошибка сохранения связи:', error)
+                      console.error('Cascade: Ошибка сохранения связи:', error)
                     })
                 }
               }}

@@ -38,11 +38,7 @@ export async function getFinishingPieById(id: string): Promise<FinishingPie | nu
     .select(
       `
       *,
-      cost_categories(name),
-      detail_cost_categories(name),
-      documentation_versions(
-        documentations(code, name)
-      )
+      cost_categories(name)
     `
     )
     .eq('id', id)
@@ -52,14 +48,52 @@ export async function getFinishingPieById(id: string): Promise<FinishingPie | nu
 
   if (!data || data.length === 0) return null
 
-  // Маппинг результата с джоинами на плоский объект
   const raw = data[0] as any
+
+  // Загружаем информацию о версии и документе отдельно
+  let documentationCode = null
+  let documentationName = null
+  let versionNumber = null
+
+  if (raw.version_id) {
+    const { data: versionData, error: versionError } = await supabase
+      .from('documentation_versions')
+      .select('version_number, documentation_id')
+      .eq('id', raw.version_id)
+      .maybeSingle()
+
+    if (versionError) {
+      console.error('Ошибка загрузки версии:', versionError)
+    }
+
+    if (versionData) {
+      versionNumber = versionData.version_number
+
+      if (versionData.documentation_id) {
+        const { data: docData, error: docError } = await supabase
+          .from('documentations')
+          .select('code, project_name')
+          .eq('id', versionData.documentation_id)
+          .maybeSingle()
+
+        if (docError) {
+          console.error('Ошибка загрузки документа:', docError)
+        }
+
+        if (docData) {
+          documentationCode = docData.code
+          documentationName = docData.project_name
+        }
+      }
+    }
+  }
+
   return {
     ...raw,
     cost_category_name: raw.cost_categories?.name,
-    detail_cost_category_name: raw.detail_cost_categories?.name,
-    documentation_code: raw.documentation_versions?.documentations?.code,
-    documentation_name: raw.documentation_versions?.documentations?.name,
+    documentation_code: documentationCode,
+    documentation_name: documentationName,
+    version_number: versionNumber,
   }
 }
 
@@ -164,12 +198,13 @@ export async function getFinishingPieRows(finishingPieId: string): Promise<Finis
       pie_types:pie_type_id (name),
       materials:material_id (name),
       units:unit_id (name),
+      work_sets:work_set_id (work_name),
       rates:rate_id (work_name),
       rate_units:rate_unit_id (name)
     `
     )
     .eq('finishing_pie_id', finishingPieId)
-    .order('created_at')
+    .order('created_at', { ascending: false })
 
   if (error) throw error
 
@@ -185,10 +220,13 @@ export async function getFinishingPieRows(finishingPieId: string): Promise<Finis
       unit_id: row.unit_id,
       unit_name: row.units?.name || null,
       consumption: row.consumption,
+      work_set_id: row.work_set_id,
+      work_set_name: row.work_sets?.work_name || null,
       rate_id: row.rate_id,
       rate_name: row.rates?.work_name || null,
       rate_unit_id: row.rate_unit_id,
       rate_unit_name: row.rate_units?.name || null,
+      detail_cost_category_name: row.detail_cost_category_name || null,
       created_at: row.created_at,
       updated_at: row.updated_at,
     })) || []

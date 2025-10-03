@@ -119,7 +119,6 @@ export default function Chessboard() {
 
       // Если статус был установлен вручную (из комплекта), не переопределяем его
       if (statusSetManuallyRef.current) {
-        console.log('🔍 Пропускаем автоопределение - статус установлен вручную') // LOG: пропуск автоопределения
         return
       }
 
@@ -134,23 +133,19 @@ export default function Chessboard() {
           cost_type_ids: appliedFilters.detail_cost_category_ids.length > 0 ? appliedFilters.detail_cost_category_ids.map(Number) : undefined,
         }
 
-        console.log('🔍 Поиск комплекта по фильтрам:', searchFilters) // LOG: поиск комплекта
 
         const matchedSet = await chessboardSetsApi.findSetByFilters(searchFilters)
 
         if (matchedSet && matchedSet.status) {
-          console.log('✅ Найден комплект с статусом:', matchedSet.status) // LOG: найден комплект
           setCurrentStatus(matchedSet.status.id)
           setCurrentSetName(matchedSet.name)
           statusSetManuallyRef.current = false // Это автоматическое определение
         } else {
-          console.log('❌ Комплект не найден или без статуса') // LOG: комплект не найден
           setCurrentStatus(undefined)
           setCurrentSetName(undefined)
           statusSetManuallyRef.current = false
         }
       } catch (error) {
-        console.error('Ошибка поиска комплекта:', error) // LOG: ошибка поиска
         setCurrentStatus(undefined)
         setCurrentSetName(undefined)
         statusSetManuallyRef.current = false
@@ -181,35 +176,24 @@ export default function Chessboard() {
   }, [appliedFilters.project_id, addNewRow])
 
   const handleAddRowAfter = useCallback((rowIndex: number) => {
-    console.log('🎯 handleAddRowAfter вызван:', { rowIndex, projectId: appliedFilters.project_id }) // LOG: вызов handleAddRowAfter
     if (appliedFilters.project_id) {
       addNewRow(appliedFilters.project_id, 'after', rowIndex)
     } else {
-      console.warn('⚠️ Нет project_id для добавления строки') // LOG: нет project_id
     }
   }, [appliedFilters.project_id, addNewRow])
 
   const handleCopyRowAfter = useCallback((rowData: any, rowIndex: number) => {
-    console.log('🎯 handleCopyRowAfter вызван:', { rowIndex, rowDataId: rowData?.id }) // LOG: вызов handleCopyRowAfter
     copyRow(rowData, 'after', rowIndex)
   }, [copyRow])
 
   const handleRowUpdate = useCallback(
     (rowId: string, updates: any) => {
-      console.log('📝 handleRowUpdate called:', {
-        rowId,
-        updates,
-        currentMode: tableMode.mode
-      }) // LOG: главный обработчик обновления строк
 
       if (tableMode.mode === 'add') {
-        console.log('📝 Routing to updateNewRow') // LOG: маршрутизация к новым строкам
         updateNewRow(rowId, updates)
       } else if (tableMode.mode === 'edit') {
-        console.log('📝 Routing to updateEditedRow') // LOG: маршрутизация к редактируемым строкам
         updateEditedRow(rowId, updates)
       } else {
-        console.warn('📝 Unknown table mode, ignoring update:', tableMode.mode) // LOG: неизвестный режим
       }
     },
     [tableMode.mode, updateNewRow, updateEditedRow],
@@ -217,25 +201,16 @@ export default function Chessboard() {
 
   const handleStartEditing = useCallback(
     (rowId: string, rowData?: RowData) => {
-      console.log(
-        '🔍 DEBUG: handleStartEditing вызван для строки:',
-        rowId,
-        'текущий режим:',
-        tableMode.mode,
-      ) // LOG: отладочная информация
 
       if (tableMode.mode === 'view') {
-        console.log('🔍 DEBUG: Переводим в режим edit и начинаем редактирование') // LOG: отладочная информация
         setMode('edit')
         startEditing(rowId)
       } else if (tableMode.mode === 'edit') {
         // Если уже в режиме редактирования, используем backup подход для множественного редактирования
-        console.log('🔍 DEBUG: Уже в режиме edit, начинаем backup редактирование') // LOG: отладочная информация
         if (rowData) {
           startEditBackup(rowId, rowData)
         }
       } else {
-        console.log('🔍 DEBUG: Режим не позволяет редактирование:', tableMode.mode) // LOG: отладочная информация
       }
     },
     [tableMode.mode, setMode, startEditing, startEditBackup],
@@ -243,7 +218,6 @@ export default function Chessboard() {
 
   const handleBackupRowUpdate = useCallback(
     (rowId: string, updates: any) => {
-      console.log('🔍 DEBUG: handleBackupRowUpdate для строки:', rowId, updates) // LOG: отладочная информация
       updateEditingRow(rowId, updates)
     },
     [updateEditingRow],
@@ -282,7 +256,6 @@ export default function Chessboard() {
       if (documentationInfo.length > 0 && documentVersions.length > 0) {
         openVersionsModal(documentationInfo, documentVersions)
       } else {
-        console.log('📋 Данные еще не загружены. Документы:', documentationInfo.length, 'Версии:', documentVersions.length) // LOG: информация о загрузке данных
       }
     }
   }, [filters.documentationCode, documentationInfo, documentVersions, openVersionsModal])
@@ -290,7 +263,6 @@ export default function Chessboard() {
   const handleApplyVersions = useCallback(() => {
     const requiredDocIds = documentationInfo.map(doc => doc.id)
     applyVersions(requiredDocIds, (versions) => {
-      console.log('🔍 Применены версии документов:', versions) // LOG: применение версий
       // Обновляем версии в appliedFilters
       updateDocumentVersions(versions)
     })
@@ -313,7 +285,6 @@ export default function Chessboard() {
       // Загружаем данные комплекта
       const set = await chessboardSetsApi.getSetById(setId)
       if (!set) {
-        console.error('Комплект не найден:', setId) // LOG: ошибка загрузки
         return
       }
 
@@ -402,7 +373,6 @@ export default function Chessboard() {
       setAppliedFilters(directAppliedFilters)
 
     } catch (error) {
-      console.error('Ошибка при применении комплекта:', error) // LOG: ошибка
       setSetsModalOpen(false)
     }
   }, [updateFilter, updateDocumentVersions, appliedFilters.documentation_version_ids, setAppliedFilters])
@@ -456,18 +426,14 @@ export default function Chessboard() {
         const matchedSet = await chessboardSetsApi.findSetByFilters(searchFilters)
 
         if (matchedSet) {
-          console.log('🔍 Обновляем статус комплекта:', matchedSet.id, statusId) // LOG: обновление статуса комплекта
           await chessboardSetsApi.addStatusToSet({
             chessboard_set_id: matchedSet.id,
             status_id: statusId,
             comment: 'Статус обновлен через шахматку',
           })
-          console.log('✅ Статус комплекта обновлен') // LOG: статус обновлен
         } else {
-          console.log('❌ Комплект для обновления статуса не найден') // LOG: комплект не найден
         }
       } catch (error) {
-        console.error('Ошибка обновления статуса комплекта:', error) // LOG: ошибка обновления
       }
     }
   }, [
@@ -482,7 +448,6 @@ export default function Chessboard() {
 
   // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Мемоизируем вызовы функций с правильными зависимостями
   const allDisplayData = useMemo(() => {
-    console.log('🔄 allDisplayData пересчитывается:', { dataLength: data.length, mode: tableMode.mode }) // LOG: пересчет allDisplayData
     return getDisplayData(data)
   }, [data, getDisplayData, tableMode.mode])
   const visibleColumns = useMemo(() => getVisibleColumns(), [columnSettings.columnOrder, columnSettings.hiddenColumns])

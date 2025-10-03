@@ -45,11 +45,42 @@ const { Title } = Typography
 
 type Mode = 'view' | 'add' | 'edit' | 'delete'
 
+// Функция для расчета динамической ширины dropdown
+const calculateDropdownWidth = (options: Array<{ label: string; value: any }>) => {
+  if (!options || options.length === 0) return 150
+  const maxLength = Math.max(...options.map((opt) => (opt.label?.toString() || '').length))
+  const estimatedWidth = Math.min(Math.max(maxLength * 8, 150), 500)
+  return estimatedWidth
+}
+
+// Стабильные стили для dropdown
+const STABLE_STYLES = {
+  dropdownStyle: {
+    minWidth: '150px',
+    maxWidth: '500px',
+  },
+}
+
+// Функция для получения стиля dropdown с динамической шириной
+const getDynamicDropdownStyle = (options: Array<{ label: string; value: any }>) => ({
+  ...STABLE_STYLES.dropdownStyle,
+  minWidth: calculateDropdownWidth(options),
+  width: calculateDropdownWidth(options),
+  maxWidth: '500px',
+  zIndex: 9999,
+})
+
 interface EditableRow extends Partial<FinishingPieRow> {
   isNew?: boolean
   isEditing?: boolean
   newTypeName?: string // Временное название нового типа
   newMaterialName?: string // Временное название нового материала
+  detail_cost_category_name?: string | null // Название вида затрат
+  work_set_id?: string | null // Рабочий набор для строки
+}
+
+interface DetailCostCategory {
+  name: string
 }
 
 export default function FinishingPieType() {
@@ -68,9 +99,6 @@ export default function FinishingPieType() {
   const [editingRows, setEditingRows] = useState<EditableRow[]>([])
   const [docName, setDocName] = useState('')
   const [selectedBlockId, setSelectedBlockId] = useState<string | undefined>(blockId || undefined)
-  const [selectedDetailCostCategoryId, setSelectedDetailCostCategoryId] = useState<
-    number | undefined
-  >(undefined)
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
 
   // Загрузка документа
@@ -119,14 +147,27 @@ export default function FinishingPieType() {
     },
   })
 
-  // Загрузка расценок
+  // Загрузка расценок с рабочими наборами
   const { data: rates = [] } = useQuery({
     queryKey: ['rates-for-finishing'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('rates')
-        .select('id, work_name, unit_id')
+        .select('id, work_name, work_set, unit_id')
         .order('work_name')
+
+      if (error) throw error
+      return data || []
+    },
+  })
+
+  // Загрузка связей расценок с видами затрат
+  const { data: ratesDetailCostMapping = [] } = useQuery({
+    queryKey: ['rates-detail-cost-mapping'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('rates_detail_cost_categories_mapping')
+        .select('rate_id, detail_cost_category_id, detail_cost_categories:detail_cost_category_id(name)')
 
       if (error) throw error
       return data || []
@@ -156,19 +197,22 @@ export default function FinishingPieType() {
   })
 
   // Загрузка видов затрат для выбранной категории затрат
-  const { data: detailCostCategories = [] } = useQuery({
+  const { data: detailCostCategories = [] } = useQuery<DetailCostCategory[]>({
     queryKey: ['detail-cost-categories-for-finishing', document?.cost_category_id],
     queryFn: async () => {
       if (!document?.cost_category_id) return []
 
       const { data, error } = await supabase
         .from('detail_cost_categories')
-        .select('id, name')
+        .select('name')
         .eq('cost_category_id', document.cost_category_id)
         .order('name')
 
       if (error) throw error
-      return data || []
+
+      // Получить уникальные названия видов затрат
+      const uniqueNames = Array.from(new Set(data?.map((d) => d.name) || []))
+      return uniqueNames.map((name) => ({ name }))
     },
     enabled: !!document?.cost_category_id,
   })
@@ -177,7 +221,6 @@ export default function FinishingPieType() {
     if (document) {
       setDocName(document.name)
       setSelectedBlockId(document.block_id || undefined)
-      setSelectedDetailCostCategoryId(document.detail_cost_category_id || undefined)
     }
   }, [document])
 
@@ -273,10 +316,6 @@ export default function FinishingPieType() {
           updateData.block_id = selectedBlockId || null
         }
 
-        if (selectedDetailCostCategoryId !== document?.detail_cost_category_id) {
-          updateData.detail_cost_category_id = selectedDetailCostCategoryId || null
-        }
-
         // Выполняем обновление если есть изменения
         if (Object.keys(updateData).length > 1) {
           const { error: updateError } = await supabase
@@ -320,8 +359,10 @@ export default function FinishingPieType() {
             material_id: row.material_id || null,
             unit_id: row.unit_id || null,
             consumption: row.consumption || null,
+            work_set_id: row.work_set_id || null,
             rate_id: row.rate_id || null,
             rate_unit_id: row.rate_unit_id || null,
+            detail_cost_category_name: row.detail_cost_category_name || null,
           })
         } else if (row.isEditing) {
           // Обновить существующую строку
@@ -330,8 +371,10 @@ export default function FinishingPieType() {
             material_id: row.material_id || null,
             unit_id: row.unit_id || null,
             consumption: row.consumption || null,
+            work_set_id: row.work_set_id || null,
             rate_id: row.rate_id || null,
             rate_unit_id: row.rate_unit_id || null,
+            detail_cost_category_name: row.detail_cost_category_name || null,
           })
         }
       }
@@ -365,8 +408,10 @@ export default function FinishingPieType() {
         material_id: null,
         unit_id: null,
         consumption: 1,
+        work_set_id: null,
         rate_id: null,
         rate_unit_id: null,
+        detail_cost_category_name: null,
       },
     ])
   }
@@ -385,10 +430,12 @@ export default function FinishingPieType() {
         unit_id: record.unit_id,
         unit_name: record.unit_name,
         consumption: record.consumption,
+        work_set_id: record.work_set_id,
         rate_id: record.rate_id,
         rate_name: record.rate_name,
         rate_unit_id: record.rate_unit_id,
         rate_unit_name: record.rate_unit_name,
+        detail_cost_category_name: record.detail_cost_category_name,
       },
     ])
   }
@@ -436,6 +483,43 @@ export default function FinishingPieType() {
     setEditingRows((prev) =>
       prev.map((row) => (row.id === id ? { ...row, [field]: value } : row))
     )
+  }
+
+  // Проверка, редактируется ли строка
+  const isRowEditing = (record: FinishingPieRow) => {
+    return editingRows.some((row) => row.id === record.id && (row.isEditing || row.isNew))
+  }
+
+  // Получить уникальные рабочие наборы для выбранного вида затрат
+  const getWorkSetsForDetailCostCategoryName = (detailCostCategoryName: string | null) => {
+    if (!detailCostCategoryName) return []
+
+    // Получаем ID расценок, связанных с видом затрат по названию
+    const rateIdsForCategory = ratesDetailCostMapping
+      .filter((m: any) => m.detail_cost_categories?.name === detailCostCategoryName)
+      .map((m: any) => m.rate_id)
+
+    // Получаем расценки с этими ID и извлекаем уникальные work_set
+    const workSetsForCategory = rates
+      .filter((r) => rateIdsForCategory.includes(r.id) && r.work_set)
+      .map((r) => ({ id: r.id, name: r.work_set }))
+
+    // Убираем дубликаты по названию
+    const uniqueWorkSets = Array.from(
+      new Map(workSetsForCategory.map((ws) => [ws.name, ws])).values()
+    )
+
+    return uniqueWorkSets
+  }
+
+  // Получить расценки для выбранного рабочего набора
+  const getRatesForWorkSet = (workSetId: string | null) => {
+    if (!workSetId) return rates
+
+    const workSetName = rates.find((r) => r.id === workSetId)?.work_set
+    if (!workSetName) return rates
+
+    return rates.filter((r) => r.work_set === workSetName)
   }
 
   const handleTypeChange = async (rowId: string, value: string | null) => {
@@ -498,10 +582,18 @@ export default function FinishingPieType() {
   }
 
   const dataSource = useMemo(() => {
-    if (mode === 'add' || mode === 'edit') {
-      return [...rows, ...editingRows]
-    }
-    return rows
+    // Разделяем редактируемые строки на новые и существующие
+    const newRows = editingRows.filter((r) => r.isNew)
+    const editingExistingRows = editingRows.filter((r) => r.isEditing)
+
+    // Создаём Map для быстрого поиска редактируемых строк
+    const editingMap = new Map(editingExistingRows.map((r) => [r.id, r]))
+
+    // Объединяем существующие строки с редактируемыми версиями
+    const mergedRows = rows.map((row) => editingMap.get(row.id) || row)
+
+    // Новые строки добавляем в начало
+    return [...newRows, ...mergedRows]
   }, [mode, editingRows, rows])
 
   const columns = [
@@ -512,37 +604,8 @@ export default function FinishingPieType() {
       align: 'center' as const,
       fixed: 'left' as const,
       render: (_: any, record: FinishingPieRow) => {
-        if (mode === 'view') {
-          return (
-            <Space size="small">
-              <Button
-                type="text"
-                icon={<EditOutlined />}
-                size="small"
-                title="Редактировать строку"
-                onClick={() => {
-                  setMode('edit')
-                  setEditingRows([{ ...record, isEditing: true }])
-                }}
-              />
-              <Popconfirm
-                title="Удалить эту строку?"
-                onConfirm={() => handleDeleteSingleRow(record.id)}
-                okText="Да"
-                cancelText="Нет"
-              >
-                <Button
-                  type="text"
-                  danger
-                  icon={<DeleteOutlined />}
-                  size="small"
-                  title="Удалить строку"
-                />
-              </Popconfirm>
-            </Space>
-          )
-        }
-        if (mode === 'add' || mode === 'edit') {
+        // Если строка редактируется - показываем кнопки режима редактирования
+        if (isRowEditing(record)) {
           return (
             <Space size="small">
               <Button
@@ -576,6 +639,37 @@ export default function FinishingPieType() {
             </Space>
           )
         }
+
+        // В режиме просмотра показываем кнопки редактирования/удаления
+        if (mode === 'view') {
+          return (
+            <Space size="small">
+              <Button
+                type="text"
+                icon={<EditOutlined />}
+                size="small"
+                title="Редактировать строку"
+                onClick={() => {
+                  setEditingRows([{ ...record, isEditing: true }])
+                }}
+              />
+              <Popconfirm
+                title="Удалить эту строку?"
+                onConfirm={() => handleDeleteSingleRow(record.id)}
+                okText="Да"
+                cancelText="Нет"
+              >
+                <Button
+                  type="text"
+                  danger
+                  icon={<DeleteOutlined />}
+                  size="small"
+                  title="Удалить строку"
+                />
+              </Popconfirm>
+            </Space>
+          )
+        }
         return null
       },
     },
@@ -586,30 +680,24 @@ export default function FinishingPieType() {
       render: (_: any, __: any, index: number) => index + 1,
     },
     {
-      title: 'Вид затрат',
-      key: 'detail_cost_category',
-      width: 150,
-      render: () => document?.detail_cost_category_name || '-',
-    },
-    {
       title: 'Тип',
       dataIndex: 'pie_type_id',
       key: 'pie_type_id',
       width: 100,
       render: (value: string | null, record: EditableRow) => {
-        if (mode === 'add' || mode === 'edit') {
+        if (isRowEditing(record as FinishingPieRow)) {
           return (
             <Select
               value={value}
               onChange={(val) => handleTypeChange(record.id!, val)}
-              onSearch={(searchValue) => {
-                // Если пользователь ввёл текст, который не найден в списке
+              onBlur={(e) => {
+                const inputValue = (e.target as HTMLInputElement).value
+                // Если введён текст, которого нет в списке - создаём новый тип
                 if (
-                  searchValue &&
-                  !pieTypes.some((t) => t.name.toLowerCase().includes(searchValue.toLowerCase()))
+                  inputValue &&
+                  !pieTypes.some((t) => t.name.toLowerCase() === inputValue.toLowerCase())
                 ) {
-                  // Создаём новый тип "на лету"
-                  handleTypeChange(record.id!, searchValue)
+                  handleTypeChange(record.id!, inputValue)
                 }
               }}
               options={pieTypes.map((t) => ({ value: t.id, label: t.name }))}
@@ -620,6 +708,7 @@ export default function FinishingPieType() {
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
               style={{ width: '100%' }}
+              dropdownStyle={getDynamicDropdownStyle(pieTypes.map((t) => ({ value: t.id, label: t.name })))}
               dropdownRender={(menu) => (
                 <>
                   {menu}
@@ -647,19 +736,19 @@ export default function FinishingPieType() {
       key: 'material_id',
       width: 250,
       render: (value: string | null, record: EditableRow) => {
-        if (mode === 'add' || mode === 'edit') {
+        if (isRowEditing(record as FinishingPieRow)) {
           return (
             <Select
               value={value}
               onChange={(val) => handleMaterialChange(record.id!, val)}
-              onSearch={(searchValue) => {
-                // Если пользователь ввёл текст, который не найден в списке
+              onBlur={(e) => {
+                const inputValue = (e.target as HTMLInputElement).value
+                // Если введён текст, которого нет в списке - создаём новый материал
                 if (
-                  searchValue &&
-                  !materials.some((m) => m.name.toLowerCase().includes(searchValue.toLowerCase()))
+                  inputValue &&
+                  !materials.some((m) => m.name.toLowerCase() === inputValue.toLowerCase())
                 ) {
-                  // Создаём новый материал "на лету"
-                  handleMaterialChange(record.id!, searchValue)
+                  handleMaterialChange(record.id!, inputValue)
                 }
               }}
               options={materials.map((m) => ({ value: m.uuid, label: m.name }))}
@@ -670,6 +759,7 @@ export default function FinishingPieType() {
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
               style={{ width: '100%' }}
+              dropdownStyle={getDynamicDropdownStyle(materials.map((m) => ({ value: m.uuid, label: m.name })))}
               dropdownRender={(menu) => (
                 <>
                   {menu}
@@ -697,7 +787,7 @@ export default function FinishingPieType() {
       key: 'unit_id',
       width: 80,
       render: (value: string | null, record: EditableRow) => {
-        if (mode === 'add' || mode === 'edit') {
+        if (isRowEditing(record as FinishingPieRow)) {
           return (
             <Select
               value={value}
@@ -710,6 +800,7 @@ export default function FinishingPieType() {
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
               style={{ width: '100%' }}
+              dropdownStyle={getDynamicDropdownStyle(units.map((u) => ({ value: u.id, label: u.name })))}
             />
           )
         }
@@ -722,7 +813,7 @@ export default function FinishingPieType() {
       key: 'consumption',
       width: 80,
       render: (value: number | null, record: EditableRow) => {
-        if (mode === 'add' || mode === 'edit') {
+        if (isRowEditing(record as FinishingPieRow)) {
           return (
             <InputNumber
               value={value}
@@ -740,17 +831,83 @@ export default function FinishingPieType() {
       },
     },
     {
+      title: 'Вид затрат',
+      dataIndex: 'detail_cost_category_name',
+      key: 'detail_cost_category',
+      width: 150,
+      render: (value: string | null, record: EditableRow) => {
+        if (isRowEditing(record as FinishingPieRow)) {
+          const options = detailCostCategories.map((d) => ({
+            value: d.name,
+            label: d.name,
+          }))
+          return (
+            <Select
+              value={value}
+              onChange={(val) =>
+                handleUpdateEditingRow(record.id!, 'detail_cost_category_name', val)
+              }
+              options={options}
+              placeholder="Выберите вид затрат"
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              }
+              style={{ width: '100%' }}
+              dropdownStyle={getDynamicDropdownStyle(options)}
+            />
+          )
+        }
+        return record.detail_cost_category_name || '-'
+      },
+    },
+    {
+      title: 'Рабочий набор',
+      dataIndex: 'work_set_id',
+      key: 'work_set_id',
+      width: 200,
+      render: (value: string | null, record: EditableRow) => {
+        if (isRowEditing(record as FinishingPieRow)) {
+          const workSets = getWorkSetsForDetailCostCategoryName(record.detail_cost_category_name || null)
+          return (
+            <Select
+              value={value}
+              onChange={(val) => {
+                handleUpdateEditingRow(record.id!, 'work_set_id', val)
+                // Очистить выбранную работу при смене рабочего набора
+                handleUpdateEditingRow(record.id!, 'rate_id', null)
+                handleUpdateEditingRow(record.id!, 'rate_unit_id', null)
+              }}
+              options={workSets.map((ws) => ({ value: ws.id, label: ws.name }))}
+              placeholder="Выберите рабочий набор"
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              }
+              style={{ width: '100%' }}
+              dropdownStyle={getDynamicDropdownStyle(workSets.map((ws) => ({ value: ws.id, label: ws.name })))}
+            />
+          )
+        }
+        return record.work_set_name || '-'
+      },
+    },
+    {
       title: 'Наименование работы',
       dataIndex: 'rate_id',
       key: 'rate_id',
       width: 250,
       render: (value: string | null, record: EditableRow) => {
-        if (mode === 'add' || mode === 'edit') {
+        if (isRowEditing(record as FinishingPieRow)) {
+          // Фильтруем расценки по рабочему набору
+          const filteredRates = getRatesForWorkSet(record.work_set_id || null)
           return (
             <Select
               value={value}
               onChange={(val) => handleRateChange(record.id!, val)}
-              options={rates.map((r) => ({ value: r.id, label: r.work_name }))}
+              options={filteredRates.map((r) => ({ value: r.id, label: r.work_name }))}
               placeholder="Выберите работу"
               allowClear
               showSearch
@@ -758,6 +915,7 @@ export default function FinishingPieType() {
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
               style={{ width: '100%' }}
+              dropdownStyle={getDynamicDropdownStyle(filteredRates.map((r) => ({ value: r.id, label: r.work_name })))}
             />
           )
         }
@@ -803,12 +961,13 @@ export default function FinishingPieType() {
           </Button>
           <Title level={2} style={{ margin: 0, fontSize: Math.round(24 * scale) }}>
             Типы пирога отделки: Категория затрат "{document?.cost_category_name || '...'}"; Шифр "
-            {document?.documentation_code || '...'} {document?.documentation_name || ''}"
+            {document?.documentation_code || '...'} {document?.documentation_name || ''} (версия{' '}
+            {document?.version_number || '...'})"
           </Title>
         </Space>
       </div>
 
-      {/* Название документа, вид затрат и кнопка сохранения - всё в одной строке */}
+      {/* Название документа и кнопка сохранения */}
       <div style={{ padding: '0 24px 16px 24px', flexShrink: 0 }}>
         <Space>
           <span>Название:</span>
@@ -818,19 +977,6 @@ export default function FinishingPieType() {
             placeholder="Тип-1, Тип-2, ..."
             style={{ width: 300 }}
           />
-          <span>Вид затрат:</span>
-          <Select
-            value={selectedDetailCostCategoryId}
-            onChange={setSelectedDetailCostCategoryId}
-            options={detailCostCategories.map((d) => ({ value: d.id, label: d.name }))}
-            placeholder="Выберите вид затрат"
-            allowClear
-            showSearch
-            filterOption={(input, option) =>
-              (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
-            }
-            style={{ width: 250 }}
-          />
           <Button type="primary" icon={<SaveOutlined />} onClick={handleSaveDocument}>
             Сохранить документ
           </Button>
@@ -839,7 +985,7 @@ export default function FinishingPieType() {
 
       {/* Кнопки Добавить/Удалить/Отмена под полем Название слева */}
       <div style={{ padding: '0 24px 16px 24px', flexShrink: 0 }}>
-        {mode === 'view' ? (
+        {mode === 'view' && editingRows.length === 0 ? (
           <Space>
             <Button icon={<PlusOutlined />} onClick={handleAddRow}>
               Добавить

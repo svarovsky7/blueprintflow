@@ -28,8 +28,8 @@ interface ChessboardFiltersProps {
   filtersCollapsed: boolean
   hasActiveFilters: boolean
   hasAppliedFilters: boolean
-  isLoading?: boolean // LOG: индикатор загрузки для фильтров
-  statistics?: { totalRows: number; totalQuantityPd: number; totalQuantitySpec: number; totalQuantityRd: number } // LOG: статистика записей
+  isLoading?: boolean
+  statistics?: { totalRows: number; totalQuantityPd: number; totalQuantitySpec: number; totalQuantityRd: number }
   onFilterChange: (key: keyof ChessboardFilters, value: any) => void
   onCascadingFilterChange: (key: keyof ChessboardFilters, value: any) => void
   onApplyFilters: () => void
@@ -426,7 +426,6 @@ export const ChessboardFilters = memo(
           open={mlConfigOpen}
           onClose={() => setMLConfigOpen(false)}
           onConfigUpdate={(newConfig) => {
-            console.log('🤖 ML Config updated:', newConfig) // LOG: обновление конфигурации ML
           }}
         />
       </div>

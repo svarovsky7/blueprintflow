@@ -36,6 +36,8 @@ export const getVorTableData = async (vor_id: string): Promise<VorTableItem[]> =
       work_total: workTotal,
       base_rate: work.base_rate || 0,
       rate_id: work.rate_id,
+      work_set_rate_id: work.work_set_rate_id,
+      work_set_name: work.work_set_rate?.work_set,
       level: 1,
       sort_order: work.sort_order,
       is_modified: work.is_modified
@@ -206,6 +208,7 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
         rates:rate_id(
           id,
           work_name,
+          work_set,
           base_rate,
           unit_id,
           units:unit_id(name)
@@ -372,6 +375,7 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
       .insert({
         vor_id: vorId,
         rate_id: rateId,
+        work_set_rate_id: workData.rate.work_set ? rateId : null, // Если есть work_set, то сохраняем связь с рабочим набором
         quantity: workData.totalQuantity,
         coefficient: 1.0,
         base_rate: workData.rate.base_rate,

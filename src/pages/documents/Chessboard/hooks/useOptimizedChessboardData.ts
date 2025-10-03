@@ -72,9 +72,8 @@ export function useOptimizedChessboardData({
         }
       }
 
-      console.log(`🔍 Optimized query: page ${currentPage}, size ${pageSize}`) // LOG: начало оптимизированного запроса
 
-      const startTime = performance.now() // LOG: время начала запроса
+      const startTime = performance.now()
 
       const offset = (currentPage - 1) * pageSize
 
@@ -92,18 +91,16 @@ export function useOptimizedChessboardData({
           p_search_material: appliedFilters.search_material || null
         })
 
-      const endTime = performance.now() // LOG: время завершения запроса
-      const duration = endTime - startTime // LOG: длительность запроса
+      const endTime = performance.now()
+      const duration = endTime - startTime
 
       if (error) {
-        console.error('❌ Optimized query error:', error) // LOG: ошибка запроса
         throw error
       }
 
       const totalCount = data?.[0]?.total_count || 0
       const totalPages = Math.ceil(totalCount / pageSize)
 
-      console.log(`✅ Optimized query completed: ${data?.length || 0} rows in ${Math.round(duration)}ms, total: ${totalCount}`) // LOG: результат запроса
 
       return {
         data: data || [],
@@ -183,9 +180,8 @@ export function useChessboardExportIds({
         return []
       }
 
-      console.log('🔍 Export: Getting filtered IDs...') // LOG: начало экспорта
 
-      const startTime = performance.now() // LOG: время начала экспорта
+      const startTime = performance.now()
 
       const { data, error } = await supabase
         .rpc('get_chessboard_ids_filtered', {
@@ -198,15 +194,13 @@ export function useChessboardExportIds({
           p_search_material: appliedFilters.search_material || null
         })
 
-      const endTime = performance.now() // LOG: время завершения экспорта
-      const duration = endTime - startTime // LOG: длительность экспорта
+      const endTime = performance.now()
+      const duration = endTime - startTime
 
       if (error) {
-        console.error('❌ Export IDs error:', error) // LOG: ошибка экспорта
         throw error
       }
 
-      console.log(`✅ Export IDs completed: ${data?.length || 0} IDs in ${Math.round(duration)}ms`) // LOG: результат экспорта
 
       return data || []
     },
@@ -221,7 +215,6 @@ export function useTransformedChessboardData(pagedResult: PagedResult | undefine
   return useMemo(() => {
     if (!pagedResult?.data) return []
 
-    console.log('🔄 Transforming optimized data:', pagedResult.data.length, 'rows') // LOG: трансформация данных
 
     return pagedResult.data.map((row) => {
       // Извлекаем данные из JSON полей

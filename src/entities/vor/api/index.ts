@@ -18,7 +18,9 @@ export {
   deleteVorWork,
   deleteVorWorks,
   updateVorWorksOrder,
-  getRatesOptions
+  getRatesOptions,
+  getWorkSetsOptions,
+  getWorkSetsByFilters
 } from './vor-works-api'
 
 // API для материалов

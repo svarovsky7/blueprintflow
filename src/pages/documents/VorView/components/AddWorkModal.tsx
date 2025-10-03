@@ -1,8 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Modal, Table, Button, Input, Space, message, InputNumber, Tabs, Form, Select } from 'antd'
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getRatesOptions, createVorWork, getUnitsOptions, type RateOption, type CreateVorWorkDto } from '@/entities/vor'
+import { getRatesOptions, createVorWork, getUnitsOptions, getWorkSetsOptions, getWorkSetsByFilters, type RateOption, type CreateVorWorkDto } from '@/entities/vor'
 import { ratesApi, type RateFormData, type Rate } from '@/entities/rates'
 
 interface AddWorkModalProps {
@@ -10,11 +10,15 @@ interface AddWorkModalProps {
   onCancel: () => void
   onSuccess: () => void
   vorId: string
+  setFilters?: {
+    costTypeIds?: number[]
+    costCategoryIds?: number[]
+  }
 }
 
 const { Search } = Input
 
-const AddWorkModal: React.FC<AddWorkModalProps> = ({ visible, onCancel, onSuccess, vorId }) => {
+const AddWorkModal: React.FC<AddWorkModalProps> = ({ visible, onCancel, onSuccess, vorId, setFilters }) => {
   const [selectedRates, setSelectedRates] = useState<RateOption[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(false)
@@ -22,6 +26,11 @@ const AddWorkModal: React.FC<AddWorkModalProps> = ({ visible, onCancel, onSucces
   const [createForm] = Form.useForm()
   const [messageApi, contextHolder] = message.useMessage()
   const queryClient = useQueryClient()
+
+  // Новые состояния для каскадного выбора
+  const [selectedWorkSet, setSelectedWorkSet] = useState<string>('')
+  const [workSets, setWorkSets] = useState<Array<{id: string, work_set: string}>>([])
+  const [filteredRatesByWorkSet, setFilteredRatesByWorkSet] = useState<RateOption[]>([])
 
   // Загружаем расценки
   const { data: rates = [], isLoading } = useQuery({
@@ -37,6 +46,13 @@ const AddWorkModal: React.FC<AddWorkModalProps> = ({ visible, onCancel, onSucces
     enabled: visible && activeTab === 'create',
   })
 
+  // Загружаем рабочие наборы с учетом фильтров комплекта
+  const { data: workSetsData = [], isLoading: isWorkSetsLoading } = useQuery({
+    queryKey: ['work-sets-filtered', setFilters?.costTypeIds, setFilters?.costCategoryIds],
+    queryFn: () => getWorkSetsByFilters(setFilters?.costTypeIds, setFilters?.costCategoryIds),
+    enabled: visible,
+  })
+
   // Мутация для создания новой расценки
   const createRateMutation = useMutation({
     mutationFn: (data: RateFormData) => ratesApi.create(data),
@@ -50,6 +66,7 @@ const AddWorkModal: React.FC<AddWorkModalProps> = ({ visible, onCancel, onSucces
       const workData: CreateVorWorkDto = {
         vor_id: vorId,
         rate_id: newRate.id,
+        work_set_rate_id: selectedWorkSet || newRate.id, // Используем выбранный рабочий набор или созданную расценку
         quantity: 1,
         coefficient: 1.0,
         base_rate: newRate.base_rate,
@@ -72,8 +89,26 @@ const AddWorkModal: React.FC<AddWorkModalProps> = ({ visible, onCancel, onSucces
     },
   })
 
+  // Обновляем список рабочих наборов при загрузке данных
+  useEffect(() => {
+    if (workSetsData.length > 0) {
+      setWorkSets(workSetsData)
+    }
+  }, [workSetsData])
+
+  // Фильтруем работы по выбранному рабочему набору
+  useEffect(() => {
+    if (selectedWorkSet && rates.length > 0) {
+      const selectedWorkSetName = workSets.find(ws => ws.id === selectedWorkSet)?.work_set
+      const filtered = rates.filter(rate => rate.work_set === selectedWorkSetName)
+      setFilteredRatesByWorkSet(filtered)
+    } else {
+      setFilteredRatesByWorkSet([])
+    }
+  }, [selectedWorkSet, rates, workSets])
+
   // Фильтруем расценки по поисковому запросу
-  const filteredRates = rates.filter(rate =>
+  const finalFilteredRates = (filteredRatesByWorkSet.length > 0 ? filteredRatesByWorkSet : rates).filter(rate =>
     rate.work_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (rate.unit_name && rate.unit_name.toLowerCase().includes(searchTerm.toLowerCase()))
   )
@@ -91,6 +126,7 @@ const AddWorkModal: React.FC<AddWorkModalProps> = ({ visible, onCancel, onSucces
         const workData: CreateVorWorkDto = {
           vor_id: vorId,
           rate_id: rate.id,
+          work_set_rate_id: selectedWorkSet || rate.id, // Используем выбранный рабочий набор или саму расценку
           quantity: 1, // По умолчанию 1
           coefficient: 1.0, // По умолчанию 1.0
           base_rate: rate.base_rate,
@@ -115,6 +151,8 @@ const AddWorkModal: React.FC<AddWorkModalProps> = ({ visible, onCancel, onSucces
     setSelectedRates([])
     setSearchTerm('')
     setActiveTab('select')
+    setSelectedWorkSet('')
+    setFilteredRatesByWorkSet([])
     createForm.resetFields()
     onCancel()
   }
@@ -138,10 +176,17 @@ const AddWorkModal: React.FC<AddWorkModalProps> = ({ visible, onCancel, onSucces
 
   const columns = [
     {
+      title: 'Рабочий набор',
+      dataIndex: 'work_set',
+      key: 'work_set',
+      width: '20%',
+      render: (text: string | null) => text || 'не указан',
+    },
+    {
       title: 'Наименование работы',
       dataIndex: 'work_name',
       key: 'work_name',
-      width: '60%',
+      width: '40%',
       render: (text: string) => (
         <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
           {text}
@@ -226,18 +271,43 @@ const AddWorkModal: React.FC<AddWorkModalProps> = ({ visible, onCancel, onSucces
               label: 'Выбрать существующую',
               children: (
                 <Space direction="vertical" style={{ width: '100%' }} size="middle">
-                  <Search
-                    placeholder="Поиск по наименованию работы или единице измерения"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    style={{ width: '100%' }}
-                    prefix={<SearchOutlined />}
-                    allowClear
-                  />
+                  <Space direction="horizontal" style={{ width: '100%' }} size="middle">
+                    <div style={{ width: '400px' }}>
+                      <Select
+                        placeholder="Рабочий набор"
+                        value={selectedWorkSet}
+                        onChange={setSelectedWorkSet}
+                        style={{ width: '100%' }}
+                        allowClear
+                        showSearch
+                        loading={isWorkSetsLoading}
+                        filterOption={(input, option) => {
+                          const text = option?.children?.toString() || ''
+                          return text.toLowerCase().includes(input.toLowerCase())
+                        }}
+                      >
+                        {workSets.map((workSet) => (
+                          <Select.Option key={workSet.id} value={workSet.id}>
+                            {workSet.work_set}
+                          </Select.Option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div style={{ width: '400px' }}>
+                      <Search
+                        placeholder="Наименование работ - поиск по наименованию работы или единице измерения"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        style={{ width: '100%' }}
+                        prefix={<SearchOutlined />}
+                        allowClear
+                      />
+                    </div>
+                  </Space>
 
                   <Table
                     columns={columns}
-                    dataSource={filteredRates}
+                    dataSource={finalFilteredRates}
                     rowKey="id"
                     rowSelection={rowSelection}
                     loading={isLoading}

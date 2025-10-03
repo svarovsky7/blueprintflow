@@ -197,7 +197,6 @@ export const ratesApi = {
       return []
     }
 
-    console.log('🔍 getWorksByCategory called with:', { costTypeId, costCategoryId }) // LOG: отладочная информация
 
     // Запрос: получаем только активные расценки с их категориями затрат
     const { data, error } = await supabase.from('rates').select(`
@@ -208,7 +207,6 @@ export const ratesApi = {
       `)
       .eq('active', true) // Фильтруем только активные расценки
 
-    console.log('📊 SQL результат:', { data, error }) // LOG: отладочная информация
 
     if (error) {
       console.error('Failed to get works by category:', error)
@@ -216,7 +214,6 @@ export const ratesApi = {
     }
 
     if (!data || data.length === 0) {
-      console.log('⚠️ Нет активных данных для costTypeId:', costTypeId) // LOG: отладочная информация
       return []
     }
 
@@ -232,18 +229,6 @@ export const ratesApi = {
       const targetIdAsNumber = parseInt(costTypeId || '0')
       const categoryIdsAsNumbers = rate.rates_detail_cost_categories_mapping?.map((m) => m.detail_cost_category_id) ?? []
 
-      console.log('🔍 Checking active rate:', { // LOG: отладочная информация фильтрации
-        rateId: rate.id,
-        workName: rate.work_name,
-        active: rate.active,
-        categoryIds,
-        categoryIdsAsNumbers,
-        targetCostTypeId: costTypeId,
-        targetIdAsString,
-        targetIdAsNumber,
-        includesString: categoryIds.includes(targetIdAsString),
-        includesNumber: categoryIdsAsNumbers.includes(targetIdAsNumber)
-      })
 
       // Проверяем оба варианта: строка и число
       return categoryIds.includes(targetIdAsString) || categoryIdsAsNumbers.includes(targetIdAsNumber)
@@ -258,7 +243,6 @@ export const ratesApi = {
       }))
       .sort((a, b) => a.label.localeCompare(b.label)) // Сортировка по названию работы
 
-    console.log('✅ Результат обработки активных расценок:', result) // LOG: отладочная информация
     return result
   },
 
@@ -271,7 +255,6 @@ export const ratesApi = {
       return []
     }
 
-    console.log('🔍 getWorkSetsByCategory called with costTypeId:', costTypeId) // LOG: отладочная информация
 
     // Запрос: получаем активные расценки с рабочими наборами, связанные с видом затрат
     const { data, error } = await supabase.from('rates').select(`
@@ -283,7 +266,6 @@ export const ratesApi = {
       .eq('active', true) // Только активные расценки
       .not('work_set', 'is', null) // Только записи с заполненным work_set
 
-    console.log('📊 SQL результат getWorkSetsByCategory:', { data, error }) // LOG: отладочная информация
 
     if (error) {
       console.error('Failed to get work sets by category:', error)
@@ -291,7 +273,6 @@ export const ratesApi = {
     }
 
     if (!data || data.length === 0) {
-      console.log('⚠️ Нет активных расценок с рабочими наборами для costTypeId:', costTypeId) // LOG: отладочная информация
       return []
     }
 
@@ -303,17 +284,6 @@ export const ratesApi = {
       const targetIdAsString = costTypeId.toString()
       const targetIdAsNumber = parseInt(costTypeId)
 
-      console.log('🔍 Проверка расценки с рабочим набором:', { // LOG: отладочная информация фильтрации
-        rateId: rate.id,
-        workSet: rate.work_set,
-        categoryIds,
-        categoryIdsAsNumbers,
-        targetCostTypeId: costTypeId,
-        targetIdAsString,
-        targetIdAsNumber,
-        includesString: categoryIds.includes(targetIdAsString),
-        includesNumber: categoryIdsAsNumbers.includes(targetIdAsNumber)
-      })
 
       return categoryIds.includes(targetIdAsString) || categoryIdsAsNumbers.includes(targetIdAsNumber)
     })
@@ -334,7 +304,6 @@ export const ratesApi = {
       }))
       .sort((a, b) => a.label.localeCompare(b.label))
 
-    console.log('✅ Результат обработки рабочих наборов:', result) // LOG: отладочная информация
     return result
   },
 
@@ -347,7 +316,6 @@ export const ratesApi = {
       return []
     }
 
-    console.log('🔍 getWorksByWorkSet called with workSetRateId:', workSetRateId) // LOG: отладочная информация
 
     // Получаем конкретную расценку по ID рабочего набора
     const { data, error } = await supabase
@@ -357,7 +325,6 @@ export const ratesApi = {
       .eq('active', true) // Только активные расценки
       .single()
 
-    console.log('📊 SQL результат getWorksByWorkSet:', { data, error }) // LOG: отладочная информация
 
     if (error) {
       console.error('Failed to get works by work set:', error)
@@ -365,7 +332,6 @@ export const ratesApi = {
     }
 
     if (!data) {
-      console.log('⚠️ Нет данных для workSetRateId:', workSetRateId) // LOG: отладочная информация
       return []
     }
 
@@ -375,7 +341,6 @@ export const ratesApi = {
       label: data.work_name, // Название работы для отображения
     }]
 
-    console.log('✅ Результат обработки работ по рабочему набору:', result) // LOG: отладочная информация
     return result
   },
 }

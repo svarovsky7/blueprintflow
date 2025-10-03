@@ -4,6 +4,7 @@ export interface VorWork {
   id: string
   vor_id: string
   rate_id: string
+  work_set_rate_id: string | null // Связь с рабочим набором
   quantity: number
   coefficient: number
   base_rate: number | null
@@ -21,6 +22,11 @@ export interface VorWork {
       id: string
       name: string
     }
+  }
+  // Данные рабочего набора
+  work_set_rate?: {
+    id: string
+    work_set: string
   }
 }
 
@@ -46,6 +52,7 @@ export interface VorMaterial {
 export interface CreateVorWorkDto {
   vor_id: string
   rate_id: string
+  work_set_rate_id?: string // Связь с рабочим набором
   quantity?: number
   coefficient?: number
   base_rate?: number
@@ -55,6 +62,7 @@ export interface CreateVorWorkDto {
 
 // DTO для обновления работы
 export interface UpdateVorWorkDto {
+  work_set_rate_id?: string // Связь с рабочим набором
   quantity?: number
   coefficient?: number
   base_rate?: number
@@ -98,6 +106,8 @@ export interface VorTableItem {
   work_total?: number // Расчетное поле: work_price * quantity
   base_rate?: number
   rate_id?: string
+  work_set_rate_id?: string // Связь с рабочим набором
+  work_set_name?: string // Название рабочего набора для отображения
 
   // Для материалов
   material_price?: number
@@ -117,6 +127,7 @@ export interface RateOption {
   base_rate: number
   unit_id: string | null
   unit_name?: string
+  work_set?: string | null
 }
 
 export interface SupplierNameOption {

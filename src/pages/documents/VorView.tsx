@@ -1,7 +1,7 @@
 {
   /* VorView component */
 }
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Table, Typography, Space, Spin, Alert, Button, InputNumber, message, Select, Input } from 'antd'
 import { ArrowLeftOutlined, DownloadOutlined, EditOutlined, SaveOutlined, CloseOutlined, PlusOutlined, MinusOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons'
 import * as XLSX from 'xlsx'
@@ -304,6 +304,37 @@ const VorView = () => {
     },
     enabled: !!vorData?.vor,
   })
+
+  // Вычисляем фильтры комплекта для ограничения рабочих наборов
+  const setFilters = useMemo(() => {
+    if (!setsData || setsData.length === 0) return undefined
+
+    // Собираем все уникальные cost_type_ids и cost_category_ids из всех комплектов
+    const allCostTypeIds = new Set<number>()
+    const allCostCategoryIds = new Set<number>()
+
+    setsData.forEach(set => {
+      if (set.cost_type_ids && Array.isArray(set.cost_type_ids)) {
+        set.cost_type_ids.forEach(id => allCostTypeIds.add(id))
+      }
+      if (set.cost_category_ids && Array.isArray(set.cost_category_ids)) {
+        set.cost_category_ids.forEach(id => allCostCategoryIds.add(id))
+      }
+    })
+
+    const costTypeIds = Array.from(allCostTypeIds)
+    const costCategoryIds = Array.from(allCostCategoryIds)
+
+    // Возвращаем фильтры только если есть данные для фильтрации
+    if (costTypeIds.length > 0 || costCategoryIds.length > 0) {
+      return {
+        costTypeIds: costTypeIds.length > 0 ? costTypeIds : undefined,
+        costCategoryIds: costCategoryIds.length > 0 ? costCategoryIds : undefined
+      }
+    }
+
+    return undefined
+  }, [setsData])
 
   // Инициализируем коэффициент из БД
   useEffect(() => {
@@ -2055,7 +2086,7 @@ const VorView = () => {
     {
       title: '№',
       key: 'index',
-      width: 40,
+      width: '3%',
       render: (_: unknown, record: VorItem) => {
         const currentData = vorItemsData.length > 0 ? vorItemsData : (vorItems || [])
         if (record.type === 'work') {
@@ -2082,10 +2113,23 @@ const VorView = () => {
       },
     },
     {
+      title: formatHeaderText('Рабочий набор'),
+      dataIndex: 'work_set_name',
+      key: 'work_set_name',
+      width: '10%',
+      render: (text: string, record: VorItem | VorTableItem) => {
+        // Показываем рабочий набор только для работ
+        if (record.type === 'work' && record.work_set_name) {
+          return record.work_set_name
+        }
+        return ''
+      },
+    },
+    {
       title: formatHeaderText('Наименование'),
       dataIndex: 'name',
       key: 'name',
-      // Динамическая ширина - не указываем width
+      width: '24%', // Динамическая ширина для наименования
       render: (text: string, record: VorItem | VorTableItem) => {
         const isModified = 'is_modified' in record && record.is_modified
         const isNewMaterial = newMaterialRows.has(record.id)
@@ -2285,7 +2329,7 @@ const VorView = () => {
       title: formatHeaderText('Ед Изм'),
       dataIndex: 'unit',
       key: 'unit',
-      width: 80,
+      width: '6%',
       render: (text: string, record: VorItem | VorTableItem) => {
         const isNewMaterial = newMaterialRows.has(record.id)
         const isInlineEditing = inlineEditingMaterialId === record.id
@@ -2316,10 +2360,10 @@ const VorView = () => {
       },
     },
     {
-      title: formatHeaderText('Коэффициент'),
+      title: formatHeaderText('Коэф-т'),
       dataIndex: 'coefficient',
       key: 'coefficient',
-      width: 100,
+      width: '6%',
       render: (value: number | undefined, record: VorItem) => {
         // Показываем InputNumber только для строк работ
         if (record.type === 'work') {
@@ -2350,7 +2394,7 @@ const VorView = () => {
       title: formatHeaderText('Кол-во'),
       dataIndex: 'quantity',
       key: 'quantity',
-      width: 80,
+      width: '6%',
       render: (value: number, record: VorItem | VorTableItem) => {
         const isNewMaterial = newMaterialRows.has(record.id)
         const isInlineEditing = inlineEditingMaterialId === record.id
@@ -2401,7 +2445,7 @@ const VorView = () => {
       title: formatHeaderText('Номенклатура цены за ед руб вкл НДС'),
       dataIndex: 'material_price',
       key: 'material_price',
-      width: 120,
+      width: '11%',
       render: (value: number, record: VorItem | VorTableItem) => {
         // Для строк с работами из справочника Расценок не показываем ничего
         if (record.type === 'work') {
@@ -2457,7 +2501,7 @@ const VorView = () => {
       title: formatHeaderText('Работа цены за ед руб вкл НДС'),
       dataIndex: 'work_price',
       key: 'work_price',
-      width: 120,
+      width: '11%',
       render: (value: number, record: VorItem) => {
         // Для материалов не показываем ничего
         if (record.type === 'material') {
@@ -2492,7 +2536,7 @@ const VorView = () => {
       title: formatHeaderText('Номенклатура Итого руб вкл НДС'),
       dataIndex: 'material_total',
       key: 'material_total',
-      width: 120,
+      width: '11%',
       render: (value: number, record: VorItem | VorTableItem) => {
         // Для строк с работами из справочника Расценок не показываем ничего
         if (record.type === 'work') {
@@ -2505,7 +2549,7 @@ const VorView = () => {
       title: formatHeaderText('Работа Итого руб вкл НДС'),
       dataIndex: 'work_total',
       key: 'work_total',
-      width: 120,
+      width: '11%',
       render: (value: number, record: VorItem) => {
         // Для материалов не показываем ничего
         if (record.type === 'material') {
@@ -2517,7 +2561,7 @@ const VorView = () => {
     {
       title: formatHeaderText('Сумма Итого руб вкл НДС'),
       key: 'total_sum',
-      width: 120,
+      width: '11%',
       render: (_, record: VorItem | VorTableItem) => {
         // Для строк с работами показываем значение из столбца "Работа Итого"
         if (record.type === 'work') {
@@ -2535,7 +2579,7 @@ const VorView = () => {
     columns.push({
       title: 'Действия',
       key: 'actions',
-      width: 100,
+      width: '8%',
       fixed: 'right' as const,
       render: (_, record: VorItem) => {
         const isDeleted = deletedItems.has(record.id)
@@ -2953,7 +2997,6 @@ const VorView = () => {
             rowKey="id"
             pagination={false}
             scroll={{
-              x: 'max-content',
               y: tableScrollHeight,
             }}
             sticky
@@ -2989,23 +3032,23 @@ const VorView = () => {
                 }, 0),
               )
 
-              // Индексы цифровых столбцов остаются фиксированными:
-              // 7 - Номенклатура Итого, 8 - Работа Итого, 9 - Сумма Итого
-              // В режиме редактирования добавляется колонка "Действия" в конец (индекс 10)
-              const summaryColSpan = 7
+              // Индексы цифровых столбцов с учетом добавленного столбца "Рабочий набор":
+              // 8 - Номенклатура Итого, 9 - Работа Итого, 10 - Сумма Итого
+              // В режиме редактирования добавляется колонка "Действия" в конец (индекс 11)
+              const summaryColSpan = 8
 
               return (
                 <Table.Summary.Row>
                   <Table.Summary.Cell index={0} colSpan={summaryColSpan}>
                     <Text strong>Итого:</Text>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={7}>
+                  <Table.Summary.Cell index={8}>
                     <Text strong>{totalNomenclature.toLocaleString('ru-RU')}</Text>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={8}>
+                  <Table.Summary.Cell index={9}>
                     <Text strong>{totalWork.toLocaleString('ru-RU')}</Text>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={9}>
+                  <Table.Summary.Cell index={10}>
                     <Text strong>{grandTotal.toLocaleString('ru-RU')}</Text>
                   </Table.Summary.Cell>
                 </Table.Summary.Row>
@@ -3023,6 +3066,7 @@ const VorView = () => {
           onCancel={() => setAddWorkModalVisible(false)}
           onSuccess={handleAddWorkSuccess}
           vorId={vorId}
+          setFilters={setFilters}
         />
       )}
 

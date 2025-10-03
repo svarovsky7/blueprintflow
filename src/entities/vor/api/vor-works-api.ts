@@ -21,6 +21,10 @@ export const getVorWorks = async (filters: VorWorksFilters): Promise<VorWork[]> 
         base_rate,
         unit_id,
         units:unit_id(id, name)
+      ),
+      work_set_rate:work_set_rate_id(
+        id,
+        work_set
       )
     `)
     .eq('vor_id', filters.vor_id)
@@ -62,6 +66,10 @@ export const createVorWork = async (workData: CreateVorWorkDto): Promise<VorWork
         base_rate,
         unit_id,
         units:unit_id(id, name)
+      ),
+      work_set_rate:work_set_rate_id(
+        id,
+        work_set
       )
     `)
     .single()
@@ -90,6 +98,10 @@ export const updateVorWork = async (id: string, workData: UpdateVorWorkDto): Pro
         base_rate,
         unit_id,
         units:unit_id(id, name)
+      ),
+      work_set_rate:work_set_rate_id(
+        id,
+        work_set
       )
     `)
     .single()
@@ -160,6 +172,7 @@ export const getRatesOptions = async (): Promise<RateOption[]> => {
       work_name,
       base_rate,
       unit_id,
+      work_set,
       units:unit_id(name)
     `)
     .eq('active', true)
@@ -175,6 +188,105 @@ export const getRatesOptions = async (): Promise<RateOption[]> => {
     work_name: rate.work_name,
     base_rate: rate.base_rate,
     unit_id: rate.unit_id,
-    unit_name: rate.units?.name || undefined
+    unit_name: rate.units?.name || undefined,
+    work_set: rate.work_set
   }))
+}
+
+// Получение рабочих наборов для выбора
+export const getWorkSetsOptions = async (): Promise<Array<{id: string, work_set: string}>> => {
+  if (!supabase) throw new Error('Supabase client not initialized')
+
+  const { data, error } = await supabase
+    .from('rates')
+    .select('id, work_set')
+    .eq('active', true)
+    .not('work_set', 'is', null)
+    .order('work_set', { ascending: true })
+
+  if (error) {
+    console.error('Ошибка загрузки рабочих наборов:', error)
+    throw error
+  }
+
+  // Убираем дубликаты по work_set
+  const uniqueWorkSets = new Map<string, {id: string, work_set: string}>()
+  data?.forEach(rate => {
+    if (rate.work_set && !uniqueWorkSets.has(rate.work_set)) {
+      uniqueWorkSets.set(rate.work_set, {
+        id: rate.id,
+        work_set: rate.work_set
+      })
+    }
+  })
+
+  return Array.from(uniqueWorkSets.values())
+}
+
+// Получение рабочих наборов с учетом фильтров комплекта
+export const getWorkSetsByFilters = async (costTypeIds?: number[], costCategoryIds?: number[]): Promise<Array<{id: string, work_set: string}>> => {
+  if (!supabase) throw new Error('Supabase client not initialized')
+
+  let query = supabase
+    .from('rates')
+    .select(`
+      id,
+      work_set,
+      rates_detail_cost_categories_mapping(
+        detail_cost_category_id,
+        detail_cost_categories:detail_cost_category_id(
+          id,
+          cost_category_id
+        )
+      )
+    `)
+    .eq('active', true)
+    .not('work_set', 'is', null)
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error('Ошибка загрузки рабочих наборов с фильтрами:', error)
+    throw error
+  }
+
+  if (!data || data.length === 0) {
+    return []
+  }
+
+  // Фильтруем данные на клиенте в зависимости от переданных параметров
+  let filteredRates = data
+
+  if (costTypeIds && costTypeIds.length > 0) {
+    // Приоритет 1: Фильтрация по видам затрат (detail_cost_categories)
+    filteredRates = data.filter(rate => {
+      const mappings = rate.rates_detail_cost_categories_mapping || []
+      return mappings.some(mapping =>
+        costTypeIds.includes(mapping.detail_cost_category_id)
+      )
+    })
+  } else if (costCategoryIds && costCategoryIds.length > 0) {
+    // Приоритет 2: Фильтрация по категориям затрат через detail_cost_categories
+    filteredRates = data.filter(rate => {
+      const mappings = rate.rates_detail_cost_categories_mapping || []
+      return mappings.some(mapping => {
+        const detailCategory = mapping.detail_cost_categories
+        return detailCategory && costCategoryIds.includes(detailCategory.cost_category_id)
+      })
+    })
+  }
+  // Если нет фильтров - возвращаем все
+
+  // Убираем дубликаты по work_set
+  const uniqueWorkSets = new Map<string, {id: string, work_set: string}>()
+  filteredRates.forEach(rate => {
+    if (rate.work_set && !uniqueWorkSets.has(rate.work_set)) {
+      uniqueWorkSets.set(rate.work_set, {
+        id: rate.id,
+        work_set: rate.work_set
+      })
+    }
+  })
+
+  return Array.from(uniqueWorkSets.values()).sort((a, b) => a.work_set.localeCompare(b.work_set))
 }

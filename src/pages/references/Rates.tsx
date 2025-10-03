@@ -1182,7 +1182,7 @@ export default function Rates() {
                 const text = (option?.children || option?.label)?.toString() || ''
                 return text.toLowerCase().includes(input.toLowerCase())
               }}
-              style={{ width: 200 * scale }}
+              style={{ width: 500 }}
             >
               {costCategories.map((cat) => (
                 <Select.Option key={cat.id} value={cat.id}>
@@ -1201,7 +1201,7 @@ export default function Rates() {
                 const text = (option?.children || option?.label)?.toString() || ''
                 return text.toLowerCase().includes(input.toLowerCase())
               }}
-              style={{ width: 200 * scale }}
+              style={{ width: 500 }}
               disabled={!costCategoryFilter}
             >
               {filteredDetailCategories.map((detail) => (

@@ -7,16 +7,15 @@ export interface FinishingPie {
   status_finishing_pie: string | null
   status_type_calculation: string | null
   cost_category_id: number | null // integer FK на cost_categories
-  detail_cost_category_id: number | null // integer FK на detail_cost_categories (вид затрат)
   documentation_tag_id: number | null // integer FK на documentation_tags
   version_id: string | null // uuid FK на documentation_versions
   created_at: string
   updated_at: string
   // Дополнительные поля для отображения (загружаются через join)
   cost_category_name?: string
-  detail_cost_category_name?: string
   documentation_code?: string
   documentation_name?: string
+  version_number?: string
 }
 
 // Справочник типов пирогов отделки
@@ -39,10 +38,13 @@ export interface FinishingPieRow {
   unit_id: string | null
   unit_name?: string
   consumption: number | null
+  work_set_id: string | null // FK на rates (рабочий набор)
+  work_set_name?: string // Название рабочего набора (для отображения)
   rate_id: string | null
   rate_name?: string
   rate_unit_id: string | null
   rate_unit_name?: string
+  detail_cost_category_name: string | null // Название вида затрат (текстовое значение из detail_cost_categories.name)
   created_at: string
   updated_at: string
 }
@@ -60,7 +62,6 @@ export interface CreateFinishingPieDto {
 export interface UpdateFinishingPieDto {
   name?: string
   block_id?: string | null
-  detail_cost_category_id?: number | null
   status_finishing_pie?: string | null
   status_type_calculation?: string | null
 }
@@ -83,8 +84,10 @@ export interface CreateFinishingPieRowDto {
   material_id: string | null
   unit_id: string | null
   consumption: number | null
+  work_set_id: string | null // FK на рабочий набор
   rate_id: string | null
   rate_unit_id: string | null
+  detail_cost_category_name: string | null // Название вида затрат
 }
 
 // DTO для обновления строки табличной части
@@ -93,6 +96,8 @@ export interface UpdateFinishingPieRowDto {
   material_id?: string | null
   unit_id?: string | null
   consumption?: number | null
+  work_set_id?: string | null // FK на рабочий набор
   rate_id?: string | null
   rate_unit_id?: string | null
+  detail_cost_category_name?: string | null // Название вида затрат
 }

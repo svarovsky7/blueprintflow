@@ -115,19 +115,10 @@ export function distributeQuantitiesAcrossFloors(
   totalQuantitySpec: number = 0,
   totalQuantityRd: number = 0
 ): Record<number, any> {
-  console.log('🏢📊 distributeQuantitiesAcrossFloors called:', {
-    floorsStr,
-    currentQuantities,
-    totalQuantityPd,
-    totalQuantitySpec,
-    totalQuantityRd
-  }) // LOG: вызов функции распределения
 
   const floors = parseFloorsFromString(floorsStr)
-  console.log('🏢📊 Parsed floors:', floors) // LOG: распарсенные этажи
 
   if (floors.length === 0) {
-    console.log('🏢📊 No floors found, returning empty object') // LOG: нет этажей
     return {}
   }
 
@@ -141,7 +132,6 @@ export function distributeQuantitiesAcrossFloors(
         quantityRd: totalQuantityRd.toString()
       }
     }
-    console.log('🏢📊 Single floor distribution:', result) // LOG: распределение по одному этажу
     return result
   }
 
@@ -151,11 +141,6 @@ export function distributeQuantitiesAcrossFloors(
   const quantityPerFloorSpec = totalQuantitySpec / floors.length
   const quantityPerFloorRd = totalQuantityRd / floors.length
 
-  console.log('🏢📊 Calculating per-floor quantities:', {
-    quantityPerFloorPd,
-    quantityPerFloorSpec,
-    quantityPerFloorRd
-  }) // LOG: количества на этаж
 
   floors.forEach(floor => {
     floorQuantities[floor] = {
@@ -165,7 +150,6 @@ export function distributeQuantitiesAcrossFloors(
     }
   })
 
-  console.log('🏢📊 Multiple floors distribution result:', floorQuantities) // LOG: финальный результат распределения
   return floorQuantities
 }
 

@@ -80,7 +80,8 @@
       "Bash(timeout 15 npm run dev:local)",
       "Bash(timeout:*)",
       "Bash(tree:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(xargs sed:*)"
     ],
     "deny": [],
     "ask": []
