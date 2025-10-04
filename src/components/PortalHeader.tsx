@@ -17,11 +17,17 @@ const pageTitles: Record<string, string> = {
   '/documents/chessboard': 'Шахматка',
   '/documents/vor': 'ВОР',
   '/documents/vor-view': 'Просмотр ВОР',
+  '/documents/finishing-pie-type': 'Типы пирога',
+  '/documents/finishing-calculation': 'Расчет по типам',
+  '/documents/finishing': 'Отделка',
   '/library/rd-codes': 'Шифры РД',
   '/library/pd-codes': 'Шифры ПД',
-  '/references': 'Единицы измерения',
+  '/references/units': 'Единицы измерения',
   '/references/rates': 'Расценки',
   '/references/nomenclature': 'Номенклатура',
+  '/references/surface-types': 'Типы поверхностей',
+  '/references/rooms': 'Помещения',
+  '/references/finishing-types': 'Типы отделки',
   '/documents/documentation': 'Документация',
   '/references/cost-categories': 'Категории затрат',
   '/references/projects': 'Проекты',
@@ -32,7 +38,8 @@ const pageTitles: Record<string, string> = {
   '/admin/documentation-tags': 'Тэги документации',
   '/admin/statuses': 'Статусы',
   '/admin/disk': 'Диск',
-  '/admin/portal-settings': 'Настройка портала',
+  '/admin/api-settings': 'API',
+  '/references': 'Справочники',
 }
 
 const getPageTitle = (path: string): string => {

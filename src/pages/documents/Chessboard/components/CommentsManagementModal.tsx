@@ -57,7 +57,7 @@ export const CommentsManagementModal: React.FC<CommentsManagementModalProps> = (
   } = useQuery({
     queryKey: ['chessboard-comments', chessboardId],
     queryFn: () => chessboardCommentsApi.getByChessboardId(chessboardId),
-    enabled: open && !!chessboardId && !chessboardId.startsWith('new-'),
+    enabled: open && !!chessboardId && !/^new-/.test(chessboardId), // Исключаем временные ID
   })
 
   // Создание комментария
@@ -105,6 +105,12 @@ export const CommentsManagementModal: React.FC<CommentsManagementModalProps> = (
 
   const handleAddComment = () => {
     if (!newCommentText.trim()) return
+
+    // Не позволяем создавать комментарии для новых строк
+    if (/^new-/.test(chessboardId)) {
+      message.warning('Сохраните строку перед добавлением комментария')
+      return
+    }
 
     createCommentMutation.mutate({
       comment_text: newCommentText.trim(),

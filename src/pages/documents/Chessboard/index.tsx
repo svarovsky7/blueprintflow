@@ -6,12 +6,13 @@ import { useChessboardData } from './hooks/useChessboardData'
 import { useColumnSettings } from './hooks/useColumnSettings'
 import { useTableOperations } from './hooks/useTableOperations'
 import { useVersionsState } from './hooks/useVersionsState'
-import { ChessboardFilters } from './components/ChessboardFilters'
+import { ChessboardFilters as ChessboardFiltersComponent } from './components/ChessboardFilters'
 import { ChessboardTable } from './components/ChessboardTable'
 import { ColumnSettingsDrawer } from './components/ColumnSettingsDrawer'
 import { VersionsModal } from './components/VersionsModal'
 import ChessboardSetsModal from '../ChessboardSetsModal'
 import { chessboardSetsApi } from '@/entities/chessboard/api/chessboard-sets-api'
+import type { ChessboardFilters } from './types'
 
 const { Title } = Typography
 
@@ -44,7 +45,7 @@ export default function Chessboard() {
     setAppliedFilters,
   } = useFiltersState()
 
-  const { data, isLoading, error, statistics, documentVersions, documentationInfo } = useChessboardData({
+  const { data, isLoading, error, refetch, statistics, documentVersions, documentationInfo } = useChessboardData({
     appliedFilters,
     filters,
     enabled: !!appliedFilters.project_id,
@@ -81,8 +82,9 @@ export default function Chessboard() {
     saveChanges,
     cancelChanges,
     deleteSelectedRows,
+    deleteSingleRow,
     getDisplayData,
-  } = useTableOperations()
+  } = useTableOperations(refetch)
 
   // Хук для управления версиями документов
   const {
@@ -100,6 +102,9 @@ export default function Chessboard() {
   // Состояние для текущего статуса шахматки
   const [currentStatus, setCurrentStatus] = useState<string | undefined>(undefined)
 
+  // Состояние для названия текущего комплекта
+  const [currentSetName, setCurrentSetName] = useState<string | undefined>(undefined)
+
   // Ref для отслеживания ручной установки статуса (чтобы избежать переопределения через useEffect)
   const statusSetManuallyRef = useRef(false)
 
@@ -114,7 +119,6 @@ export default function Chessboard() {
 
       // Если статус был установлен вручную (из комплекта), не переопределяем его
       if (statusSetManuallyRef.current) {
-        console.log('🔍 Пропускаем автоопределение - статус установлен вручную') // LOG: пропуск автоопределения
         return
       }
 
@@ -122,29 +126,28 @@ export default function Chessboard() {
         // Формируем фильтры для поиска комплекта
         const searchFilters = {
           project_id: appliedFilters.project_id,
-          documentation_id: appliedFilters.documentation_code_ids.length > 0 ? appliedFilters.documentation_code_ids[0] : undefined,
+          documentation_ids: appliedFilters.documentation_code_ids.length > 0 ? appliedFilters.documentation_code_ids : undefined,
           tag_id: appliedFilters.documentation_section_ids.length > 0 ? Number(appliedFilters.documentation_section_ids[0]) : undefined,
           block_ids: appliedFilters.block_ids.length > 0 ? appliedFilters.block_ids : undefined,
           cost_category_ids: appliedFilters.cost_category_ids.length > 0 ? appliedFilters.cost_category_ids.map(Number) : undefined,
           cost_type_ids: appliedFilters.detail_cost_category_ids.length > 0 ? appliedFilters.detail_cost_category_ids.map(Number) : undefined,
         }
 
-        console.log('🔍 Поиск комплекта по фильтрам:', searchFilters) // LOG: поиск комплекта
 
         const matchedSet = await chessboardSetsApi.findSetByFilters(searchFilters)
 
         if (matchedSet && matchedSet.status) {
-          console.log('✅ Найден комплект с статусом:', matchedSet.status) // LOG: найден комплект
           setCurrentStatus(matchedSet.status.id)
+          setCurrentSetName(matchedSet.name)
           statusSetManuallyRef.current = false // Это автоматическое определение
         } else {
-          console.log('❌ Комплект не найден или без статуса') // LOG: комплект не найден
           setCurrentStatus(undefined)
+          setCurrentSetName(undefined)
           statusSetManuallyRef.current = false
         }
       } catch (error) {
-        console.error('Ошибка поиска комплекта:', error) // LOG: ошибка поиска
         setCurrentStatus(undefined)
+        setCurrentSetName(undefined)
         statusSetManuallyRef.current = false
       }
     }
@@ -168,26 +171,29 @@ export default function Chessboard() {
   // Обработчики событий
   const handleAddRow = useCallback(() => {
     if (appliedFilters.project_id) {
-      addNewRow(appliedFilters.project_id)
+      addNewRow(appliedFilters.project_id, 'first')
     }
   }, [appliedFilters.project_id, addNewRow])
 
+  const handleAddRowAfter = useCallback((rowIndex: number) => {
+    if (appliedFilters.project_id) {
+      addNewRow(appliedFilters.project_id, 'after', rowIndex)
+    } else {
+    }
+  }, [appliedFilters.project_id, addNewRow])
+
+  const handleCopyRowAfter = useCallback((rowData: any, rowIndex: number) => {
+    copyRow(rowData, 'after', rowIndex)
+  }, [copyRow])
+
   const handleRowUpdate = useCallback(
     (rowId: string, updates: any) => {
-      console.log('📝 handleRowUpdate called:', {
-        rowId,
-        updates,
-        currentMode: tableMode.mode
-      }) // LOG: главный обработчик обновления строк
 
       if (tableMode.mode === 'add') {
-        console.log('📝 Routing to updateNewRow') // LOG: маршрутизация к новым строкам
         updateNewRow(rowId, updates)
       } else if (tableMode.mode === 'edit') {
-        console.log('📝 Routing to updateEditedRow') // LOG: маршрутизация к редактируемым строкам
         updateEditedRow(rowId, updates)
       } else {
-        console.warn('📝 Unknown table mode, ignoring update:', tableMode.mode) // LOG: неизвестный режим
       }
     },
     [tableMode.mode, updateNewRow, updateEditedRow],
@@ -195,25 +201,16 @@ export default function Chessboard() {
 
   const handleStartEditing = useCallback(
     (rowId: string, rowData?: RowData) => {
-      console.log(
-        '🔍 DEBUG: handleStartEditing вызван для строки:',
-        rowId,
-        'текущий режим:',
-        tableMode.mode,
-      ) // LOG: отладочная информация
 
       if (tableMode.mode === 'view') {
-        console.log('🔍 DEBUG: Переводим в режим edit и начинаем редактирование') // LOG: отладочная информация
         setMode('edit')
         startEditing(rowId)
       } else if (tableMode.mode === 'edit') {
         // Если уже в режиме редактирования, используем backup подход для множественного редактирования
-        console.log('🔍 DEBUG: Уже в режиме edit, начинаем backup редактирование') // LOG: отладочная информация
         if (rowData) {
           startEditBackup(rowId, rowData)
         }
       } else {
-        console.log('🔍 DEBUG: Режим не позволяет редактирование:', tableMode.mode) // LOG: отладочная информация
       }
     },
     [tableMode.mode, setMode, startEditing, startEditBackup],
@@ -221,19 +218,21 @@ export default function Chessboard() {
 
   const handleBackupRowUpdate = useCallback(
     (rowId: string, updates: any) => {
-      console.log('🔍 DEBUG: handleBackupRowUpdate для строки:', rowId, updates) // LOG: отладочная информация
       updateEditingRow(rowId, updates)
     },
     [updateEditingRow],
   )
 
   const handleRowDelete = useCallback(
-    (rowId: string) => {
+    async (rowId: string) => {
       if (tableMode.mode === 'add') {
         removeNewRow(rowId)
+      } else {
+        // В режиме просмотра - каскадное удаление из базы данных
+        await deleteSingleRow(rowId)
       }
     },
-    [tableMode.mode, removeNewRow],
+    [tableMode.mode, removeNewRow, deleteSingleRow],
   )
 
   // Обработчики пагинации
@@ -257,7 +256,6 @@ export default function Chessboard() {
       if (documentationInfo.length > 0 && documentVersions.length > 0) {
         openVersionsModal(documentationInfo, documentVersions)
       } else {
-        console.log('📋 Данные еще не загружены. Документы:', documentationInfo.length, 'Версии:', documentVersions.length) // LOG: информация о загрузке данных
       }
     }
   }, [filters.documentationCode, documentationInfo, documentVersions, openVersionsModal])
@@ -265,7 +263,6 @@ export default function Chessboard() {
   const handleApplyVersions = useCallback(() => {
     const requiredDocIds = documentationInfo.map(doc => doc.id)
     applyVersions(requiredDocIds, (versions) => {
-      console.log('🔍 Применены версии документов:', versions) // LOG: применение версий
       // Обновляем версии в appliedFilters
       updateDocumentVersions(versions)
     })
@@ -288,7 +285,6 @@ export default function Chessboard() {
       // Загружаем данные комплекта
       const set = await chessboardSetsApi.getSetById(setId)
       if (!set) {
-        console.error('Комплект не найден:', setId) // LOG: ошибка загрузки
         return
       }
 
@@ -351,6 +347,7 @@ export default function Chessboard() {
       // Устанавливаем статус комплекта сразу
       if (set.status) {
         setCurrentStatus(set.status.id)
+        setCurrentSetName(set.name)
         statusSetManuallyRef.current = true // Помечаем как ручную установку
       }
 
@@ -376,10 +373,30 @@ export default function Chessboard() {
       setAppliedFilters(directAppliedFilters)
 
     } catch (error) {
-      console.error('Ошибка при применении комплекта:', error) // LOG: ошибка
       setSetsModalOpen(false)
     }
   }, [updateFilter, updateDocumentVersions, appliedFilters.documentation_version_ids, setAppliedFilters])
+
+  // Обёртка для updateFilter - сбрасываем флаг ручной установки статуса
+  const handleUpdateFilter = useCallback(<K extends keyof ChessboardFilters>(key: K, value: ChessboardFilters[K]) => {
+    updateFilter(key, value)
+    // Сбрасываем флаг ручной установки, чтобы при применении фильтров статус определился заново
+    statusSetManuallyRef.current = false
+  }, [updateFilter])
+
+  // Обёртка для updateCascadingFilter - сбрасываем флаг ручной установки статуса
+  const handleUpdateCascadingFilter = useCallback(<K extends keyof ChessboardFilters>(key: K, value: ChessboardFilters[K]) => {
+    updateCascadingFilter(key, value)
+    // Сбрасываем флаг ручной установки, чтобы при применении фильтров статус определился заново
+    statusSetManuallyRef.current = false
+  }, [updateCascadingFilter])
+
+  // Обёртка для applyFilters - сбрасываем флаг ручной установки статуса
+  const handleApplyFilters = useCallback(() => {
+    applyFilters()
+    // Сбрасываем флаг ручной установки, чтобы статус определился заново
+    statusSetManuallyRef.current = false
+  }, [applyFilters])
 
   // Обработчик сброса фильтров с очисткой статуса
   const handleResetFilters = useCallback(() => {
@@ -399,7 +416,7 @@ export default function Chessboard() {
       try {
         const searchFilters = {
           project_id: appliedFilters.project_id,
-          documentation_id: appliedFilters.documentation_code_ids.length > 0 ? appliedFilters.documentation_code_ids[0] : undefined,
+          documentation_ids: appliedFilters.documentation_code_ids.length > 0 ? appliedFilters.documentation_code_ids : undefined,
           tag_id: appliedFilters.documentation_section_ids.length > 0 ? Number(appliedFilters.documentation_section_ids[0]) : undefined,
           block_ids: appliedFilters.block_ids.length > 0 ? appliedFilters.block_ids : undefined,
           cost_category_ids: appliedFilters.cost_category_ids.length > 0 ? appliedFilters.cost_category_ids.map(Number) : undefined,
@@ -409,18 +426,14 @@ export default function Chessboard() {
         const matchedSet = await chessboardSetsApi.findSetByFilters(searchFilters)
 
         if (matchedSet) {
-          console.log('🔍 Обновляем статус комплекта:', matchedSet.id, statusId) // LOG: обновление статуса комплекта
           await chessboardSetsApi.addStatusToSet({
             chessboard_set_id: matchedSet.id,
             status_id: statusId,
             comment: 'Статус обновлен через шахматку',
           })
-          console.log('✅ Статус комплекта обновлен') // LOG: статус обновлен
         } else {
-          console.log('❌ Комплект для обновления статуса не найден') // LOG: комплект не найден
         }
       } catch (error) {
-        console.error('Ошибка обновления статуса комплекта:', error) // LOG: ошибка обновления
       }
     }
   }, [
@@ -433,8 +446,10 @@ export default function Chessboard() {
   ])
 
 
-  // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Мемоизируем вызовы функций без зависимости от самих функций
-  const allDisplayData = useMemo(() => getDisplayData(data), [data, tableMode.mode, tableMode.selectedRowKeys?.length || 0, tableMode.newRows?.length || 0, tableMode.editedRows?.size || 0])
+  // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Мемоизируем вызовы функций с правильными зависимостями
+  const allDisplayData = useMemo(() => {
+    return getDisplayData(data)
+  }, [data, getDisplayData, tableMode.mode])
   const visibleColumns = useMemo(() => getVisibleColumns(), [columnSettings.columnOrder, columnSettings.hiddenColumns])
   const allColumnsWithVisibility = useMemo(() => getAllColumnsWithVisibility(), [columnSettings.columnOrder, columnSettings.hiddenColumns])
 
@@ -492,7 +507,7 @@ export default function Chessboard() {
 
       {/* Фильтры */}
       <div style={{ flexShrink: 0, padding: '16px 24px 0 24px' }}>
-        <ChessboardFilters
+        <ChessboardFiltersComponent
           filters={filters}
           appliedFilters={appliedFilters}
           filtersCollapsed={filtersCollapsed}
@@ -500,9 +515,9 @@ export default function Chessboard() {
           hasAppliedFilters={hasAppliedFilters}
           isLoading={isLoading}
           statistics={statistics}
-          onFilterChange={updateFilter}
-          onCascadingFilterChange={updateCascadingFilter}
-          onApplyFilters={applyFilters}
+          onFilterChange={handleUpdateFilter}
+          onCascadingFilterChange={handleUpdateCascadingFilter}
+          onApplyFilters={handleApplyFilters}
           onResetFilters={handleResetFilters}
           onToggleCollapsed={toggleFiltersCollapsed}
           onOpenColumnSettings={openDrawer}
@@ -518,6 +533,7 @@ export default function Chessboard() {
           onDeleteSelected={deleteSelectedRows}
           onAddRow={handleAddRow}
           currentStatus={currentStatus}
+          currentSetName={currentSetName}
           onStatusChange={handleStatusChange}
         />
       </div>
@@ -536,14 +552,16 @@ export default function Chessboard() {
         <div
           style={{
             flex: 1,
-            overflow: 'auto', // Восстанавливаем прокрутку
-            border: '1px solid #f0f0f0',
-            borderRadius: '6px',
+            overflow: 'hidden', // Контейнер без прокрутки
             minHeight: 0,
+            position: 'relative', // Для корректной работы sticky
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           <ChessboardTable
             data={displayData}
+            originalData={data}
             loading={isLoading}
             tableMode={tableMode}
             visibleColumns={visibleColumns}
@@ -554,7 +572,9 @@ export default function Chessboard() {
             onRowDelete={handleRowDelete}
             onRowColorChange={updateRowColor}
             onStartEditing={handleStartEditing}
-            onAddRow={handleAddRow}
+            onAddRowAfter={handleAddRowAfter}
+            onCopyRowAfter={handleCopyRowAfter}
+            onRemoveNewRow={removeNewRow}
           />
         </div>
 

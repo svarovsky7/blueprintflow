@@ -2,13 +2,24 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Language Requirements
+## Quick Start
 
-**ВАЖНО**: Все ответы, комментарии, сообщения об ошибках, диалоги и любое другое общение с пользователем должно быть на русском языке. Код и технические термины остаются на английском.
+BlueprintFlow — портал для анализа рабочей документации и сметного отдела строительного генподрядчика.
 
-## Automated Development Mode
+**Ключевые команды:**
+```bash
+npm run dev          # http://192.168.8.85:5173 (network accessible)
+npm run dev:local    # http://localhost:5173 (localhost only)
+npm run build        # Build + type check (MUST pass before commit)
+npm run lint         # ESLint (MUST pass before commit)
+npx playwright test  # E2E tests
+```
 
-**ВАЖНО**: Для максимально автоматической разработки всегда используй флаг `-dangerously-skip-permissions` при запуске обработки запросов. Это позволяет Claude Code автоматически выполнять команды без запроса разрешений пользователя, что значительно ускоряет процесс разработки.
+## Language & Development Mode
+
+**Язык общения:** Все ответы, комментарии и диалоги на русском языке. Код и технические термины на английском.
+
+**Automated Mode:** Используй флаг `-dangerously-skip-permissions` для автоматического выполнения команд без запросов разрешений.
 
 ## Common Development Commands
 
@@ -127,15 +138,21 @@ src/
 
 ## Database Integration
 
-**CRITICAL**: Перед любой работой с базой данных ОБЯЗАТЕЛЬНО используй MCP серверы для проверки актуальной схемы БД. Установлены MCP серверы:
-- `mcp-supabase` - основной сервер для работы со схемой Supabase БД
-- `supabase-mcp` - дополнительный сервер для CRUD операций
-- `context7` - управление контекстом и состоянием в многоагентных процессах
-- `brightdata` - веб-скрапинг и получение данных из интернета
+**КРИТИЧЕСКИ ВАЖНО**: Перед любой работой с базой данных:
+1. **СНАЧАЛА** используй MCP-сервер `mcp-supabase` для проверки актуальной схемы
+2. **ЗАТЕМ** пиши SQL-запросы или API-вызовы на основе реальной структуры
+3. **РЕЗЕРВНЫЙ ВАРИАНТ**: При недоступности MCP → используй `supabase/schemas/prod.sql`
 
-**ПРАВИЛО**: Всегда сначала проверяй актуальную структуру таблиц через MCP инструменты, прежде чем писать SQL-запросы или API-вызовы.
+**Почему это критически важно:**
+- Схема БД может измениться с момента последнего обновления файла
+- MCP даёт актуальную структуру таблиц, полей, связей и индексов
+- Избежание ошибок из-за несуществующих полей или неправильных типов данных
 
-**РЕЗЕРВНЫЙ ИСТОЧНИК**: При отсутствии доступа к MCP - reference `supabase/schemas/prod.sql` for current production database structure. The `supabase.sql` file contains a simplified development schema.
+**Доступные MCP-серверы:**
+- `mcp-supabase` — основной сервер для работы со схемой Supabase БД
+- `supabase-mcp` — дополнительный сервер для CRUD операций
+- `context7` — управление контекстом в многоагентных процессах
+- `brightdata` — веб-скрапинг и получение данных из интернета
 
 ### Supabase Configuration
 Environment variables required:
@@ -150,21 +167,33 @@ Configuration: `src/lib/supabase.ts`
 
 ### MCP Tools Usage
 
-Перед работой с БД используй MCP инструменты для получения актуальной схемы:
-
-```typescript
-// Примеры использования MCP инструментов:
-// 1. Получить список всех таблиц
-// 2. Получить структуру конкретной таблицы
-// 3. Проверить существование полей и связей
-// 4. Получить информацию о индексах и ограничениях
-```
-
 **Рабочий процесс с БД**:
-1. Используй MCP инструмент для проверки схемы таблицы
-2. Анализируй структуру полей и типов данных
-3. Проверяй связи между таблицами
-4. Пиши код с учетом актуальной структуры БД
+1. **Проверка схемы таблицы** через MCP-инструмент `mcp-supabase`
+   - Получить список всех таблиц
+   - Получить структуру конкретной таблицы (поля, типы данных)
+   - Проверить связи между таблицами (foreign keys)
+   - Получить информацию о индексах и ограничениях
+2. **Анализ структуры** перед написанием кода
+3. **Написание кода** с учетом актуальной структуры БД
+
+**Практический пример:**
+```typescript
+// СЦЕНАРИЙ: Нужно написать запрос к таблице chessboard
+// ШАГ 1: Используй MCP-инструмент для получения структуры таблицы chessboard
+// ШАГ 2: Проверь наличие полей: project_id, material, quantity, unit_id
+// ШАГ 3: Проверь связи: foreign key к таблицам projects, materials, units
+// ШАГ 4: Пиши запрос на основе актуальной структуры
+
+const { data, error } = await supabase
+  .from('chessboard')
+  .select(`
+    *,
+    projects(name),
+    materials(name),
+    units(name)
+  `)
+  .eq('project_id', projectId);
+```
 
 ### Database Deployment
 Deploy database schema:
@@ -472,26 +501,119 @@ From technical specification (`tech_task.md`):
    - `scroll.y: calc(100vh - 300px)` - фиксированная высота, НЕ используйте `100%` или `auto`
    - Для страниц с пагинацией: `scroll.y: calc(100vh - 350px)`
 
+### КРИТИЧЕСКИ ВАЖНО: Адаптивный расчёт высоты таблицы
+
+При настройке `scroll.y` в Ant Design Table **ОБЯЗАТЕЛЬНО** учитывайте ВСЕ элементы страницы для корректного отображения последних строк и Summary.
+
+#### Правильный расчёт всех элементов:
+
+```tsx
+// Добавить состояние для адаптивной высоты
+const [tableScrollHeight, setTableScrollHeight] = useState('calc(100vh - 350px)')
+
+// Адаптивный расчёт высоты таблицы
+useEffect(() => {
+  const calculateTableHeight = () => {
+    const viewportHeight = window.innerHeight
+
+    // Подробный расчёт ВСЕХ элементов:
+    const headerHeight = 96          // header приложения
+    const pageHeaderHeight = 160     // заголовок ВОР + описание + название
+    const legendHeight = 60          // легенда цветов
+    const tableHeaderHeight = 45     // заголовки столбцов таблицы ⭐ КРИТИЧНО
+    const summaryRowHeight = 40      // итоговая строка ⭐ КРИТИЧНО
+    const paddingAndMargins = 40     // отступы контейнера + borders
+
+    const totalOffset = headerHeight + pageHeaderHeight + legendHeight +
+                       tableHeaderHeight + summaryRowHeight + paddingAndMargins
+
+    // Адаптивный расчёт с учётом размера экрана
+    if (viewportHeight <= 768) {
+      // Маленькие экраны - минимальные отступы
+      setTableScrollHeight(`calc(100vh - ${totalOffset - 40}px)`)
+    } else if (viewportHeight <= 1080) {
+      // Средние экраны - стандартные отступы
+      setTableScrollHeight(`calc(100vh - ${totalOffset}px)`)
+    } else {
+      // Большие экраны - дополнительный запас
+      setTableScrollHeight(`calc(100vh - ${totalOffset + 20}px)`)
+    }
+  }
+
+  calculateTableHeight()
+  window.addEventListener('resize', calculateTableHeight)
+  return () => window.removeEventListener('resize', calculateTableHeight)
+}, [])
+
+// Использовать в Table
+<Table
+  scroll={{
+    x: 'max-content',
+    y: tableScrollHeight,  // Динамическое значение
+  }}
+/>
+```
+
+#### Элементы, которые ОБЯЗАТЕЛЬНО учитывать:
+
+1. **Внешние элементы страницы:**
+   - Header приложения (~96px)
+   - Заголовок секции/ВОР (~160px)
+   - Легенда/описание (~60px)
+
+2. **Внутренние элементы таблицы (часто забывают!):**
+   - **Заголовки столбцов (thead)** - обычно 40-50px ⚠️
+   - **Summary строка** - добавляет 35-45px ⚠️
+   - **Borders и padding таблицы** - ещё 20-40px ⚠️
+
+3. **Отступы контейнера:**
+   - Padding контейнера таблицы
+   - Margins между элементами
+
+#### Типичные ошибки:
+
+❌ **НЕ учитывать заголовки таблицы** - приводит к обрезке последних строк
+❌ **НЕ учитывать Summary строку** - итоги не видны при прокрутке
+❌ **Фиксированные значения** - не работают на разных экранах
+❌ **Использовать `100%` или `auto`** - ломает прокрутку Ant Design Table
+
+✅ **Правильно:** Детальный расчёт всех элементов + адаптивность
+
 ## Specialized Agents
 
 Проект включает специализированных агентов для решения сложных задач. Агенты находятся в папке `agents/`:
 
-### Доступные агенты:
-- **backend-architect.md** - Проектирование RESTful API, микросервисов и схем БД
-- **context-manager.md** - Управление контекстом в многоагентных процессах
-- **debugger.md** - Специалист по отладке ошибок и тестированию
-- **database-optimizer.md** - Оптимизация SQL-запросов и производительности БД
-- **docs-architect.md** - Создание технической документации и архитектурных руководств
-- **frontend-developer.md** - Разработка React компонентов и фронтенд решений
-- **sql-pro.md** - Эксперт по сложным SQL-запросам и проектированию БД
-- **typescript-pro.md** - Мастер TypeScript с продвинутыми типами и паттернами
-- **ui-ux-designer.md** - Проектирование интерфейсов и пользовательского опыта
+### Доступные агенты и когда их использовать:
+
+**Frontend:**
+- **frontend-developer.md** — Разработка React компонентов, создание новых страниц
+  - *Используй когда:* Создание новой страницы с таблицей и фильтрами, сложный UI компонент
+- **ui-ux-designer.md** — Проектирование интерфейсов, UX-решения
+  - *Используй когда:* Разработка нового шаблона страницы, улучшение UX существующих компонентов
+
+**Backend & Database:**
+- **backend-architect.md** — Проектирование API endpoints, схем БД, архитектурные решения
+  - *Используй когда:* Проектирование новой таблицы с множественными связями, дизайн API
+- **sql-pro.md** — Сложные SQL-запросы, JOIN, подзапросы, агрегация
+  - *Используй когда:* Написание запроса с 3+ JOIN, оконные функции, сложные фильтры
+- **database-optimizer.md** — Оптимизация производительности БД, индексы, query tuning
+  - *Используй когда:* Анализ медленных запросов, создание индексов, оптимизация N+1
+
+**Development:**
+- **typescript-pro.md** — Сложные типы TypeScript, дженерики, utility types
+  - *Используй когда:* Создание типобезопасного API клиента, сложные conditional types
+- **debugger.md** — Отладка сложных ошибок, анализ багов, тестирование
+  - *Используй когда:* Поиск причины race condition, memory leak, непонятная ошибка
+
+**Other:**
+- **docs-architect.md** — Создание технической документации
+- **context-manager.md** — Управление контекстом в многоагентных процессах
 
 ### Правила использования агентов:
-1. **При сложных задачах** - используй агентов для специализированных задач (API design, сложные запросы БД, UI/UX проектирование)
-2. **При неудаче со второй попытки** - если задача не решена после двух попыток, ОБЯЗАТЕЛЬНО используй подходящего агента
-3. **По запросу пользователя** - всегда используй агентов, если пользователь прямо просит их задействовать
-4. **Проактивно** - используй агентов помеченных как "Use PROACTIVELY" без запроса пользователя
+1. **При сложных задачах** — используй специализированных агентов (новая страница → frontend-developer, сложный SQL → sql-pro)
+2. **После двух неудачных попыток** — ОБЯЗАТЕЛЬНО используй подходящего агента
+3. **По запросу пользователя** — всегда используй агентов, если пользователь явно просит
+4. **Проактивно** — используй агентов помеченных как "Use PROACTIVELY" без явного запроса
 
 ## Структура папок и временные файлы
 
@@ -561,6 +683,53 @@ All entities follow the same structure:
 - Column settings saved in localStorage for persistence across sessions
 - При применении шаблона "Документ" все компоненты страницы должны следовать описанным выше принципам
 - НИКОГДА не используйте `scroll.y` в Table компоненте для управления высотой - используйте CSS контейнеры
+
+## Dropdown Best Practices (КРИТИЧЕСКИ ВАЖНО)
+
+### Проблема: Dropdown скрываются под строками таблицы
+**ГЛАВНАЯ ПРИЧИНА:** Использование `getPopupContainer` в Select компонентах внутри таблиц
+
+### ❌ НЕПРАВИЛЬНО - вызывает обрезание dropdown:
+```typescript
+<Select
+  getPopupContainer={(triggerNode) => triggerNode.parentNode}
+  // ... другие свойства
+/>
+```
+
+### ✅ ПРАВИЛЬНО - dropdown отображается поверх таблицы:
+```typescript
+// Функция для динамических dropdown с расширением до 500px
+const getDynamicDropdownStyle = (options: Array<{ label: string; value: any }>) => ({
+  ...STABLE_STYLES.dropdownStyle,
+  minWidth: calculateDropdownWidth(options),
+  width: calculateDropdownWidth(options),
+  maxWidth: '500px',
+  zIndex: 9999,
+})
+
+<Select
+  value={value}
+  onChange={onChange}
+  options={data}
+  allowClear
+  showSearch
+  filterOption={(input, option) =>
+    (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+  }
+  placeholder="Выберите значение"
+  size="small"
+  style={{ width: '100%' }}
+  dropdownStyle={getDynamicDropdownStyle(data)}
+  // ❗ НЕ ДОБАВЛЯЙТЕ getPopupContainer!
+/>
+```
+
+### Правила для dropdown в таблицах:
+1. **НИКОГДА не используйте `getPopupContainer` в Select внутри таблиц**
+2. **Всегда используйте высокий z-index (9999)**
+3. **Применяйте динамическое расширение через `getDynamicDropdownStyle`**
+4. **Максимальная ширина dropdown: 500px, минимальная: 150px**
 
 # important-instruction-reminders
 Do what has been asked; nothing more, nothing less.

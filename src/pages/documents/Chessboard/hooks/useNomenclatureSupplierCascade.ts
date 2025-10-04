@@ -156,7 +156,7 @@ export const useNomenclatureSupplierCascade = ({
             }
           }
         } catch (error) {
-          console.error('🔗 Cascade: Ошибка автоподстановки номенклатуры:', error)
+          console.error('Cascade: Ошибка автоподстановки номенклатуры:', error)
         }
       }
     },
@@ -188,7 +188,7 @@ export const useNomenclatureSupplierCascade = ({
 
         return isLinked
       } catch (error) {
-        console.error('🔗 Cascade: Ошибка проверки связи:', error)
+        console.error('Cascade: Ошибка проверки связи:', error)
         return false
       }
     },
@@ -224,7 +224,7 @@ export const useNomenclatureSupplierCascade = ({
 
         return success
       } catch (error) {
-        console.error('🔗 Cascade: Ошибка сохранения связи номенклатура-поставщик:', error)
+        console.error('Cascade: Ошибка сохранения связи номенклатура-поставщик:', error)
         return false
       }
     },

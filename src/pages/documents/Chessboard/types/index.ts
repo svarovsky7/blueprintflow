@@ -29,6 +29,8 @@ export interface RowData {
   costCategoryId: string
   costType: string
   costTypeId: string
+  workSet: string // Рабочий набор
+  workSetId: string // ID рабочего набора (rates.id)
   workName: string // Наименование работ
   workUnit: string // Ед.Изм. Работ
   rateId: string // ID расценки
@@ -173,6 +175,11 @@ export interface RateOption {
   value: string
   label: string
   rate: number
+}
+
+export interface WorkSetOption {
+  value: string
+  label: string
 }
 
 export type NomenclatureMapping = {

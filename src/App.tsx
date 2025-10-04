@@ -15,13 +15,18 @@ import Documents from './pages/Documents'
 import Chessboard from './pages/documents/Chessboard'
 import Vor from './pages/documents/Vor'
 import VorView from './pages/documents/VorView'
+import Finishing from './pages/documents/Finishing'
+import FinishingPieType from './pages/documents/FinishingPieType'
+import FinishingCalculation from './pages/documents/FinishingCalculation'
 import References from './pages/References'
 import Units from './pages/references/Units'
 import CostCategories from './pages/references/CostCategories'
 import Projects from './pages/references/Projects'
 import Locations from './pages/references/Locations'
+import Rooms from './pages/references/Rooms'
 import Rates from './pages/references/Rates'
 import Nomenclature from './pages/references/Nomenclature'
+import SurfaceTypes from './pages/references/SurfaceTypes'
 import Documentation from './pages/documents/Documentation'
 import Reports from './pages/Reports'
 import ProjectAnalysis from './pages/reports/ProjectAnalysis'
@@ -33,7 +38,6 @@ import Experiments from './pages/experiments'
 import ChessboardML from './pages/experiments/ChessboardML'
 import PortalHeader from './components/PortalHeader'
 import TestTableStructure from './pages/TestTableStructure'
-import PortalSettings from './pages/admin/PortalSettings'
 import { useLogo } from './shared/contexts/LogoContext'
 import { useScale } from './shared/contexts/ScaleContext'
 
@@ -238,6 +242,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             { key: 'chessboard', label: 'Шахматка', path: '/documents/chessboard' },
             { key: 'vor', label: 'ВОР', path: '/documents/vor' },
             { key: 'docs', label: 'Документация', path: '/documents/documentation' },
+            { key: 'finishing', label: 'Отделка', path: '/documents/finishing' },
           ])}
         >
           <FileTextOutlined />
@@ -252,6 +257,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             { key: 'chessboard', label: <Link to="/documents/chessboard">Шахматка</Link> },
             { key: 'vor', label: <Link to="/documents/vor">ВОР</Link> },
             { key: 'docs', label: <Link to="/documents/documentation">Документация</Link> },
+            { key: 'finishing', label: <Link to="/documents/finishing">Отделка</Link> },
           ],
     },
     {
@@ -294,6 +300,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             },
             { key: 'projects', label: 'Проекты', path: '/references/projects' },
             { key: 'locations', label: 'Локализации', path: '/references/locations' },
+            { key: 'rooms', label: 'Помещения', path: '/references/rooms' },
             { key: 'rates', label: 'Расценки', path: '/references/rates' },
             { key: 'nomenclature', label: 'Номенклатура', path: '/references/nomenclature' },
           ])}
@@ -314,8 +321,10 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             },
             { key: 'projects', label: <Link to="/references/projects">Проекты</Link> },
             { key: 'locations', label: <Link to="/references/locations">Локализации</Link> },
+            { key: 'rooms', label: <Link to="/references/rooms">Помещения</Link> },
             { key: 'rates', label: <Link to="/references/rates">Расценки</Link> },
             { key: 'nomenclature', label: <Link to="/references/nomenclature">Номенклатура</Link> },
+            { key: 'surface-types', label: <Link to="/references/surface-types">Типы поверхностей</Link> },
           ],
     },
     {
@@ -336,7 +345,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             },
             { key: 'statuses', label: 'Статусы', path: '/admin/statuses' },
             { key: 'api-settings', label: 'API', path: '/admin/api-settings' },
-            { key: 'portal-settings', label: 'Настройка портала', path: '/admin/portal-settings' },
           ])}
         >
           <SettingOutlined />
@@ -359,10 +367,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             {
               key: 'api-settings',
               label: <Link to="/admin/api-settings">API</Link>,
-            },
-            {
-              key: 'portal-settings',
-              label: <Link to="/admin/portal-settings">Настройка портала</Link>,
             },
             {
               key: 'scale',
@@ -654,13 +658,17 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                     ? 'vor'
                     : location.pathname.startsWith('/documents/documentation')
                       ? 'docs'
-                      : location.pathname.startsWith('/references/cost-categories')
+                      : location.pathname.startsWith('/documents/finishing')
+                        ? 'finishing'
+                        : location.pathname.startsWith('/references/cost-categories')
                         ? 'cost-categories'
                         : location.pathname.startsWith('/references/projects')
                           ? 'projects'
                           : location.pathname.startsWith('/references/locations')
                             ? 'locations'
-                            : location.pathname.startsWith('/references/rates')
+                            : location.pathname.startsWith('/references/rooms')
+                              ? 'rooms'
+                              : location.pathname.startsWith('/references/rates')
                               ? 'rates'
                               : location.pathname.startsWith('/references/nomenclature')
                                 ? 'nomenclature'
@@ -674,11 +682,9 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                                         ? 'statuses'
                                         : location.pathname.startsWith('/admin/api-settings')
                                           ? 'api-settings'
-                                          : location.pathname.startsWith('/admin/portal-settings')
-                                            ? 'portal-settings'
-                                            : location.pathname.startsWith('/experiments')
-                                              ? 'experiments'
-                                              : location.pathname,
+                                          : location.pathname.startsWith('/experiments')
+                                            ? 'experiments'
+                                            : location.pathname,
             ]}
             openKeys={openKeys}
             onOpenChange={setOpenKeys}
@@ -707,14 +713,19 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                   <Route path="vor" element={<Vor />} />
                   <Route path="vor-view" element={<VorView />} />
                   <Route path="documentation" element={<Documentation />} />
+                  <Route path="finishing" element={<Finishing />} />
+                  <Route path="finishing-pie-type/:id" element={<FinishingPieType />} />
+                  <Route path="finishing-calculation/:id" element={<FinishingCalculation />} />
                 </Route>
                 <Route path="/references" element={<References />}>
                   <Route path="units" element={<Units />} />
                   <Route path="cost-categories" element={<CostCategories />} />
                   <Route path="projects" element={<Projects />} />
                   <Route path="locations" element={<Locations />} />
+                  <Route path="rooms" element={<Rooms />} />
                   <Route path="rates" element={<Rates />} />
                   <Route path="nomenclature" element={<Nomenclature />} />
+                  <Route path="surface-types" element={<SurfaceTypes />} />
                 </Route>
                 <Route path="/reports" element={<Reports />}>
                   <Route path="project-analysis" element={<ProjectAnalysis />} />
@@ -723,7 +734,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                   <Route path="documentation-tags" element={<DocumentationTags />} />
                   <Route path="statuses" element={<Statuses />} />
                   <Route path="api-settings" element={<ApiSettings />} />
-                  <Route path="portal-settings" element={<PortalSettings />} />
                   {/* ОБРАТНАЯ СОВМЕСТИМОСТЬ: старый маршрут /admin/disk перенаправляет на /admin/api-settings */}
                   <Route path="disk" element={<Navigate to="/admin/api-settings" replace />} />
                 </Route>
@@ -779,6 +789,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               { key: 'chessboard', label: 'Шахматка', path: '/documents/chessboard' },
               { key: 'vor', label: 'ВОР', path: '/documents/vor' },
               { key: 'docs', label: 'Документация', path: '/documents/documentation' },
+              { key: 'finishing', label: 'Отделка', path: '/documents/finishing' },
             ].map((item) => (
               <div
                 key={item.key}
@@ -850,6 +861,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
               },
               { key: 'projects', label: 'Проекты', path: '/references/projects' },
               { key: 'locations', label: 'Локализации', path: '/references/locations' },
+              { key: 'rooms', label: 'Помещения', path: '/references/rooms' },
               { key: 'rates', label: 'Расценки', path: '/references/rates' },
               { key: 'nomenclature', label: 'Номенклатура', path: '/references/nomenclature' },
             ].map((item) => (
@@ -927,11 +939,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                 },
                 { key: 'statuses', label: 'Статусы', path: '/admin/statuses' },
                 { key: 'api-settings', label: 'API', path: '/admin/api-settings' },
-                {
-                  key: 'portal-settings',
-                  label: 'Настройка портала',
-                  path: '/admin/portal-settings',
-                },
               ].map((item) => (
                 <div
                   key={item.key}

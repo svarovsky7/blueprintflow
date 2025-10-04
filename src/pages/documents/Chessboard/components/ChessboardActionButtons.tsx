@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { Button, Space, Select } from 'antd'
+import { Button, Space, Select, Tooltip } from 'antd'
 import {
   PlusOutlined,
   EditOutlined,
@@ -7,10 +7,13 @@ import {
   SaveOutlined,
   CloseOutlined,
   AppstoreOutlined,
+  CopyOutlined,
+  BgColorsOutlined,
 } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { statusesApi } from '@/entities/statuses'
 import { PAGE_FORMATS, normalizeColorToHex } from '@/shared/constants/statusColors'
+import { useScale } from '@/shared/contexts/ScaleContext'
 import type { TableMode } from '../types'
 
 interface ChessboardActionButtonsProps {
@@ -23,8 +26,12 @@ interface ChessboardActionButtonsProps {
   onCancelChanges: () => void
   onDeleteSelected: () => void
   onAddRow: () => void
+  onAddRowAfter?: (rowIndex: number) => void
+  onCopyRow?: (rowData: any, rowIndex: number) => void
+  onRemoveRow?: (rowId: string) => void
   onOpenSetsModal?: () => void
   currentStatus?: string
+  currentSetName?: string
   onStatusChange?: (statusId: string) => void
 }
 
@@ -39,11 +46,16 @@ export const ChessboardActionButtons = memo(
     onCancelChanges,
     onDeleteSelected,
     onAddRow,
+    onAddRowAfter,
+    onCopyRow,
+    onRemoveRow,
     onOpenSetsModal,
     currentStatus,
+    currentSetName,
     onStatusChange,
   }: ChessboardActionButtonsProps) => {
     const { mode, selectedRowKeys } = tableMode
+    const { scale } = useScale()
 
     // Загрузка статусов для Шахматки
     const { data: chessboardStatuses = [] } = useQuery({
@@ -73,8 +85,28 @@ export const ChessboardActionButtons = memo(
     // Находим текущий статус для отображения только пиктограммы
     const currentStatusData = chessboardStatuses.find(s => s.id === currentStatus)
 
-    // В режиме добавления или редактирования показываем кнопки сохранения
-    if (mode === 'add' || mode === 'edit') {
+    // В режиме добавления показываем только кнопки сохранения
+    if (mode === 'add') {
+      return (
+        <Space>
+          <Button
+            type="primary"
+            icon={<SaveOutlined />}
+            onClick={onSaveChanges}
+            disabled={!hasUnsavedChanges}
+          >
+            Сохранить
+          </Button>
+
+          <Button icon={<CloseOutlined />} onClick={onCancelChanges}>
+            Отмена
+          </Button>
+        </Space>
+      )
+    }
+
+    // В режиме редактирования показываем кнопки сохранения
+    if (mode === 'edit') {
       return (
         <Space>
           <Button
@@ -127,6 +159,24 @@ export const ChessboardActionButtons = memo(
             suffixIcon={null}
             popupMatchSelectWidth={200}
             optionLabelProp="label"
+            dropdownRender={(menu) => (
+              <>
+                {currentSetName && (
+                  <div
+                    style={{
+                      padding: '8px 12px',
+                      borderBottom: '1px solid #f0f0f0',
+                      fontWeight: 500,
+                      fontSize: `${13 * scale}px`,
+                      color: '#1890ff',
+                    }}
+                  >
+                    Комплект: {currentSetName}
+                  </div>
+                )}
+                {menu}
+              </>
+            )}
           >
             {chessboardStatuses.map(status => (
               <Select.Option
@@ -143,6 +193,12 @@ export const ChessboardActionButtons = memo(
           </Select>
         )}
 
+        {hasAppliedProject && onOpenSetsModal && (
+          <Button icon={<AppstoreOutlined />} onClick={onOpenSetsModal}>
+            Комплект
+          </Button>
+        )}
+
         <Button
           type="primary"
           icon={<PlusOutlined />}
@@ -154,12 +210,6 @@ export const ChessboardActionButtons = memo(
         >
           Добавить
         </Button>
-
-        {hasAppliedProject && onOpenSetsModal && (
-          <Button icon={<AppstoreOutlined />} onClick={onOpenSetsModal}>
-            Комплект
-          </Button>
-        )}
 
         {hasAppliedProject && (
           <Button icon={<DeleteOutlined />} onClick={() => onSetMode('delete')}>

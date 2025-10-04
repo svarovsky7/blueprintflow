@@ -28,8 +28,8 @@ interface ChessboardFiltersProps {
   filtersCollapsed: boolean
   hasActiveFilters: boolean
   hasAppliedFilters: boolean
-  isLoading?: boolean // LOG: индикатор загрузки для фильтров
-  statistics?: { totalRows: number; totalQuantityPd: number; totalQuantitySpec: number; totalQuantityRd: number } // LOG: статистика записей
+  isLoading?: boolean
+  statistics?: { totalRows: number; totalQuantityPd: number; totalQuantitySpec: number; totalQuantityRd: number }
   onFilterChange: (key: keyof ChessboardFilters, value: any) => void
   onCascadingFilterChange: (key: keyof ChessboardFilters, value: any) => void
   onApplyFilters: () => void
@@ -49,6 +49,7 @@ interface ChessboardFiltersProps {
   onDeleteSelected: () => void
   onAddRow: () => void
   currentStatus?: string
+  currentSetName?: string
   onStatusChange?: (statusId: string) => void
 }
 
@@ -79,6 +80,7 @@ export const ChessboardFilters = memo(
     onDeleteSelected,
     onAddRow,
     currentStatus,
+    currentSetName,
     onStatusChange,
   }: ChessboardFiltersProps) => {
     // Состояние для панели настроек ML
@@ -249,7 +251,7 @@ export const ChessboardFilters = memo(
             </div>
 
             {/* Раздел (Тэги проекта) */}
-            <div style={{ minWidth: 250 }}>
+            <div style={{ minWidth: 250, maxWidth: 250 }}>
               <Select
                 mode="multiple"
                 value={filters.documentationSection}
@@ -258,6 +260,8 @@ export const ChessboardFilters = memo(
                 allowClear
                 showSearch
                 style={{ width: '100%' }}
+                maxTagCount={2}
+                maxTagPlaceholder={(omittedValues) => `+${omittedValues.length}`}
                 filterOption={(input, option) =>
                   (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
                 }
@@ -266,7 +270,7 @@ export const ChessboardFilters = memo(
             </div>
 
             {/* Шифр проекта */}
-            <div style={{ minWidth: 300 }}>
+            <div style={{ minWidth: 300, maxWidth: 300 }}>
               <Select
                 mode="multiple"
                 value={filters.documentationCode}
@@ -275,6 +279,8 @@ export const ChessboardFilters = memo(
                 allowClear
                 showSearch
                 style={{ width: '100%' }}
+                maxTagCount={1}
+                maxTagPlaceholder={(omittedValues) => `+${omittedValues.length} ещё`}
                 filterOption={(input, option) =>
                   (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
                 }
@@ -329,6 +335,7 @@ export const ChessboardFilters = memo(
             onAddRow={onAddRow}
             onOpenSetsModal={onOpenSetsModal}
             currentStatus={currentStatus}
+            currentSetName={currentSetName}
             onStatusChange={onStatusChange}
           />
         </div>
@@ -419,7 +426,6 @@ export const ChessboardFilters = memo(
           open={mlConfigOpen}
           onClose={() => setMLConfigOpen(false)}
           onConfigUpdate={(newConfig) => {
-            console.log('🤖 ML Config updated:', newConfig) // LOG: обновление конфигурации ML
           }}
         />
       </div>

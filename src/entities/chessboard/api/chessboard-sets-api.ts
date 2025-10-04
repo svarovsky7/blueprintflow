@@ -503,25 +503,11 @@ export const chessboardSetsApi = {
     if (!supabase || !filters.project_id) return null
 
     try {
-      let query = supabase.from('chessboard_sets').select('*').eq('project_id', filters.project_id)
-
-      // Добавляем фильтры
-      if (filters.documentation_id) {
-        query = query.eq('documentation_id', filters.documentation_id)
-      }
-      if (filters.version_id) {
-        query = query.eq('version_id', filters.version_id)
-      }
-      if (filters.tag_id !== undefined) {
-        if (filters.tag_id === null) {
-          query = query.is('tag_id', null)
-        } else {
-          query = query.eq('tag_id', filters.tag_id)
-        }
-      }
-
-      // Для массивов проверяем точное совпадение
-      const { data, error } = await query
+      // Получаем все комплекты проекта - фильтрацию делаем вручную для точного совпадения
+      const { data, error } = await supabase
+        .from('chessboard_sets')
+        .select('*')
+        .eq('project_id', filters.project_id)
 
       if (error) {
         console.error('Failed to find set by filters:', error)
@@ -530,34 +516,61 @@ export const chessboardSetsApi = {
 
       // Фильтруем по массивам вручную для точного совпадения
       const matchedSet = (data || []).find((set) => {
+        // Вспомогательная функция для сравнения массивов
+        const arraysEqual = (arr1: any[] | null | undefined, arr2: any[] | null | undefined): boolean => {
+          // Оба null/undefined - совпадают
+          if ((arr1 == null || arr1.length === 0) && (arr2 == null || arr2.length === 0)) {
+            return true
+          }
+          // Один пустой, другой нет - не совпадают
+          if ((arr1 == null || arr1.length === 0) || (arr2 == null || arr2.length === 0)) {
+            return false
+          }
+          // Разные длины - не совпадают
+          if (arr1.length !== arr2.length) {
+            return false
+          }
+          // Проверяем все элементы
+          return arr1.every((id) => arr2.includes(id))
+        }
+
+        // Проверяем tag_id (раздел) - ВАЖНО: undefined в фильтре != null в комплекте
+        const tagIdMatch =
+          filters.tag_id === undefined
+            ? set.tag_id == null // Если tag_id не передан - комплект должен иметь null
+            : filters.tag_id === set.tag_id // Если tag_id передан - должен совпадать точно
+
         // Проверяем block_ids
-        const blockIdsMatch =
-          (!filters.block_ids && !set.block_ids) ||
-          (filters.block_ids &&
-            set.block_ids &&
-            filters.block_ids.length === set.block_ids.length &&
-            filters.block_ids.every((id) => set.block_ids?.includes(id)))
+        const blockIdsMatch = arraysEqual(filters.block_ids, set.block_ids)
 
         // Проверяем cost_category_ids
-        const categoryIdsMatch =
-          (!filters.cost_category_ids && !set.cost_category_ids) ||
-          (filters.cost_category_ids &&
-            set.cost_category_ids &&
-            filters.cost_category_ids.length === set.cost_category_ids.length &&
-            filters.cost_category_ids.every((id) => set.cost_category_ids?.includes(id)))
+        const categoryIdsMatch = arraysEqual(filters.cost_category_ids, set.cost_category_ids)
 
         // Проверяем cost_type_ids
-        const typeIdsMatch =
-          (!filters.cost_type_ids && !set.cost_type_ids) ||
-          (filters.cost_type_ids &&
-            set.cost_type_ids &&
-            filters.cost_type_ids.length === set.cost_type_ids.length &&
-            filters.cost_type_ids.every((id) => set.cost_type_ids?.includes(id)))
+        const typeIdsMatch = arraysEqual(filters.cost_type_ids, set.cost_type_ids)
 
-        return blockIdsMatch && categoryIdsMatch && typeIdsMatch
+        return tagIdMatch && blockIdsMatch && categoryIdsMatch && typeIdsMatch
       })
 
       if (matchedSet) {
+        // ВСЕГДА проверяем документы комплекта для точного совпадения
+        const { data: setDocuments } = await supabase
+          .from('chessboard_sets_documents_mapping')
+          .select('documentation_id')
+          .eq('set_id', matchedSet.id)
+
+        const setDocIds = (setDocuments || []).map(d => d.documentation_id)
+        const filterDocIds = filters.documentation_ids || []
+
+        // Точное совпадение: оба пустые ИЛИ оба заполнены одинаково
+        const docsMatch =
+          filterDocIds.length === setDocIds.length &&
+          filterDocIds.every(id => setDocIds.includes(id))
+
+        if (!docsMatch) {
+          return null // Документы не совпадают - комплект не подходит
+        }
+
         // Получаем текущий статус
         const currentStatus = await this.getCurrentStatus(matchedSet.id)
         if (currentStatus) {

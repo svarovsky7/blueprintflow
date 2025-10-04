@@ -91,9 +91,8 @@ export function useUltraOptimizedChessboard({
         }
       }
 
-      console.log(`🚀 Ultra-optimized query: page ${currentPage}/${Math.ceil(20000/pageSize)} (simulated 20K)`) // LOG: начало запроса
 
-      const queryStart = performance.now() // LOG: время начала
+      const queryStart = performance.now()
 
       try {
         // ЭТАП 1: Получение отфильтрованных chessboard_ids с минимальными данными
@@ -110,22 +109,19 @@ export function useUltraOptimizedChessboard({
           }
         }
 
-        console.log(`📊 Filtered to ${filteredIds.length} records`) // LOG: количество отфильтрованных
 
         // ЭТАП 2: Пагинация на уровне ID
         const totalCount = filteredIds.length
         const offset = (currentPage - 1) * pageSize
         const pageIds = filteredIds.slice(offset, offset + pageSize)
 
-        console.log(`📋 Page ${currentPage}: ${pageIds.length} records (${offset}-${offset + pageIds.length})`) // LOG: пагинация
 
         // ЭТАП 3: Получение полных данных с большим JOIN запросом
         const fullData = await getFullChessboardData(pageIds, appliedFilters.project_id)
 
-        const queryEnd = performance.now() // LOG: время завершения
-        const queryDuration = queryEnd - queryStart // LOG: длительность
+        const queryEnd = performance.now()
+        const queryDuration = queryEnd - queryStart
 
-        console.log(`✅ Ultra-optimized query completed in ${Math.round(queryDuration)}ms`) // LOG: результат
 
         return {
           data: fullData,
@@ -137,7 +133,6 @@ export function useUltraOptimizedChessboard({
         }
 
       } catch (error) {
-        console.error('❌ Ultra-optimized query error:', error) // LOG: ошибка
         throw error
       }
     },
@@ -158,7 +153,6 @@ async function getFilteredChessboardIds(appliedFilters: AppliedFilters): Promise
                                  (appliedFilters.documentation_code_ids?.length || 0) > 0
 
   if (hasDocumentationFilter) {
-    console.log('🔍 Applying documentation filter...') // LOG: фильтр документации
 
     const docQuery = supabase
       .from('chessboard_documentation_mapping')
@@ -186,7 +180,6 @@ async function getFilteredChessboardIds(appliedFilters: AppliedFilters): Promise
     }
 
     baseIds = [...new Set(docData?.map(d => d.chessboard_id) || [])]
-    console.log(`📄 Documentation filter: ${baseIds.length} IDs`) // LOG: результат фильтра документации
   } else {
     // Без фильтра документации - получаем все ID проекта
     const { data: allIds, error } = await supabase
@@ -198,7 +191,6 @@ async function getFilteredChessboardIds(appliedFilters: AppliedFilters): Promise
     if (error) throw error
 
     baseIds = allIds?.map(row => row.id) || []
-    console.log(`📊 All project IDs: ${baseIds.length}`) // LOG: все ID проекта
   }
 
   // Применяем фильтры по категориям затрат (если есть)
@@ -207,7 +199,6 @@ async function getFilteredChessboardIds(appliedFilters: AppliedFilters): Promise
                         (appliedFilters.block_ids?.length || 0) > 0
 
   if (hasCostFilter && baseIds.length > 0) {
-    console.log('🔍 Applying cost category filter...') // LOG: фильтр категорий
 
     // Обрабатываем маленькими батчами для предотвращения URL overflow
     const filteredIds: string[] = []
@@ -239,7 +230,6 @@ async function getFilteredChessboardIds(appliedFilters: AppliedFilters): Promise
     }
 
     baseIds = [...new Set(filteredIds)]
-    console.log(`💰 Cost filter: ${baseIds.length} IDs`) // LOG: результат фильтра категорий
   }
 
   return baseIds
@@ -249,9 +239,8 @@ async function getFilteredChessboardIds(appliedFilters: AppliedFilters): Promise
 async function getFullChessboardData(chessboardIds: string[], projectId: string): Promise<OptimizedRowData[]> {
   if (chessboardIds.length === 0) return []
 
-  console.log(`🔗 Getting full data for ${chessboardIds.length} records...`) // LOG: получение полных данных
 
-  const joinStart = performance.now() // LOG: время начала JOIN
+  const joinStart = performance.now()
 
   // Один большой запрос с LEFT JOIN всех нужных таблиц
   const { data, error } = await supabase
@@ -297,15 +286,13 @@ async function getFullChessboardData(chessboardIds: string[], projectId: string)
     .in('id', chessboardIds)
     .order('created_at', { ascending: false })
 
-  const joinEnd = performance.now() // LOG: время завершения JOIN
-  const joinDuration = joinEnd - joinStart // LOG: длительность JOIN
+  const joinEnd = performance.now()
+  const joinDuration = joinEnd - joinStart
 
   if (error) {
-    console.error('❌ Full data JOIN error:', error) // LOG: ошибка JOIN
     throw error
   }
 
-  console.log(`✅ Full JOIN completed in ${Math.round(joinDuration)}ms for ${data?.length || 0} records`) // LOG: результат JOIN
 
   // Трансформируем данные в плоскую структуру
   return (data || []).map(row => {
@@ -351,10 +338,8 @@ export function usePerformanceMonitor() {
 
     logPerformance: (operation: string, duration: number, recordCount: number) => {
       const rate = recordCount / (duration / 1000)
-      console.log(`📊 ${operation}: ${recordCount} records in ${Math.round(duration)}ms (${Math.round(rate)} records/sec)`) // LOG: производительность
 
       if (duration > 3000) {
-        console.warn(`⚠️ Slow operation: ${operation} took ${Math.round(duration)}ms`) // LOG: медленная операция
       }
     }
   }), [])

@@ -5,6 +5,7 @@ import type { ColumnsType, ColumnType } from 'antd/es/table'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { ratesApi } from '@/entities/rates/api/rates-api'
+import { useScale } from '@/shared/contexts/ScaleContext'
 import { RowColorPicker } from './RowColorPicker'
 import { CommentsCell } from './CommentsCell'
 import { FloorQuantitiesModal } from './FloorQuantitiesModal'
@@ -28,31 +29,127 @@ const STABLE_STYLES = {
   } as const,
 } as const
 
-// КОНФИГУРАЦИЯ: Точные настройки ширины столбцов для оптимизации пространства
-const COLUMN_WIDTH_CONFIG: Record<string, { width?: number; minWidth?: number; maxWidth?: number }> = {
-  [COLUMN_KEYS.ACTIONS]: { width: 60 }, // Уменьшенная ширина для действий
+// Функция для динамического расчета ширины dropdown
+const calculateDropdownWidth = (options: Array<{ label: string; value: any }>) => {
+  if (!options || options.length === 0) return 200
+
+  // Приблизительный расчет ширины на основе самого длинного текста
+  const maxLength = Math.max(...options.map(option => String(option.label).length))
+
+  // Формула: базовая ширина 120px + 8px на символ, но не более 500px
+  const calculatedWidth = Math.min(120 + (maxLength * 8), 500)
+
+  return Math.max(calculatedWidth, 150) // Минимальная ширина 150px
+}
+
+// Стиль для динамического dropdown
+const getDynamicDropdownStyle = (options: Array<{ label: string; value: any }>) => ({
+  ...STABLE_STYLES.dropdownStyle,
+  minWidth: calculateDropdownWidth(options),
+  width: calculateDropdownWidth(options),
+  maxWidth: '500px',
+  zIndex: 9999,
+})
+
+// Функция для расчета масштабированной ширины
+// Базовые размеры рассчитаны для scale = 0.7
+const BASE_SCALE = 0.7
+const getScaledWidth = (widthAt0_7: number, currentScale: number): number => {
+  const baseWidth = widthAt0_7 / BASE_SCALE
+  return Math.round(baseWidth * currentScale)
+}
+
+// Функция для расчета масштабированного размера шрифта
+// Базовый размер шрифта 14px для scale = 0.7
+const BASE_FONT_SIZE = 14
+const getScaledFontSize = (currentScale: number): number => {
+  const baseFontSize = BASE_FONT_SIZE / BASE_SCALE
+  return Math.round(baseFontSize * currentScale)
+}
+
+// КОНФИГУРАЦИЯ: Базовые настройки ширины столбцов для scale = 0.7
+const COLUMN_WIDTH_CONFIG_BASE: Record<string, { width?: number; minWidth?: number; maxWidth?: number }> = {
+  [COLUMN_KEYS.ACTIONS]: { width: 80 }, // Служебный столбец 80px
   [COLUMN_KEYS.DOCUMENTATION_SECTION]: { minWidth: 40, maxWidth: 80 }, // "Раздел" динамический 40-80px
   [COLUMN_KEYS.DOCUMENTATION_CODE]: { width: 100 }, // "Шифр проекта" 100px
-  [COLUMN_KEYS.DOCUMENTATION_PROJECT_NAME]: { width: 120, minWidth: 120, maxWidth: 120 }, // Фиксированная
+  [COLUMN_KEYS.DOCUMENTATION_PROJECT_NAME]: { width: 150, minWidth: 150, maxWidth: 150 }, // Наименование проекта 150px
   [COLUMN_KEYS.DOCUMENTATION_VERSION]: { width: 40 }, // "Вер." фиксированная 40px
   [COLUMN_KEYS.BLOCK]: { minWidth: 60, maxWidth: 90 }, // "Корпус" + 10px = ~60px
   [COLUMN_KEYS.FLOORS]: { width: 50 }, // "Этажи" 50px
   [COLUMN_KEYS.COST_CATEGORY]: { width: 120 }, // "Категория затрат" 120px
   [COLUMN_KEYS.COST_TYPE]: { minWidth: 80, maxWidth: 120 }, // "Вид затрат"
+  [COLUMN_KEYS.WORK_SET]: { minWidth: 120, maxWidth: 180 }, // "Рабочий набор" 120-180px
   [COLUMN_KEYS.WORK_NAME]: { minWidth: 140, maxWidth: 240 }, // "Наименование работ" +40px
   [COLUMN_KEYS.LOCATION]: { width: 80 }, // "Локализация" 80px
-  [COLUMN_KEYS.MATERIAL]: { width: 120 }, // "Материал" 120px
+  [COLUMN_KEYS.MATERIAL]: { width: 200 }, // "Материал" 200px
   [COLUMN_KEYS.MATERIAL_TYPE]: { width: 60 }, // "Тип материала" 60px
   [COLUMN_KEYS.QUANTITY_PD]: { width: 60 }, // "Кол-во по ПД" 60px
   [COLUMN_KEYS.QUANTITY_SPEC]: { width: 90 }, // "Кол-во по спеке РД" 90px
   [COLUMN_KEYS.QUANTITY_RD]: { width: 80 }, // "Кол-во по пересчету РД" 80px
-  [COLUMN_KEYS.NOMENCLATURE]: { minWidth: 120, maxWidth: 180 }, // "Номенклатура"
-  [COLUMN_KEYS.SUPPLIER]: { minWidth: 100, maxWidth: 150 }, // "Наименование поставщика"
+  [COLUMN_KEYS.NOMENCLATURE]: { width: 200 }, // "Номенклатура" 200px
+  [COLUMN_KEYS.SUPPLIER]: { width: 200 }, // "Наименование номенклатуры поставщика" 200px
   [COLUMN_KEYS.UNIT]: { width: 40 }, // "Ед.изм." 40px
   [COLUMN_KEYS.COMMENTS]: { width: 80 }, // "Комментарии" 80px
 }
 
-const DEFAULT_COLUMN_WIDTH = { minWidth: 100, maxWidth: 150 } // Для остальных столбцов
+const DEFAULT_COLUMN_WIDTH_BASE = { minWidth: 100, maxWidth: 150 } // Для остальных столбцов (для scale = 0.7)
+
+// Функция для генерации конфигурации столбцов с учетом масштаба
+const getColumnWidthConfig = (scale: number) => {
+  const scaledConfig: Record<string, { width?: number; minWidth?: number; maxWidth?: number }> = {}
+
+  // Пересчитываем все размеры из базовой конфигурации
+  Object.entries(COLUMN_WIDTH_CONFIG_BASE).forEach(([key, config]) => {
+    scaledConfig[key] = {
+      width: config.width ? getScaledWidth(config.width, scale) : undefined,
+      minWidth: config.minWidth ? getScaledWidth(config.minWidth, scale) : undefined,
+      maxWidth: config.maxWidth ? getScaledWidth(config.maxWidth, scale) : undefined,
+    }
+  })
+
+  return scaledConfig
+}
+
+// Функция для получения размеров по умолчанию с учетом масштаба
+const getDefaultColumnWidth = (scale: number) => ({
+  minWidth: getScaledWidth(DEFAULT_COLUMN_WIDTH_BASE.minWidth, scale),
+  maxWidth: getScaledWidth(DEFAULT_COLUMN_WIDTH_BASE.maxWidth, scale),
+})
+
+// Функция для вычисления минимальной ширины таблицы с учетом масштаба
+// Суммируем базовые ширины всех столбцов и масштабируем результат
+const getTableMinWidth = (scale: number): number => {
+  let totalWidth = 0
+
+  // Суммируем ширины всех столбцов из базовой конфигурации
+  Object.values(COLUMN_WIDTH_CONFIG_BASE).forEach(config => {
+    const columnWidth = config.width || config.minWidth || DEFAULT_COLUMN_WIDTH_BASE.minWidth
+    totalWidth += columnWidth
+  })
+
+  // Масштабируем общую ширину
+  return getScaledWidth(totalWidth, scale)
+}
+
+// Функция для вычисления вертикального отступа
+// Таблица должна касаться полосы над пагинацией (borderTop) на всех масштабах
+const getTableVerticalOffset = (scale: number): number => {
+  // Фиксированные элементы (не масштабируются):
+  // - header: 96px (вне контейнера)
+  // - пагинация с padding: 65px
+  // - padding контейнера снизу: 24px
+  const FIXED_OFFSET = 200 // Учитывает все фиксированные элементы + запас для скролла
+
+  // Масштабируемые элементы (заголовок + фильтры):
+  // При scale 1.0: ~40px (заголовок) + ~200px (фильтры) = 240px
+  const SCALABLE_OFFSET = 240
+
+  return Math.round(FIXED_OFFSET + SCALABLE_OFFSET * scale)
+  // Scale 0.7: 200 + 240*0.7 = 368px
+  // Scale 0.8: 200 + 240*0.8 = 392px
+  // Scale 0.9: 200 + 240*0.9 = 416px
+  // Scale 1.0: 200 + 240*1.0 = 440px (достаточно для видимости скролла)
+}
 
 // Столбцы, которые поддерживают перенос текста (многострочные) - ВСЕ СТОЛБЦЫ
 const MULTILINE_COLUMNS = new Set([
@@ -65,6 +162,7 @@ const MULTILINE_COLUMNS = new Set([
   COLUMN_KEYS.FLOORS,
   COLUMN_KEYS.COST_CATEGORY,
   COLUMN_KEYS.COST_TYPE,
+  COLUMN_KEYS.WORK_SET,
   COLUMN_KEYS.WORK_NAME,
   COLUMN_KEYS.WORK_UNIT,
   COLUMN_KEYS.LOCATION,
@@ -79,7 +177,11 @@ const MULTILINE_COLUMNS = new Set([
   COLUMN_KEYS.COMMENTS
 ])
 
-function normalizeColumns(cols: ColumnsType<RowData>): ColumnsType<RowData> {
+function normalizeColumns(cols: ColumnsType<RowData>, scale: number): ColumnsType<RowData> {
+  // Получаем конфигурацию с учетом масштаба
+  const COLUMN_WIDTH_CONFIG = getColumnWidthConfig(scale)
+  const DEFAULT_COLUMN_WIDTH = getDefaultColumnWidth(scale)
+
   const walk = (arr: ColumnsType<RowData>): ColumnsType<RowData> =>
     arr.map((c) => {
       if ((c as ColumnType<RowData> & { children?: ColumnsType<RowData> }).children?.length) {
@@ -98,6 +200,7 @@ function normalizeColumns(cols: ColumnsType<RowData>): ColumnsType<RowData> {
       const width = config.width
       const minWidth = config.minWidth || width || DEFAULT_COLUMN_WIDTH.minWidth
       const maxWidth = config.maxWidth || width || DEFAULT_COLUMN_WIDTH.maxWidth
+      const fontSize = getScaledFontSize(scale)
 
       return {
         ...c,
@@ -112,6 +215,7 @@ function normalizeColumns(cols: ColumnsType<RowData>): ColumnsType<RowData> {
             width: `${width || minWidth}px !important`,
             minWidth: `${minWidth}px !important`,
             maxWidth: `${maxWidth}px !important`,
+            fontSize: `${fontSize}px`,
             whiteSpace: 'normal' as const,
             overflow: 'hidden' as const,
             textOverflow: 'clip' as const,
@@ -141,45 +245,86 @@ function normalizeColumns(cols: ColumnsType<RowData>): ColumnsType<RowData> {
 }
 
 // Компонент для каскадного выбора работ - ИСПРАВЛЕНИЕ Rules of Hooks
-interface WorkNameSelectProps {
+interface WorkSetSelectProps {
   value: string
   costTypeId: string | undefined
-  costCategoryId: string | undefined
   onChange: (value: string) => void
 }
 
-const WorkNameSelect: React.FC<WorkNameSelectProps> = ({ value, costTypeId, costCategoryId, onChange }) => {
-  // ИСПРАВЛЕНИЕ: Стабилизируем queryKey для предотвращения infinite render
+const WorkSetSelect: React.FC<WorkSetSelectProps> = ({ value, costTypeId, onChange }) => {
+  // Стабилизируем queryKey для предотвращения infinite render
   const stableQueryKey = useMemo(() => {
-    const key = ['works-by-category']
+    const key = ['work-sets-by-category']
     if (costTypeId) key.push(costTypeId)
-    if (costCategoryId) key.push(costCategoryId)
     return key
-  }, [costTypeId, costCategoryId])
+  }, [costTypeId])
 
   // Хук всегда вызывается на верхнем уровне компонента
-  const { data: workOptions = [] } = useQuery({
+  const { data: workSetOptions = [] } = useQuery({
     queryKey: stableQueryKey,
-    queryFn: () => ratesApi.getWorksByCategory(costTypeId, costCategoryId),
-    enabled: !!(costTypeId || costCategoryId), // Запрос только если есть вид или категория затрат
+    queryFn: () => ratesApi.getWorkSetsByCategory(costTypeId),
+    enabled: !!costTypeId, // Запрос только если есть вид затрат
   })
 
   return (
     <Select
       value={value || undefined}
-      placeholder="Выберите работу"
+      placeholder="Выберите рабочий набор"
+      onChange={onChange}
+      allowClear={true}
+      showSearch={true}
+      size="small"
+      style={STABLE_STYLES.fullWidth}
+      dropdownStyle={getDynamicDropdownStyle(workSetOptions)}
+      filterOption={(input, option) => {
+        const text = option?.label?.toString() || ""
+        return text.toLowerCase().includes(input.toLowerCase())
+      }}
+      options={workSetOptions}
+      disabled={!costTypeId} // Отключаем если не выбран вид затрат
+      notFoundContent={costTypeId ? 'Рабочие наборы не найдены' : 'Выберите вид затрат'}
+    />
+  )
+}
+
+interface WorkNameSelectProps {
+  value: string
+  workSetId: string | undefined
+  onChange: (value: string) => void
+}
+
+const WorkNameSelect: React.FC<WorkNameSelectProps> = ({ value, workSetId, onChange }) => {
+  // ИСПРАВЛЕНИЕ: Стабилизируем queryKey для предотвращения infinite render
+  const stableQueryKey = useMemo(() => {
+    const key = ['works-by-work-set']
+    if (workSetId) key.push(workSetId)
+    return key
+  }, [workSetId])
+
+  // Хук всегда вызывается на верхнем уровне компонента
+  const { data: workOptions = [] } = useQuery({
+    queryKey: stableQueryKey,
+    queryFn: () => ratesApi.getWorksByWorkSet(workSetId),
+    enabled: !!workSetId, // Запрос только если есть выбранный рабочий набор
+  })
+
+  return (
+    <Select
+      value={value || undefined}
+      placeholder=""
       onChange={onChange}
       allowClear
       showSearch
       size="small"
       style={STABLE_STYLES.fullWidth}
+      dropdownStyle={getDynamicDropdownStyle(workOptions)}
       filterOption={(input, option) => {
         const text = option?.label?.toString() || ""
         return text.toLowerCase().includes(input.toLowerCase())
       }}
       options={workOptions}
-      disabled={!costTypeId && !costCategoryId} // Отключаем если нет ни вида, ни категории затрат
-      notFoundContent={costTypeId || costCategoryId ? 'Работы не найдены' : 'Выберите вид или категорию затрат'}
+      disabled={!workSetId} // Отключаем если не выбран рабочий набор
+      notFoundContent={workSetId ? 'Работы не найдены' : 'Выберите рабочий набор'}
     />
   )
 }
@@ -188,12 +333,11 @@ const WorkNameSelect: React.FC<WorkNameSelectProps> = ({ value, costTypeId, cost
 interface VersionSelectProps {
   value: string
   documentId: string | undefined
-  isEditing?: boolean // LOG: добавляем флаг режима редактирования
+  isEditing?: boolean
   onChange: (versionId: string, versionNumber: string, documentationCodeId?: string) => void
 }
 
 const VersionSelect: React.FC<VersionSelectProps> = ({ value, documentId, isEditing = false, onChange }) => {
-  console.log('🔍 VersionSelect render:', { value, documentId, isEditing, isValueUUID: value?.length === 36 }) // LOG: рендер компонента версий
 
   // ИСПРАВЛЕНИЕ: кэшируем отображаемое значение для предотвращения мерцания UUID
   const [displayValue, setDisplayValue] = useState<string | undefined>(undefined)
@@ -215,12 +359,8 @@ const VersionSelect: React.FC<VersionSelectProps> = ({ value, documentId, isEdit
     queryKey: stableQueryKey,
     queryFn: () => {
       if (documentId) {
-        // LOG: загрузка версий по documentId
-        console.log('🔍 Loading versions by documentId:', documentId)
         return documentationApi.getVersionsByDocumentId(documentId)
       } else if (value) {
-        // LOG: загрузка версий по versionId
-        console.log('🔍 Loading versions by versionId:', value)
         return documentationApi.getVersionsByVersionId(value)
       }
       return []
@@ -233,54 +373,41 @@ const VersionSelect: React.FC<VersionSelectProps> = ({ value, documentId, isEdit
     if (value && versionOptions.length > 0) {
       const currentVersion = versionOptions.find(v => v.value === value)
       if (currentVersion && (!isInitialized || displayValue !== value)) {
-        console.log('🔄 Setting displayValue with correct label:', { // LOG
-          versionId: value,
-          versionNumber: currentVersion.label,
-          previousDisplayValue: displayValue,
-          isInitialized
-        })
         // Устанавливаем displayValue только когда у нас есть правильная опция с label
         setDisplayValue(value)
         setIsInitialized(true)
       }
     } else if (!value) {
       // Если value пустое, сбрасываем displayValue
-      console.log('🧹 Clearing displayValue (no value)') // LOG
       setDisplayValue(undefined)
       setIsInitialized(false)
     }
   }, [value, versionOptions, isInitialized, displayValue])
 
-  console.log('📋 VersionSelect options loaded:', { versionOptions, displayValue, documentId }) // LOG: загруженные опции версий
 
   // Проверяем, есть ли активная версия (value - это UUID версии)
   const hasActiveVersion = value && versionOptions.length > 0
-  // LOG: Компонент активен в режиме редактирования или если есть активная версия
   const isDisabled = !isEditing && !documentId && !hasActiveVersion
 
-  console.log('🎛️ VersionSelect state:', { isEditing, hasActiveVersion, isDisabled, optionsCount: versionOptions.length }) // LOG: состояние компонента
 
   return (
     <Select
       value={displayValue}
       // ИСПРАВЛЕНИЕ: явно указываем что отображать в поле
       optionLabelProp="label"
-      placeholder="Версия"
+      placeholder=""
       onChange={async (versionId) => {
-        console.log('🔄 Version changing:', { versionId, value }) // LOG
 
         // Немедленно обновляем displayValue чтобы избежать мерцания
         setDisplayValue(versionId)
 
         const selectedVersion = versionOptions.find(v => v.value === versionId)
         if (selectedVersion) {
-          console.log('✅ Version selected:', { versionId, versionNumber: selectedVersion.label }) // LOG: выбор версии
 
           // Получаем documentationCodeId если нет documentId
           let documentationCodeId = documentId
           if (!documentId && versionId) {
             try {
-              console.log('🔍 Getting documentationCodeId for versionId:', versionId) // LOG
               const { data: versionData, error } = await supabase
                 .from('documentation_versions')
                 .select('documentation_id')
@@ -288,13 +415,10 @@ const VersionSelect: React.FC<VersionSelectProps> = ({ value, documentId, isEdit
                 .single()
 
               if (error) {
-                console.error('❌ Error getting documentationCodeId:', error) // LOG
               } else {
                 documentationCodeId = versionData.documentation_id
-                console.log('✅ Got documentationCodeId:', documentationCodeId) // LOG
               }
             } catch (error) {
-              console.error('❌ Error in version change:', error) // LOG
             }
           }
 
@@ -302,7 +426,6 @@ const VersionSelect: React.FC<VersionSelectProps> = ({ value, documentId, isEdit
         }
       }}
       onClear={() => {
-        console.log('🧹 Version field cleared') // LOG
         setDisplayValue(undefined)
         onChange('', '', documentId)
       }}
@@ -869,6 +992,7 @@ const forceHeaderHeight = () => {
 
 interface ChessboardTableProps {
   data: RowData[]
+  originalData: RowData[] // Оригинальные данные из БД без новых строк
   loading: boolean
   tableMode: TableMode
   visibleColumns: string[]
@@ -879,11 +1003,14 @@ interface ChessboardTableProps {
   onRowDelete: (rowId: string) => void
   onRowColorChange: (rowId: string, color: RowColor) => void
   onStartEditing: (rowId: string) => void
-  onAddRow: () => void
+  onAddRowAfter?: (rowIndex: number) => void
+  onCopyRowAfter?: (rowData: RowData, rowIndex: number) => void
+  onRemoveNewRow?: (rowId: string) => void
 }
 
 export const ChessboardTable = memo(({
   data,
+  originalData,
   loading,
   tableMode,
   visibleColumns,
@@ -894,8 +1021,19 @@ export const ChessboardTable = memo(({
   onRowDelete,
   onRowColorChange,
   onStartEditing,
-  onAddRow,
+  onAddRowAfter,
+  onCopyRowAfter,
+  onRemoveNewRow,
 }: ChessboardTableProps) => {
+  // Получаем текущий масштаб приложения
+  const { scale } = useScale()
+
+  // Динамическая высота таблицы с учетом масштаба
+  // Чем больше масштаб, тем больше отступ (элементы интерфейса крупнее)
+  const tableScrollHeight = useMemo(() => {
+    const verticalOffset = getTableVerticalOffset(scale)
+    return `calc(100vh - ${verticalOffset}px)`
+  }, [scale])
 
   // Каскадная зависимость номенклатуры и поставщиков
   const cascadeHook = useNomenclatureSupplierCascade({
@@ -1042,7 +1180,8 @@ export const ChessboardTable = memo(({
       if (error) throw error
       return data.map(item => ({
         value: item.id,
-        label: item.code,
+        label: `${item.code} - ${item.project_name || ''}`.trim(),
+        code: item.code,
         projectName: item.project_name,
         tagId: item.tag_id
       }))
@@ -1215,27 +1354,42 @@ export const ChessboardTable = memo(({
     // Находим запись, чтобы получить текущие количества
     const record = data.find(r => r.id === recordId)
     if (!record) {
-      console.error('🏢 ERROR: Record not found for floors change:', recordId)
+      console.error('ERROR: Record not found for floors change:', recordId)
       return
     }
 
-    console.log('🏢 Floor change START:', {
-      recordId,
-      newFloorsValue,
-      currentFloors: record.floors,
-      currentFloorQuantities: record.floorQuantities
-    })
 
-    // Получаем текущие общие количества
-    const currentQuantityPd = parseFloat(record.quantityPd || '0')
-    const currentQuantitySpec = parseFloat(record.quantitySpec || '0')
-    const currentQuantityRd = parseFloat(record.quantityRd || '0')
+    // Получаем текущие значения из DOM элементов (для режима добавления/редактирования)
+    const getInputValue = (className: string): number => {
+      // Ищем input внутри строки с recordId
+      const rowElement = document.querySelector(`[data-row-key="${recordId}"]`)
+      if (!rowElement) {
+        return 0
+      }
 
-    console.log('🏢 Current quantities:', {
-      currentQuantityPd,
-      currentQuantitySpec,
-      currentQuantityRd
-    })
+      // InputNumber создает сложную структуру, ищем настоящий input внутри
+      const antInputElement = rowElement.querySelector(`.${className}`)
+      const inputElement = antInputElement?.querySelector('input') as HTMLInputElement
+      const value = inputElement?.value || '0'
+      return parseFloat(value) || 0
+    }
+
+    // Пробуем получить значения из DOM input'ов (приоритет для режима редактирования)
+    let currentQuantityPd = getInputValue('quantity-pd')
+    let currentQuantitySpec = getInputValue('quantity-spec')
+    let currentQuantityRd = getInputValue('quantity-rd')
+
+    // Fallback к значениям из record, если DOM значения не найдены или равны 0
+    if (currentQuantityPd === 0 && record.quantityPd) {
+      currentQuantityPd = parseFloat(record.quantityPd || '0')
+    }
+    if (currentQuantitySpec === 0 && record.quantitySpec) {
+      currentQuantitySpec = parseFloat(record.quantitySpec || '0')
+    }
+    if (currentQuantityRd === 0 && record.quantityRd) {
+      currentQuantityRd = parseFloat(record.quantityRd || '0')
+    }
+
 
     // Если количества есть, распределяем их по новым этажам
     const newFloorQuantities = distributeQuantitiesAcrossFloors(
@@ -1258,6 +1412,28 @@ export const ChessboardTable = memo(({
 
   }, [data, onRowUpdate])
 
+  // Обработчик изменения количеств с автоматическим перераспределением по этажам
+  const handleQuantityChange = useCallback((recordId: string, field: 'quantityPd' | 'quantitySpec' | 'quantityRd', newValue: number) => {
+
+    // Сначала обновляем значение в записи
+    onRowUpdate(recordId, { [field]: newValue })
+
+    // Находим запись, чтобы получить этажи
+    const record = data.find(r => r.id === recordId)
+    if (!record) {
+      return
+    }
+
+    // Если есть этажи, запускаем перераспределение
+    if (record.floors && record.floors.trim()) {
+
+      // Небольшая задержка, чтобы DOM успел обновиться
+      setTimeout(() => {
+        handleFloorsChange(recordId, record.floors)
+      }, 100)
+    }
+  }, [data, onRowUpdate, handleFloorsChange])
+
   // ОПТИМИЗАЦИЯ: стабильные обработчики событий (ИСПРАВЛЕНО: убираем циклические зависимости)
   const handleStartEditing = useCallback((recordId: string) => () => onStartEditing(recordId), [onStartEditing])
   const handleRowDelete = useCallback((recordId: string) => () => onRowDelete(recordId), [onRowDelete])
@@ -1278,11 +1454,6 @@ export const ChessboardTable = memo(({
   // Логирование для мониторинга производительности больших таблиц
   React.useEffect(() => {
     if (process.env.NODE_ENV === 'development' && isLargeDataset) {
-      console.log('🔍 Large dataset detected in ChessboardTable:', {
-        dataLength: data.length,
-        threshold: LARGE_TABLE_CONFIG.virtualThreshold,
-        usingOptimizedConfig: true
-      })
     }
   }, [isLargeDataset, data.length])
 
@@ -1351,7 +1522,37 @@ export const ChessboardTable = memo(({
                     type="text"
                     size="small"
                     icon={<PlusOutlined />}
-                    onClick={onAddRow}
+                    onClick={() => {
+
+                      // Если это новая строка, ищем её позицию в отображаемых данных и преобразуем в оригинальный индекс
+                      if (record.id.startsWith('new-') || record.id.startsWith('copy-')) {
+                        const displayIndex = data.findIndex(row => row.id === record.id)
+
+                        // Для новых строк находим предыдущую оригинальную строку
+                        let originalIndex = -1
+                        for (let i = displayIndex - 1; i >= 0; i--) {
+                          const prevRow = data[i]
+                          if (!prevRow.id.startsWith('new-') && !prevRow.id.startsWith('copy-')) {
+                            originalIndex = originalData.findIndex(row => row.id === prevRow.id)
+                            break
+                          }
+                        }
+
+                        if (originalIndex !== -1) {
+                          onAddRowAfter?.(originalIndex)
+                        } else {
+                          // Если предыдущей оригинальной строки нет, вставляем в начало (после первой строки или как первая)
+                          onAddRowAfter?.(-1) // Специальное значение для вставки в начало
+                        }
+                      } else {
+                        // Для оригинальных строк ищем в originalData
+                        const rowIndex = originalData.findIndex(row => row.id === record.id)
+                        if (rowIndex !== -1) {
+                          onAddRowAfter?.(rowIndex)
+                        } else {
+                        }
+                      }
+                    }}
                   />
                 </div>
               </Tooltip>
@@ -1361,7 +1562,37 @@ export const ChessboardTable = memo(({
                     type="text"
                     size="small"
                     icon={<CopyOutlined />}
-                    onClick={handleRowCopy(record.id)}
+                    onClick={() => {
+
+                      // Если это новая строка, ищем её позицию в отображаемых данных и преобразуем в оригинальный индекс
+                      if (record.id.startsWith('new-') || record.id.startsWith('copy-')) {
+                        const displayIndex = data.findIndex(row => row.id === record.id)
+
+                        // Для новых строк находим предыдущую оригинальную строку
+                        let originalIndex = -1
+                        for (let i = displayIndex - 1; i >= 0; i--) {
+                          const prevRow = data[i]
+                          if (!prevRow.id.startsWith('new-') && !prevRow.id.startsWith('copy-')) {
+                            originalIndex = originalData.findIndex(row => row.id === prevRow.id)
+                            break
+                          }
+                        }
+
+                        if (originalIndex !== -1) {
+                          onCopyRowAfter?.(record, originalIndex)
+                        } else {
+                          // Если предыдущей оригинальной строки нет, вставляем в начало
+                          onCopyRowAfter?.(record, -1) // Специальное значение для вставки в начало
+                        }
+                      } else {
+                        // Для оригинальных строк ищем в originalData
+                        const rowIndex = originalData.findIndex(row => row.id === record.id)
+                        if (rowIndex !== -1) {
+                          onCopyRowAfter?.(record, rowIndex)
+                        } else {
+                        }
+                      }
+                    }}
                   />
                 </div>
               </Tooltip>
@@ -1372,7 +1603,13 @@ export const ChessboardTable = memo(({
                     size="small"
                     icon={<DeleteOutlined />}
                     danger
-                    onClick={handleRowDelete(record.id)}
+                    onClick={() => {
+                      if (record.isNew) {
+                        onRemoveNewRow?.(record.id)
+                      } else {
+                        handleRowDelete(record.id)()
+                      }
+                    }}
                   />
                 </div>
               </Tooltip>
@@ -1426,15 +1663,10 @@ export const ChessboardTable = memo(({
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
-              placeholder="Выберите раздел"
+              placeholder=""
               size="small"
               style={{ width: '100%' }}
-              dropdownStyle={{
-                minWidth: '300px',
-                maxWidth: '500px',
-                zIndex: 9999
-              }}
-              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+              dropdownStyle={getDynamicDropdownStyle(documentationTagsData)}
             />
           )
         }
@@ -1511,15 +1743,10 @@ export const ChessboardTable = memo(({
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
-              placeholder="Выберите шифр проекта"
+              placeholder=""
               size="small"
               style={{ width: '100%' }}
-              dropdownStyle={{
-                minWidth: '300px',
-                maxWidth: '500px',
-                zIndex: 9999
-              }}
-              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+              dropdownStyle={getDynamicDropdownStyle(documentationData)}
             />
           )
         }
@@ -1575,9 +1802,8 @@ export const ChessboardTable = memo(({
             <VersionSelect
               value={currentVersionId || ''}
               documentId={currentDocumentId}
-              isEditing={true} // LOG: передаем флаг режима редактирования
+              isEditing={true}
               onChange={(versionId, versionNumber, documentCodeId) => {
-                console.log('📝 Version onChange called:', { versionId, versionNumber, documentCodeId }) // LOG: изменение версии
 
                 onRowUpdate(record.id, {
                   documentationVersionId: versionId,
@@ -1619,22 +1845,34 @@ export const ChessboardTable = memo(({
         if (isEditing) {
           return (
             <Select
-              value={value || undefined}
-              onChange={(newValue) => onRowUpdate(record.id, { block: newValue })}
+              value={(() => {
+                // Если есть blockId, используем его
+                if (record.blockId) {
+                  // Проверяем, что blockId существует в blocksData
+                  const blockExists = blocksData.find(block => block.value === record.blockId)
+                  return blockExists ? record.blockId : undefined
+                }
+                // Иначе ищем по названию блока
+                return blocksData.find(block => block.label === value)?.value || undefined
+              })()}
+              onChange={(newValue) => {
+                // newValue содержит ID блока, нужно найти название
+                const selectedBlock = blocksData.find(block => block.value === newValue)
+                onRowUpdate(record.id, {
+                  block: selectedBlock?.label || '',
+                  blockId: newValue || ''
+                })
+              }}
               options={blocksData}
               allowClear
               showSearch
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
-              placeholder="Выберите корпус"
+              placeholder=""
               size="small"
               style={{ width: '100%' }}
-              dropdownStyle={{
-                minWidth: '300px',
-                maxWidth: '500px',
-                zIndex: 9999
-              }}
+              dropdownStyle={getDynamicDropdownStyle(blocksData)}
               placement="bottomLeft"
             />
           )
@@ -1667,7 +1905,8 @@ export const ChessboardTable = memo(({
       }),
       onCell: () => ({
         style: {
-          whiteSpace: 'nowrap', // НЕ переносить содержимое ячеек "Этажи"
+          whiteSpace: 'normal', // Переносить содержимое ячеек "Этажи"
+          wordBreak: 'break-word', // Разрывать длинные строки
           textAlign: 'center',
           minWidth: '100px',
           maxWidth: '100px',
@@ -1731,15 +1970,10 @@ export const ChessboardTable = memo(({
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
-              placeholder="Выберите категорию"
+              placeholder=""
               size="small"
               style={{ width: '100%' }}
-              dropdownStyle={{
-                minWidth: '300px',
-                maxWidth: '500px',
-                zIndex: 9999
-              }}
-              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+              dropdownStyle={getDynamicDropdownStyle(costCategoriesData)}
             />
           )
         }
@@ -1776,7 +2010,8 @@ export const ChessboardTable = memo(({
                 const selectedCostType = allCostTypesData.find(type => type.value === newValue)
                 onRowUpdate(record.id, {
                   costType: selectedCostType ? selectedCostType.label : '',
-                  costTypeId: newValue
+                  costTypeId: newValue,
+                  workSet: '' // Очищаем рабочий набор при изменении вида затрат
                 })
               }}
               // Фильтрация по выбранной категории затрат
@@ -1799,23 +2034,71 @@ export const ChessboardTable = memo(({
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
-              placeholder="Выберите вид затрат"
+              placeholder=""
               size="small"
+              disabled={!record.costCategoryId} // Отключаем если не выбрана категория затрат
               style={{
                 width: '100%',
                 minHeight: 'auto',
                 height: 'auto'
               }}
-              dropdownStyle={{
-                minWidth: '300px',
-                maxWidth: '500px',
-                zIndex: 9999
-              }}
-              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+              dropdownStyle={getDynamicDropdownStyle((() => {
+                const categoryId = record.costCategoryId ? record.costCategoryId.toString() : null
+                return allCostTypesData.filter(type => {
+                  const typeCategoryId = type.categoryId ? type.categoryId.toString() : null
+                  return typeCategoryId === categoryId
+                })
+              })())}
             />
           )
         }
         return value
+      },
+    },
+
+    // Рабочий набор
+    {
+      title: 'Рабочий\nнабор',
+      key: COLUMN_KEYS.WORK_SET,
+      dataIndex: 'workSet',
+      width: 'auto',
+      minWidth: 120,
+      maxWidth: 180,
+      filterMode: 'tree' as const,
+      filterSearch: true,
+      onFilter: (value, record) => record.workSet?.includes(value as string),
+      onHeaderCell: () => ({
+        className: 'chessboard-header-cell',
+        style: {
+          whiteSpace: 'pre-line',
+          textAlign: 'center',
+          verticalAlign: 'middle',
+          lineHeight: '20px',
+          padding: '4px 8px',
+        },
+      }),
+      render: (value, record) => {
+        const isEditing = (record as any).isEditing
+        if (isEditing) {
+          const costTypeId = (record as RowData).costTypeId
+          const workSetId = (record as RowData).workSetId // Получаем workSetId для передачи в WorkSetSelect
+
+          return (
+            <WorkSetSelect
+              value={workSetId || ''} // Используем workSetId вместо workSet
+              costTypeId={costTypeId}
+              onChange={(newWorkSetId) => {
+                // При изменении рабочего набора очищаем наименование работ и rateId
+                onRowUpdate(record.id, {
+                  workSetId: newWorkSetId, // Сохраняем workSetId
+                  workName: '', // Очищаем наименование работ
+                  rateId: '' // Очищаем rateId
+                })
+              }}
+            />
+          )
+        }
+        return <span>{value || ''}</span>
       },
     },
 
@@ -1843,20 +2126,18 @@ export const ChessboardTable = memo(({
       render: (value, record) => {
         const isEditing = (record as any).isEditing
         if (isEditing) {
-          const costTypeId = (record as RowData).costTypeId
-          const costCategoryId = (record as RowData).costCategoryId
+          const workSetId = (record as RowData).workSetId
           const currentRateId = (record as RowData).rateId
 
           return (
             <WorkNameSelect
               value={currentRateId || ''} // Используем rateId как value
-              costTypeId={costTypeId}
-              costCategoryId={costCategoryId}
-              onChange={(selectedRateId, option) => {
-                // selectedRateId - это ID расценки, option.label - это название работы
-                const selectedWorkName = option?.label || ''
+              workSetId={workSetId}
+              onChange={(selectedRateId) => {
+                // selectedRateId - это ID расценки, получаем название работы из API
+                // Поскольку в новой логике работа всегда одна для выбранного рабочего набора,
+                // просто используем selectedRateId
                 onRowUpdate(record.id, {
-                  workName: selectedWorkName,
                   rateId: selectedRateId
                 })
               }}
@@ -1942,15 +2223,10 @@ export const ChessboardTable = memo(({
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
-              placeholder="Выберите локализацию"
+              placeholder=""
               size="small"
               style={{ width: '100%' }}
-              dropdownStyle={{
-                minWidth: '300px',
-                maxWidth: '500px',
-                zIndex: 9999
-              }}
-              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+              dropdownStyle={getDynamicDropdownStyle(locationsData)}
             />
           )
         }
@@ -2001,16 +2277,14 @@ export const ChessboardTable = memo(({
               size="small"
               style={{ width: '100%' }}
               placeholder="Введите материал..."
-              dropdownStyle={{
-                minWidth: '300px',
-                maxWidth: '500px',
-                zIndex: 9999
-              }}
-              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+              dropdownStyle={getDynamicDropdownStyle(materialsData)}
             />
           )
         }
-        return <span>{value || ''}</span>
+
+        // В режиме просмотра показываем название материала, если value содержит UUID
+        const materialName = materialsData.find(m => m.value === value)?.label || value || ''
+        return <span>{materialName}</span>
       },
     },
 
@@ -2038,16 +2312,17 @@ export const ChessboardTable = memo(({
         if (isEditing) {
           return (
             <Select
-              value={value || 'База'}
+              value={value}
               onChange={(newValue) => onRowUpdate(record.id, { materialType: newValue })}
               options={MATERIAL_TYPE_OPTIONS}
               size="small"
               style={STABLE_STYLES.fullWidth}
-              placeholder="Выберите тип"
+              dropdownStyle={getDynamicDropdownStyle(MATERIAL_TYPE_OPTIONS)}
+              placeholder=""
             />
           )
         }
-        return <span>{value || 'База'}</span>
+        return <span>{value}</span>
       },
     },
 
@@ -2081,10 +2356,11 @@ export const ChessboardTable = memo(({
             return (
               <Space.Compact style={{ width: '100%' }}>
                 <InputNumber
+                  className="quantity-pd"
                   value={value || 0}
                   onChange={(newValue) => {
                     const quantity = newValue || 0
-                    onRowUpdate(record.id, { quantityPd: quantity })
+                    handleQuantityChange(record.id, 'quantityPd', quantity)
                   }}
                   size="small"
                   style={{ width: '100%', flex: 1 }}
@@ -2109,10 +2385,11 @@ export const ChessboardTable = memo(({
           } else {
             return (
               <InputNumber
+                className="quantity-pd"
                 value={value || 0}
                 onChange={(newValue) => {
                   const quantity = newValue || 0
-                  onRowUpdate(record.id, { quantityPd: quantity })
+                  handleQuantityChange(record.id, 'quantityPd', quantity)
                 }}
                 size="small"
                 style={{ width: '100%' }}
@@ -2177,10 +2454,11 @@ export const ChessboardTable = memo(({
             return (
               <Space.Compact style={{ width: '100%' }}>
                 <InputNumber
+                  className="quantity-spec"
                   value={value || 0}
                   onChange={(newValue) => {
                     const quantity = newValue || 0
-                    onRowUpdate(record.id, { quantitySpec: quantity })
+                    handleQuantityChange(record.id, 'quantitySpec', quantity)
                   }}
                   size="small"
                   style={{ width: '100%', flex: 1 }}
@@ -2205,10 +2483,11 @@ export const ChessboardTable = memo(({
           } else {
             return (
               <InputNumber
+                className="quantity-spec"
                 value={value || 0}
                 onChange={(newValue) => {
                   const quantity = newValue || 0
-                  onRowUpdate(record.id, { quantitySpec: quantity })
+                  handleQuantityChange(record.id, 'quantitySpec', quantity)
                 }}
                 size="small"
                 style={{ width: '100%' }}
@@ -2273,10 +2552,11 @@ export const ChessboardTable = memo(({
             return (
               <Space.Compact style={{ width: '100%' }}>
                 <InputNumber
+                  className="quantity-rd"
                   value={value || 0}
                   onChange={(newValue) => {
                     const quantity = newValue || 0
-                    onRowUpdate(record.id, { quantityRd: quantity })
+                    handleQuantityChange(record.id, 'quantityRd', quantity)
                   }}
                   size="small"
                   style={{ width: '100%', flex: 1 }}
@@ -2301,10 +2581,11 @@ export const ChessboardTable = memo(({
           } else {
             return (
               <InputNumber
+                className="quantity-rd"
                 value={value || 0}
                 onChange={(newValue) => {
                   const quantity = newValue || 0
-                  onRowUpdate(record.id, { quantityRd: quantity })
+                  handleQuantityChange(record.id, 'quantityRd', quantity)
                 }}
                 size="small"
                 style={{ width: '100%' }}
@@ -2390,19 +2671,14 @@ export const ChessboardTable = memo(({
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
-              placeholder="Выберите номенклатуру"
+              placeholder=""
               size="small"
               style={{
                 width: '100%',
                 minHeight: 'auto',
                 height: 'auto'
               }}
-              dropdownStyle={{
-                minWidth: '500px',
-                maxWidth: '500px',
-                zIndex: 9999
-              }}
-              getPopupContainer={(triggerNode) => triggerNode.parentNode}
+              dropdownStyle={getDynamicDropdownStyle(cascadeHook.nomenclatureOptions)}
             />
           )
         }
@@ -2449,7 +2725,7 @@ export const ChessboardTable = memo(({
                       }
                     })
                     .catch(error => {
-                      console.error('🔗 Cascade: Ошибка сохранения связи:', error)
+                      console.error('Cascade: Ошибка сохранения связи:', error)
                     })
                 }
               }}
@@ -2460,18 +2736,13 @@ export const ChessboardTable = memo(({
               allowClear
               showSearch
               size="small"
-              placeholder={
-                record.nomenclatureId
-                  ? "Выберите поставщика для номенклатуры"
-                  : "Сначала выберите номенклатуру"
-              }
+              placeholder=""
               disabled={!record.nomenclatureId}
               style={{ width: '100%' }}
               filterOption={(input, option) => {
                 const text = option?.label?.toString() || ""
                 return text.toLowerCase().includes(input.toLowerCase())
               }}
-              getPopupContainer={(triggerNode) => triggerNode.parentNode}
             />
           )
         }
@@ -2518,9 +2789,10 @@ export const ChessboardTable = memo(({
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
-              placeholder="Ед.изм."
+              placeholder=""
               size="small"
               style={{ width: '100%' }}
+              dropdownStyle={getDynamicDropdownStyle(unitsData)}
             />
           )
         }
@@ -2558,8 +2830,8 @@ export const ChessboardTable = memo(({
     const filteredColumns = allColumns.filter(column =>
       visibleColumns.includes(column.key as string)
     )
-    return normalizeColumns(filteredColumns)
-  }, [allColumns, visibleColumns])
+    return normalizeColumns(filteredColumns, scale)
+  }, [allColumns, visibleColumns, scale])
 
   // Настройки выбора строк для режимов add/edit/delete
   const rowSelection = useMemo(() => {
@@ -2572,6 +2844,15 @@ export const ChessboardTable = memo(({
     }
     return undefined
   }, [tableMode, onSelectionChange])
+
+  // Конфигурация скролла с учетом масштаба
+  const scrollConfig = useMemo(() => {
+    const minWidth = getTableMinWidth(scale)
+    return {
+      x: minWidth,
+      y: tableScrollHeight, // Динамическое значение с учётом всех элементов
+    }
+  }, [scale, tableScrollHeight])
 
   // Обработка цвета строк
   const rowClassName = (record: RowData) => {
@@ -2586,14 +2867,14 @@ export const ChessboardTable = memo(({
       <style>{`
         /* Действия - 1-й столбец */
         .chessboard-table .ant-table-thead > tr > th:nth-child(1) {
-          width: 60px !important;
-          min-width: 60px !important;
-          max-width: 60px !important;
+          width: 80px !important;
+          min-width: 80px !important;
+          max-width: 80px !important;
         }
         .chessboard-table .ant-table-tbody > tr > td:nth-child(1) {
-          width: 60px !important;
-          min-width: 60px !important;
-          max-width: 60px !important;
+          width: 80px !important;
+          min-width: 80px !important;
+          max-width: 80px !important;
         }
         /* Раздел - 2-й столбец */
         .chessboard-table .ant-table-thead > tr > th:nth-child(2) {
@@ -2810,33 +3091,66 @@ export const ChessboardTable = memo(({
           word-break: break-word !important;
           padding: 4px 6px !important;
           line-height: 1.2 !important;
+          vertical-align: middle !important;
+        }
+        /* Выравнивание полей ввода по центру ячеек с автоматической высотой */
+        .chessboard-table .ant-table-tbody > tr > td .ant-select,
+        .chessboard-table .ant-table-tbody > tr > td .ant-input,
+        .chessboard-table .ant-table-tbody > tr > td .ant-input-number {
+          display: flex !important;
+          align-items: center !important;
+          height: auto !important;
+          min-height: 24px !important;
+        }
+        .chessboard-table .ant-table-tbody > tr > td .ant-select-selector,
+        .chessboard-table .ant-table-tbody > tr > td .ant-input-number-input {
+          height: auto !important;
+          min-height: 24px !important;
+          display: flex !important;
+          align-items: center !important;
+          white-space: normal !important;
+          word-wrap: break-word !important;
+          overflow-wrap: break-word !important;
+        }
+        /* Автоматическая высота для выбранных значений в Select */
+        .chessboard-table .ant-table-tbody > tr > td .ant-select-selection-item {
+          white-space: normal !important;
+          word-wrap: break-word !important;
+          overflow-wrap: break-word !important;
+          height: auto !important;
+          line-height: 1.2 !important;
+        }
+        /* Автоматическая высота для множественного выбора */
+        .chessboard-table .ant-table-tbody > tr > td .ant-select-selection-overflow {
+          height: auto !important;
+          min-height: 20px !important;
         }
         .chessboard-table .ant-table-tbody > tr {
           height: auto !important;
           min-height: 32px !important;
         }
-        /* Компактные иконки в столбце действий */
+        /* Компактные иконки в столбце действий с поддержкой масштаба */
         .chessboard-table .ant-btn {
-          padding: 2px 4px !important;
-          height: 24px !important;
-          width: 24px !important;
-          font-size: 12px !important;
-          margin: 0 1px !important;
+          padding: calc(2px * var(--app-scale, 1)) calc(4px * var(--app-scale, 1)) !important;
+          height: calc(24px * var(--app-scale, 1)) !important;
+          width: calc(24px * var(--app-scale, 1)) !important;
+          font-size: calc(12px * var(--app-scale, 1)) !important;
+          margin: 0 calc(1px * var(--app-scale, 1)) !important;
         }
         .chessboard-table .ant-btn-icon-only {
-          padding: 2px !important;
+          padding: calc(2px * var(--app-scale, 1)) !important;
         }
         .chessboard-table .anticon {
-          font-size: 12px !important;
+          font-size: calc(12px * var(--app-scale, 1)) !important;
           line-height: 1 !important;
         }
-        /* Компактная цветовая кнопка */
+        /* Компактная цветовая кнопка с поддержкой масштаба */
         .chessboard-table .color-picker-button {
-          width: 20px !important;
-          height: 20px !important;
-          min-width: 20px !important;
+          width: calc(20px * var(--app-scale, 1)) !important;
+          height: calc(20px * var(--app-scale, 1)) !important;
+          min-width: calc(20px * var(--app-scale, 1)) !important;
           padding: 0 !important;
-          margin: 0 1px !important;
+          margin: 0 calc(1px * var(--app-scale, 1)) !important;
         }
         /* Компактные элементы управления */
         .chessboard-table .ant-select {
@@ -2845,13 +3159,19 @@ export const ChessboardTable = memo(({
         .chessboard-table .ant-select-selector {
           padding: 2px 4px !important;
           min-height: 24px !important;
+          height: auto !important;
           line-height: 1.2 !important;
+          white-space: normal !important;
+          word-wrap: break-word !important;
         }
         .chessboard-table .ant-input {
           padding: 2px 6px !important;
           font-size: 12px !important;
           line-height: 1.2 !important;
           min-height: 24px !important;
+          height: auto !important;
+          white-space: normal !important;
+          word-wrap: break-word !important;
         }
         .chessboard-table .ant-input-number {
           font-size: 12px !important;
@@ -2878,6 +3198,7 @@ export const ChessboardTable = memo(({
           min-height: 24px !important;
           padding: 0 4px !important;
           font-size: 12px !important;
+          white-space: nowrap !important;
         }
         .chessboard-table table {
           table-layout: fixed !important;
@@ -2890,31 +3211,53 @@ export const ChessboardTable = memo(({
           width: 100% !important;
           height: 100% !important;
         }
-        /* КРИТИЧЕСКИ ВАЖНО: убираем overflow с внутренних элементов Ant Design */
-        .chessboard-table .ant-table-container {
-          overflow: visible !important;
-        }
-        .chessboard-table .ant-table-content {
-          overflow: visible !important;
-        }
-        .chessboard-table .ant-table-body {
-          overflow: visible !important;
-        }
-        /* Sticky заголовки БЕЗ создания отдельной прокручиваемой области */
+        /* Sticky заголовки с закреплением к блоку фильтров */
         .chessboard-table .ant-table-header {
           position: sticky !important;
           top: 0 !important;
-          z-index: 10 !important;
+          z-index: 100 !important;
           background: white !important;
-          /* ВАЖНО: не создаем overflow для заголовков */
-          overflow: visible !important;
         }
-        /* Синхронизируем прокрутку заголовков с телом таблицы */
+        /* Главный контейнер с границей и скроллом */
+        .chessboard-table .ant-table-container {
+          border: 1px solid #f0f0f0 !important;
+          border-radius: 6px !important;
+          box-sizing: border-box !important;
+          overflow: hidden !important;
+        }
+        /* Контент таблицы - здесь происходит скролл */
+        .chessboard-table .ant-table-content {
+          overflow: auto !important;
+          max-height: 100% !important;
+          box-sizing: border-box !important;
+        }
         .chessboard-table .ant-table-thead {
-          overflow: visible !important;
+          position: sticky !important;
+          top: 0 !important;
+          z-index: 100 !important;
+          background: white !important;
         }
-        .chessboard-table .ant-table-tbody {
-          overflow: visible !important;
+        /* Обеспечиваем корректную работу sticky заголовков для каждой ячейки */
+        .chessboard-table .ant-table-thead > tr > th {
+          position: sticky !important;
+          top: 0 !important;
+          background: white !important;
+          z-index: 101 !important;
+        }
+        /* Закрепление заголовка служебного столбца (fixed left) */
+        .chessboard-table .ant-table-thead > tr > th.ant-table-cell-fix-left {
+          position: sticky !important;
+          z-index: 102 !important;
+          background: white !important;
+        }
+        /* Убираем внутренние границы */
+        .chessboard-table .ant-table {
+          border: none !important;
+        }
+        /* Исправляем отображение при горизонтальном скролле */
+        .chessboard-table .ant-table-container::before,
+        .chessboard-table .ant-table-container::after {
+          display: none !important;
         }
       `}</style>
       <Table<RowData>
@@ -2923,7 +3266,8 @@ export const ChessboardTable = memo(({
         style={{
           tableLayout: 'fixed',
           width: '100%',
-          height: '100%'
+          height: '100%',
+          flex: 1,
         }}
         columns={visibleColumnsData}
         dataSource={data}
@@ -2933,6 +3277,11 @@ export const ChessboardTable = memo(({
         rowClassName={rowClassName}
         pagination={false}
         size="small"
+        sticky={{
+          offsetHeader: 0,
+          offsetScroll: 0,
+        }}
+        scroll={scrollConfig}
       />
 
       <FloorQuantitiesModal

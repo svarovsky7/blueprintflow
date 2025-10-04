@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chessboard Table Height Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+
+    .test-container {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      margin-bottom: 20px;
+      color: #333;
+    }
+
+    .scale-controls {
+      margin-bottom: 20px;
+    }
+
+    .scale-btn {
+      padding: 8px 16px;
+      margin-right: 10px;
+      border: 1px solid #d9d9d9;
+      background: white;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.3s;
+    }
+
+    .scale-btn:hover {
+      border-color: #40a9ff;
+      color: #40a9ff;
+    }
+
+    .scale-btn.active {
+      background: #1890ff;
+      border-color: #1890ff;
+      color: white;
+    }
+
+    .page-container {
+      height: calc(100vh - 96px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 2px solid #1890ff;
+      border-radius: 8px;
+      background: white;
+    }
+
+    .header {
+      flex-shrink: 0;
+      padding: 16px 24px;
+      background: #fafafa;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .filters {
+      flex-shrink: 0;
+      padding: 16px 24px;
+      background: #f5f5f5;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .table-container-outer {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+      padding: 0 24px 24px 24px;
+      background: white;
+    }
+
+    .table-wrapper {
+      flex: 1;
+      overflow: hidden;
+      min-height: 0;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      border: 2px solid #52c41a;
+      border-radius: 4px;
+    }
+
+    .table-content {
+      flex: 1;
+      overflow: auto;
+      background: repeating-linear-gradient(
+        45deg,
+        #ffffff,
+        #ffffff 10px,
+        #f0f0f0 10px,
+        #f0f0f0 20px
+      );
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: #52c41a;
+      font-weight: bold;
+    }
+
+    .pagination {
+      padding: 16px 0;
+      text-align: center;
+      border-top: 1px solid #f0f0f0;
+      background: #fafafa;
+    }
+
+    .info-panel {
+      background: #e6f7ff;
+      border: 1px solid #91d5ff;
+      border-radius: 4px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      font-family: 'Courier New', monospace;
+    }
+
+    .info-label {
+      font-weight: bold;
+      color: #1890ff;
+    }
+
+    .info-value {
+      color: #333;
+    }
+
+    .status-good {
+      color: #52c41a;
+      font-weight: bold;
+    }
+
+    .status-bad {
+      color: #ff4d4f;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="test-container">
+    <h1>Тест высоты таблицы Шахматка</h1>
+
+    <div class="scale-controls">
+      <button class="scale-btn" data-scale="0.7">Scale 0.7</button>
+      <button class="scale-btn" data-scale="0.8">Scale 0.8</button>
+      <button class="scale-btn" data-scale="0.9">Scale 0.9</button>
+      <button class="scale-btn active" data-scale="1.0">Scale 1.0</button>
+    </div>
+
+    <div class="info-panel" id="info-panel">
+      <div class="info-row">
+        <span class="info-label">Текущий масштаб:</span>
+        <span class="info-value" id="current-scale">1.0</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Высота viewport:</span>
+        <span class="info-value" id="viewport-height">-</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Контейнер страницы (calc(100vh - 96px)):</span>
+        <span class="info-value" id="page-height">-</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Заголовок:</span>
+        <span class="info-value" id="header-height">-</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Фильтры:</span>
+        <span class="info-value" id="filters-height">-</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Высота таблицы (flex: 1):</span>
+        <span class="info-value" id="table-height">-</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Пагинация:</span>
+        <span class="info-value" id="pagination-height">-</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Зазор до пагинации:</span>
+        <span class="info-value" id="gap">-</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Использование высоты таблицы:</span>
+        <span class="info-value" id="utilization">-</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-container" id="page-container">
+    <div class="header" id="header">
+      <h2 id="title">Шахматка</h2>
+    </div>
+
+    <div class="filters" id="filters">
+      <p>Фильтры: Проект, Корпус, Категория затрат...</p>
+      <p>Статус: Не выбрано</p>
+    </div>
+
+    <div class="table-container-outer">
+      <div class="table-wrapper" id="table-wrapper">
+        <div class="table-content">
+          ТАБЛИЦА<br/>
+          (flex: 1, height: 100%)
+        </div>
+      </div>
+
+      <div class="pagination" id="pagination">
+        Пагинация: 1-100 из 1000 записей
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentScale = 1.0;
+
+    function updateScale(scale) {
+      currentScale = scale;
+
+      // Обновляем стили для имитации масштаба
+      const title = document.getElementById('title');
+      const filters = document.getElementById('filters');
+
+      title.style.fontSize = `${Math.round(24 * scale)}px`;
+      filters.style.fontSize = `${Math.round(14 * scale)}px`;
+
+      // Обновляем активную кнопку
+      document.querySelectorAll('.scale-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (parseFloat(btn.dataset.scale) === scale) {
+          btn.classList.add('active');
+        }
+      });
+
+      // Пересчитываем размеры
+      setTimeout(updateMeasurements, 100);
+    }
+
+    function updateMeasurements() {
+      const viewportHeight = window.innerHeight;
+      const pageContainer = document.getElementById('page-container');
+      const header = document.getElementById('header');
+      const filters = document.getElementById('filters');
+      const tableWrapper = document.getElementById('table-wrapper');
+      const pagination = document.getElementById('pagination');
+
+      const pageRect = pageContainer.getBoundingClientRect();
+      const headerRect = header.getBoundingClientRect();
+      const filtersRect = filters.getBoundingClientRect();
+      const tableRect = tableWrapper.getBoundingClientRect();
+      const paginationRect = pagination.getBoundingClientRect();
+
+      const gap = paginationRect.top - tableRect.bottom;
+      const availableHeight = viewportHeight - tableRect.top - paginationRect.height - 50;
+      const utilization = (tableRect.height / availableHeight) * 100;
+
+      document.getElementById('current-scale').textContent = currentScale;
+      document.getElementById('viewport-height').textContent = `${viewportHeight}px`;
+      document.getElementById('page-height').textContent = `${pageRect.height}px`;
+      document.getElementById('header-height').textContent = `${headerRect.height}px`;
+      document.getElementById('filters-height').textContent = `${filtersRect.height}px`;
+      document.getElementById('table-height').textContent = `${tableRect.height}px`;
+      document.getElementById('pagination-height').textContent = `${paginationRect.height}px`;
+
+      const gapElement = document.getElementById('gap');
+      gapElement.textContent = `${gap.toFixed(1)}px`;
+      gapElement.className = gap >= 10 && gap <= 100 ? 'info-value status-good' : 'info-value status-bad';
+
+      const utilizationElement = document.getElementById('utilization');
+      utilizationElement.textContent = `${utilization.toFixed(1)}%`;
+      utilizationElement.className = utilization >= 70 ? 'info-value status-good' : 'info-value status-bad';
+    }
+
+    // Обработчики событий
+    document.querySelectorAll('.scale-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const scale = parseFloat(btn.dataset.scale);
+        updateScale(scale);
+      });
+    });
+
+    window.addEventListener('resize', updateMeasurements);
+
+    // Начальное обновление
+    updateMeasurements();
+  </script>
+</body>
+</html>
