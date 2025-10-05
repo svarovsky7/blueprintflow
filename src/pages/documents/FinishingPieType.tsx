@@ -30,7 +30,6 @@ import {
   createFinishingPieRow,
   updateFinishingPieRow,
   deleteFinishingPieRow,
-  getRateUnitId,
   getFinishingPieTypes,
   createFinishingPieType,
 } from '@/entities/finishing'
@@ -75,12 +74,6 @@ interface EditableRow extends Partial<FinishingPieRow> {
   isEditing?: boolean
   newTypeName?: string // Временное название нового типа
   newMaterialName?: string // Временное название нового материала
-  detail_cost_category_name?: string | null // Название вида затрат
-  work_set_id?: string | null // Рабочий набор для строки
-}
-
-interface DetailCostCategory {
-  name: string
 }
 
 export default function FinishingPieType() {
@@ -147,32 +140,6 @@ export default function FinishingPieType() {
     },
   })
 
-  // Загрузка расценок с рабочими наборами
-  const { data: rates = [] } = useQuery({
-    queryKey: ['rates-for-finishing'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('rates')
-        .select('id, work_name, work_set, unit_id')
-        .order('work_name')
-
-      if (error) throw error
-      return data || []
-    },
-  })
-
-  // Загрузка связей расценок с видами затрат
-  const { data: ratesDetailCostMapping = [] } = useQuery({
-    queryKey: ['rates-detail-cost-mapping'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('rates_detail_cost_categories_mapping')
-        .select('rate_id, detail_cost_category_id, detail_cost_categories:detail_cost_category_id(name)')
-
-      if (error) throw error
-      return data || []
-    },
-  })
 
   // Загрузка корпусов для выбранного проекта
   const { data: blocks = [] } = useQuery({
@@ -196,26 +163,6 @@ export default function FinishingPieType() {
     enabled: !!projectId,
   })
 
-  // Загрузка видов затрат для выбранной категории затрат
-  const { data: detailCostCategories = [] } = useQuery<DetailCostCategory[]>({
-    queryKey: ['detail-cost-categories-for-finishing', document?.cost_category_id],
-    queryFn: async () => {
-      if (!document?.cost_category_id) return []
-
-      const { data, error } = await supabase
-        .from('detail_cost_categories')
-        .select('name')
-        .eq('cost_category_id', document.cost_category_id)
-        .order('name')
-
-      if (error) throw error
-
-      // Получить уникальные названия видов затрат
-      const uniqueNames = Array.from(new Set(data?.map((d) => d.name) || []))
-      return uniqueNames.map((name) => ({ name }))
-    },
-    enabled: !!document?.cost_category_id,
-  })
 
   useEffect(() => {
     if (document) {
@@ -359,10 +306,6 @@ export default function FinishingPieType() {
             material_id: row.material_id || null,
             unit_id: row.unit_id || null,
             consumption: row.consumption || null,
-            work_set_id: row.work_set_id || null,
-            rate_id: row.rate_id || null,
-            rate_unit_id: row.rate_unit_id || null,
-            detail_cost_category_name: row.detail_cost_category_name || null,
           })
         } else if (row.isEditing) {
           // Обновить существующую строку
@@ -371,10 +314,6 @@ export default function FinishingPieType() {
             material_id: row.material_id || null,
             unit_id: row.unit_id || null,
             consumption: row.consumption || null,
-            work_set_id: row.work_set_id || null,
-            rate_id: row.rate_id || null,
-            rate_unit_id: row.rate_unit_id || null,
-            detail_cost_category_name: row.detail_cost_category_name || null,
           })
         }
       }
@@ -408,10 +347,6 @@ export default function FinishingPieType() {
         material_id: null,
         unit_id: null,
         consumption: 1,
-        work_set_id: null,
-        rate_id: null,
-        rate_unit_id: null,
-        detail_cost_category_name: null,
       },
     ])
   }
@@ -430,12 +365,6 @@ export default function FinishingPieType() {
         unit_id: record.unit_id,
         unit_name: record.unit_name,
         consumption: record.consumption,
-        work_set_id: record.work_set_id,
-        rate_id: record.rate_id,
-        rate_name: record.rate_name,
-        rate_unit_id: record.rate_unit_id,
-        rate_unit_name: record.rate_unit_name,
-        detail_cost_category_name: record.detail_cost_category_name,
       },
     ])
   }
@@ -490,37 +419,6 @@ export default function FinishingPieType() {
     return editingRows.some((row) => row.id === record.id && (row.isEditing || row.isNew))
   }
 
-  // Получить уникальные рабочие наборы для выбранного вида затрат
-  const getWorkSetsForDetailCostCategoryName = (detailCostCategoryName: string | null) => {
-    if (!detailCostCategoryName) return []
-
-    // Получаем ID расценок, связанных с видом затрат по названию
-    const rateIdsForCategory = ratesDetailCostMapping
-      .filter((m: any) => m.detail_cost_categories?.name === detailCostCategoryName)
-      .map((m: any) => m.rate_id)
-
-    // Получаем расценки с этими ID и извлекаем уникальные work_set
-    const workSetsForCategory = rates
-      .filter((r) => rateIdsForCategory.includes(r.id) && r.work_set)
-      .map((r) => ({ id: r.id, name: r.work_set }))
-
-    // Убираем дубликаты по названию
-    const uniqueWorkSets = Array.from(
-      new Map(workSetsForCategory.map((ws) => [ws.name, ws])).values()
-    )
-
-    return uniqueWorkSets
-  }
-
-  // Получить расценки для выбранного рабочего набора
-  const getRatesForWorkSet = (workSetId: string | null) => {
-    if (!workSetId) return rates
-
-    const workSetName = rates.find((r) => r.id === workSetId)?.work_set
-    if (!workSetName) return rates
-
-    return rates.filter((r) => r.work_set === workSetName)
-  }
 
   const handleTypeChange = async (rowId: string, value: string | null) => {
     // Проверяем, существует ли тип в списке
@@ -566,20 +464,6 @@ export default function FinishingPieType() {
     }
   }
 
-  const handleRateChange = async (rowId: string, rateId: string | null) => {
-    handleUpdateEditingRow(rowId, 'rate_id', rateId)
-
-    if (rateId) {
-      try {
-        const unitId = await getRateUnitId(rateId)
-        handleUpdateEditingRow(rowId, 'rate_unit_id', unitId)
-      } catch (error) {
-        console.error('Ошибка получения ед.изм. работы:', error)
-      }
-    } else {
-      handleUpdateEditingRow(rowId, 'rate_unit_id', null)
-    }
-  }
 
   const dataSource = useMemo(() => {
     // Разделяем редактируемые строки на новые и существующие
@@ -828,115 +712,6 @@ export default function FinishingPieType() {
         if (value == null) return '-'
         // Показываем дробную часть только если она есть
         return value % 1 === 0 ? value.toString() : value.toString()
-      },
-    },
-    {
-      title: 'Вид затрат',
-      dataIndex: 'detail_cost_category_name',
-      key: 'detail_cost_category',
-      width: 150,
-      render: (value: string | null, record: EditableRow) => {
-        if (isRowEditing(record as FinishingPieRow)) {
-          const options = detailCostCategories.map((d) => ({
-            value: d.name,
-            label: d.name,
-          }))
-          return (
-            <Select
-              value={value}
-              onChange={(val) =>
-                handleUpdateEditingRow(record.id!, 'detail_cost_category_name', val)
-              }
-              options={options}
-              placeholder="Выберите вид затрат"
-              allowClear
-              showSearch
-              filterOption={(input, option) =>
-                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
-              }
-              style={{ width: '100%' }}
-              dropdownStyle={getDynamicDropdownStyle(options)}
-            />
-          )
-        }
-        return record.detail_cost_category_name || '-'
-      },
-    },
-    {
-      title: 'Рабочий набор',
-      dataIndex: 'work_set_id',
-      key: 'work_set_id',
-      width: 200,
-      render: (value: string | null, record: EditableRow) => {
-        if (isRowEditing(record as FinishingPieRow)) {
-          const workSets = getWorkSetsForDetailCostCategoryName(record.detail_cost_category_name || null)
-          return (
-            <Select
-              value={value}
-              onChange={(val) => {
-                handleUpdateEditingRow(record.id!, 'work_set_id', val)
-                // Очистить выбранную работу при смене рабочего набора
-                handleUpdateEditingRow(record.id!, 'rate_id', null)
-                handleUpdateEditingRow(record.id!, 'rate_unit_id', null)
-              }}
-              options={workSets.map((ws) => ({ value: ws.id, label: ws.name }))}
-              placeholder="Выберите рабочий набор"
-              allowClear
-              showSearch
-              filterOption={(input, option) =>
-                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
-              }
-              style={{ width: '100%' }}
-              dropdownStyle={getDynamicDropdownStyle(workSets.map((ws) => ({ value: ws.id, label: ws.name })))}
-            />
-          )
-        }
-        return record.work_set_name || '-'
-      },
-    },
-    {
-      title: 'Наименование работы',
-      dataIndex: 'rate_id',
-      key: 'rate_id',
-      width: 250,
-      render: (value: string | null, record: EditableRow) => {
-        if (isRowEditing(record as FinishingPieRow)) {
-          // Фильтруем расценки по рабочему набору
-          const filteredRates = getRatesForWorkSet(record.work_set_id || null)
-          return (
-            <Select
-              value={value}
-              onChange={(val) => handleRateChange(record.id!, val)}
-              options={filteredRates.map((r) => ({ value: r.id, label: r.work_name }))}
-              placeholder="Выберите работу"
-              allowClear
-              showSearch
-              filterOption={(input, option) =>
-                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
-              }
-              style={{ width: '100%' }}
-              dropdownStyle={getDynamicDropdownStyle(filteredRates.map((r) => ({ value: r.id, label: r.work_name })))}
-            />
-          )
-        }
-        return (
-          <div style={{ whiteSpace: 'normal', wordWrap: 'break-word' }}>
-            {record.rate_name || '-'}
-          </div>
-        )
-      },
-    },
-    {
-      title: 'Ед.изм. работы',
-      dataIndex: 'rate_unit_id',
-      key: 'rate_unit_id',
-      width: 80,
-      render: (value: string | null, record: EditableRow) => {
-        if (mode === 'add' || mode === 'edit') {
-          const unitName = units.find((u) => u.id === value)?.name || '-'
-          return <span>{unitName}</span>
-        }
-        return record.rate_unit_name || '-'
       },
     },
   ]

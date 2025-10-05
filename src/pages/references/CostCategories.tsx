@@ -27,21 +27,11 @@ interface DetailCategory {
   description: string | null
   unitId: string | null
   unitName: string | null
-  costCategoryId: number
-  locationId: number
-  locationName: string | null
-}
-
-interface DetailCategoryGroup {
-  id: number // ID первой записи в группе
-  name: string
-  description: string | null
-  unitId: string | null
-  unitName: string | null
-  costCategoryId: number
-  locations: Array<{
-    id: number
-    name: string
+  mappings: Array<{
+    costCategoryId: number
+    costCategoryName: string
+    locationId: number
+    locationName: string
   }>
 }
 
@@ -82,10 +72,19 @@ interface DetailCategoryRowDB {
   name: string
   description: string | null
   unit_id: string | null
-  cost_category_id: number
-  location_id: number
   units: { name: string } | null
-  location: { name: string } | null
+  detail_cost_categories_mapping: Array<{
+    cost_category_id: number
+    location_id: number
+    cost_categories: {
+      id: number
+      name: string
+    }
+    location: {
+      id: number
+      name: string
+    }
+  }>
 }
 
 export default function CostCategories() {
@@ -142,7 +141,7 @@ export default function CostCategories() {
       const { data, error } = await supabase
         .from('detail_cost_categories')
         .select(
-          'id, name, description, unit_id, cost_category_id, location_id, units(name), location(name)',
+          'id, name, description, unit_id, units(name), detail_cost_categories_mapping(cost_category_id, location_id, cost_categories(id, name), location(id, name))',
         )
         .returns<DetailCategoryRowDB[]>()
       if (error) {
@@ -155,9 +154,12 @@ export default function CostCategories() {
         description: d.description,
         unitId: d.unit_id,
         unitName: d.units?.name ?? null,
-        costCategoryId: d.cost_category_id,
-        locationId: d.location_id,
-        locationName: d.location?.name ?? null,
+        mappings: (d.detail_cost_categories_mapping ?? []).map((m) => ({
+          costCategoryId: m.cost_category_id,
+          costCategoryName: m.cost_categories?.name ?? '',
+          locationId: m.location_id,
+          locationName: m.location?.name ?? '',
+        })),
       }))
     },
   })
@@ -186,64 +188,29 @@ export default function CostCategories() {
   const rows = useMemo(() => {
     const result: TableRow[] = []
 
-    // Группируем детали по категории и имени
-    const detailsGrouped = new Map<string, DetailCategoryGroup>()
-
-    ;(details ?? []).forEach((d) => {
-      const groupKey = `${d.costCategoryId}-${d.name}`
-
-      if (detailsGrouped.has(groupKey)) {
-        // Добавляем локализацию к существующей группе
-        const group = detailsGrouped.get(groupKey)!
-        group.locations.push({
-          id: d.locationId,
-          name: d.locationName || ''
+    // Создаём строки на основе тройных связей из mappings
+    ;(details ?? []).forEach((detail) => {
+      detail.mappings.forEach((mapping) => {
+        const category = categories?.find((c) => c.id === mapping.costCategoryId)
+        result.push({
+          key: `${detail.id}-${mapping.costCategoryId}-${mapping.locationId}`,
+          number: category?.number ?? null,
+          categoryId: mapping.costCategoryId,
+          categoryName: mapping.costCategoryName,
+          categoryUnit: category?.unitName ?? null,
+          detailId: detail.id,
+          detailName: detail.name,
+          detailUnit: detail.unitName,
+          locations: [mapping.locationName],
+          locationIds: [mapping.locationId],
         })
-      } else {
-        // Создаем новую группу
-        detailsGrouped.set(groupKey, {
-          id: d.id,
-          name: d.name,
-          description: d.description,
-          unitId: d.unitId,
-          unitName: d.unitName,
-          costCategoryId: d.costCategoryId,
-          locations: [{
-            id: d.locationId,
-            name: d.locationName || ''
-          }]
-        })
-      }
+      })
     })
 
-    // Организуем по категориям
-    const detailsByCategory = new Map<number, DetailCategoryGroup[]>()
-    for (const group of detailsGrouped.values()) {
-      if (!detailsByCategory.has(group.costCategoryId)) {
-        detailsByCategory.set(group.costCategoryId, [])
-      }
-      detailsByCategory.get(group.costCategoryId)!.push(group)
-    }
-
-    // Создаем строки таблицы
+    // Добавляем категории без деталей
     ;(categories ?? []).forEach((c) => {
-      const groups = detailsByCategory.get(c.id)
-      if (groups && groups.length > 0) {
-        groups.forEach((group) => {
-          result.push({
-            key: `detail-group-${group.id}`,
-            number: c.number,
-            categoryId: c.id,
-            categoryName: c.name,
-            categoryUnit: c.unitName,
-            detailId: group.id,
-            detailName: group.name,
-            detailUnit: group.unitName,
-            locations: group.locations.map(l => l.name),
-            locationIds: group.locations.map(l => l.id),
-          })
-        })
-      } else {
+      const hasDetails = result.some((r) => r.categoryId === c.id)
+      if (!hasDetails) {
         result.push({
           key: `category-${c.id}`,
           number: c.number,
@@ -270,11 +237,10 @@ export default function CostCategories() {
       filtered = filtered.filter((row) => row.detailId === filters.detailId)
     }
     if (filters.locationId) {
-      const selectedLocation = locations?.find((l) => l.id === filters.locationId)?.name
-      filtered = filtered.filter((row) => row.location === selectedLocation)
+      filtered = filtered.filter((row) => row.locationIds?.includes(filters.locationId!))
     }
     return filtered
-  }, [rows, filters, locations])
+  }, [rows, filters])
 
   const emptyRow: TableRow = {
     key: 'new',
@@ -333,7 +299,9 @@ export default function CostCategories() {
 
   const locationFilters = useMemo(
     () =>
-      Array.from(new Set(rows.map((r) => r.location).filter((n): n is string => !!n))).map((n) => ({
+      Array.from(
+        new Set(rows.flatMap((r) => r.locations ?? []).filter((n): n is string => !!n)),
+      ).map((n) => ({
         text: n,
         value: n,
       })),
@@ -355,9 +323,7 @@ export default function CostCategories() {
       ;(categories ?? []).forEach((c) => categoriesMap.set(c.name, c))
 
       const detailsMap = new Map<string, DetailCategory>()
-      ;(details ?? []).forEach((d) =>
-        detailsMap.set(`${d.costCategoryId}-${d.name}-${d.locationId}`, d),
-      )
+      ;(details ?? []).forEach((d) => detailsMap.set(d.name, d))
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i]
@@ -408,57 +374,73 @@ export default function CostCategories() {
           categoriesMap.set(categoryName, category)
         }
 
-        const detailKey = `${category.id}-${detailName}-${location.id}`
-        const existingDetail = detailsMap.get(detailKey)
+        const detailKey = detailName
+        let existingDetail = detailsMap.get(detailKey)
 
-        if (existingDetail) {
-          const replace = await new Promise<boolean>((resolve) => {
-            modal.confirm({
-              title: 'Дубликат',
-              content: `Вид затрат "${detailName}" уже существует. Заменить?`,
-              okText: 'Заменить',
-              cancelText: 'Пропустить',
-              onOk: () => resolve(true),
-              onCancel: () => resolve(false),
-            })
-          })
-          if (!replace) continue
-          const { error: updError } = await supabase
+        if (!existingDetail) {
+          // Попытаться найти существующий вид затрат по имени
+          const { data: foundDetail } = await supabase
             .from('detail_cost_categories')
-            .update({
-              cost_category_id: category.id,
-              name: detailName,
-              unit_id: detailUnit.id,
-              location_id: location.id,
-            })
-            .eq('id', existingDetail.id)
-          if (updError) {
-            errors.push(`Строка ${i + 1}: не удалось обновить вид`)
-            continue
+            .select('id, name, description, unit_id')
+            .eq('name', detailName)
+            .single()
+
+          if (foundDetail) {
+            existingDetail = {
+              id: foundDetail.id,
+              name: foundDetail.name,
+              description: foundDetail.description,
+              unitId: foundDetail.unit_id,
+              unitName: detailUnit.name,
+              mappings: [],
+            }
+          } else {
+            // Создать новый вид затрат (БЕЗ cost_category_id)
+            const { data: detData, error: detError } = await supabase
+              .from('detail_cost_categories')
+              .insert({
+                name: detailName,
+                unit_id: detailUnit.id,
+              })
+              .select()
+              .single()
+            if (detError || !detData) {
+              errors.push(`Строка ${i + 1}: не удалось добавить вид`)
+              continue
+            }
+            existingDetail = {
+              id: detData.id,
+              name: detData.name,
+              description: detData.description,
+              unitId: detData.unit_id,
+              unitName: detailUnit.name,
+              mappings: [],
+            }
           }
-        } else {
-          const { data: detData, error: detError } = await supabase
-            .from('detail_cost_categories')
+          detailsMap.set(detailKey, existingDetail)
+        }
+
+        // Проверить существует ли тройная связь
+        const hasMapping = existingDetail.mappings.some(
+          (m) => m.costCategoryId === category.id && m.locationId === location.id,
+        )
+        if (!hasMapping) {
+          // Создать тройную связь в маппинге
+          const { error: mappingError } = await supabase
+            .from('detail_cost_categories_mapping')
             .insert({
               cost_category_id: category.id,
-              name: detailName,
-              unit_id: detailUnit.id,
+              detail_cost_category_id: existingDetail.id,
               location_id: location.id,
             })
-            .select()
-            .single()
-          if (detError || !detData) {
-            errors.push(`Строка ${i + 1}: не удалось добавить вид`)
+          if (mappingError) {
+            errors.push(`Строка ${i + 1}: не удалось добавить связь`)
             continue
           }
-          detailsMap.set(detailKey, {
-            id: detData.id,
-            name: detData.name,
-            description: detData.description,
-            unitId: detData.unit_id,
-            unitName: detailUnit.name,
-            costCategoryId: detData.cost_category_id,
-            locationId: detData.location_id,
+          existingDetail.mappings.push({
+            costCategoryId: category.id,
+            costCategoryName: category.name,
+            locationId: location.id,
             locationName: location.name,
           })
         }
@@ -484,20 +466,16 @@ export default function CostCategories() {
     if (addMode) return
     form.resetFields()
     if (record.detailId) {
-      // Для групп деталей - редактируем группу целиком
-      const detailsInGroup = details?.filter((d) =>
-        d.costCategoryId === record.categoryId &&
-        d.name === record.detailName
-      ) ?? []
-
-      if (detailsInGroup.length > 0) {
-        const firstDetail = detailsInGroup[0]
+      const detail = details?.find((d) => d.id === record.detailId)
+      if (detail) {
+        // Найти маппинг для текущей категории
+        const mapping = detail.mappings.find((m) => m.costCategoryId === record.categoryId)
         form.setFieldsValue({
-          costCategoryId: firstDetail.costCategoryId,
-          detailName: firstDetail.name,
-          detailDescription: firstDetail.description,
-          detailUnitId: firstDetail.unitId,
-          locationIds: record.locationIds || [], // Используем все ID локализаций из группы
+          costCategoryId: record.categoryId,
+          detailName: detail.name,
+          detailDescription: detail.description,
+          detailUnitId: detail.unitId,
+          locationIds: mapping ? [mapping.locationId] : [],
         })
         setEditing({ type: 'detail', key: record.key, id: record.detailId })
       }
@@ -532,18 +510,44 @@ export default function CostCategories() {
         if (error) throw error
       }
       if (addMode === 'detail') {
-        // Создаем записи для каждой выбранной локализации
         if (values.locationIds && values.locationIds.length > 0) {
-          const detailRecords = values.locationIds.map((locationId: number) => ({
+          // Шаг 1: Найти или создать вид затрат
+          let detailData
+          const { data: existing } = await supabase
+            .from('detail_cost_categories')
+            .select('id')
+            .eq('name', values.detailName)
+            .single()
+
+          if (existing) {
+            detailData = existing
+          } else {
+            const { data, error: detailError } = await supabase
+              .from('detail_cost_categories')
+              .insert({
+                name: values.detailName,
+                description: values.detailDescription,
+                unit_id: values.detailUnitId,
+              })
+              .select()
+              .single()
+
+            if (detailError || !data) throw detailError
+            detailData = data
+          }
+
+          // Шаг 2: Создать тройные связи в маппинге
+          const mappingRecords = values.locationIds.map((locationId: number) => ({
             cost_category_id: values.costCategoryId,
-            name: values.detailName,
-            description: values.detailDescription,
-            unit_id: values.detailUnitId,
+            detail_cost_category_id: detailData.id,
             location_id: locationId,
           }))
 
-          const { error } = await supabase.from('detail_cost_categories').insert(detailRecords)
-          if (error) throw error
+          const { error: mappingError } = await supabase
+            .from('detail_cost_categories_mapping')
+            .insert(mappingRecords)
+
+          if (mappingError) throw mappingError
         }
       }
       message.success('Запись добавлена')
@@ -572,35 +576,36 @@ export default function CostCategories() {
         if (error) throw error
       }
       if (editing.type === 'detail') {
-        // Находим все записи текущей группы (одинаковая категория и название детали)
-        const currentDetailGroup = details?.filter((d) =>
-          d.costCategoryId === values.costCategoryId &&
-          d.name === values.detailName
-        ) ?? []
-
-        // Удаляем все старые записи группы
-        if (currentDetailGroup.length > 0) {
-          const groupIds = currentDetailGroup.map(d => d.id)
-          const { error: deleteError } = await supabase
-            .from('detail_cost_categories')
-            .delete()
-            .in('id', groupIds)
-          if (deleteError) throw deleteError
-        }
-
-        // Создаем новые записи для каждой выбранной локализации
-        if (values.locationIds && values.locationIds.length > 0) {
-          const detailRecords = values.locationIds.map((locationId: number) => ({
-            cost_category_id: values.costCategoryId,
+        // Обновить только базовые поля (БЕЗ cost_category_id)
+        const { error: updateError } = await supabase
+          .from('detail_cost_categories')
+          .update({
             name: values.detailName,
             description: values.detailDescription,
             unit_id: values.detailUnitId,
+          })
+          .eq('id', editing.id)
+        if (updateError) throw updateError
+
+        // Удалить старые тройные связи для этой категории и детали
+        const { error: deleteError } = await supabase
+          .from('detail_cost_categories_mapping')
+          .delete()
+          .eq('detail_cost_category_id', editing.id)
+          .eq('cost_category_id', values.costCategoryId)
+        if (deleteError) throw deleteError
+
+        // Создать новые тройные связи
+        if (values.locationIds && values.locationIds.length > 0) {
+          const mappingRecords = values.locationIds.map((locationId: number) => ({
+            cost_category_id: values.costCategoryId,
+            detail_cost_category_id: editing.id,
             location_id: locationId,
           }))
 
           const { error: insertError } = await supabase
-            .from('detail_cost_categories')
-            .insert(detailRecords)
+            .from('detail_cost_categories_mapping')
+            .insert(mappingRecords)
           if (insertError) throw insertError
         }
       }
@@ -616,20 +621,11 @@ export default function CostCategories() {
     try {
       if (!supabase) return
       if (record.detailId) {
-        // Удаляем всю группу деталей (все записи с одинаковыми категорией и названием)
-        const detailsInGroup = details?.filter((d) =>
-          d.costCategoryId === record.categoryId &&
-          d.name === record.detailName
-        ) ?? []
-
-        if (detailsInGroup.length > 0) {
-          const groupIds = detailsInGroup.map(d => d.id)
-          const { error } = await supabase
-            .from('detail_cost_categories')
-            .delete()
-            .in('id', groupIds)
-          if (error) throw error
-        }
+        const { error } = await supabase
+          .from('detail_cost_categories')
+          .delete()
+          .eq('id', record.detailId)
+        if (error) throw error
       } else if (record.categoryId) {
         const { error } = await supabase
           .from('cost_categories')
@@ -1022,10 +1018,12 @@ export default function CostCategories() {
 
   const availableDetails = useMemo(() => {
     if (!filters.categoryId) return details ?? []
-    return (details ?? []).filter((d) => d.costCategoryId === filters.categoryId)
+    return (details ?? []).filter((d) =>
+      d.mappings.some((m) => m.costCategoryId === filters.categoryId),
+    )
   }, [details, filters.categoryId])
 
-  const handleFilterChange = (key: keyof typeof filters, value: any) => {
+  const handleFilterChange = (key: keyof typeof filters, value: number | undefined) => {
     setFilters((prev) => {
       const newFilters = { ...prev, [key]: value }
       // Сброс зависимых фильтров

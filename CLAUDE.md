@@ -90,7 +90,7 @@ src/
 └── components/   # Legacy UI components (ConflictResolutionDialog, DataTable, FileUpload, etc.)
 ```
 
-**Note**: The project is in transition to FSD architecture. Current entities include: api-settings, chessboard, comments, disk, documentation, documentation-tags, materials, ml, projects, rates, statuses, and units.
+**Note**: The project is in transition to FSD architecture. Current entities include: api-settings, calculation, chessboard, comments, disk, documentation, documentation-tags, finishing, materials, ml, projects, rates, rooms, statuses, units, and vor.
 
 ### Key Patterns
 - **Public API**: Each slice exposes through `index.ts`
@@ -107,7 +107,7 @@ src/
 - **Error Handling**: All Supabase queries must include error handling
 
 ### Key Directories
-- `src/entities/` - Domain entities (api-settings, chessboard, comments, disk, documentation, documentation-tags, materials, ml, projects, rates, statuses, units)
+- `src/entities/` - Domain entities (api-settings, calculation, chessboard, comments, disk, documentation, documentation-tags, finishing, materials, ml, projects, rates, rooms, statuses, units, vor)
 - `src/pages/` - Main application pages organized by sections (admin/, documents/, references/, reports/, experiments/)
 - `src/features/auth/` - Authentication logic using Supabase
 - `src/shared/contexts/` - React contexts for global state (LogoContext, ScaleContext)
@@ -248,9 +248,12 @@ if (error) {
 ### Complex Entity Relations
 Entities may have multiple API files for different concerns:
 - `entity-api.ts` - Main CRUD operations
-- `entity-sets-api.ts` - Set/collection management  
+- `entity-sets-api.ts` - Set/collection management
 - `entity-mapping-api.ts` - Relationship management
 - `entity-status-api.ts` - Status-specific operations
+- `entity-cascade-api.ts` - Cascading updates and hierarchical operations
+- `entity-multi-docs-api.ts` - Multi-document operations
+- `vor-materials-api.ts`, `vor-works-api.ts` - VOR sub-entities management
 
 ## Performance Requirements
 
@@ -651,11 +654,11 @@ useEffect(() => {
 ## Testing Configuration
 
 ### Playwright E2E Testing
-- **Base URL**: http://localhost:5173 (same as local dev server)
+- **Base URL**: http://localhost:5199 (Playwright auto-server)
 - **Test directory**: `./tests`
-- **Browsers**: Chromium, Firefox, WebKit
+- **Browsers**: Chromium, Firefox, WebKit (Edge on Windows)
 - **Auto-start dev server**: Uses `npm run dev:local` command with 120s timeout
-- **Web server URL**: http://localhost:5173 (auto-configured in playwright.config.js)
+- **Web server URL**: http://localhost:5199 (auto-configured in playwright.config.js)
 - **Reporters**: HTML report with screenshots and videos on failure
 - **Parallel execution**: Enabled for faster test runs
 - **Retry logic**: 2 retries on CI, 0 retries locally

@@ -26,6 +26,12 @@ export interface TypeCalculationRow {
   surface_type_id: string | null
   surface_type_name?: string
   floors?: TypeCalculationFloor[]
+  // Поля для работ (из type_calculation_work_mapping)
+  detail_cost_category_id?: number | null
+  detail_cost_category_name?: string
+  work_set?: string // Получается из rates.work_set по rate_id
+  rate_id?: string | null
+  rate_name?: string // work_name из rates
 }
 
 // Привязка этажей к строке расчета
@@ -34,6 +40,13 @@ export interface TypeCalculationFloor {
   floor_number: number
   quantitySpec: number | null
   quantityRd: number | null
+}
+
+// Маппинг работ для расчета по типам
+export interface TypeCalculationWorkMapping {
+  type_calculation_mapping_id: string
+  detail_cost_category_id: number | null
+  rate_id: string | null
 }
 
 // ========================================

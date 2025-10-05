@@ -247,23 +247,29 @@ function normalizeColumns(cols: ColumnsType<RowData>, scale: number): ColumnsTyp
 // Компонент для каскадного выбора работ - ИСПРАВЛЕНИЕ Rules of Hooks
 interface WorkSetSelectProps {
   value: string
+  categoryId: string | undefined
   costTypeId: string | undefined
   onChange: (value: string) => void
 }
 
-const WorkSetSelect: React.FC<WorkSetSelectProps> = ({ value, costTypeId, onChange }) => {
+const WorkSetSelect: React.FC<WorkSetSelectProps> = ({ value, categoryId, costTypeId, onChange }) => {
+  // Нормализуем значения к строке для предотвращения проблем с типами
+  const normalizedCostTypeId = costTypeId ? String(costTypeId) : undefined
+  const normalizedCategoryId = categoryId ? String(categoryId) : undefined
+
   // Стабилизируем queryKey для предотвращения infinite render
   const stableQueryKey = useMemo(() => {
-    const key = ['work-sets-by-category']
-    if (costTypeId) key.push(costTypeId)
+    const key = ['work-sets-by-category-and-type']
+    if (normalizedCategoryId) key.push(normalizedCategoryId)
+    if (normalizedCostTypeId) key.push(normalizedCostTypeId)
     return key
-  }, [costTypeId])
+  }, [normalizedCategoryId, normalizedCostTypeId])
 
   // Хук всегда вызывается на верхнем уровне компонента
   const { data: workSetOptions = [] } = useQuery({
     queryKey: stableQueryKey,
-    queryFn: () => ratesApi.getWorkSetsByCategory(costTypeId),
-    enabled: !!costTypeId, // Запрос только если есть вид затрат
+    queryFn: () => ratesApi.getWorkSetsByCategory(normalizedCostTypeId, normalizedCategoryId),
+    enabled: !!normalizedCategoryId && !!normalizedCostTypeId, // Запрос только если есть и категория и вид затрат
   })
 
   return (
@@ -281,8 +287,8 @@ const WorkSetSelect: React.FC<WorkSetSelectProps> = ({ value, costTypeId, onChan
         return text.toLowerCase().includes(input.toLowerCase())
       }}
       options={workSetOptions}
-      disabled={!costTypeId} // Отключаем если не выбран вид затрат
-      notFoundContent={costTypeId ? 'Рабочие наборы не найдены' : 'Выберите вид затрат'}
+      disabled={!categoryId || !costTypeId} // Отключаем если не выбраны категория или вид затрат
+      notFoundContent={!categoryId || !costTypeId ? 'Выберите категорию и вид затрат' : 'Рабочие наборы не найдены'}
     />
   )
 }
@@ -1130,6 +1136,52 @@ export const ChessboardTable = memo(({
     label: item.name
   }))
 
+  // Загрузка маппинга для фильтрации локаций по категории + вид затрат
+  const { data: detailCostCategoriesMapping = [] } = useQuery({
+    queryKey: ['detail-cost-categories-mapping-for-locations'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('detail_cost_categories_mapping')
+        .select('cost_category_id, detail_cost_category_id, location_id, location(id, name)')
+      if (error) throw error
+      return data
+    },
+  })
+
+  // Функция для получения доступных локаций для комбинации категория + вид затрат
+  const getAvailableLocations = (categoryId: string, costTypeId: string) => {
+    if (!categoryId || !costTypeId || !detailCostCategoriesMapping.length) {
+      return []
+    }
+
+    const normalizedCategoryId = String(categoryId).trim()
+    const normalizedCostTypeId = String(costTypeId).trim()
+
+    const filtered = detailCostCategoriesMapping.filter(
+      (m) => {
+        const matchCategory = String(m.cost_category_id) === normalizedCategoryId
+        const matchCostType = String(m.detail_cost_category_id) === normalizedCostTypeId
+        return matchCategory && matchCostType
+      }
+    )
+
+    const uniqueLocations = new Map()
+    filtered.forEach((m) => {
+      if (m.location) {
+        uniqueLocations.set(m.location.id, {
+          value: m.location.id,
+          label: m.location.name,
+        })
+      }
+    })
+
+    const result = Array.from(uniqueLocations.values()).sort((a, b) =>
+      a.label.localeCompare(b.label)
+    )
+
+    return result
+  }
+
   const { data: locationsData = [] } = useQuery({
     queryKey: ['locations-select'],
     queryFn: async () => {
@@ -1194,13 +1246,15 @@ export const ChessboardTable = memo(({
     queryKey: ['detail-cost-categories-with-category'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('detail_cost_categories')
-        .select('id, name, cost_category_id')
-        .order('name')
+        .from('detail_cost_categories_mapping')
+        .select('cost_category_id, detail_cost_categories(id, name)')
+        .order('detail_cost_categories(name)')
       if (error) throw error
+
+      // Создаём плоский список: каждая комбинация detail+category - отдельный элемент
       return data.map(item => ({
-        value: item.id,
-        label: item.name,
+        value: item.detail_cost_categories.id,
+        label: item.detail_cost_categories.name,
         categoryId: item.cost_category_id
       }))
     },
@@ -2080,19 +2134,20 @@ export const ChessboardTable = memo(({
       render: (value, record) => {
         const isEditing = (record as any).isEditing
         if (isEditing) {
+          const categoryId = (record as RowData).costCategoryId
           const costTypeId = (record as RowData).costTypeId
-          const workSetId = (record as RowData).workSetId // Получаем workSetId для передачи в WorkSetSelect
+          const workSetId = (record as RowData).workSetId
 
           return (
             <WorkSetSelect
-              value={workSetId || ''} // Используем workSetId вместо workSet
+              value={workSetId || ''}
+              categoryId={categoryId}
               costTypeId={costTypeId}
               onChange={(newWorkSetId) => {
-                // При изменении рабочего набора очищаем наименование работ и rateId
                 onRowUpdate(record.id, {
-                  workSetId: newWorkSetId, // Сохраняем workSetId
-                  workName: '', // Очищаем наименование работ
-                  rateId: '' // Очищаем rateId
+                  workSetId: newWorkSetId,
+                  workName: '',
+                  rateId: ''
                 })
               }}
             />
@@ -2206,6 +2261,12 @@ export const ChessboardTable = memo(({
         const isEditing = (record as any).isEditing
         if (isEditing) {
           const currentLocationId = (record as RowData).locationId
+          const categoryId = (record as RowData).costCategoryId
+          const costTypeId = (record as RowData).costTypeId
+
+          // Получаем доступные локации для выбранной категории и вида затрат
+          const availableLocations = getAvailableLocations(categoryId, costTypeId)
+
           return (
             <Select
               value={currentLocationId || undefined} // Используем locationId как value
@@ -2217,16 +2278,17 @@ export const ChessboardTable = memo(({
                   locationId: newValue
                 })
               }}
-              options={locationsData}
+              options={availableLocations}
               allowClear
               showSearch
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
-              placeholder=""
+              placeholder={!categoryId || !costTypeId ? "Выберите категорию и вид" : ""}
               size="small"
               style={{ width: '100%' }}
-              dropdownStyle={getDynamicDropdownStyle(locationsData)}
+              disabled={!categoryId || !costTypeId}
+              dropdownStyle={getDynamicDropdownStyle(availableLocations)}
             />
           )
         }

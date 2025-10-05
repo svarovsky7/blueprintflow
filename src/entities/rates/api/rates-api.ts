@@ -247,16 +247,56 @@ export const ratesApi = {
   },
 
   // Получение рабочих наборов по виду затрат для столбца "Рабочий набор" в шахматке
-  async getWorkSetsByCategory(costTypeId?: string): Promise<{ value: string; label: string }[]> {
+  async getWorkSetsByCategory(costTypeId?: string, costCategoryId?: string): Promise<{ value: string; label: string }[]> {
     if (!supabase) throw new Error('Supabase is not configured')
 
     // Если не указан вид затрат - возвращаем пустой список
     if (!costTypeId) {
+      console.log('❌ getWorkSetsByCategory: costTypeId не указан') // LOG
       return []
     }
 
+    console.log('🔍 getWorkSetsByCategory вызван с:', { costTypeId, costCategoryId }) // LOG
 
-    // Запрос: получаем активные расценки с рабочими наборами, связанные с видом затрат
+    // ШАГ 1: Проверяем существование связки (категория + вид затрат) через detail_cost_categories_mapping
+    if (costCategoryId) {
+      const categoryIdInt = parseInt(costCategoryId)
+      const costTypeIdInt = parseInt(costTypeId)
+
+      console.log('🔍 Параметры запроса к detail_cost_categories_mapping:', { // LOG
+        categoryId: costCategoryId,
+        categoryIdInt,
+        costTypeId,
+        costTypeIdInt
+      })
+
+      const { data: mappingExists, error: mappingError } = await supabase
+        .from('detail_cost_categories_mapping')
+        .select('*')
+        .eq('cost_category_id', categoryIdInt)
+        .eq('detail_cost_category_id', costTypeIdInt)
+        .limit(1)
+
+      console.log('🔍 Результат запроса к detail_cost_categories_mapping:', mappingExists) // LOG
+      console.log('🔍 Проверка связки (categoryId + costTypeId):', { // LOG
+        categoryId: costCategoryId,
+        costTypeId,
+        exists: mappingExists && mappingExists.length > 0
+      })
+
+      if (mappingError) {
+        console.error('❌ Ошибка при проверке связки:', mappingError) // LOG
+        throw mappingError
+      }
+
+      // Если связки нет в detail_cost_categories_mapping - возвращаем пустой массив
+      if (!mappingExists || mappingExists.length === 0) {
+        console.log('⚠️ Нет связки (categoryId + costTypeId) в detail_cost_categories_mapping - возвращаем []') // LOG
+        return []
+      }
+    }
+
+    // ШАГ 2: Получаем активные расценки с рабочими наборами, связанные с видом затрат
     const { data, error } = await supabase.from('rates').select(`
         id,
         work_set,
@@ -266,29 +306,66 @@ export const ratesApi = {
       .eq('active', true) // Только активные расценки
       .not('work_set', 'is', null) // Только записи с заполненным work_set
 
+    console.log('📊 Получено расценок из БД:', data?.length || 0) // LOG
 
     if (error) {
-      console.error('Failed to get work sets by category:', error)
+      console.error('❌ Failed to get work sets by category:', error)
       throw error
     }
 
     if (!data || data.length === 0) {
+      console.log('⚠️ Нет данных из БД') // LOG
       return []
     }
 
-    // Фильтруем расценки по виду затрат
+    // ШАГ 3: Фильтруем расценки по виду затрат
+    const targetIdAsString = costTypeId.toString()
+    const targetIdAsNumber = parseInt(costTypeId)
+
+    console.log('🔍 Ищем расценки с detail_cost_category_id:', { targetIdAsString, targetIdAsNumber }) // LOG
+
+    // Проверим первые 3 записи для отладки
+    console.log('🔍 Первые 3 расценки из БД:', data.slice(0, 3).map(r => ({ // LOG
+      id: r.id,
+      work_set: r.work_set,
+      mapping: r.rates_detail_cost_categories_mapping,
+      mappingDetailIds: r.rates_detail_cost_categories_mapping?.map(m => m.detail_cost_category_id) || []
+    })))
+
+    // Проверим, есть ли хоть одна расценка с нужным detail_cost_category_id
+    const sampleMatchingRate = data.find(r =>
+      r.rates_detail_cost_categories_mapping?.some(m =>
+        m.detail_cost_category_id === targetIdAsNumber ||
+        m.detail_cost_category_id.toString() === targetIdAsString
+      )
+    )
+    console.log('🔍 Найдена ли хоть одна расценка с costTypeId=' + targetIdAsString + '?', !!sampleMatchingRate) // LOG
+    if (sampleMatchingRate) {
+      console.log('🔍 Пример расценки с нужным costTypeId:', { // LOG
+        id: sampleMatchingRate.id,
+        work_set: sampleMatchingRate.work_set,
+        mappingDetailIds: sampleMatchingRate.rates_detail_cost_categories_mapping?.map(m => m.detail_cost_category_id)
+      })
+    }
+
     const filteredRates = data.filter((rate) => {
       const categoryIds = rate.rates_detail_cost_categories_mapping?.map((m) => m.detail_cost_category_id.toString()) ?? []
       const categoryIdsAsNumbers = rate.rates_detail_cost_categories_mapping?.map((m) => m.detail_cost_category_id) ?? []
 
-      const targetIdAsString = costTypeId.toString()
-      const targetIdAsNumber = parseInt(costTypeId)
-
-
-      return categoryIds.includes(targetIdAsString) || categoryIdsAsNumbers.includes(targetIdAsNumber)
+      const matches = categoryIds.includes(targetIdAsString) || categoryIdsAsNumbers.includes(targetIdAsNumber)
+      return matches
     })
 
-    // Убираем дубликаты рабочих наборов и преобразуем в нужный формат
+    console.log('🔍 Отфильтровано расценок:', filteredRates.length, 'из', data.length) // LOG
+    if (filteredRates.length > 0) {
+      console.log('🔍 Первая отфильтрованная расценка:', { // LOG
+        id: filteredRates[0].id,
+        work_set: filteredRates[0].work_set,
+        mapping: filteredRates[0].rates_detail_cost_categories_mapping
+      })
+    }
+
+    // ШАГ 4: Убираем дубликаты рабочих наборов и преобразуем в нужный формат
     const uniqueWorkSets = new Map<string, string>()
     filteredRates.forEach((rate) => {
       if (rate.work_set && !uniqueWorkSets.has(rate.id)) {
@@ -303,6 +380,8 @@ export const ratesApi = {
         label: workSetName, // Название рабочего набора для отображения
       }))
       .sort((a, b) => a.label.localeCompare(b.label))
+
+    console.log('✅ Результат getWorkSetsByCategory:', result.length, 'уникальных рабочих наборов') // LOG
 
     return result
   },

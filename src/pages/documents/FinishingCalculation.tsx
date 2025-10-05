@@ -30,8 +30,14 @@ import {
   updateTypeCalculationRow,
   deleteTypeCalculationRow,
   upsertTypeCalculationFloors,
+  upsertTypeCalculationWorkMapping,
 } from '@/entities/calculation'
 import { FloorQuantitiesModal } from './FinishingCalculation/components/FloorQuantitiesModal'
+import {
+  DetailCostCategoryCell,
+  WorkSetCell,
+  RateCell,
+} from './FinishingCalculation/components/EditableCells'
 
 const { Title } = Typography
 
@@ -129,6 +135,12 @@ interface EditableRow extends Partial<CalculationRow> {
   quantitySpec?: number | null
   quantityRd?: number | null
   floorRange?: string  // Строка диапазона этажей: "1-3", "2,4-6"
+  // Поля работ
+  detail_cost_category_id?: number | null
+  detail_cost_category_name?: string
+  work_set?: string
+  rate_id?: string | null
+  rate_name?: string
 }
 
 export default function FinishingCalculation() {
@@ -249,6 +261,24 @@ export default function FinishingCalculation() {
     queryFn: getSurfaceTypes,
   })
 
+  const { data: finishingPieData } = useQuery({
+    queryKey: ['finishing-pie-cost-category', selectedFinishingPieId],
+    queryFn: async () => {
+      if (!selectedFinishingPieId || selectedFinishingPieId === 'new') return null
+
+      const { data, error } = await supabase
+        .from('finishing_pie')
+        .select('cost_category_id')
+        .eq('id', selectedFinishingPieId)
+        .limit(1)
+        .single()
+
+      if (error) throw error
+      return data
+    },
+    enabled: !!selectedFinishingPieId && selectedFinishingPieId !== 'new',
+  })
+
   const createMutation = useMutation({
     mutationFn: createTypeCalculationRow,
     onSuccess: () => {
@@ -333,6 +363,14 @@ export default function FinishingCalculation() {
           } else {
             console.log('🔍 LOG: нет этажей для сохранения') // LOG
           }
+
+          // Сохраняем маппинг работ
+          if (row.detail_cost_category_id || row.rate_id) {
+            await upsertTypeCalculationWorkMapping(newRow.id, {
+              detail_cost_category_id: row.detail_cost_category_id || null,
+              rate_id: row.rate_id || null,
+            })
+          }
         } else if (row.isEditing) {
           // Обновляем существующую строку
           await updateMutation.mutateAsync({
@@ -370,6 +408,14 @@ export default function FinishingCalculation() {
 
           if (floorsToSave && floorsToSave.length > 0) {
             await upsertTypeCalculationFloors(row.id!, floorsToSave)
+          }
+
+          // Сохраняем маппинг работ при редактировании
+          if (row.detail_cost_category_id || row.rate_id) {
+            await upsertTypeCalculationWorkMapping(row.id!, {
+              detail_cost_category_id: row.detail_cost_category_id || null,
+              rate_id: row.rate_id || null,
+            })
           }
         }
       }
@@ -449,6 +495,11 @@ export default function FinishingCalculation() {
         pie_type_name: record.pie_type_name,
         surface_type_id: record.surface_type_id,
         surface_type_name: record.surface_type_name,
+        detail_cost_category_id: record.detail_cost_category_id,
+        detail_cost_category_name: record.detail_cost_category_name,
+        work_set: record.work_set,
+        rate_id: record.rate_id,
+        rate_name: record.rate_name,
       },
     ])
   }
@@ -611,6 +662,9 @@ export default function FinishingCalculation() {
                     floorRange,
                     quantitySpec,
                     quantityRd,
+                    detail_cost_category_id: record.detail_cost_category_id,
+                    work_set: record.work_set,
+                    rate_id: record.rate_id,
                   }])
                 }}
               />
@@ -700,56 +754,6 @@ export default function FinishingCalculation() {
       },
     },
     {
-      title: 'Локализация',
-      dataIndex: 'location_id',
-      key: 'location_id',
-      width: 200,
-      render: (value: number | null, record: EditableRow) => {
-        if ((mode === 'add' || mode === 'edit') && (record.isNew || record.isEditing)) {
-          return (
-            <Select
-              value={value}
-              onChange={(val) => handleUpdateEditingRow(record.id!, 'location_id', val)}
-              options={locations.map((l) => ({ value: l.id, label: l.name }))}
-              placeholder="Выберите локализацию"
-              allowClear
-              showSearch
-              filterOption={(input, option) =>
-                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
-              }
-              style={{ width: '100%' }}
-            />
-          )
-        }
-        return record.location_name || '-'
-      },
-    },
-    {
-      title: 'Вид помещения',
-      dataIndex: 'room_type_id',
-      key: 'room_type_id',
-      width: 150,
-      render: (value: number | null, record: EditableRow) => {
-        if ((mode === 'add' || mode === 'edit') && (record.isNew || record.isEditing)) {
-          return (
-            <Select
-              value={value}
-              onChange={(val) => handleUpdateEditingRow(record.id!, 'room_type_id', val)}
-              options={roomTypes.map((r) => ({ value: r.id, label: r.name }))}
-              placeholder="Выберите вид"
-              allowClear
-              showSearch
-              filterOption={(input, option) =>
-                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
-              }
-              style={{ width: '100%' }}
-            />
-          )
-        }
-        return record.room_type_name || '-'
-      },
-    },
-    {
       title: 'Тип',
       dataIndex: 'pie_type_id',
       key: 'pie_type_id',
@@ -797,6 +801,28 @@ export default function FinishingCalculation() {
           )
         }
         return record.surface_type_name || '-'
+      },
+    },
+    {
+      title: 'Этажи',
+      key: 'floors',
+      width: 120,
+      render: (_: unknown, record: EditableRow) => {
+        // В режиме добавления/редактирования - текстовое поле
+        if ((mode === 'add' || mode === 'edit') && (record.isNew || record.isEditing)) {
+          return (
+            <Input
+              value={record.floorRange || ''}
+              onChange={(e) => handleUpdateEditingRow(record.id!, 'floorRange', e.target.value)}
+              placeholder="1-3 или 1,3-5"
+              style={{ width: '100%' }}
+            />
+          )
+        }
+
+        // В режиме просмотра - показываем диапазон или отдельные этажи
+        const floorNumbers = record.floors?.map(f => f.floor_number).filter(n => n != null) || []
+        return floorNumbers.length > 0 ? formatFloorRange(floorNumbers) : '-'
       },
     },
     {
@@ -898,25 +924,126 @@ export default function FinishingCalculation() {
       },
     },
     {
-      title: 'Этажи',
-      key: 'floors',
-      width: 120,
-      render: (_: unknown, record: EditableRow) => {
-        // В режиме добавления/редактирования - текстовое поле
+      title: 'Вид помещения',
+      dataIndex: 'room_type_id',
+      key: 'room_type_id',
+      width: 150,
+      render: (value: number | null, record: EditableRow) => {
         if ((mode === 'add' || mode === 'edit') && (record.isNew || record.isEditing)) {
           return (
-            <Input
-              value={record.floorRange || ''}
-              onChange={(e) => handleUpdateEditingRow(record.id!, 'floorRange', e.target.value)}
-              placeholder="1-3 или 1,3-5"
+            <Select
+              value={value}
+              onChange={(val) => handleUpdateEditingRow(record.id!, 'room_type_id', val)}
+              options={roomTypes.map((r) => ({ value: r.id, label: r.name }))}
+              placeholder="Выберите вид"
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              }
               style={{ width: '100%' }}
             />
           )
         }
+        return record.room_type_name || '-'
+      },
+    },
+    {
+      title: 'Локализация',
+      dataIndex: 'location_id',
+      key: 'location_id',
+      width: 200,
+      render: (value: number | null, record: EditableRow) => {
+        if ((mode === 'add' || mode === 'edit') && (record.isNew || record.isEditing)) {
+          return (
+            <Select
+              value={value}
+              onChange={(val) => handleUpdateEditingRow(record.id!, 'location_id', val)}
+              options={locations.map((l) => ({ value: l.id, label: l.name }))}
+              placeholder="Выберите локализацию"
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              }
+              style={{ width: '100%' }}
+            />
+          )
+        }
+        return record.location_name || '-'
+      },
+    },
+    {
+      title: 'Вид затрат',
+      dataIndex: 'detail_cost_category_id',
+      key: 'detail_cost_category_id',
+      width: 200,
+      render: (value: number | null, record: EditableRow) => {
+        if ((mode === 'add' || mode === 'edit') && (record.isNew || record.isEditing)) {
+          if (!finishingPieData?.cost_category_id) {
+            return <span style={{ color: '#999' }}>Нет категории затрат</span>
+          }
 
-        // В режиме просмотра - показываем диапазон или отдельные этажи
-        const floorNumbers = record.floors?.map(f => f.floor_number).filter(n => n != null) || []
-        return floorNumbers.length > 0 ? formatFloorRange(floorNumbers) : '-'
+          return (
+            <DetailCostCategoryCell
+              value={value}
+              costCategoryId={finishingPieData.cost_category_id}
+              locationId={record.location_id}
+              onChange={(val) => handleUpdateEditingRow(record.id!, 'detail_cost_category_id', val)}
+              onCascadeReset={() => {
+                handleUpdateEditingRow(record.id!, 'work_set', null)
+                handleUpdateEditingRow(record.id!, 'rate_id', null)
+              }}
+            />
+          )
+        }
+        return record.detail_cost_category_name || '-'
+      },
+    },
+    {
+      title: 'Рабочий набор',
+      dataIndex: 'work_set',
+      key: 'work_set',
+      width: 150,
+      render: (value: string | null, record: EditableRow) => {
+        if ((mode === 'add' || mode === 'edit') && (record.isNew || record.isEditing)) {
+          if (!record.detail_cost_category_id) {
+            return <span style={{ color: '#999' }}>Выберите вид затрат</span>
+          }
+
+          return (
+            <WorkSetCell
+              value={value}
+              detailCostCategoryId={record.detail_cost_category_id}
+              onChange={(val) => handleUpdateEditingRow(record.id!, 'work_set', val)}
+              onCascadeReset={() => handleUpdateEditingRow(record.id!, 'rate_id', null)}
+            />
+          )
+        }
+        return value || '-'
+      },
+    },
+    {
+      title: 'Наименование работ',
+      dataIndex: 'rate_id',
+      key: 'rate_id',
+      width: 250,
+      render: (value: string | null, record: EditableRow) => {
+        if ((mode === 'add' || mode === 'edit') && (record.isNew || record.isEditing)) {
+          if (!record.detail_cost_category_id || !record.work_set) {
+            return <span style={{ color: '#999' }}>Выберите вид затрат и набор</span>
+          }
+
+          return (
+            <RateCell
+              value={value}
+              detailCostCategoryId={record.detail_cost_category_id}
+              workSet={record.work_set}
+              onChange={(val) => handleUpdateEditingRow(record.id!, 'rate_id', val)}
+            />
+          )
+        }
+        return record.rate_name || '-'
       },
     },
   ]

@@ -196,17 +196,25 @@ export default function ChessboardSetsModal({
     queryKey: ['cost-types', selectedCostCategories],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('detail_cost_categories')
-        .select('id, name, cost_category_id')
-        .order('name')
+        .from('detail_cost_categories_mapping')
+        .select('cost_category_id, detail_cost_categories(id, name)')
+        .order('detail_cost_categories(name)')
       if (error) throw error
+
+      // Преобразуем данные: каждая комбинация detail+category - отдельный элемент
+      const transformedData =
+        data?.map((item) => ({
+          id: item.detail_cost_categories.id,
+          name: item.detail_cost_categories.name,
+          cost_category_id: item.cost_category_id,
+        })) || []
 
       // Если выбраны категории затрат, фильтруем виды затрат
       if (selectedCostCategories.length > 0) {
-        return (data || []).filter((type) => selectedCostCategories.includes(type.cost_category_id))
+        return transformedData.filter((type) => selectedCostCategories.includes(type.cost_category_id))
       }
 
-      return data || []
+      return transformedData
     },
   })
 

@@ -204,13 +204,25 @@ export const ChessboardFilters = memo(
       queryFn: async () => {
         if (!filters.costCategory.length) return []
         const { data } = await supabase
-          .from('detail_cost_categories')
-          .select('id, name, cost_category_id')
+          .from('detail_cost_categories_mapping')
+          .select('detail_cost_categories(id, name)')
           .in(
             'cost_category_id',
             filters.costCategory.map((id) => parseInt(id)),
           )
-        return data?.map((t) => ({ value: t.id.toString(), label: t.name })) || []
+
+        // Извлекаем уникальные виды затрат (detail может повторяться для разных локаций)
+        const uniqueDetails = new Map()
+        data?.forEach((item) => {
+          const detail = item.detail_cost_categories
+          if (detail) {
+            uniqueDetails.set(detail.id, detail)
+          }
+        })
+
+        return Array.from(uniqueDetails.values())
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((t) => ({ value: t.id.toString(), label: t.name }))
       },
       enabled: filters.costCategory.length > 0,
     })
