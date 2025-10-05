@@ -243,15 +243,41 @@ export default function Rates() {
   })
 
   const { data: detailCostCategories = [] } = useQuery({
-    queryKey: ['detail-cost-categories'],
+    queryKey: ['detail-cost-categories-with-mapping'],
     queryFn: async () => {
       if (!supabase) throw new Error('Supabase is not configured')
-      const { data, error } = await supabase
+
+      // Получаем все виды затрат
+      const { data: details, error: detailsError } = await supabase
         .from('detail_cost_categories')
-        .select('*, cost_category:cost_categories(id, name, number)')
+        .select('id, name')
         .order('name')
-      if (error) throw error
-      return data
+
+      if (detailsError) throw detailsError
+
+      // Получаем маппинг (категория <-> вид затрат)
+      const { data: mapping, error: mappingError } = await supabase
+        .from('detail_cost_categories_mapping')
+        .select(`
+          detail_cost_category_id,
+          cost_category:cost_categories(id, name, number)
+        `)
+
+      if (mappingError) throw mappingError
+
+      // Объединяем данные: для каждого вида затрат добавляем массив категорий
+      return details?.map(detail => {
+        const categories = mapping
+          ?.filter(m => m.detail_cost_category_id === detail.id)
+          .map(m => m.cost_category)
+          .filter(Boolean) || []
+
+        return {
+          ...detail,
+          cost_categories: categories, // Массив категорий
+          cost_category: categories[0] || null // Первая категория (для обратной совместимости)
+        }
+      }) || []
     },
   })
 
@@ -351,7 +377,10 @@ export default function Rates() {
   // Отфильтрованные виды затрат на основе выбранной категории
   const filteredDetailCategories = useMemo(() => {
     if (!costCategoryFilter) return detailCostCategories
-    return detailCostCategories.filter((detail) => detail.cost_category?.id === costCategoryFilter)
+    // Фильтруем по всем категориям вида затрат (не только первой)
+    return detailCostCategories.filter((detail) =>
+      detail.cost_categories?.some(cat => cat?.id === costCategoryFilter)
+    )
   }, [detailCostCategories, costCategoryFilter])
 
   // Сброс вида затрат при смене категории
