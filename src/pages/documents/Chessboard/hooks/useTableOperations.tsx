@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import type { TableMode, RowData, RowColor } from '../types'
 import { parseFloorsFromString } from '../utils/floors'
 
-export const useTableOperations = (refetch?: () => void) => {
+export const useTableOperations = (refetch?: () => void, data: RowData[] = []) => {
   const queryClient = useQueryClient()
   const { message } = App.useApp()
 
@@ -39,12 +39,12 @@ export const useTableOperations = (refetch?: () => void) => {
       setEditedRows(new Map())
       setEditingRows({})
     }
-  }, [message])
+  }, [])
 
   // Выбор строк для массовых операций
   const setSelectedRowKeys = useCallback((keys: Key[]) => {
     setTableMode((prev) => ({ ...prev, selectedRowKeys: keys }))
-  }, [message])
+  }, [])
 
   // Добавление новой строки
   const addNewRow = useCallback((projectId: string, insertPosition: 'first' | 'after' = 'first', afterRowIndex?: number) => {
@@ -110,12 +110,12 @@ export const useTableOperations = (refetch?: () => void) => {
       const result = [...prev, newRow]
       return result
     })
-  }, [message])
+  }, [tableMode.mode])
 
   // Удаление новой строки
   const removeNewRow = useCallback((rowId: string) => {
     setNewRows((prev) => prev.filter((row) => row.id !== rowId))
-  }, [message])
+  }, [])
 
   // Копирование строки
   const copyRow = useCallback((sourceRow: RowData, insertPosition: 'after' = 'after', afterRowIndex?: number) => {
@@ -136,12 +136,12 @@ export const useTableOperations = (refetch?: () => void) => {
       }
       return [...prev, copiedRow]
     })
-  }, [message])
+  }, [tableMode.mode])
 
   // Обновление новой строки
   const updateNewRow = useCallback((rowId: string, updates: Partial<RowData>) => {
     setNewRows((prev) => prev.map((row) => (row.id === rowId ? { ...row, ...updates } : row)))
-  }, [message])
+  }, [])
 
   // Начало редактирования существующей строки
   const startEditing = useCallback((rowId: string) => {
@@ -152,7 +152,7 @@ export const useTableOperations = (refetch?: () => void) => {
       }
       return newMap
     })
-  }, [message])
+  }, [])
 
   // Отмена редактирования строки
   const cancelEditing = useCallback((rowId: string) => {
@@ -161,7 +161,7 @@ export const useTableOperations = (refetch?: () => void) => {
       newMap.delete(rowId)
       return newMap
     })
-  }, [message])
+  }, [])
 
   // Обновление редактируемой строки
   const updateEditedRow = useCallback((rowId: string, updates: Partial<RowData>) => {
@@ -172,7 +172,7 @@ export const useTableOperations = (refetch?: () => void) => {
       newMap.set(rowId, { ...currentEdits, ...updates })
       return newMap
     })
-  }, [message])
+  }, [])
 
   // Функции для множественного редактирования (backup подход)
   const startEditBackup = useCallback((rowId: string, originalRow: RowData) => {
@@ -180,7 +180,7 @@ export const useTableOperations = (refetch?: () => void) => {
       ...prev,
       [rowId]: { ...originalRow, isEditing: true }
     }))
-  }, [message])
+  }, [])
 
   const stopEditBackup = useCallback((rowId: string) => {
     setEditingRows(prev => {
@@ -188,7 +188,7 @@ export const useTableOperations = (refetch?: () => void) => {
       delete updated[rowId]
       return updated
     })
-  }, [message])
+  }, [])
 
   const updateEditingRow = useCallback((rowId: string, updates: Partial<RowData>) => {
     setEditingRows(prev => {
@@ -200,7 +200,7 @@ export const useTableOperations = (refetch?: () => void) => {
       }
       return prev
     })
-  }, [message])
+  }, [])
 
   // Изменение цвета строки
   const updateRowColor = useCallback(
@@ -240,6 +240,79 @@ export const useTableOperations = (refetch?: () => void) => {
   // Сохранение всех изменений
   const saveChanges = useCallback(async () => {
     try {
+      // Валидация обязательных полей
+      const validateRequiredFields = (): { isValid: boolean; invalidRows: string[] } => {
+        const invalidRows: string[] = []
+
+        // Проверка новых строк
+        newRows.forEach((row, index) => {
+          if (!row.costCategoryId || !row.costTypeId) {
+            invalidRows.push(`Новая строка №${index + 1}`)
+          }
+        })
+
+        // Проверка редактируемых строк - нужно учитывать исходные данные
+        editedRows.forEach((updates, rowId) => {
+          // Ищем оригинальную строку в data
+          const originalRow = data.find(r => r.id === rowId)
+
+          // Определяем финальные значения (обновленные или оригинальные)
+          const finalCategoryId = updates.costCategoryId !== undefined
+            ? updates.costCategoryId
+            : originalRow?.costCategoryId
+
+          const finalTypeId = updates.costTypeId !== undefined
+            ? updates.costTypeId
+            : originalRow?.costTypeId
+
+          if (!finalCategoryId || !finalTypeId) {
+            const rowLabel = originalRow?.material
+              ? `Строка с материалом "${originalRow.material.substring(0, 30)}..."`
+              : `Строка ID: ${rowId.substring(0, 8)}`
+            invalidRows.push(rowLabel)
+          }
+        })
+
+        // Проверка backup редактирования
+        Object.entries(editingRows).forEach(([rowId, row]) => {
+          if (!row.costCategoryId || !row.costTypeId) {
+            const rowLabel = row.material
+              ? `Строка с материалом "${row.material.substring(0, 30)}..."`
+              : `Строка ID: ${rowId.substring(0, 8)}`
+            invalidRows.push(rowLabel)
+          }
+        })
+
+        return {
+          isValid: invalidRows.length === 0,
+          invalidRows
+        }
+      }
+
+      const validation = validateRequiredFields()
+
+      if (!validation.isValid) {
+        message.error({
+          content: (
+            <div>
+              <div style={{ fontWeight: 'bold', marginBottom: 8 }}>
+                Не заполнены обязательные поля
+              </div>
+              <div style={{ marginBottom: 4 }}>
+                Необходимо указать "Категория затрат" и "Вид затрат" для:
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 20, maxHeight: 200, overflowY: 'auto' }}>
+                {validation.invalidRows.map((row, idx) => (
+                  <li key={idx}>{row}</li>
+                ))}
+              </ul>
+            </div>
+          ),
+          duration: 6
+        })
+        return // Прерываем сохранение
+      }
+
       const promises: Promise<any>[] = []
 
       // Сохранение новых строк - ИСПРАВЛЕНО: используем последовательную обработку как в редактировании
@@ -1047,7 +1120,7 @@ export const useTableOperations = (refetch?: () => void) => {
       console.error('Error saving changes:', error)
       message.error('Ошибка при сохранении изменений')
     }
-  }, [newRows, editedRows, editingRows, queryClient, setMode])
+  }, [newRows, editedRows, editingRows, queryClient, setMode, message, data])
 
   // Отмена всех изменений
   const cancelChanges = useCallback(() => {
@@ -1193,7 +1266,7 @@ export const useTableOperations = (refetch?: () => void) => {
 
 
     return result
-  }, [editedRows, newRows, editingRows])
+  }, [editedRows, newRows, editingRows, tableMode.mode])
 
   // Проверка наличия несохраненных изменений
   const hasUnsavedChanges = useMemo(() => {

@@ -733,10 +733,3 @@ const getDynamicDropdownStyle = (options: Array<{ label: string; value: any }>) 
 2. **Всегда используйте высокий z-index (9999)**
 3. **Применяйте динамическое расширение через `getDynamicDropdownStyle`**
 4. **Максимальная ширина dropdown: 500px, минимальная: 150px**
-
-# important-instruction-reminders
-Do what has been asked; nothing more, nothing less.
-NEVER create files unless they're absolutely necessary for achieving your goal.
-ALWAYS prefer editing an existing file to creating a new one.
-NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
-ALL temporary files MUST be placed in the temp/ directory, NEVER in the root directory.

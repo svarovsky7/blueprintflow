@@ -32,7 +32,10 @@ import {
   deleteFinishingPieRow,
   getFinishingPieTypes,
   createFinishingPieType,
+  getDetailCostCategoriesByCostCategory,
+  getRateUnitId,
 } from '@/entities/finishing'
+import { ratesApi } from '@/entities/rates/api/rates-api'
 import type {
   FinishingPieRow,
   CreateFinishingPieRowDto,
@@ -74,6 +77,83 @@ interface EditableRow extends Partial<FinishingPieRow> {
   isEditing?: boolean
   newTypeName?: string // Временное название нового типа
   newMaterialName?: string // Временное название нового материала
+}
+
+// Компонент для выбора рабочего набора
+function WorkSetSelect({
+  record,
+  value,
+  onChange,
+  costCategoryId,
+}: {
+  record: EditableRow
+  value: string | null
+  onChange: (val: string | null) => void
+  costCategoryId: number | undefined
+}) {
+  const { data: workSets = [], isLoading } = useQuery({
+    queryKey: ['work-sets-for-finishing', record.detail_cost_category_id, costCategoryId],
+    queryFn: async () => {
+      const result = await ratesApi.getWorkSetsByCategory(
+        record.detail_cost_category_id?.toString(),
+        costCategoryId?.toString()
+      )
+      return result
+    },
+    enabled: !!record.detail_cost_category_id && !!costCategoryId,
+  })
+
+  return (
+    <Select
+      value={value}
+      onChange={onChange}
+      options={workSets}
+      placeholder="Выберите рабочий набор"
+      allowClear
+      showSearch
+      filterOption={(input, option) =>
+        (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+      }
+      style={{ width: '100%' }}
+      dropdownStyle={getDynamicDropdownStyle(workSets)}
+      disabled={!record.detail_cost_category_id}
+      loading={isLoading}
+    />
+  )
+}
+
+// Компонент для выбора наименования работ
+function WorkNameSelect({
+  record,
+  value,
+  onChange,
+}: {
+  record: EditableRow
+  value: string | null
+  onChange: (val: string | null) => void
+}) {
+  const { data: works = [] } = useQuery({
+    queryKey: ['works-for-finishing', record.work_set],
+    queryFn: () => ratesApi.getWorksByWorkSet(record.work_set || undefined),
+    enabled: !!record.work_set,
+  })
+
+  return (
+    <Select
+      value={value}
+      onChange={onChange}
+      options={works}
+      placeholder="Выберите наименование работ"
+      allowClear
+      showSearch
+      filterOption={(input, option) =>
+        (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+      }
+      style={{ width: '100%' }}
+      dropdownStyle={getDynamicDropdownStyle(works)}
+      disabled={!record.work_set}
+    />
+  )
 }
 
 export default function FinishingPieType() {
@@ -138,6 +218,13 @@ export default function FinishingPieType() {
       if (error) throw error
       return data || []
     },
+  })
+
+  // Загрузка видов затрат по категории затрат документа
+  const { data: detailCostCategories = [] } = useQuery({
+    queryKey: ['detail-cost-categories-for-finishing', document?.cost_category_id],
+    queryFn: () => getDetailCostCategoriesByCostCategory(document!.cost_category_id!),
+    enabled: !!document?.cost_category_id,
   })
 
 
@@ -306,6 +393,10 @@ export default function FinishingPieType() {
             material_id: row.material_id || null,
             unit_id: row.unit_id || null,
             consumption: row.consumption || null,
+            detail_cost_category_id: row.detail_cost_category_id || null,
+            work_set: row.work_set || null,
+            rate_id: row.rate_id || null,
+            rate_unit_id: row.rate_unit_id || null,
           })
         } else if (row.isEditing) {
           // Обновить существующую строку
@@ -314,6 +405,10 @@ export default function FinishingPieType() {
             material_id: row.material_id || null,
             unit_id: row.unit_id || null,
             consumption: row.consumption || null,
+            detail_cost_category_id: row.detail_cost_category_id || null,
+            work_set: row.work_set || null,
+            rate_id: row.rate_id || null,
+            rate_unit_id: row.rate_unit_id || null,
           })
         }
       }
@@ -347,6 +442,10 @@ export default function FinishingPieType() {
         material_id: null,
         unit_id: null,
         consumption: 1,
+        detail_cost_category_id: null,
+        work_set: null,
+        rate_id: null,
+        rate_unit_id: null,
       },
     ])
   }
@@ -365,6 +464,13 @@ export default function FinishingPieType() {
         unit_id: record.unit_id,
         unit_name: record.unit_name,
         consumption: record.consumption,
+        detail_cost_category_id: record.detail_cost_category_id,
+        detail_cost_category_name: record.detail_cost_category_name,
+        work_set: record.work_set,
+        rate_id: record.rate_id,
+        rate_name: record.rate_name,
+        rate_unit_id: record.rate_unit_id,
+        rate_unit_name: record.rate_unit_name,
       },
     ])
   }
@@ -461,6 +567,65 @@ export default function FinishingPieType() {
     } else {
       // Очистка
       handleUpdateEditingRow(rowId, 'material_id', null)
+    }
+  }
+
+  // Обработчик изменения вида затрат
+  const handleDetailCostCategoryChange = (rowId: string, value: number | null) => {
+    setEditingRows((prev) =>
+      prev.map((row) =>
+        row.id === rowId
+          ? {
+              ...row,
+              detail_cost_category_id: value,
+              work_set: null,
+              rate_id: null,
+              rate_unit_id: null,
+            }
+          : row
+      )
+    )
+  }
+
+  // Обработчик изменения рабочего набора
+  const handleWorkSetChange = (rowId: string, value: string | null) => {
+    setEditingRows((prev) =>
+      prev.map((row) =>
+        row.id === rowId
+          ? {
+              ...row,
+              work_set: value,
+              rate_id: null,
+              rate_unit_id: null,
+            }
+          : row
+      )
+    )
+  }
+
+  // Обработчик изменения наименования работ
+  const handleRateChange = async (rowId: string, value: string | null) => {
+    if (value) {
+      // Автозаполнение единицы измерения из расценки
+      try {
+        const unitId = await getRateUnitId(value)
+        setEditingRows((prev) =>
+          prev.map((row) =>
+            row.id === rowId
+              ? {
+                  ...row,
+                  rate_id: value,
+                  rate_unit_id: unitId,
+                }
+              : row
+          )
+        )
+      } catch (error) {
+        console.error('Ошибка получения единицы измерения:', error)
+        handleUpdateEditingRow(rowId, 'rate_id', value)
+      }
+    } else {
+      handleUpdateEditingRow(rowId, 'rate_id', null)
     }
   }
 
@@ -712,6 +877,69 @@ export default function FinishingPieType() {
         if (value == null) return '-'
         // Показываем дробную часть только если она есть
         return value % 1 === 0 ? value.toString() : value.toString()
+      },
+    },
+    {
+      title: 'Вид затрат',
+      dataIndex: 'detail_cost_category_id',
+      key: 'detail_cost_category_id',
+      width: 150,
+      render: (value: number | null, record: EditableRow) => {
+        if (isRowEditing(record as FinishingPieRow)) {
+          return (
+            <Select
+              value={value}
+              onChange={(val) => handleDetailCostCategoryChange(record.id!, val)}
+              options={detailCostCategories}
+              placeholder="Выберите вид затрат"
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              }
+              style={{ width: '100%' }}
+              dropdownStyle={getDynamicDropdownStyle(detailCostCategories)}
+            />
+          )
+        }
+        return record.detail_cost_category_name || '-'
+      },
+    },
+    {
+      title: 'Рабочий набор',
+      dataIndex: 'work_set',
+      key: 'work_set',
+      width: 150,
+      render: (value: string | null, record: EditableRow) => {
+        if (isRowEditing(record as FinishingPieRow)) {
+          return (
+            <WorkSetSelect
+              record={record}
+              value={value}
+              onChange={(val) => handleWorkSetChange(record.id!, val)}
+              costCategoryId={document?.cost_category_id}
+            />
+          )
+        }
+        return record.work_set || '-'
+      },
+    },
+    {
+      title: 'Наименование работ',
+      dataIndex: 'rate_id',
+      key: 'rate_id',
+      width: 200,
+      render: (value: string | null, record: EditableRow) => {
+        if (isRowEditing(record as FinishingPieRow)) {
+          return (
+            <WorkNameSelect
+              record={record}
+              value={value}
+              onChange={(val) => handleRateChange(record.id!, val)}
+            />
+          )
+        }
+        return record.rate_name || '-'
       },
     },
   ]

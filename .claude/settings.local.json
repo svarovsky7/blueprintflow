@@ -81,7 +81,8 @@
       "Bash(timeout:*)",
       "Bash(tree:*)",
       "Bash(mkdir:*)",
-      "Bash(xargs sed:*)"
+      "Bash(xargs sed:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

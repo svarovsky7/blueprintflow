@@ -84,7 +84,7 @@ export default function Chessboard() {
     deleteSelectedRows,
     deleteSingleRow,
     getDisplayData,
-  } = useTableOperations(refetch)
+  } = useTableOperations(refetch, data || [])
 
   // Хук для управления версиями документов
   const {

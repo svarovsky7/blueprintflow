@@ -38,13 +38,13 @@ export interface FinishingPieRow {
   unit_id: string | null
   unit_name?: string
   consumption: number | null
-  work_set_id: string | null // FK на rates (рабочий набор)
-  work_set_name?: string // Название рабочего набора (для отображения)
-  rate_id: string | null
-  rate_name?: string
-  rate_unit_id: string | null
-  rate_unit_name?: string
-  detail_cost_category_name: string | null // Название вида затрат (текстовое значение из detail_cost_categories.name)
+  detail_cost_category_id: number | null // FK на detail_cost_categories (вид затрат)
+  detail_cost_category_name?: string // Название вида затрат (для отображения)
+  work_set: string | null // Название рабочего набора (rates.work_set)
+  rate_id: string | null // FK на rates (наименование работы)
+  rate_name?: string // Название работы (для отображения)
+  rate_unit_id: string | null // FK на units (единица измерения работы)
+  rate_unit_name?: string // Название единицы измерения
   created_at: string
   updated_at: string
 }
@@ -84,10 +84,10 @@ export interface CreateFinishingPieRowDto {
   material_id: string | null
   unit_id: string | null
   consumption: number | null
-  work_set_id: string | null // FK на рабочий набор
-  rate_id: string | null
-  rate_unit_id: string | null
-  detail_cost_category_name: string | null // Название вида затрат
+  detail_cost_category_id: number | null // FK на вид затрат
+  work_set: string | null // Название рабочего набора (rates.work_set)
+  rate_id: string | null // FK на rates (наименование работы)
+  rate_unit_id: string | null // FK на units
 }
 
 // DTO для обновления строки табличной части
@@ -96,8 +96,8 @@ export interface UpdateFinishingPieRowDto {
   material_id?: string | null
   unit_id?: string | null
   consumption?: number | null
-  work_set_id?: string | null // FK на рабочий набор
-  rate_id?: string | null
-  rate_unit_id?: string | null
-  detail_cost_category_name?: string | null // Название вида затрат
+  detail_cost_category_id?: number | null // FK на вид затрат
+  work_set?: string | null // Название рабочего набора
+  rate_id?: string | null // FK на rates
+  rate_unit_id?: string | null // FK на units
 }

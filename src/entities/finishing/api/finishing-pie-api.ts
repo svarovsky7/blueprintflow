@@ -198,8 +198,8 @@ export async function getFinishingPieRows(finishingPieId: string): Promise<Finis
       pie_types:pie_type_id (name),
       materials:material_id (name),
       units:unit_id (name),
-      work_sets:work_set_id (work_name),
-      rates:rate_id (work_name),
+      detail_cost_categories:detail_cost_category_id (id, name),
+      rates:rate_id (id, work_name:work_names(id, name)),
       rate_units:rate_unit_id (name)
     `
     )
@@ -220,13 +220,13 @@ export async function getFinishingPieRows(finishingPieId: string): Promise<Finis
       unit_id: row.unit_id,
       unit_name: row.units?.name || null,
       consumption: row.consumption,
-      work_set_id: row.work_set_id,
-      work_set_name: row.work_sets?.work_name || null,
+      detail_cost_category_id: row.detail_cost_category_id,
+      detail_cost_category_name: row.detail_cost_categories?.name || null,
+      work_set: row.work_set || null, // Название рабочего набора (строка из БД)
       rate_id: row.rate_id,
-      rate_name: row.rates?.work_name || null,
+      rate_name: row.rates?.work_name?.name || null, // Название работы из work_names
       rate_unit_id: row.rate_unit_id,
       rate_unit_name: row.rate_units?.name || null,
-      detail_cost_category_name: row.detail_cost_category_name || null,
       created_at: row.created_at,
       updated_at: row.updated_at,
     })) || []
@@ -284,4 +284,39 @@ export async function getRateUnitId(rateId: string): Promise<string | null> {
 
   if (error) throw error
   return data?.unit_id || null
+}
+
+// Получить виды затрат по категории затрат
+export async function getDetailCostCategoriesByCostCategory(
+  costCategoryId: number
+): Promise<{ value: number; label: string }[]> {
+  const { data, error } = await supabase
+    .from('detail_cost_categories_mapping')
+    .select(
+      `
+      detail_cost_category_id,
+      detail_cost_categories(id, name)
+    `
+    )
+    .eq('cost_category_id', costCategoryId)
+
+  if (error) throw error
+
+  if (!data || data.length === 0) return []
+
+  // Убираем дубликаты и преобразуем в формат для Select
+  const uniqueCategories = new Map<number, string>()
+  data.forEach((item: any) => {
+    const detailCategory = item.detail_cost_categories
+    if (detailCategory && !uniqueCategories.has(detailCategory.id)) {
+      uniqueCategories.set(detailCategory.id, detailCategory.name)
+    }
+  })
+
+  return Array.from(uniqueCategories.entries())
+    .map(([id, name]) => ({
+      value: id,
+      label: name,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label))
 }

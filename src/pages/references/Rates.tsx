@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import {
   Table,
   Button,
@@ -15,6 +15,7 @@ import {
   App,
   InputNumber,
   Progress,
+  AutoComplete,
 } from 'antd'
 import {
   UploadOutlined,
@@ -88,87 +89,6 @@ export default function Rates() {
   const { message } = App.useApp()
   const { scale } = useScale()
   const queryClient = useQueryClient()
-  const headerRef = useRef<HTMLDivElement>(null)
-  const filtersRef = useRef<HTMLDivElement>(null)
-
-  // Логгирование для диагностики
-  useEffect(() => {
-    const logElementInfo = () => {
-      console.log('=== ДИАГНОСТИКА ЗАКРЕПЛЕННЫХ ЭЛЕМЕНТОВ ===')
-
-      if (headerRef.current) {
-        const headerRect = headerRef.current.getBoundingClientRect()
-        console.log('📋 Шапка портала:', {
-          top: headerRect.top,
-          bottom: headerRect.bottom,
-          height: headerRect.height,
-          position: window.getComputedStyle(headerRef.current).position,
-          zIndex: window.getComputedStyle(headerRef.current).zIndex,
-        })
-      }
-
-      if (filtersRef.current) {
-        const filtersRect = filtersRef.current.getBoundingClientRect()
-        console.log('🔍 Блок фильтров:', {
-          top: filtersRect.top,
-          bottom: filtersRect.bottom,
-          height: filtersRect.height,
-          position: window.getComputedStyle(filtersRef.current).position,
-          zIndex: window.getComputedStyle(filtersRef.current).zIndex,
-        })
-      }
-
-      const tableHeader = document.querySelector('.ant-table-thead')
-      if (tableHeader) {
-        const tableHeaderRect = tableHeader.getBoundingClientRect()
-        console.log('📊 Шапка таблицы:', {
-          top: tableHeaderRect.top,
-          bottom: tableHeaderRect.bottom,
-          height: tableHeaderRect.height,
-          position: window.getComputedStyle(tableHeader as Element).position,
-          zIndex: window.getComputedStyle(tableHeader as Element).zIndex,
-        })
-      }
-
-      const stickyTable = document.querySelector('.ant-table-sticky-holder')
-      if (stickyTable) {
-        const stickyRect = stickyTable.getBoundingClientRect()
-        console.log('🔗 Sticky таблица:', {
-          top: stickyRect.top,
-          bottom: stickyRect.bottom,
-          height: stickyRect.height,
-          position: window.getComputedStyle(stickyTable as Element).position,
-          zIndex: window.getComputedStyle(stickyTable as Element).zIndex,
-        })
-      }
-
-      console.log('📜 Общие параметры:', {
-        windowHeight: window.innerHeight,
-        scrollY: window.scrollY,
-        documentHeight: document.body.scrollHeight,
-      })
-
-      console.log('=== КОНЕЦ ДИАГНОСТИКИ ===')
-    }
-
-    // Лог при загрузке компонента
-    const timer = setTimeout(logElementInfo, 1000)
-
-    // Лог при прокрутке
-    const handleScroll = () => {
-      console.log('📜 Прокрутка:', { scrollY: window.scrollY })
-      logElementInfo()
-    }
-
-    window.addEventListener('scroll', handleScroll)
-    window.addEventListener('resize', logElementInfo)
-
-    return () => {
-      clearTimeout(timer)
-      window.removeEventListener('scroll', handleScroll)
-      window.removeEventListener('resize', logElementInfo)
-    }
-  }, [])
 
   // Основные состояния
   const [mode, setMode] = useState<TableMode>('view')
@@ -291,6 +211,16 @@ export default function Rates() {
     },
   })
 
+  const { data: workNames = [] } = useQuery({
+    queryKey: ['work-names'],
+    queryFn: async () => {
+      if (!supabase) throw new Error('Supabase is not configured')
+      const { data, error } = await supabase.from('work_names').select('*').order('name')
+      if (error) throw error
+      return data
+    },
+  })
+
   // Сохранение настроек
   useEffect(() => {
     localStorage.setItem('rates-column-visibility', JSON.stringify(columnVisibility))
@@ -352,13 +282,13 @@ export default function Rates() {
 
     if (appliedFilters.costCategory !== undefined) {
       result = result.filter(
-        (row) => row.detail_cost_category?.cost_category?.id === appliedFilters.costCategory,
+        (row) => row.cost_category_id === appliedFilters.costCategory,
       )
     }
 
     if (appliedFilters.detailCostCategory !== undefined) {
       result = result.filter(
-        (row) => row.detail_cost_category?.id === appliedFilters.detailCostCategory,
+        (row) => row.detail_cost_category_id === appliedFilters.detailCostCategory,
       )
     }
 
@@ -373,6 +303,13 @@ export default function Rates() {
     })
     setFiltersExpanded(false) // Сворачиваем блок фильтров после применения
   }, [costCategoryFilter, detailCostCategoryFilter])
+
+  // Функция сброса фильтров
+  const resetFilters = useCallback(() => {
+    setCostCategoryFilter(undefined)
+    setDetailCostCategoryFilter(undefined)
+    setAppliedFilters({})
+  }, [])
 
   // Отфильтрованные виды затрат на основе выбранной категории
   const filteredDetailCategories = useMemo(() => {
@@ -439,6 +376,7 @@ export default function Rates() {
           base_rate: newRow.base_rate,
           unit_id: newRow.unit_id || undefined,
           detail_cost_category_id: newRow.detail_cost_category_id,
+          cost_category_id: newRow.cost_category_id,
           active: newRow.active,
         }
 
@@ -453,6 +391,7 @@ export default function Rates() {
           base_rate: editedRow.base_rate,
           unit_id: editedRow.unit_id || undefined,
           detail_cost_category_id: editedRow.detail_cost_category_id,
+          cost_category_id: editedRow.cost_category_id,
           active: editedRow.active,
         }
 
@@ -505,7 +444,7 @@ export default function Rates() {
   // Excel импорт
   const processImportData = useCallback(
     async (data: RateExcelRow[], resolutions?: Map<number, 'skip' | 'replace'>) => {
-      console.log('🔄 Начало обработки импорта данных', { dataLength: data.length, data })
+      console.log(`🔄 Начало импорта: ${data.length} строк`)
       const errors: string[] = []
       let skippedCount = 0
 
@@ -516,10 +455,7 @@ export default function Rates() {
           const row = data[i]
           const resolution = resolutions?.get(i)
 
-          console.log(`📝 Обработка строки ${i}:`, { row, resolution })
-
           if (resolution === 'skip') {
-            console.log(`⏭️ Пропускаем строку ${i} по резолюции`)
             skippedCount++
             continue
           }
@@ -556,13 +492,8 @@ export default function Rates() {
           ])
             ?.toString()
             .trim()
-          console.log(`🏷️ Наименование работ в строке ${i}:`, {
-            workName,
-            available_keys: Object.keys(row),
-          })
 
           if (!workName) {
-            console.log(`❌ Пропускаем строку ${i} - пустое наименование работ`)
             errors.push(`Строка ${i + 1}: Пропущена - пустое наименование работ`)
             skippedCount++
             continue
@@ -575,11 +506,6 @@ export default function Rates() {
           const unit = unitName
             ? units.find((u) => u.name.toLowerCase() === unitName.toLowerCase())
             : undefined
-          console.log(`📏 Единица измерения в строке ${i}:`, {
-            unitName,
-            unit,
-            availableUnits: units.length,
-          })
 
           // Поиск категорий и вида затрат
           const categoryName = findColumnValue([
@@ -601,20 +527,31 @@ export default function Rates() {
             .trim()
 
           let detailCostCategoryId: number | undefined
+          let costCategoryId: number | undefined
+
+          // Сначала ищем категорию затрат по имени
+          if (categoryName) {
+            const matchingCostCategory = costCategories.find((category) =>
+              category.name.toLowerCase().includes(categoryName.toLowerCase())
+            )
+            costCategoryId = matchingCostCategory?.id
+          }
+
+          // Затем ищем вид затрат
           if (costTypeName) {
             const matchingDetailCategory = detailCostCategories.find((detail) => {
               const nameMatches = detail.name.toLowerCase().includes(costTypeName.toLowerCase())
-              const categoryMatches = categoryName
-                ? detail.cost_category?.name.toLowerCase().includes(categoryName.toLowerCase())
+              const categoryMatches = categoryName && costCategoryId
+                ? detail.cost_categories?.some(cat => cat?.id === costCategoryId)
                 : true
               return nameMatches && categoryMatches
             })
             detailCostCategoryId = matchingDetailCategory?.id
-            console.log(`🔍 Вид затрат в строке ${i}:`, {
-              costTypeName,
-              matchingDetailCategory,
-              detailCostCategoryId,
-            })
+
+            // Если категория не была найдена напрямую, берём первую из вида затрат
+            if (!costCategoryId && matchingDetailCategory) {
+              costCategoryId = matchingDetailCategory.cost_categories?.[0]?.id
+            }
           }
 
           const baseRate = Number(
@@ -627,17 +564,6 @@ export default function Rates() {
               'цена',
             ]) || 0,
           )
-          console.log(`💰 Расценка в строке ${i}:`, {
-            baseRate,
-            originalColumn: findColumnValue([
-              'Расценка БАЗОВАЯ',
-              'расценка базовая',
-              'расценка',
-              'базовая расценка',
-              'стоимость',
-              'цена',
-            ]),
-          })
 
           const workSet = findColumnValue([
             'РАБОЧИЙ НАБОР',
@@ -655,68 +581,95 @@ export default function Rates() {
             base_rate: baseRate,
             unit_id: unit?.id,
             detail_cost_category_id: detailCostCategoryId,
+            cost_category_id: costCategoryId,
           }
 
-          console.log(`✅ Создаем объект расценки для строки ${i}:`, rateData)
           processedData.push(rateData)
         }
 
         console.log(`📊 Обработано строк: ${processedData.length}`)
 
-        // Создание записей
+        // Разделяем данные на create, update и skip
+        const toCreate: RateFormData[] = []
+        const toUpdate: Array<{ id: string; data: RateFormData }> = []
+
+        for (const rateData of processedData) {
+          const existing = rates.find(
+            (r) => r.work_name?.name?.toLowerCase() === rateData.work_name?.toLowerCase(),
+          )
+
+          const originalIndex = data.findIndex(
+            (d) =>
+              d['НАИМЕНОВАНИЕ РАБОТ']?.toString().trim().toLowerCase() ===
+              rateData.work_name?.toLowerCase(),
+          )
+
+          if (existing && resolutions?.get(originalIndex) === 'replace') {
+            toUpdate.push({ id: existing.id, data: rateData })
+          } else if (!existing) {
+            toCreate.push(rateData)
+          } else {
+            skippedCount++
+          }
+        }
+
+        console.log(`📋 Планирование операций:`, {
+          toCreate: toCreate.length,
+          toUpdate: toUpdate.length,
+          toSkip: skippedCount,
+        })
+
+        // Создание записей батчами
         let createdCount = 0
         let updatedCount = 0
 
-        for (let idx = 0; idx < processedData.length; idx++) {
-          const rateData = processedData[idx]
-
-          // Обновление прогресса
-          setImportProgress({ current: idx + 1, total: processedData.length })
-
+        if (toCreate.length > 0) {
           try {
-            const existing = rates.find(
-              (r) => r.work_name.toLowerCase() === rateData.work_name.toLowerCase(),
-            )
-
-            if (
-              existing &&
-              resolutions?.get(
-                data.findIndex(
-                  (d) =>
-                    d['НАИМЕНОВАНИЕ РАБОТ']?.toString().trim().toLowerCase() ===
-                    rateData.work_name.toLowerCase(),
-                ),
-              ) === 'replace'
-            ) {
-              console.log(`🔄 Обновляем существующую запись:`, { existing, rateData })
-              await ratesApi.update(existing.id, rateData)
-              updatedCount++
-            } else if (!existing) {
-              console.log(`➕ Создаем новую запись:`, rateData)
-              await ratesApi.create(rateData)
-              createdCount++
-            } else {
-              console.log(`⏭️ Пропускаем существующую запись:`, { existing, rateData })
-              skippedCount++
-            }
+            setImportProgress({ current: 0, total: toCreate.length + toUpdate.length })
+            console.log(`➕ Создаем ${toCreate.length} новых записей батчами...`)
+            await ratesApi.bulkCreate(toCreate)
+            createdCount = toCreate.length
+            setImportProgress({ current: createdCount, total: toCreate.length + toUpdate.length })
           } catch (error) {
-            console.error(`Ошибка при сохранении записи "${rateData.work_name}":`, error)
-            errors.push(`Ошибка при сохранении "${rateData.work_name}": ${(error as Error).message}`)
-            skippedCount++
+            console.error('Ошибка при массовом создании:', error)
+            errors.push(`Ошибка при создании записей: ${(error as Error).message}`)
+          }
+        }
+
+        // Обновление записей батчами
+        if (toUpdate.length > 0) {
+          try {
+            setImportProgress({
+              current: createdCount,
+              total: toCreate.length + toUpdate.length,
+            })
+            console.log(`🔄 Обновляем ${toUpdate.length} записей батчами...`)
+            await ratesApi.bulkUpdate(toUpdate)
+            updatedCount = toUpdate.length
+            setImportProgress({
+              current: createdCount + updatedCount,
+              total: toCreate.length + toUpdate.length,
+            })
+          } catch (error) {
+            console.error('Ошибка при массовом обновлении:', error)
+            errors.push(`Ошибка при обновлении записей: ${(error as Error).message}`)
           }
         }
 
         console.log(`📈 Результат импорта:`, {
           created: createdCount,
           updated: updatedCount,
+          skipped: skippedCount,
           total: processedData.length,
+          hasErrors: errors.length > 0,
         })
 
         await queryClient.invalidateQueries({ queryKey: ['rates'] })
 
         // Сохраняем результат импорта
+        // success=true только если нет ошибок
         setImportResult({
-          success: true,
+          success: errors.length === 0,
           created: createdCount,
           updated: updatedCount,
           skipped: skippedCount,
@@ -736,7 +689,7 @@ export default function Rates() {
         })
       }
     },
-    [rates, units, detailCostCategories, queryClient],
+    [rates, units, detailCostCategories, costCategories, queryClient],
   )
 
   const handleImport = useCallback(
@@ -814,37 +767,50 @@ export default function Rates() {
         dataIndex: 'work_name',
         key: 'work_name',
         width: '30%',
-        sorter: (a, b) => a.work_name.localeCompare(b.work_name),
+        sorter: (a, b) => {
+          const aName = a.work_name?.name || ''
+          const bName = b.work_name?.name || ''
+          return aName.localeCompare(bName)
+        },
         onCell: () => ({
           style: {
             whiteSpace: 'normal',
             wordBreak: 'break-word',
           },
         }),
-        render: (text, record) => {
+        render: (workName, record) => {
           if (record.isNew || editingRows[record.id]) {
+            const currentValue = editingRows[record.id]?.work_name ?? record.work_name?.name ?? ''
+            const options = workNames.map((wn) => ({ value: wn.name }))
+
             return (
-              <Input
-                value={editingRows[record.id]?.work_name ?? record.work_name}
-                onChange={(e) => {
+              <AutoComplete
+                value={currentValue}
+                onChange={(value) => {
                   if (record.isNew) {
                     setNewRows((prev) =>
                       prev.map((row) =>
-                        row.id === record.id ? { ...row, work_name: e.target.value } : row,
+                        row.id === record.id ? { ...row, work_name: value } : row,
                       ),
                     )
                   } else {
                     setEditingRows((prev) => ({
                       ...prev,
-                      [record.id]: { ...record, ...prev[record.id], work_name: e.target.value },
+                      [record.id]: { ...record, ...prev[record.id], work_name: value },
                     }))
                   }
                 }}
-                placeholder="Введите наименование работ"
+                placeholder="Выберите или введите наименование работ"
+                style={{ width: '100%' }}
+                allowClear
+                filterOption={(input, option) =>
+                  (option?.value?.toString() || '').toLowerCase().includes(input.toLowerCase())
+                }
+                options={options}
               />
             )
           }
-          return text
+          return workName?.name || '-'
         },
       },
       {
@@ -887,7 +853,7 @@ export default function Rates() {
       },
       {
         title: 'Категория затрат',
-        dataIndex: 'detail_cost_category',
+        dataIndex: 'cost_category',
         key: 'cost_category',
         width: '15%',
         onCell: () => ({
@@ -896,8 +862,51 @@ export default function Rates() {
             wordBreak: 'break-word',
           },
         }),
-        render: (_: unknown, record: RateTableRow) =>
-          record.detail_cost_category?.cost_category?.name || '-',
+        render: (costCategory, record: RateTableRow) => {
+          if (record.isNew || editingRows[record.id]) {
+            return (
+              <Select
+                value={editingRows[record.id]?.cost_category_id ?? record.cost_category_id}
+                onChange={(value) => {
+                  if (record.isNew) {
+                    setNewRows((prev) =>
+                      prev.map((row) =>
+                        row.id === record.id
+                          ? { ...row, cost_category_id: value, detail_cost_category_id: undefined }
+                          : row,
+                      ),
+                    )
+                  } else {
+                    setEditingRows((prev) => ({
+                      ...prev,
+                      [record.id]: {
+                        ...record,
+                        ...prev[record.id],
+                        cost_category_id: value,
+                        detail_cost_category_id: undefined,
+                      },
+                    }))
+                  }
+                }}
+                placeholder="Выберите категорию"
+                style={{ width: '100%' }}
+                allowClear
+                showSearch
+                filterOption={(input, option) => {
+                  const text = (option?.children || option?.label)?.toString() || ''
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
+              >
+                {costCategories.map((category) => (
+                  <Select.Option key={category.id} value={category.id}>
+                    {category.name}
+                  </Select.Option>
+                ))}
+              </Select>
+            )
+          }
+          return costCategory?.name || '-'
+        },
       },
       {
         title: 'Вид затрат',
@@ -912,6 +921,14 @@ export default function Rates() {
         }),
         render: (detailCategory: { name: string } | undefined, record: RateTableRow) => {
           if (record.isNew || editingRows[record.id]) {
+            // Фильтруем виды затрат по выбранной категории
+            const selectedCostCategoryId = editingRows[record.id]?.cost_category_id ?? record.cost_category_id
+            const filteredDetails = selectedCostCategoryId
+              ? detailCostCategories.filter((detail) =>
+                  detail.cost_categories?.some((cat) => cat?.id === selectedCostCategoryId),
+                )
+              : detailCostCategories
+
             return (
               <Select
                 value={
@@ -935,7 +952,8 @@ export default function Rates() {
                     }))
                   }
                 }}
-                placeholder="Выберите вид затрат"
+                placeholder={selectedCostCategoryId ? "Выберите вид затрат" : "Сначала выберите категорию"}
+                disabled={!selectedCostCategoryId}
                 style={{ width: '100%' }}
                 allowClear
                 showSearch
@@ -944,9 +962,9 @@ export default function Rates() {
                   return text.toLowerCase().includes(input.toLowerCase())
                 }}
               >
-                {detailCostCategories.map((detail) => (
+                {filteredDetails.map((detail) => (
                   <Select.Option key={detail.id} value={detail.id}>
-                    {detail.name} ({detail.cost_category?.name})
+                    {detail.name}
                   </Select.Option>
                 ))}
               </Select>
@@ -1094,7 +1112,7 @@ export default function Rates() {
                   const copiedRow: RateTableRow = {
                     ...record,
                     id: newId,
-                    work_name: `${record.work_name} (копия)`,
+                    work_name: record.work_name?.name ? `${record.work_name.name} (копия)` : '(копия)',
                     active: record.active, // Копируем статус активности
                     isNew: true,
                     created_at: new Date().toISOString(),
@@ -1126,7 +1144,7 @@ export default function Rates() {
         },
       },
     ],
-    [mode, editingRows, detailCostCategories, units, queryClient, message],
+    [mode, editingRows, detailCostCategories, units, workNames, queryClient, message],
   )
 
   // Конфигурация столбцов с учетом настроек
@@ -1242,6 +1260,10 @@ export default function Rates() {
 
             <Button type="primary" onClick={applyFilters}>
               Применить
+            </Button>
+
+            <Button onClick={resetFilters}>
+              Сбросить
             </Button>
 
             <Button
