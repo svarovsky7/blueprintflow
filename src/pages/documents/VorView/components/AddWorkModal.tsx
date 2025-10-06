@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Modal, Table, Button, Input, Space, message, InputNumber, Tabs, Form, Select } from 'antd'
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -29,8 +29,6 @@ const AddWorkModal: React.FC<AddWorkModalProps> = ({ visible, onCancel, onSucces
 
   // Новые состояния для каскадного выбора
   const [selectedWorkSet, setSelectedWorkSet] = useState<string>('')
-  const [workSets, setWorkSets] = useState<Array<{id: string, work_set: string}>>([])
-  const [filteredRatesByWorkSet, setFilteredRatesByWorkSet] = useState<RateOption[]>([])
 
   // Загружаем расценки
   const { data: rates = [], isLoading } = useQuery({
@@ -89,23 +87,14 @@ const AddWorkModal: React.FC<AddWorkModalProps> = ({ visible, onCancel, onSucces
     },
   })
 
-  // Обновляем список рабочих наборов при загрузке данных
-  useEffect(() => {
-    if (workSetsData.length > 0) {
-      setWorkSets(workSetsData)
+  // Фильтруем работы по выбранному рабочему набору (используем useMemo для предотвращения бесконечного цикла)
+  const filteredRatesByWorkSet = useMemo(() => {
+    if (selectedWorkSet && rates.length > 0 && workSetsData.length > 0) {
+      const selectedWorkSetName = workSetsData.find(ws => ws.id === selectedWorkSet)?.work_set
+      return rates.filter(rate => rate.work_set === selectedWorkSetName)
     }
-  }, [workSetsData])
-
-  // Фильтруем работы по выбранному рабочему набору
-  useEffect(() => {
-    if (selectedWorkSet && rates.length > 0) {
-      const selectedWorkSetName = workSets.find(ws => ws.id === selectedWorkSet)?.work_set
-      const filtered = rates.filter(rate => rate.work_set === selectedWorkSetName)
-      setFilteredRatesByWorkSet(filtered)
-    } else {
-      setFilteredRatesByWorkSet([])
-    }
-  }, [selectedWorkSet, rates, workSets])
+    return []
+  }, [selectedWorkSet, rates, workSetsData])
 
   // Фильтруем расценки по поисковому запросу
   const finalFilteredRates = (filteredRatesByWorkSet.length > 0 ? filteredRatesByWorkSet : rates).filter(rate =>
@@ -152,7 +141,6 @@ const AddWorkModal: React.FC<AddWorkModalProps> = ({ visible, onCancel, onSucces
     setSearchTerm('')
     setActiveTab('select')
     setSelectedWorkSet('')
-    setFilteredRatesByWorkSet([])
     createForm.resetFields()
     onCancel()
   }
@@ -286,7 +274,7 @@ const AddWorkModal: React.FC<AddWorkModalProps> = ({ visible, onCancel, onSucces
                           return text.toLowerCase().includes(input.toLowerCase())
                         }}
                       >
-                        {workSets.map((workSet) => (
+                        {workSetsData.map((workSet) => (
                           <Select.Option key={workSet.id} value={workSet.id}>
                             {workSet.work_set}
                           </Select.Option>

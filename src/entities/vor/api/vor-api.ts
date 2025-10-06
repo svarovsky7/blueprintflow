@@ -28,7 +28,7 @@ export const getVorTableData = async (vor_id: string): Promise<VorTableItem[]> =
     const workItem: VorTableItem = {
       id: work.id,
       type: 'work',
-      name: work.rates?.work_name || '',
+      name: work.rates?.work_names?.name || '',
       unit: work.rates?.units?.name || '',
       quantity: work.quantity,
       coefficient: work.coefficient,
@@ -207,11 +207,12 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
         rate_id,
         rates:rate_id(
           id,
-          work_name,
+          work_name_id,
           work_set,
           base_rate,
           unit_id,
-          units:unit_id(name)
+          units:unit_id(name),
+          work_names:work_name_id(id, name)
         )
       ),
       chessboard_nomenclature_mapping(
@@ -296,10 +297,11 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
   const worksMap = new Map<string, {
     rate: {
       id: string
-      work_name: string
+      work_name_id: string
       base_rate: number
       unit_id: string
       units: { name: string }
+      work_names: { id: string; name: string }
     }
     materials: Array<{
       name: string
@@ -312,14 +314,29 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
 
   chessboardData.forEach((item: any) => {
     if (!item.chessboard_rates_mapping || item.chessboard_rates_mapping.length === 0) {
+      console.log('⚠️ Пропускаем строку без расценок:', item.id, 'Материал:', item.material) // LOG: строки без расценок
       return
     }
 
     const rateMapping = item.chessboard_rates_mapping[0]
-    if (!rateMapping.rates) return
+    if (!rateMapping.rates) {
+      console.log('⚠️ Пропускаем строку - нет данных rates:', item.id) // LOG: строки без данных rates
+      return
+    }
 
     const rateId = rateMapping.rate_id
     const rateUnitId = rateMapping.rates.unit_id
+    const workName = rateMapping.rates.work_names?.name || 'Без названия'
+
+    console.log('📊 Обрабатываем строку:', { // LOG: обработка каждой строки
+      chessboard_id: item.id,
+      material: item.material,
+      material_type: item.material_type,
+      rateId: rateId,
+      workName: workName,
+      rateUnitId: rateUnitId,
+      itemUnitId: item.unit_id
+    })
 
     // Учитываем количество только для материалов типа "База" с совпадающей ед.изм.
     let quantity = 0
@@ -364,6 +381,16 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
         }
       })
     }
+  })
+
+  console.log('📋 Итого уникальных работ в Map:', worksMap.size) // LOG: количество уникальных работ
+  worksMap.forEach((workData, rateId) => { // LOG: список всех работ
+    console.log('  ✅ Работа:', {
+      rateId: rateId,
+      workName: workData.rate.work_names?.name,
+      totalQuantity: workData.totalQuantity,
+      materialsCount: workData.materials.length
+    })
   })
 
   // 4. Создаем работы в ВОР

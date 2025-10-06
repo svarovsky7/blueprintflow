@@ -321,7 +321,15 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
 
       // Сохранение новых строк - ИСПРАВЛЕНО: используем последовательную обработку как в редактировании
       if (newRows.length > 0) {
-        for (const row of newRows) {
+        // Сортируем newRows для правильного порядка после перезагрузки:
+        // 1. afterRows сохраняются первыми (более ранний created_at, будут ниже в таблице)
+        // 2. firstRows сохраняются последними в ОБРАТНОМ порядке (последняя сохраненная
+        //    first-строка получит самый поздний created_at и будет самой первой в таблице)
+        const afterRows = newRows.filter(r => r._insertPosition === 'after')
+        const firstRows = newRows.filter(r => r._insertPosition === 'first').reverse()
+        const sortedNewRows = [...afterRows, ...firstRows]
+
+        for (const row of sortedNewRows) {
           // 1. Сначала создаем запись в основной таблице chessboard (только основные поля БД)
           const chessboardData = {
             project_id: row.projectId,
@@ -940,20 +948,22 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
 
         // Обновляем rates mapping для наименования работ
         if (updates.rateId !== undefined || updates.workName !== undefined) {
-          // Сначала удаляем старую связь
-          promises.push(
-            supabase.from('chessboard_rates_mapping').delete().eq('chessboard_id', rowId)
-          )
-          // Если есть rateId, создаём новую связь
           const rateId = updates.rateId !== undefined ? updates.rateId : null
           const workSetId = updates.workSetId !== undefined ? updates.workSetId : null
+
           if (rateId) {
+            // Используем upsert вместо delete + insert для избежания конфликта 409
             promises.push(
-              supabase.from('chessboard_rates_mapping').insert({
+              supabase.from('chessboard_rates_mapping').upsert({
                 chessboard_id: rowId,
                 rate_id: rateId,
                 work_set: workSetId
-              })
+              }, { onConflict: 'chessboard_id,rate_id' })
+            )
+          } else {
+            // Если rateId пустой, удаляем связь
+            promises.push(
+              supabase.from('chessboard_rates_mapping').delete().eq('chessboard_id', rowId)
             )
           }
         }
@@ -1049,18 +1059,22 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
 
         // Обновляем rates mapping для backup строки
         if (editedRowData.rateId !== undefined || editedRowData.workName !== undefined || editedRowData.workSetId !== undefined) {
-          promises.push(
-            supabase.from('chessboard_rates_mapping').delete().eq('chessboard_id', rowId)
-          )
           const rateId = editedRowData.rateId
           const workSetId = editedRowData.workSetId
+
           if (rateId) {
+            // Используем upsert вместо delete + insert для избежания конфликта 409
             promises.push(
-              supabase.from('chessboard_rates_mapping').insert({
+              supabase.from('chessboard_rates_mapping').upsert({
                 chessboard_id: rowId,
                 rate_id: rateId,
                 work_set: workSetId
-              })
+              }, { onConflict: 'chessboard_id,rate_id' })
+            )
+          } else {
+            // Если rateId пустой, удаляем связь
+            promises.push(
+              supabase.from('chessboard_rates_mapping').delete().eq('chessboard_id', rowId)
             )
           }
         }

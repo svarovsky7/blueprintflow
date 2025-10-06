@@ -30,7 +30,12 @@ export const StatusSelector: React.FC<StatusSelectorProps> = ({
 
   const items: MenuProps['items'] = statuses.map((status) => ({
     key: status.id,
-    label: status.name,
+    label: (
+      <Space size={4}>
+        <Badge color={status.color || '#d9d9d9'} />
+        <span>{status.name}</span>
+      </Space>
+    ),
     onClick: () => onChange(status.id),
   }))
 

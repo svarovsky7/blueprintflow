@@ -77,9 +77,9 @@ const COLUMN_WIDTH_CONFIG_BASE: Record<string, { width?: number; minWidth?: numb
   [COLUMN_KEYS.BLOCK]: { minWidth: 60, maxWidth: 90 }, // "Корпус" + 10px = ~60px
   [COLUMN_KEYS.FLOORS]: { width: 50 }, // "Этажи" 50px
   [COLUMN_KEYS.COST_CATEGORY]: { width: 120 }, // "Категория затрат" 120px
-  [COLUMN_KEYS.COST_TYPE]: { minWidth: 80, maxWidth: 120 }, // "Вид затрат"
+  [COLUMN_KEYS.COST_TYPE]: { minWidth: 104, maxWidth: 156 }, // "Вид затрат" (+30%)
   [COLUMN_KEYS.WORK_SET]: { minWidth: 120, maxWidth: 180 }, // "Рабочий набор" 120-180px
-  [COLUMN_KEYS.WORK_NAME]: { minWidth: 140, maxWidth: 240 }, // "Наименование работ" +40px
+  [COLUMN_KEYS.WORK_NAME]: { minWidth: 168, maxWidth: 288 }, // "Наименование работ" (+20%)
   [COLUMN_KEYS.LOCATION]: { width: 80 }, // "Локализация" 80px
   [COLUMN_KEYS.MATERIAL]: { width: 200 }, // "Материал" 200px
   [COLUMN_KEYS.MATERIAL_TYPE]: { width: 60 }, // "Тип материала" 60px
@@ -1184,7 +1184,7 @@ export const ChessboardTable = memo(({
     filtered.forEach((m) => {
       if (m.location) {
         uniqueLocations.set(m.location.id, {
-          value: m.location.id,
+          value: String(m.location.id), // Преобразуем в строку для соответствия locationId
           label: m.location.name,
         })
       }
@@ -2030,7 +2030,9 @@ export const ChessboardTable = memo(({
                   costCategoryId: newValue,
                   // Сброс зависимых полей при смене категории затрат
                   costType: '',
-                  costTypeId: ''
+                  costTypeId: '',
+                  location: '',
+                  locationId: ''
                 })
               }}
               options={costCategoriesData}
@@ -2055,7 +2057,6 @@ export const ChessboardTable = memo(({
       title: 'Вид затрат',
       key: COLUMN_KEYS.COST_TYPE,
       dataIndex: 'costType',
-      width: 200,
       filterMode: 'tree' as const,
       filterSearch: true,
       onFilter: (value, record) => record.costType.includes(value as string),
@@ -2080,7 +2081,9 @@ export const ChessboardTable = memo(({
                 onRowUpdate(record.id, {
                   costType: selectedCostType ? selectedCostType.label : '',
                   costTypeId: newValue,
-                  workSet: '' // Очищаем рабочий набор при изменении вида затрат
+                  workSet: '', // Очищаем рабочий набор при изменении вида затрат
+                  location: '', // Очищаем локацию при изменении вида затрат
+                  locationId: ''
                 })
               }}
               // Фильтрация по выбранной категории затрат
@@ -2180,9 +2183,6 @@ export const ChessboardTable = memo(({
       title: 'Наименование\nработ',
       key: COLUMN_KEYS.WORK_NAME,
       dataIndex: 'workName',
-      width: 'auto',
-      minWidth: 60,
-      maxWidth: 200,
       filterMode: 'tree' as const,
       filterSearch: true,
       onFilter: (value, record) => record.workName.includes(value as string),

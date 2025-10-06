@@ -17,10 +17,11 @@ export const getVorWorks = async (filters: VorWorksFilters): Promise<VorWork[]> 
       *,
       rates:rate_id(
         id,
-        work_name,
+        work_name_id,
         base_rate,
         unit_id,
-        units:unit_id(id, name)
+        units:unit_id(id, name),
+        work_names:work_name_id(id, name)
       ),
       work_set_rate:work_set_rate_id(
         id,
@@ -62,10 +63,11 @@ export const createVorWork = async (workData: CreateVorWorkDto): Promise<VorWork
       *,
       rates:rate_id(
         id,
-        work_name,
+        work_name_id,
         base_rate,
         unit_id,
-        units:unit_id(id, name)
+        units:unit_id(id, name),
+        work_names:work_name_id(id, name)
       ),
       work_set_rate:work_set_rate_id(
         id,
@@ -94,10 +96,11 @@ export const updateVorWork = async (id: string, workData: UpdateVorWorkDto): Pro
       *,
       rates:rate_id(
         id,
-        work_name,
+        work_name_id,
         base_rate,
         unit_id,
-        units:unit_id(id, name)
+        units:unit_id(id, name),
+        work_names:work_name_id(id, name)
       ),
       work_set_rate:work_set_rate_id(
         id,
@@ -169,28 +172,31 @@ export const getRatesOptions = async (): Promise<RateOption[]> => {
     .from('rates')
     .select(`
       id,
-      work_name,
+      work_name_id,
       base_rate,
       unit_id,
       work_set,
-      units:unit_id(name)
+      units:unit_id(name),
+      work_names:work_name_id(id, name)
     `)
     .eq('active', true)
-    .order('work_name', { ascending: true })
 
   if (error) {
     console.error('Ошибка загрузки расценок:', error)
     throw error
   }
 
-  return (data || []).map(rate => ({
-    id: rate.id,
-    work_name: rate.work_name,
-    base_rate: rate.base_rate,
-    unit_id: rate.unit_id,
-    unit_name: rate.units?.name || undefined,
-    work_set: rate.work_set
-  }))
+  return (data || [])
+    .map((rate: any) => ({
+      id: rate.id,
+      work_name_id: rate.work_name_id,
+      work_name: rate.work_names?.name || '',
+      base_rate: rate.base_rate,
+      unit_id: rate.unit_id,
+      unit_name: rate.units?.name || undefined,
+      work_set: rate.work_set,
+    }))
+    .sort((a, b) => a.work_name.localeCompare(b.work_name))
 }
 
 // Получение рабочих наборов для выбора

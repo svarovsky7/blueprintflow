@@ -488,12 +488,16 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
           .select(
             `
             chessboard_id,
+            work_set,
             rates!chessboard_rates_mapping_rate_id_fkey(
               id,
               work_name:work_names(id, name),
               work_set,
               base_rate,
               unit:units(name)
+            ),
+            work_set_rate:rates!chessboard_rates_mapping_work_set_fkey(
+              work_set
             )
           `,
           )
@@ -572,8 +576,8 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
       const workNameId = rateMapping?.rates?.work_name?.id || ''
       const rateId = rateMapping?.rates?.id || ''
       const workUnit = rateMapping?.rates?.unit?.name || ''
-      const workSet = rateMapping?.rates?.work_set || ''
-      const workSetId = rateMapping?.rates?.id || '' // ID записи rates для work_set
+      const workSetId = rateMapping?.work_set || '' // UUID из chessboard_rates_mapping.work_set
+      const workSet = rateMapping?.work_set_rate?.work_set || '' // Название из связанной расценки
 
       // ОПТИМИЗАЦИЯ: агрегируем количества и формируем данные этажей в одном проходе
       let totalQuantityPd = 0

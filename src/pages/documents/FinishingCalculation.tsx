@@ -30,14 +30,11 @@ import {
   updateTypeCalculationRow,
   deleteTypeCalculationRow,
   upsertTypeCalculationFloors,
-  upsertTypeCalculationWorkMapping,
 } from '@/entities/calculation'
+import { updateFinishingPie, getFinishingPieById } from '@/entities/finishing'
 import { FloorQuantitiesModal } from './FinishingCalculation/components/FloorQuantitiesModal'
-import {
-  DetailCostCategoryCell,
-  WorkSetCell,
-  RateCell,
-} from './FinishingCalculation/components/EditableCells'
+import { StatusSelector } from './Finishing/components/StatusSelector'
+import { PAGE_FORMATS } from '@/shared/constants/statusColors'
 
 const { Title } = Typography
 
@@ -135,12 +132,6 @@ interface EditableRow extends Partial<CalculationRow> {
   quantitySpec?: number | null
   quantityRd?: number | null
   floorRange?: string  // Строка диапазона этажей: "1-3", "2,4-6"
-  // Поля работ
-  detail_cost_category_id?: number | null
-  detail_cost_category_name?: string
-  work_set?: string
-  rate_id?: string | null
-  rate_name?: string
 }
 
 export default function FinishingCalculation() {
@@ -198,6 +189,13 @@ export default function FinishingCalculation() {
     enabled: !!projectId,
   })
 
+  // Загрузка полного документа finishing_pie для получения статуса
+  const { data: finishingPieDocument } = useQuery({
+    queryKey: ['finishing-pie', selectedFinishingPieId],
+    queryFn: () => getFinishingPieById(selectedFinishingPieId!),
+    enabled: !!selectedFinishingPieId && selectedFinishingPieId !== 'new',
+  })
+
   const { data: blocks = [] } = useQuery({
     queryKey: ['blocks-for-calculation', projectId],
     queryFn: async () => {
@@ -219,14 +217,56 @@ export default function FinishingCalculation() {
     enabled: !!projectId,
   })
 
-  const { data: locations = [] } = useQuery({
-    queryKey: ['locations-for-calculation'],
+  // Загружаем строки типа пирога для получения вида затрат
+  const { data: finishingPieRows = [] } = useQuery({
+    queryKey: ['finishing-pie-rows-for-cost-type', selectedFinishingPieId],
     queryFn: async () => {
-      const { data, error } = await supabase.from('location').select('id, name').order('name')
+      if (!selectedFinishingPieId || selectedFinishingPieId === 'new') return []
+
+      const { data, error } = await supabase
+        .from('finishing_pie_mapping')
+        .select('detail_cost_category_id')
+        .eq('finishing_pie_id', selectedFinishingPieId)
+        .limit(1)
 
       if (error) throw error
       return data || []
     },
+    enabled: !!selectedFinishingPieId && selectedFinishingPieId !== 'new',
+  })
+
+  // Извлекаем detail_cost_category_id из первой строки
+  const detailCostCategoryId = finishingPieRows[0]?.detail_cost_category_id
+
+  const { data: locations = [] } = useQuery({
+    queryKey: ['locations-for-calculation', detailCostCategoryId],
+    queryFn: async () => {
+      if (!detailCostCategoryId) {
+        // Если нет вида затрат, загружаем все локализации
+        const { data, error } = await supabase.from('location').select('id, name').order('name')
+        if (error) throw error
+        return data || []
+      }
+
+      // Загружаем локализации, связанные с видом затрат через detail_cost_categories_mapping
+      const { data, error } = await supabase
+        .from('detail_cost_categories_mapping')
+        .select(`
+          location_id,
+          location:location_id(id, name)
+        `)
+        .eq('detail_cost_category_id', detailCostCategoryId)
+
+      if (error) throw error
+
+      // Извлекаем уникальные локализации и сортируем по имени
+      const uniqueLocations = Array.from(
+        new Map(data?.map((item: any) => [item.location?.id, item.location]) || []).values()
+      ).filter(Boolean)
+
+      return uniqueLocations.sort((a: any, b: any) => a.name.localeCompare(b.name)) || []
+    },
+    enabled: true,
   })
 
   const { data: roomTypes = [] } = useQuery({
@@ -300,6 +340,21 @@ export default function FinishingCalculation() {
     },
   })
 
+  // Мутация обновления статуса
+  const updateStatusMutation = useMutation({
+    mutationFn: async (statusId: string) => {
+      await updateFinishingPie(selectedFinishingPieId!, { status_type_calculation: statusId })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['finishing-pie', selectedFinishingPieId] })
+      queryClient.invalidateQueries({ queryKey: ['finishing-pie-documents'] })
+      message.success('Статус обновлен')
+    },
+    onError: () => {
+      message.error('Ошибка при обновлении статуса')
+    },
+  })
+
   const handleSaveDocument = async () => {
     if (!selectedFinishingPieId) {
       message.error('Выберите документ Тип пирога отделки')
@@ -364,13 +419,6 @@ export default function FinishingCalculation() {
             console.log('🔍 LOG: нет этажей для сохранения') // LOG
           }
 
-          // Сохраняем маппинг работ
-          if (row.detail_cost_category_id || row.rate_id) {
-            await upsertTypeCalculationWorkMapping(newRow.id, {
-              detail_cost_category_id: row.detail_cost_category_id || null,
-              rate_id: row.rate_id || null,
-            })
-          }
         } else if (row.isEditing) {
           // Обновляем существующую строку
           await updateMutation.mutateAsync({
@@ -408,14 +456,6 @@ export default function FinishingCalculation() {
 
           if (floorsToSave && floorsToSave.length > 0) {
             await upsertTypeCalculationFloors(row.id!, floorsToSave)
-          }
-
-          // Сохраняем маппинг работ при редактировании
-          if (row.detail_cost_category_id || row.rate_id) {
-            await upsertTypeCalculationWorkMapping(row.id!, {
-              detail_cost_category_id: row.detail_cost_category_id || null,
-              rate_id: row.rate_id || null,
-            })
           }
         }
       }
@@ -460,48 +500,63 @@ export default function FinishingCalculation() {
     }
   }
 
-  const handleAddRow = () => {
+  const handleAddRow = (afterRowId?: string) => {
     setMode('add')
-    setEditingRows([
-      ...editingRows,
-      {
-        id: `new-${Date.now()}`,
-        isNew: true,
-        finishing_pie_id: selectedFinishingPieId || null,
-        block_id: null,
-        location_id: null,
-        room_type_id: null,
-        pie_type_id: null,
-        surface_type_id: null,
-      },
-    ])
+    const newRow = {
+      id: `new-${Date.now()}`,
+      isNew: true,
+      finishing_pie_id: selectedFinishingPieId || null,
+      block_id: null,
+      location_id: null,
+      room_type_id: null,
+      pie_type_id: null,
+      surface_type_id: null,
+    }
+
+    if (afterRowId) {
+      const index = editingRows.findIndex(r => r.id === afterRowId)
+      if (index !== -1) {
+        const newEditingRows = [...editingRows]
+        newEditingRows.splice(index + 1, 0, newRow)
+        setEditingRows(newEditingRows)
+      } else {
+        setEditingRows([newRow, ...editingRows])
+      }
+    } else {
+      setEditingRows([newRow, ...editingRows])
+    }
   }
 
-  const handleCopyRow = (record: CalculationRow) => {
+  const handleCopyRow = (record: CalculationRow, afterRowId?: string) => {
     setMode('add')
-    setEditingRows([
-      ...editingRows,
-      {
-        id: `new-${Date.now()}`,
-        isNew: true,
-        finishing_pie_id: record.finishing_pie_id,
-        block_id: record.block_id,
-        block_name: record.block_name,
-        location_id: record.location_id,
-        location_name: record.location_name,
-        room_type_id: record.room_type_id,
-        room_type_name: record.room_type_name,
-        pie_type_id: record.pie_type_id,
-        pie_type_name: record.pie_type_name,
-        surface_type_id: record.surface_type_id,
-        surface_type_name: record.surface_type_name,
-        detail_cost_category_id: record.detail_cost_category_id,
-        detail_cost_category_name: record.detail_cost_category_name,
-        work_set: record.work_set,
-        rate_id: record.rate_id,
-        rate_name: record.rate_name,
-      },
-    ])
+    const newRow = {
+      id: `new-${Date.now()}`,
+      isNew: true,
+      finishing_pie_id: record.finishing_pie_id,
+      block_id: record.block_id,
+      block_name: record.block_name,
+      location_id: record.location_id,
+      location_name: record.location_name,
+      room_type_id: record.room_type_id,
+      room_type_name: record.room_type_name,
+      pie_type_id: record.pie_type_id,
+      pie_type_name: record.pie_type_name,
+      surface_type_id: record.surface_type_id,
+      surface_type_name: record.surface_type_name,
+    }
+
+    if (afterRowId) {
+      const index = editingRows.findIndex(r => r.id === afterRowId)
+      if (index !== -1) {
+        const newEditingRows = [...editingRows]
+        newEditingRows.splice(index + 1, 0, newRow)
+        setEditingRows(newEditingRows)
+      } else {
+        setEditingRows([newRow, ...editingRows])
+      }
+    } else {
+      setEditingRows([newRow, ...editingRows])
+    }
   }
 
   const handleCancelEdit = () => {
@@ -623,11 +678,11 @@ export default function FinishingCalculation() {
 
   const dataSource = useMemo(() => {
     if (mode === 'add') {
-      return [...rows, ...editingRows]
+      return [...editingRows, ...rows]
     }
     if (mode === 'edit') {
-      const editingIds = new Set(editingRows.map(r => r.id))
-      return [...rows.filter(r => !editingIds.has(r.id)), ...editingRows]
+      const editingMap = new Map(editingRows.map(r => [r.id, r]))
+      return rows.map(r => editingMap.get(r.id) || r)
     }
     return rows
   }, [mode, editingRows, rows])
@@ -662,9 +717,6 @@ export default function FinishingCalculation() {
                     floorRange,
                     quantitySpec,
                     quantityRd,
-                    detail_cost_category_id: record.detail_cost_category_id,
-                    work_set: record.work_set,
-                    rate_id: record.rate_id,
                   }])
                 }}
               />
@@ -693,14 +745,14 @@ export default function FinishingCalculation() {
                 icon={<PlusOutlined />}
                 size="small"
                 title="Добавить строку"
-                onClick={handleAddRow}
+                onClick={() => handleAddRow(record.id)}
               />
               <Button
                 type="text"
                 icon={<CopyOutlined />}
                 size="small"
                 title="Скопировать строку"
-                onClick={() => handleCopyRow(record)}
+                onClick={() => handleCopyRow(record, record.id)}
               />
               <Popconfirm
                 title="Удалить эту строку?"
@@ -973,79 +1025,6 @@ export default function FinishingCalculation() {
         return record.location_name || '-'
       },
     },
-    {
-      title: 'Вид затрат',
-      dataIndex: 'detail_cost_category_id',
-      key: 'detail_cost_category_id',
-      width: 200,
-      render: (value: number | null, record: EditableRow) => {
-        if ((mode === 'add' || mode === 'edit') && (record.isNew || record.isEditing)) {
-          if (!finishingPieData?.cost_category_id) {
-            return <span style={{ color: '#999' }}>Нет категории затрат</span>
-          }
-
-          return (
-            <DetailCostCategoryCell
-              value={value}
-              costCategoryId={finishingPieData.cost_category_id}
-              locationId={record.location_id}
-              onChange={(val) => handleUpdateEditingRow(record.id!, 'detail_cost_category_id', val)}
-              onCascadeReset={() => {
-                handleUpdateEditingRow(record.id!, 'work_set', null)
-                handleUpdateEditingRow(record.id!, 'rate_id', null)
-              }}
-            />
-          )
-        }
-        return record.detail_cost_category_name || '-'
-      },
-    },
-    {
-      title: 'Рабочий набор',
-      dataIndex: 'work_set',
-      key: 'work_set',
-      width: 150,
-      render: (value: string | null, record: EditableRow) => {
-        if ((mode === 'add' || mode === 'edit') && (record.isNew || record.isEditing)) {
-          if (!record.detail_cost_category_id) {
-            return <span style={{ color: '#999' }}>Выберите вид затрат</span>
-          }
-
-          return (
-            <WorkSetCell
-              value={value}
-              detailCostCategoryId={record.detail_cost_category_id}
-              onChange={(val) => handleUpdateEditingRow(record.id!, 'work_set', val)}
-              onCascadeReset={() => handleUpdateEditingRow(record.id!, 'rate_id', null)}
-            />
-          )
-        }
-        return value || '-'
-      },
-    },
-    {
-      title: 'Наименование работ',
-      dataIndex: 'rate_id',
-      key: 'rate_id',
-      width: 250,
-      render: (value: string | null, record: EditableRow) => {
-        if ((mode === 'add' || mode === 'edit') && (record.isNew || record.isEditing)) {
-          if (!record.detail_cost_category_id || !record.work_set) {
-            return <span style={{ color: '#999' }}>Выберите вид затрат и набор</span>
-          }
-
-          return (
-            <RateCell
-              value={value}
-              detailCostCategoryId={record.detail_cost_category_id}
-              workSet={record.work_set}
-              onChange={(val) => handleUpdateEditingRow(record.id!, 'rate_id', val)}
-            />
-          )
-        }
-        return record.rate_name || '-'
-      },
-    },
   ]
 
   return (
@@ -1072,56 +1051,66 @@ export default function FinishingCalculation() {
       </div>
 
       <div style={{ padding: '0 24px 16px 24px', flexShrink: 0 }}>
-        <Space>
-          <span>Название:</span>
-          <Select
-            value={selectedFinishingPieId}
-            onChange={setSelectedFinishingPieId}
-            placeholder="Выберите документ Тип пирога"
-            style={{ width: 400 }}
-            allowClear
-            showSearch
-            filterOption={(input, option) =>
-              (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
-            }
-            options={finishingPieDocuments.map((doc) => ({ value: doc.id, label: doc.name }))}
-          />
-          <Button type="primary" icon={<SaveOutlined />} onClick={handleSaveDocument}>
-            Сохранить
-          </Button>
+        <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+          <Space>
+            <span>Название:</span>
+            <Select
+              value={selectedFinishingPieId}
+              onChange={setSelectedFinishingPieId}
+              placeholder="Выберите документ Тип пирога"
+              style={{ width: 400 }}
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              }
+              options={finishingPieDocuments.map((doc) => ({ value: doc.id, label: doc.name }))}
+            />
+          </Space>
+          <Space>
+            {mode === 'view' ? (
+              <>
+                {finishingPieDocument && (
+                  <StatusSelector
+                    statusId={finishingPieDocument.status_type_calculation}
+                    pageKey={PAGE_FORMATS.TYPE_CALCULATION}
+                    onChange={(statusId) => updateStatusMutation.mutate(statusId)}
+                  />
+                )}
+                <Button type="primary" icon={<PlusOutlined />} onClick={handleAddRow}>
+                  Добавить
+                </Button>
+                <Button danger icon={<DeleteOutlined />} onClick={handleEnterDeleteMode}>
+                  Удалить
+                </Button>
+              </>
+            ) : mode === 'delete' ? (
+              <>
+                <Button
+                  danger
+                  type="primary"
+                  icon={<DeleteOutlined />}
+                  onClick={handleDeleteSelected}
+                  disabled={selectedRowKeys.length === 0}
+                >
+                  Удалить ({selectedRowKeys.length})
+                </Button>
+                <Button icon={<CloseOutlined />} onClick={handleCancelEdit}>
+                  Отмена
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button type="primary" icon={<SaveOutlined />} onClick={handleSaveDocument}>
+                  Сохранить
+                </Button>
+                <Button icon={<CloseOutlined />} onClick={handleCancelEdit}>
+                  Отмена
+                </Button>
+              </>
+            )}
+          </Space>
         </Space>
-      </div>
-
-      <div style={{ padding: '0 24px 16px 24px', flexShrink: 0 }}>
-        {mode === 'view' ? (
-          <Space>
-            <Button icon={<PlusOutlined />} onClick={handleAddRow}>
-              Добавить
-            </Button>
-            <Button danger icon={<DeleteOutlined />} onClick={handleEnterDeleteMode}>
-              Удалить
-            </Button>
-          </Space>
-        ) : mode === 'delete' ? (
-          <Space>
-            <Button
-              danger
-              type="primary"
-              icon={<DeleteOutlined />}
-              onClick={handleDeleteSelected}
-              disabled={selectedRowKeys.length === 0}
-            >
-              Удалить ({selectedRowKeys.length})
-            </Button>
-            <Button icon={<CloseOutlined />} onClick={handleCancelEdit}>
-              Отмена
-            </Button>
-          </Space>
-        ) : (
-          <Button icon={<CloseOutlined />} onClick={handleCancelEdit}>
-            Отмена
-          </Button>
-        )}
       </div>
 
       <div style={{ flex: 1, overflow: 'hidden', padding: '0 24px 24px 24px' }}>

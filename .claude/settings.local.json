@@ -86,7 +86,8 @@
       "Bash(if [ -f .env ])",
       "Bash(then grep \"DATABASE_URL\" .env)",
       "Bash(else echo \"Файл .env не найден\")",
-      "Bash(fi)"
+      "Bash(fi)",
+      "Bash(powershell -Command \"Get-Content ''C:\\Users\\postoev.e.v\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\Local Storage\\leveldb'' -ErrorAction SilentlyContinue | Select-String ''chessboard-column'' | Select-Object -First 5\")"
     ],
     "deny": [],
     "ask": []

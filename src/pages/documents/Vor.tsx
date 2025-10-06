@@ -267,7 +267,7 @@ const Vor = () => {
                 .from('chessboard_rates_mapping')
                 .select(
                   `
-                chessboard_id, rate_id, rates:rate_id(work_name, base_rate, unit_id, units:unit_id(id, name))
+                chessboard_id, rate_id, rates:rate_id(work_name_id, base_rate, unit_id, units:unit_id(id, name), work_names:work_name_id(id, name))
               `,
                 )
                 .in('chessboard_id', chessboardIds),
@@ -355,7 +355,7 @@ const Vor = () => {
             const workGroups = new Map()
             filteredChessboardData.forEach((item) => {
               const rates = ratesMap.get(item.id) || []
-              const workName = rates[0]?.rates?.work_name || 'Работа не указана'
+              const workName = rates[0]?.rates?.work_names?.name || 'Работа не указана'
 
               if (!workGroups.has(workName)) {
                 workGroups.set(workName, [])

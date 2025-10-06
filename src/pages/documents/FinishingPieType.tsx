@@ -42,6 +42,8 @@ import type {
   UpdateFinishingPieRowDto,
 } from '@/entities/finishing'
 import { useScale } from '@/shared/contexts/ScaleContext'
+import { StatusSelector } from './Finishing/components/StatusSelector'
+import { PAGE_FORMATS } from '@/shared/constants/statusColors'
 
 const { Title } = Typography
 
@@ -103,10 +105,26 @@ function WorkSetSelect({
     enabled: !!record.detail_cost_category_id && !!costCategoryId,
   })
 
+  // Находим value (rateId) по workSetName для корректного отображения в Select
+  const displayValue = value
+    ? workSets.find((opt: any) => opt.workSetName === value || opt.label === value)?.value || value
+    : null
+
+  const handleChange = (selectedValue: string | null) => {
+    if (!selectedValue) {
+      onChange(null)
+      return
+    }
+    // Находим выбранную опцию чтобы получить workSetName
+    const selectedOption = workSets.find((opt: any) => opt.value === selectedValue)
+    const workSetName = selectedOption?.workSetName || selectedOption?.label || ''
+    onChange(workSetName)
+  }
+
   return (
     <Select
-      value={value}
-      onChange={onChange}
+      value={displayValue}
+      onChange={handleChange}
       options={workSets}
       placeholder="Выберите рабочий набор"
       allowClear
@@ -308,6 +326,21 @@ export default function FinishingPieType() {
     mutationFn: (rowId: string) => deleteFinishingPieRow(rowId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['finishing-pie-rows', id] })
+    },
+  })
+
+  // Мутация обновления статуса
+  const updateStatusMutation = useMutation({
+    mutationFn: async (statusId: string) => {
+      await updateFinishingPie(id!, { status_finishing_pie: statusId })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['finishing-pie', id] })
+      queryClient.invalidateQueries({ queryKey: ['finishing-pie-documents'] })
+      message.success('Статус обновлен')
+    },
+    onError: () => {
+      message.error('Ошибка при обновлении статуса')
     },
   })
 
@@ -1019,51 +1052,60 @@ export default function FinishingPieType() {
 
       {/* Название документа и кнопка сохранения */}
       <div style={{ padding: '0 24px 16px 24px', flexShrink: 0 }}>
-        <Space>
-          <span>Название:</span>
-          <Input
-            value={docName}
-            onChange={(e) => setDocName(e.target.value)}
-            placeholder="Тип-1, Тип-2, ..."
-            style={{ width: 300 }}
-          />
-          <Button type="primary" icon={<SaveOutlined />} onClick={handleSaveDocument}>
-            Сохранить документ
-          </Button>
+        <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+          <Space>
+            <span>Название:</span>
+            <Input
+              value={docName}
+              onChange={(e) => setDocName(e.target.value)}
+              placeholder="Тип-1, Тип-2, ..."
+              style={{ width: 300 }}
+            />
+          </Space>
+          <Space>
+            {mode === 'view' && editingRows.length === 0 ? (
+              <>
+                {document && (
+                  <StatusSelector
+                    statusId={document.status_finishing_pie}
+                    pageKey={PAGE_FORMATS.FINISHING_PIE_TYPE}
+                    onChange={(statusId) => updateStatusMutation.mutate(statusId)}
+                  />
+                )}
+                <Button type="primary" icon={<PlusOutlined />} onClick={handleAddRow}>
+                  Добавить
+                </Button>
+                <Button danger icon={<DeleteOutlined />} onClick={handleEnterDeleteMode}>
+                  Удалить
+                </Button>
+              </>
+            ) : mode === 'delete' ? (
+              <>
+                <Button
+                  danger
+                  type="primary"
+                  icon={<DeleteOutlined />}
+                  onClick={handleDeleteSelected}
+                  disabled={selectedRowKeys.length === 0}
+                >
+                  Удалить ({selectedRowKeys.length})
+                </Button>
+                <Button icon={<CloseOutlined />} onClick={handleCancelEdit}>
+                  Отмена
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button type="primary" icon={<SaveOutlined />} onClick={handleSaveDocument}>
+                  Сохранить
+                </Button>
+                <Button icon={<CloseOutlined />} onClick={handleCancelEdit}>
+                  Отмена
+                </Button>
+              </>
+            )}
+          </Space>
         </Space>
-      </div>
-
-      {/* Кнопки Добавить/Удалить/Отмена под полем Название слева */}
-      <div style={{ padding: '0 24px 16px 24px', flexShrink: 0 }}>
-        {mode === 'view' && editingRows.length === 0 ? (
-          <Space>
-            <Button icon={<PlusOutlined />} onClick={handleAddRow}>
-              Добавить
-            </Button>
-            <Button danger icon={<DeleteOutlined />} onClick={handleEnterDeleteMode}>
-              Удалить
-            </Button>
-          </Space>
-        ) : mode === 'delete' ? (
-          <Space>
-            <Button
-              danger
-              type="primary"
-              icon={<DeleteOutlined />}
-              onClick={handleDeleteSelected}
-              disabled={selectedRowKeys.length === 0}
-            >
-              Удалить ({selectedRowKeys.length})
-            </Button>
-            <Button icon={<CloseOutlined />} onClick={handleCancelEdit}>
-              Отмена
-            </Button>
-          </Space>
-        ) : (
-          <Button icon={<CloseOutlined />} onClick={handleCancelEdit}>
-            Отмена
-          </Button>
-        )}
       </div>
 
       {/* Таблица - всегда видима */}

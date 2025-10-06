@@ -25,12 +25,6 @@ export async function getTypeCalculationRows(
         floor_number,
         quantitySpec,
         quantityRd
-      ),
-      type_calculation_work_mapping (
-        detail_cost_category_id,
-        rate_id,
-        detail_cost_categories (name),
-        rates (work_name, work_set)
       )
     `
     )
@@ -54,13 +48,6 @@ export async function getTypeCalculationRows(
       surface_type_id: row.surface_type_id,
       surface_type_name: row.surface_types?.name || null,
       floors: row.type_calculation_floor_mapping || [],
-      // Поля работ из маппинга
-      detail_cost_category_id: row.type_calculation_work_mapping?.detail_cost_category_id || null,
-      detail_cost_category_name:
-        row.type_calculation_work_mapping?.detail_cost_categories?.name || null,
-      work_set: row.type_calculation_work_mapping?.rates?.work_set || null,
-      rate_id: row.type_calculation_work_mapping?.rate_id || null,
-      rate_name: row.type_calculation_work_mapping?.rates?.work_name || null,
     })) || []
   )
 }
@@ -227,24 +214,4 @@ export async function getRatesByWorkSet(
 
   if (error) throw error
   return data || []
-}
-
-// ========== CRUD для маппинга работ ==========
-
-export async function upsertTypeCalculationWorkMapping(
-  mappingId: string,
-  dto: { detail_cost_category_id: number | null; rate_id: string | null }
-): Promise<void> {
-  const { error } = await supabase
-    .from('type_calculation_work_mapping')
-    .upsert(
-      {
-        type_calculation_mapping_id: mappingId,
-        detail_cost_category_id: dto.detail_cost_category_id,
-        rate_id: dto.rate_id,
-      },
-      { onConflict: 'type_calculation_mapping_id' }
-    )
-
-  if (error) throw error
 }

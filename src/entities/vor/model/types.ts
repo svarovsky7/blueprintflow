@@ -15,10 +15,14 @@ export interface VorWork {
   // Связанные данные через JOIN
   rates?: {
     id: string
-    work_name: string
+    work_name_id: string
     base_rate: number
     unit_id: string | null
     units?: {
+      id: string
+      name: string
+    }
+    work_names?: {
       id: string
       name: string
     }
@@ -123,7 +127,8 @@ export interface VorTableItem {
 // Данные из справочников для выбора
 export interface RateOption {
   id: string
-  work_name: string
+  work_name_id: string
+  work_name: string // Название из work_names
   base_rate: number
   unit_id: string | null
   unit_name?: string

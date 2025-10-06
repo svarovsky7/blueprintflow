@@ -39,7 +39,7 @@ interface ChessboardItem {
   } | null
   chessboard_rates_mapping?: Array<{
     rate_id: string | null
-    rates?: { work_name: string | null } | null
+    rates?: { work_name_id: string | null; work_names?: { id: string; name: string } | null } | null
   }> | null
   chessboard_mapping?: {
     block_id: string | null
@@ -185,6 +185,10 @@ const VorView = () => {
   // Состояния для редактирования названий
   const [editingNameId, setEditingNameId] = useState<string | null>(null)
   const [editingNameValue, setEditingNameValue] = useState<string>('')
+
+  // Состояния для редактирования рабочего набора
+  const [editingWorkSetId, setEditingWorkSetId] = useState<string | null>(null)
+  const [editingWorkSetValue, setEditingWorkSetValue] = useState<string>('')
 
   // Состояния для отслеживания удалений и изменений названий (применяются при сохранении)
   const [deletedItems, setDeletedItems] = useState<Set<string>>(new Set())
@@ -527,7 +531,7 @@ const VorView = () => {
             `
             chessboard_id,
             rate_id,
-            rates:rate_id(work_name, base_rate, unit_id, units:unit_id(id, name))
+            rates:rate_id(work_name_id, base_rate, unit_id, units:unit_id(id, name), work_names:work_name_id(id, name))
           `,
           )
           .in('chessboard_id', chessboardIds),
@@ -650,7 +654,7 @@ const VorView = () => {
       const workGroups = new Map<string, ChessboardItem[]>()
       filteredChessboardData.forEach((item) => {
         // Получаем наименование работы из связанных расценок
-        const workName = item.chessboard_rates_mapping?.[0]?.rates?.work_name || 'Работа не указана'
+        const workName = item.chessboard_rates_mapping?.[0]?.rates?.work_names?.name || 'Работа не указана'
         if (!workGroups.has(workName)) {
           workGroups.set(workName, [])
         }
@@ -839,6 +843,16 @@ const VorView = () => {
     queryKey: ['rates-options'],
     queryFn: getRatesOptions,
     enabled: viewMode === 'edit' || viewMode === 'add', // Загружаем только в режиме редактирования
+  })
+
+  // Загружаем рабочие наборы для редактирования
+  const { data: workSets = [] } = useQuery({
+    queryKey: ['work-sets-options'],
+    queryFn: async () => {
+      const { getWorkSetsOptions } = await import('@/entities/vor')
+      return getWorkSetsOptions()
+    },
+    enabled: viewMode === 'edit' || viewMode === 'add',
   })
 
   // Синхронизируем локальные данные с данными из запроса
@@ -1827,6 +1841,60 @@ const VorView = () => {
     setEditingNameValue('')
   }
 
+  // Функции для редактирования рабочего набора
+  const handleStartEditWorkSet = (id: string, currentWorkSet: string) => {
+    setEditingWorkSetId(id)
+    setEditingWorkSetValue(currentWorkSet)
+  }
+
+  const handleSaveEditWorkSet = async (itemId: string) => {
+    if (!editingWorkSetValue) {
+      messageApi.error('Выберите рабочий набор')
+      return
+    }
+
+    try {
+      // Находим выбранный рабочий набор
+      const selectedWorkSet = workSets.find(ws => ws.work_set === editingWorkSetValue)
+      if (!selectedWorkSet) {
+        messageApi.error('Рабочий набор не найден')
+        return
+      }
+
+      // Обновляем work_set_rate_id в БД
+      await updateVorWork(itemId, {
+        work_set_rate_id: selectedWorkSet.id,
+        is_modified: true
+      })
+
+      // Обновляем локальные данные
+      setEditableVorData(prevData =>
+        prevData.map(item =>
+          item.id === itemId
+            ? { ...item, work_set_name: editingWorkSetValue, work_set_rate_id: selectedWorkSet.id, is_modified: true }
+            : item
+        )
+      )
+
+      // Сбрасываем состояние редактирования
+      setEditingWorkSetId(null)
+      setEditingWorkSetValue('')
+
+      messageApi.success('Рабочий набор обновлен')
+
+      // Обновляем данные
+      queryClient.invalidateQueries({ queryKey: ['editable-vor-items', vorId] })
+    } catch (error) {
+      console.error('Ошибка обновления рабочего набора:', error)
+      messageApi.error('Ошибка при обновлении рабочего набора')
+    }
+  }
+
+  const handleCancelEditWorkSet = () => {
+    setEditingWorkSetId(null)
+    setEditingWorkSetValue('')
+  }
+
   // Функция для принудительной загрузки данных из комплекта в БД
   const handleReloadFromChessboard = async () => {
     if (!vorId || !setsData || setsData.length === 0) {
@@ -2119,10 +2187,69 @@ const VorView = () => {
       width: '10%',
       render: (text: string, record: VorItem | VorTableItem) => {
         // Показываем рабочий набор только для работ
-        if (record.type === 'work' && record.work_set_name) {
-          return record.work_set_name
+        if (record.type !== 'work') {
+          return ''
         }
-        return ''
+
+        // Режим редактирования рабочего набора
+        if (viewMode === 'edit' && editingWorkSetId === record.id) {
+          return (
+            <div>
+              <Select
+                value={editingWorkSetValue}
+                onChange={setEditingWorkSetValue}
+                style={{ width: '100%', marginBottom: 8 }}
+                showSearch
+                allowClear
+                placeholder="Выберите рабочий набор"
+                filterOption={(input, option) => {
+                  const text = option?.children?.toString() || ""
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
+              >
+                {workSets.map(ws => (
+                  <Select.Option key={ws.id} value={ws.work_set}>
+                    {ws.work_set}
+                  </Select.Option>
+                ))}
+              </Select>
+              <Space>
+                <Button
+                  size="small"
+                  type="primary"
+                  onClick={() => handleSaveEditWorkSet(record.id)}
+                >
+                  Сохранить
+                </Button>
+                <Button
+                  size="small"
+                  onClick={handleCancelEditWorkSet}
+                >
+                  Отмена
+                </Button>
+              </Space>
+            </div>
+          )
+        }
+
+        const isDeleted = deletedItems.has(record.id)
+
+        return (
+          <div
+            style={{
+              cursor: viewMode === 'edit' && !isDeleted ? 'pointer' : 'default',
+              opacity: isDeleted ? 0.5 : 1,
+              textDecoration: isDeleted ? 'line-through' : 'none',
+            }}
+            onClick={() => {
+              if (viewMode === 'edit' && !isDeleted) {
+                handleStartEditWorkSet(record.id, record.work_set_name || '')
+              }
+            }}
+          >
+            {record.work_set_name || '-'}
+          </div>
+        )
       },
     },
     {

@@ -31,6 +31,8 @@ export const PORTAL_PAGES = [
   { key: 'documents/vor', label: 'ВОР' },
   { key: 'documents/documentation', label: 'Документация' },
   { key: 'documents/finishing', label: 'Отделка' },
+  { key: 'documents/finishing-pie-type', label: 'Типы пирога отделки' },
+  { key: 'documents/type-calculation', label: 'Расчет по типам' },
   { key: 'reports/project-analysis', label: 'Анализ доков' },
 ] as const
 

@@ -77,5 +77,7 @@ export const PAGE_FORMATS = {
   VOR: 'documents/vor',
   DOCUMENTATION: 'documents/documentation',
   FINISHING: 'documents/finishing',
+  FINISHING_PIE_TYPE: 'documents/finishing-pie-type',
+  TYPE_CALCULATION: 'documents/type-calculation',
   PROJECT_ANALYSIS: 'reports/project-analysis',
 }
