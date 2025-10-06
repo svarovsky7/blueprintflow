@@ -1046,7 +1046,7 @@ interface ChessboardTableProps {
   onRowCopy: (rowId: string) => void
   onRowDelete: (rowId: string) => void
   onRowColorChange: (rowId: string, color: RowColor) => void
-  onStartEditing: (rowId: string) => void
+  onStartEditing: (rowId: string, rowData?: RowData) => void
   onAddRowAfter?: (rowIndex: number) => void
   onCopyRowAfter?: (rowData: RowData, rowIndex: number) => void
   onRemoveNewRow?: (rowId: string) => void
@@ -1527,7 +1527,7 @@ export const ChessboardTable = memo(({
   }, [data, onRowUpdate, handleFloorsChange])
 
   // ОПТИМИЗАЦИЯ: стабильные обработчики событий (ИСПРАВЛЕНО: убираем циклические зависимости)
-  const handleStartEditing = useCallback((recordId: string) => () => onStartEditing(recordId), [onStartEditing])
+  const handleStartEditing = useCallback((recordId: string, record: RowData) => () => onStartEditing(recordId, record), [onStartEditing])
   const handleRowDelete = useCallback((recordId: string) => () => onRowDelete(recordId), [onRowDelete])
   const handleRowCopy = useCallback((recordId: string) => () => onRowCopy(recordId), [onRowCopy])
   const handleOpenFloorModal = useCallback((recordId: string) => () => openFloorModalById(recordId, true), [openFloorModalById])
@@ -1583,7 +1583,7 @@ export const ChessboardTable = memo(({
                     type="text"
                     size="small"
                     icon={<EditOutlined />}
-                    onClick={handleStartEditing(record.id)}
+                    onClick={handleStartEditing(record.id, record)}
                   />
                 </div>
               </Tooltip>

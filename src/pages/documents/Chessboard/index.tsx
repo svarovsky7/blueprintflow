@@ -79,6 +79,7 @@ export default function Chessboard() {
     startEditBackup,
     stopEditBackup,
     updateEditingRow,
+    editingRows,
     saveChanges,
     cancelChanges,
     deleteSelectedRows,
@@ -192,11 +193,21 @@ export default function Chessboard() {
       if (tableMode.mode === 'add') {
         updateNewRow(rowId, updates)
       } else if (tableMode.mode === 'edit') {
-        updateEditedRow(rowId, updates)
+        // Проверяем, есть ли строка в backup редактировании (editingRows)
+        const displayData = getDisplayData(data || [])
+        const rowInBackup = displayData.find(row => row.id === rowId && editingRows[rowId])
+
+        if (rowInBackup) {
+          // Если строка в backup режиме, обновляем через updateEditingRow
+          updateEditingRow(rowId, updates)
+        } else {
+          // Иначе обычное одиночное редактирование
+          updateEditedRow(rowId, updates)
+        }
       } else {
       }
     },
-    [tableMode.mode, updateNewRow, updateEditedRow],
+    [tableMode.mode, updateNewRow, updateEditedRow, updateEditingRow, editingRows, data, getDisplayData],
   )
 
   const handleStartEditing = useCallback(

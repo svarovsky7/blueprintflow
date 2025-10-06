@@ -926,22 +926,22 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
         }
 
         // Обновляем nomenclature mapping для номенклатуры
-        if (updates.nomenclatureId !== undefined || updates.supplier !== undefined) {
-
-          // Сначала удаляем старую связь
-          promises.push(
-            supabase.from('chessboard_nomenclature_mapping').delete().eq('chessboard_id', rowId)
-          )
-
-          // Если есть номенклатура, создаём новую связь
+        if ('nomenclatureId' in updates || 'supplier' in updates) {
           const nomenclatureId = updates.nomenclatureId !== undefined ? updates.nomenclatureId : null
+
           if (nomenclatureId) {
+            // Используем upsert вместо delete + insert для избежания конфликта 409
             promises.push(
-              supabase.from('chessboard_nomenclature_mapping').insert({
+              supabase.from('chessboard_nomenclature_mapping').upsert({
                 chessboard_id: rowId,
                 nomenclature_id: nomenclatureId,
                 supplier_name: updates.supplier || null
-              })
+              }, { onConflict: 'chessboard_id' })
+            )
+          } else {
+            // Если nomenclatureId пустой, удаляем связь
+            promises.push(
+              supabase.from('chessboard_nomenclature_mapping').delete().eq('chessboard_id', rowId)
             )
           }
         }
@@ -1039,20 +1039,22 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
         }
 
         // Обновляем nomenclature mapping для backup строки
-        if (editedRowData.nomenclatureId !== undefined || editedRowData.supplier !== undefined) {
-
-          promises.push(
-            supabase.from('chessboard_nomenclature_mapping').delete().eq('chessboard_id', rowId)
-          )
-
+        if ('nomenclatureId' in editedRowData || 'supplier' in editedRowData) {
           const nomenclatureId = editedRowData.nomenclatureId
+
           if (nomenclatureId) {
+            // Используем upsert вместо delete + insert для избежания конфликта 409
             promises.push(
-              supabase.from('chessboard_nomenclature_mapping').insert({
+              supabase.from('chessboard_nomenclature_mapping').upsert({
                 chessboard_id: rowId,
                 nomenclature_id: nomenclatureId,
                 supplier_name: editedRowData.supplier || null
-              })
+              }, { onConflict: 'chessboard_id' })
+            )
+          } else {
+            // Если nomenclatureId пустой, удаляем связь
+            promises.push(
+              supabase.from('chessboard_nomenclature_mapping').delete().eq('chessboard_id', rowId)
             )
           }
         }
