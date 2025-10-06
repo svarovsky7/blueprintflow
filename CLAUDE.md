@@ -124,6 +124,29 @@ src/
 - Cascading dropdowns with automatic location assignment
 - Column settings persistence in localStorage
 
+#### Изменение ширины столбцов в Chessboard
+
+**ВАЖНО:** Ширина столбцов автоматически масштабируется для разных scale (0.7, 0.8, 0.9, 1.0).
+
+**Пошаговая инструкция:**
+1. Найдите `COLUMN_WIDTH_CONFIG_BASE` в `src/pages/documents/Chessboard/components/ChessboardTable.tsx` (строка ~94)
+2. Используйте ТОЛЬКО `{ width: number }` для изменения ширины (НЕ minWidth/maxWidth!)
+3. Для расчета используйте функцию `increaseColumnWidth(baseWidth, percentage)`
+
+**Примеры:**
+```typescript
+// Увеличить "Вид затрат" на 30% от базовых 120px
+[COLUMN_KEYS.COST_TYPE]: { width: increaseColumnWidth(120, 30) }, // = 156px
+
+// Увеличить "Наименование работ" на 20% от базовых 200px
+[COLUMN_KEYS.WORK_NAME]: { width: increaseColumnWidth(200, 20) }, // = 240px
+```
+
+**Почему это работает:**
+- Базовые значения для `scale = 0.7`
+- При `scale = 1.0`: ширина автоматически станет `width / 0.7 * 1.0` (например, 156 → 223px)
+- Функция `getScaledWidth()` пересчитывает все размеры для текущего масштаба
+
 ### Excel Import Requirements
 - Headers use fuzzy matching for: "материал", "кол", "ед" columns
 - Support drag-and-drop upload up to 250 MB

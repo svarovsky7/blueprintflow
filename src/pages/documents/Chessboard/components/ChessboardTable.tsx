@@ -67,7 +67,30 @@ const getScaledFontSize = (currentScale: number): number => {
   return Math.round(baseFontSize * currentScale)
 }
 
-// КОНФИГУРАЦИЯ: Базовые настройки ширины столбцов для scale = 0.7
+// Вспомогательная функция для расчета увеличенной ширины столбца
+// Используется при необходимости изменить ширину на определенный процент
+const increaseColumnWidth = (baseWidth: number, percentage: number): number => {
+  return Math.round(baseWidth * (1 + percentage / 100))
+}
+// Примеры: increaseColumnWidth(120, 30) = 156, increaseColumnWidth(200, 20) = 240
+
+/**
+ * Конфигурация ширины столбцов (базовые значения для scale = 0.7)
+ *
+ * ПРАВИЛА ИЗМЕНЕНИЯ ШИРИНЫ:
+ * 1. Используйте ТОЛЬКО { width: number } для фиксированной ширины
+ * 2. НЕ используйте minWidth/maxWidth - это приведет к finalWidth: undefined
+ * 3. Для расчета новой ширины используйте: increaseColumnWidth(baseWidth, percentage)
+ *
+ * АВТОМАТИЧЕСКОЕ МАСШТАБИРОВАНИЕ:
+ * - Все значения автоматически пересчитываются через getScaledWidth() для текущего scale
+ * - scale 0.7: width остается как есть
+ * - scale 1.0: width увеличится пропорционально (width / 0.7 * 1.0)
+ *
+ * ПРИМЕРЫ:
+ * - { width: 120 } - фиксированная ширина 120px при scale 0.7
+ * - increaseColumnWidth(120, 30) = 156px (+30%)
+ */
 const COLUMN_WIDTH_CONFIG_BASE: Record<string, { width?: number; minWidth?: number; maxWidth?: number }> = {
   [COLUMN_KEYS.ACTIONS]: { width: 80 }, // Служебный столбец 80px
   [COLUMN_KEYS.DOCUMENTATION_SECTION]: { minWidth: 40, maxWidth: 80 }, // "Раздел" динамический 40-80px
@@ -77,9 +100,9 @@ const COLUMN_WIDTH_CONFIG_BASE: Record<string, { width?: number; minWidth?: numb
   [COLUMN_KEYS.BLOCK]: { minWidth: 60, maxWidth: 90 }, // "Корпус" + 10px = ~60px
   [COLUMN_KEYS.FLOORS]: { width: 50 }, // "Этажи" 50px
   [COLUMN_KEYS.COST_CATEGORY]: { width: 120 }, // "Категория затрат" 120px
-  [COLUMN_KEYS.COST_TYPE]: { minWidth: 104, maxWidth: 156 }, // "Вид затрат" (+30%)
+  [COLUMN_KEYS.COST_TYPE]: { width: 156 }, // increaseColumnWidth(120, 30) - "Вид затрат" (+30%)
   [COLUMN_KEYS.WORK_SET]: { minWidth: 120, maxWidth: 180 }, // "Рабочий набор" 120-180px
-  [COLUMN_KEYS.WORK_NAME]: { minWidth: 168, maxWidth: 288 }, // "Наименование работ" (+20%)
+  [COLUMN_KEYS.WORK_NAME]: { width: 240 }, // increaseColumnWidth(200, 20) - "Наименование работ" (+20%)
   [COLUMN_KEYS.LOCATION]: { width: 80 }, // "Локализация" 80px
   [COLUMN_KEYS.MATERIAL]: { width: 200 }, // "Материал" 200px
   [COLUMN_KEYS.MATERIAL_TYPE]: { width: 60 }, // "Тип материала" 60px
