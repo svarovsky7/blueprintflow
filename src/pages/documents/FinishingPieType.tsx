@@ -163,9 +163,12 @@ function WorkNameSelect({
       filterOption={(input, option) =>
         (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
       }
-      style={{ width: '100%' }}
+      style={{
+        width: '100%',
+      }}
       dropdownStyle={getDynamicDropdownStyle(workNames)}
       disabled={!record.work_set || !record.detail_cost_category_id}
+      className="work-name-select-multiline"
     />
   )
 }
@@ -969,6 +972,9 @@ export default function FinishingPieType() {
       dataIndex: 'work_name_id',
       key: 'work_name_id',
       width: 200,
+      onCell: () => ({
+        'data-work-name-cell': true,
+      }),
       render: (value: string | null, record: EditableRow) => {
         if (isRowEditing(record as FinishingPieRow)) {
           return (
@@ -980,7 +986,7 @@ export default function FinishingPieType() {
             />
           )
         }
-        return record.work_name || '-'
+        return <div className="work-name-cell-text">{record.work_name || '-'}</div>
       },
     },
   ]

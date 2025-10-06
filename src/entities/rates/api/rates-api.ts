@@ -578,8 +578,9 @@ export const ratesApi = {
     // Преобразуем в нужный формат и сортируем
     const result = Array.from(workSetsMap.entries())
       .map(([workSetName, rateId]) => ({
-        value: workSetName, // Название рабочего набора для фильтрации работ
+        value: rateId, // UUID расценки для сохранения в work_set (FK на rates.id)
         label: workSetName, // Название рабочего набора для отображения
+        workSetName: workSetName, // Название набора для фильтрации работ
       }))
       .sort((a, b) => a.label.localeCompare(b.label))
 

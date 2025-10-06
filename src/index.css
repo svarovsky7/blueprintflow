@@ -197,3 +197,50 @@ body[data-theme='dark'] {
   display: flex !important;
   align-items: center !important;
 }
+
+/* Стили для переноса текста в Select наименований работ */
+.work-name-select-multiline .ant-select-selector {
+  height: auto !important;
+  min-height: 32px !important;
+  max-height: none !important;
+  padding: 4px 11px !important;
+}
+
+.work-name-select-multiline .ant-select-selection-item {
+  white-space: normal !important;
+  word-wrap: break-word !important;
+  word-break: break-word !important;
+  line-height: 1.5 !important;
+  overflow: visible !important;
+}
+
+.work-name-select-multiline .ant-select-selection-search {
+  margin-inline-start: 0 !important;
+}
+
+/* Стили для ячеек таблицы с наименованиями работ - позволяют расширение по высоте */
+.ant-table-tbody > tr > td:has(.work-name-select-multiline),
+.ant-table-tbody > tr > td[data-work-name-cell] {
+  vertical-align: top !important;
+  padding: 8px !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+
+/* Стили для строк таблицы с многострочными Select */
+.ant-table-tbody > tr:has(.work-name-select-multiline) {
+  height: auto !important;
+}
+
+.ant-table-tbody > tr:has(.work-name-select-multiline) > td {
+  height: auto !important;
+  vertical-align: top !important;
+}
+
+/* Перенос текста в режиме просмотра для наименований работ */
+.work-name-cell-text {
+  white-space: normal !important;
+  word-wrap: break-word !important;
+  word-break: break-word !important;
+  line-height: 1.5 !important;
+}

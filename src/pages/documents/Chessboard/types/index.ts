@@ -179,8 +179,9 @@ export interface RateOption {
 }
 
 export interface WorkSetOption {
-  value: string
-  label: string
+  value: string // UUID расценки (rates.id) для сохранения в work_set
+  label: string // Название рабочего набора для отображения
+  workSetName: string // Название набора для фильтрации работ
 }
 
 export type NomenclatureMapping = {

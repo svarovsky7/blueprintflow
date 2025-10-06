@@ -468,7 +468,8 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
                 .from('chessboard_rates_mapping')
                 .insert({
                   chessboard_id: newRowId,
-                  rate_id: finalRateId
+                  rate_id: finalRateId,
+                  work_set: row.workSetId || null
                 })
 
               if (rateError) {

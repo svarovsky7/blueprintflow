@@ -249,7 +249,7 @@ interface WorkSetSelectProps {
   value: string
   categoryId: string | undefined
   costTypeId: string | undefined
-  onChange: (value: string) => void
+  onChange: (value: string, workSetName: string) => void
 }
 
 const WorkSetSelect: React.FC<WorkSetSelectProps> = ({ value, categoryId, costTypeId, onChange }) => {
@@ -272,11 +272,18 @@ const WorkSetSelect: React.FC<WorkSetSelectProps> = ({ value, categoryId, costTy
     enabled: !!normalizedCategoryId && !!normalizedCostTypeId, // Запрос только если есть и категория и вид затрат
   })
 
+  const handleChange = (selectedValue: string) => {
+    // Находим выбранную опцию чтобы получить workSetName
+    const selectedOption = workSetOptions.find((opt: any) => opt.value === selectedValue)
+    const workSetName = selectedOption?.workSetName || selectedOption?.label || ''
+    onChange(selectedValue, workSetName)
+  }
+
   return (
     <Select
       value={value || undefined}
       placeholder="Выберите рабочий набор"
-      onChange={onChange}
+      onChange={handleChange}
       allowClear={true}
       showSearch={true}
       size="small"
@@ -2151,11 +2158,12 @@ export const ChessboardTable = memo(({
               value={workSetId || ''}
               categoryId={categoryId}
               costTypeId={costTypeId}
-              onChange={(newWorkSet) => {
-                // newWorkSet - это название рабочего набора (value из API)
+              onChange={(newWorkSetId, newWorkSetName) => {
+                // newWorkSetId - UUID расценки (rates.id) для сохранения в work_set
+                // newWorkSetName - название рабочего набора для фильтрации работ
                 onRowUpdate(record.id, {
-                  workSet: newWorkSet,      // Название рабочего набора
-                  workSetId: newWorkSet,    // Также сохраняем в workSetId для совместимости
+                  workSet: newWorkSetName,  // Название для фильтрации работ
+                  workSetId: newWorkSetId,  // UUID для сохранения в work_set (FK)
                   workName: '',             // Сбрасываем наименование работ
                   rateId: ''                // Сбрасываем ID расценки
                 })
