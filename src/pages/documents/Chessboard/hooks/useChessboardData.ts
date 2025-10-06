@@ -490,7 +490,7 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
             chessboard_id,
             rates!chessboard_rates_mapping_rate_id_fkey(
               id,
-              work_name,
+              work_name:work_names(id, name),
               work_set,
               base_rate,
               unit:units(name)
@@ -568,7 +568,8 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
       const rowFloorsData = floorsByChessboardId.get(row.id) || []
 
       const rateMapping = ratesMappingIndex.get(row.id)
-      const workName = rateMapping?.rates?.work_name || ''
+      const workName = rateMapping?.rates?.work_name?.name || ''
+      const workNameId = rateMapping?.rates?.work_name?.id || ''
       const rateId = rateMapping?.rates?.id || ''
       const workUnit = rateMapping?.rates?.unit?.name || ''
       const workSet = rateMapping?.rates?.work_set || ''
@@ -639,6 +640,7 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
         workSet: workSet,
         workSetId: String(workSetId || ''), // ID записи rates для work_set
         workName: workName,
+        workNameId: String(workNameId || ''), // ID из work_names
         rateId: String(rateId || ''), // ID расценки для сохранения в mapping
         workUnit: workUnit,
         location: mapping?.location?.name || '',

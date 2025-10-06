@@ -82,7 +82,11 @@
       "Bash(tree:*)",
       "Bash(mkdir:*)",
       "Bash(xargs sed:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(if [ -f .env ])",
+      "Bash(then grep \"DATABASE_URL\" .env)",
+      "Bash(else echo \"Файл .env не найден\")",
+      "Bash(fi)"
     ],
     "deny": [],
     "ask": []

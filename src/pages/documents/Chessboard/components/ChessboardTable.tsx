@@ -295,23 +295,27 @@ const WorkSetSelect: React.FC<WorkSetSelectProps> = ({ value, categoryId, costTy
 
 interface WorkNameSelectProps {
   value: string
-  workSetId: string | undefined
+  workSet: string | undefined
+  costCategoryId: string | undefined
+  costTypeId: string | undefined
   onChange: (value: string) => void
 }
 
-const WorkNameSelect: React.FC<WorkNameSelectProps> = ({ value, workSetId, onChange }) => {
+const WorkNameSelect: React.FC<WorkNameSelectProps> = ({ value, workSet, costCategoryId, costTypeId, onChange }) => {
   // ИСПРАВЛЕНИЕ: Стабилизируем queryKey для предотвращения infinite render
   const stableQueryKey = useMemo(() => {
     const key = ['works-by-work-set']
-    if (workSetId) key.push(workSetId)
+    if (workSet) key.push(workSet)
+    if (costCategoryId) key.push(costCategoryId)
+    if (costTypeId) key.push(costTypeId)
     return key
-  }, [workSetId])
+  }, [workSet, costCategoryId, costTypeId])
 
   // Хук всегда вызывается на верхнем уровне компонента
   const { data: workOptions = [] } = useQuery({
     queryKey: stableQueryKey,
-    queryFn: () => ratesApi.getWorksByWorkSet(workSetId),
-    enabled: !!workSetId, // Запрос только если есть выбранный рабочий набор
+    queryFn: () => ratesApi.getWorksByWorkSet(workSet, costCategoryId, costTypeId),
+    enabled: !!workSet && !!costCategoryId && !!costTypeId, // Запрос только если есть все параметры
   })
 
   return (
@@ -329,8 +333,12 @@ const WorkNameSelect: React.FC<WorkNameSelectProps> = ({ value, workSetId, onCha
         return text.toLowerCase().includes(input.toLowerCase())
       }}
       options={workOptions}
-      disabled={!workSetId} // Отключаем если не выбран рабочий набор
-      notFoundContent={workSetId ? 'Работы не найдены' : 'Выберите рабочий набор'}
+      disabled={!workSet || !costCategoryId || !costTypeId} // Отключаем если не выбраны все параметры
+      notFoundContent={
+        !workSet || !costCategoryId || !costTypeId
+          ? 'Выберите категорию затрат, вид затрат и рабочий набор'
+          : 'Работы не найдены'
+      }
     />
   )
 }
@@ -2143,11 +2151,13 @@ export const ChessboardTable = memo(({
               value={workSetId || ''}
               categoryId={categoryId}
               costTypeId={costTypeId}
-              onChange={(newWorkSetId) => {
+              onChange={(newWorkSet) => {
+                // newWorkSet - это название рабочего набора (value из API)
                 onRowUpdate(record.id, {
-                  workSetId: newWorkSetId,
-                  workName: '',
-                  rateId: ''
+                  workSet: newWorkSet,      // Название рабочего набора
+                  workSetId: newWorkSet,    // Также сохраняем в workSetId для совместимости
+                  workName: '',             // Сбрасываем наименование работ
+                  rateId: ''                // Сбрасываем ID расценки
                 })
               }}
             />
@@ -2181,13 +2191,17 @@ export const ChessboardTable = memo(({
       render: (value, record) => {
         const isEditing = (record as any).isEditing
         if (isEditing) {
-          const workSetId = (record as RowData).workSetId
+          const workSet = (record as RowData).workSet
+          const costCategoryId = (record as RowData).costCategoryId
+          const costTypeId = (record as RowData).costTypeId
           const currentRateId = (record as RowData).rateId
 
           return (
             <WorkNameSelect
               value={currentRateId || ''} // Используем rateId как value
-              workSetId={workSetId}
+              workSet={workSet}
+              costCategoryId={costCategoryId}
+              costTypeId={costTypeId}
               onChange={(selectedRateId) => {
                 // selectedRateId - это ID расценки, получаем название работы из API
                 // Поскольку в новой логике работа всегда одна для выбранного рабочего набора,

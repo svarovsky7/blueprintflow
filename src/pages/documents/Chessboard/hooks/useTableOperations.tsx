@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { App } from 'antd'
 import type { Key } from 'react'
 import { supabase } from '@/lib/supabase'
+import { ratesApi } from '@/entities/rates/api/rates-api'
 import type { TableMode, RowData, RowColor } from '../types'
 import { parseFloorsFromString } from '../utils/floors'
 
@@ -72,7 +73,10 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
       costCategoryId: '',
       costType: '',
       costTypeId: '',
+      workSet: '',
+      workSetId: '',
       workName: '',
+      workNameId: '',
       workUnit: '',
       rateId: '',
       location: '',
@@ -435,48 +439,27 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
             }
           }
 
-          // 5. Создаем связи с расценками (аналогично редактированию)
+          // 5. Создаем связи с расценками через API для работы с work_names
           if (row.rateId || row.workName) {
 
             let finalRateId = row.rateId
 
-            // Если есть workName но нет rateId, ищем/создаем расценку
+            // Если есть workName но нет rateId, создаем через API
             if (row.workName && row.workName.trim() && !finalRateId) {
               const workNameValue = row.workName.trim()
 
-              // Ищем существующую расценку
-              const { data: existingRate, error: findRateError } = await supabase
-                .from('rates')
-                .select('id')
-                .eq('work_name', workNameValue)
-                .single()
+              // Создаем расценку через API, который работает с work_names
+              const newRate = await ratesApi.create({
+                work_name: workNameValue,
+                work_set: row.workSet || '',
+                base_rate: 0,
+                unit_id: row.unitId || null,
+                active: true,
+                detail_cost_category_id: row.costTypeId ? parseInt(row.costTypeId) : undefined,
+                cost_category_id: row.costCategoryId ? parseInt(row.costCategoryId) : undefined,
+              })
 
-              if (findRateError && findRateError.code !== 'PGRST116') {
-                throw findRateError
-              }
-
-              if (existingRate) {
-                finalRateId = existingRate.id
-              } else {
-                // Создаем новую расценку со значениями по умолчанию
-                const { data: newRate, error: createRateError } = await supabase
-                  .from('rates')
-                  .insert({
-                    work_name: workNameValue,
-                    work_set: '',
-                    base_rate: 0,
-                    unit_id: row.unitId || null,
-                    active: true
-                  })
-                  .select('id')
-                  .single()
-
-                if (createRateError) {
-                  throw createRateError
-                }
-
-                finalRateId = newRate.id
-              }
+              finalRateId = newRate.id
             }
 
             // Создаем mapping только если есть finalRateId

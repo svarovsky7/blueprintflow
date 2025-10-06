@@ -586,8 +586,12 @@ export const ratesApi = {
     return result
   },
 
-  // Получение работ по конкретному рабочему набору (по названию work_set)
-  async getWorksByWorkSet(workSet?: string): Promise<{ value: string; label: string }[]> {
+  // Получение работ по конкретному рабочему набору с учётом категории и вида затрат
+  async getWorksByWorkSet(
+    workSet?: string,
+    costCategoryId?: string,
+    costTypeId?: string
+  ): Promise<{ value: string; label: string }[]> {
     if (!supabase) throw new Error('Supabase is not configured')
 
     // Если не указан рабочий набор - возвращаем пустой список
@@ -595,19 +599,32 @@ export const ratesApi = {
       return []
     }
 
-    // Получаем все расценки с данным рабочим набором
+    // Если не указаны категория и вид затрат - возвращаем пустой список
+    if (!costCategoryId || !costTypeId) {
+      return []
+    }
+
+    const costCategoryIdInt = parseInt(costCategoryId)
+    const costTypeIdInt = parseInt(costTypeId)
+
+    // Получаем работы через rates_detail_cost_categories_mapping с фильтрацией
     const { data, error } = await supabase
-      .from('rates')
+      .from('rates_detail_cost_categories_mapping')
       .select(
         `
-        id,
-        work_set,
-        active,
-        work_name:work_names(id, name)
+        rate_id,
+        rates!inner(
+          id,
+          work_set,
+          active,
+          work_name:work_names(id, name)
+        )
       `
       )
-      .eq('work_set', workSet)
-      .eq('active', true)
+      .eq('cost_category_id', costCategoryIdInt)
+      .eq('detail_cost_category_id', costTypeIdInt)
+      .eq('rates.work_set', workSet)
+      .eq('rates.active', true)
 
     if (error) {
       console.error('Failed to get works by work set:', error)
@@ -620,8 +637,9 @@ export const ratesApi = {
 
     // Убираем дубликаты по work_name и преобразуем в нужный формат
     const uniqueWorks = new Map<string, { rateId: string; workName: string }>()
-    data.forEach((rate: any) => {
-      const workName = rate.work_name?.name
+    data.forEach((item: any) => {
+      const rate = item.rates
+      const workName = rate?.work_name?.name
       if (workName && !uniqueWorks.has(workName)) {
         uniqueWorks.set(workName, {
           rateId: rate.id,
@@ -633,8 +651,82 @@ export const ratesApi = {
     // Преобразуем в нужный формат и сортируем
     const result = Array.from(uniqueWorks.values())
       .map(({ rateId, workName }) => ({
-        value: rateId, // ID расценки для сохранения в finishing_pie_mapping
+        value: rateId, // ID расценки для сохранения в chessboard_rates_mapping
         label: workName, // Название работы для отображения
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+
+    return result
+  },
+
+  // Получение наименований работ (work_names) по рабочему набору и виду затрат
+  // Для страницы "Типы пирога отделки"
+  async getWorkNamesByWorkSetAndCategory(
+    workSet: string,
+    detailCostCategoryId: string,
+    costCategoryId?: string
+  ): Promise<{ value: string; label: string; rateId: string }[]> {
+    if (!supabase) throw new Error('Supabase is not configured')
+
+    if (!workSet || !detailCostCategoryId) {
+      return []
+    }
+
+    const detailCostCategoryIdInt = parseInt(detailCostCategoryId)
+    const costCategoryIdInt = costCategoryId ? parseInt(costCategoryId) : null
+
+    // Запрос через rates_detail_cost_categories_mapping
+    let query = supabase
+      .from('rates_detail_cost_categories_mapping')
+      .select(
+        `
+        rate_id,
+        work_name_id,
+        work_names!inner(id, name),
+        rates!inner(id, work_set, active)
+      `
+      )
+      .eq('detail_cost_category_id', detailCostCategoryIdInt)
+      .eq('rates.work_set', workSet)
+      .eq('rates.active', true)
+
+    if (costCategoryIdInt) {
+      query = query.eq('cost_category_id', costCategoryIdInt)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error('Failed to get work names by work set and category:', error)
+      throw error
+    }
+
+    if (!data || data.length === 0) {
+      return []
+    }
+
+    // Убираем дубликаты по work_name_id
+    const uniqueWorkNames = new Map<string, { workNameId: string; workName: string; rateId: string }>()
+    data.forEach((item: any) => {
+      const workNameId = item.work_name_id
+      const workName = item.work_names?.name
+      const rateId = item.rate_id
+
+      if (workNameId && workName && !uniqueWorkNames.has(workNameId)) {
+        uniqueWorkNames.set(workNameId, {
+          workNameId,
+          workName,
+          rateId,
+        })
+      }
+    })
+
+    // Преобразуем в нужный формат
+    const result = Array.from(uniqueWorkNames.values())
+      .map(({ workNameId, workName, rateId }) => ({
+        value: workNameId, // work_name_id для сохранения в БД
+        label: workName,    // Название работы для отображения
+        rateId: rateId,     // rate_id для сохранения в БД
       }))
       .sort((a, b) => a.label.localeCompare(b.label))
 

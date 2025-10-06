@@ -199,7 +199,8 @@ export async function getFinishingPieRows(finishingPieId: string): Promise<Finis
       materials:material_id (name),
       units:unit_id (name),
       detail_cost_categories:detail_cost_category_id (id, name),
-      rates:rate_id (id, work_name:work_names(id, name)),
+      work_names:work_name_id (id, name),
+      rates:rate_id (id, work_set),
       rate_units:rate_unit_id (name)
     `
     )
@@ -222,9 +223,10 @@ export async function getFinishingPieRows(finishingPieId: string): Promise<Finis
       consumption: row.consumption,
       detail_cost_category_id: row.detail_cost_category_id,
       detail_cost_category_name: row.detail_cost_categories?.name || null,
-      work_set: row.work_set || null, // Название рабочего набора (строка из БД)
+      work_name_id: row.work_name_id,
+      work_name: row.work_names?.name || null, // Название работы из work_names
       rate_id: row.rate_id,
-      rate_name: row.rates?.work_name?.name || null, // Название работы из work_names
+      work_set: row.rates?.work_set || null, // Рабочий набор из rates (для отображения)
       rate_unit_id: row.rate_unit_id,
       rate_unit_name: row.rate_units?.name || null,
       created_at: row.created_at,

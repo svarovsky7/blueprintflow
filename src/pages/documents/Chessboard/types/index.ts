@@ -32,6 +32,7 @@ export interface RowData {
   workSet: string // Рабочий набор
   workSetId: string // ID рабочего набора (rates.id)
   workName: string // Наименование работ
+  workNameId: string // ID из work_names
   workUnit: string // Ед.Изм. Работ
   rateId: string // ID расценки
   location: string // Локализация
