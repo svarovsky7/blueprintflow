@@ -1,6 +1,3 @@
-{
-  /* VorView component */
-}
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Table, Typography, Space, Spin, Alert, Button, InputNumber, message, Select, Input } from 'antd'
 import { ArrowLeftOutlined, DownloadOutlined, EditOutlined, SaveOutlined, CloseOutlined, PlusOutlined, MinusOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons'
@@ -862,14 +859,6 @@ const VorView = () => {
     }
   }, [vorItems])
 
-  // Логирование загруженных данных из БД
-  useEffect(() => {
-    if (editableVorItems && editableVorItems.length > 0) {
-      console.log('🔍 Загружены данные ВОР из БД:', editableVorItems) // LOG: данные из БД
-      console.log('🔍 Пример элемента из БД:', editableVorItems[0]) // LOG: структура данных
-    }
-  }, [editableVorItems])
-
   // Синхронизируем редактируемые данные
   useEffect(() => {
     if (editableVorItems) {
@@ -1345,18 +1334,15 @@ const VorView = () => {
   const applyPendingNameChanges = async (pendingChanges: Record<string, string>) => {
     if (Object.keys(pendingChanges).length === 0) return
 
-    console.log('🔄 Применяем pending изменения к реальным записям БД:', pendingChanges) // LOG: применение изменений
 
     // Получаем свежие данные реальных записей
     await queryClient.invalidateQueries({ queryKey: ['editable-vor-items', vorId] })
     const freshEditableItems = queryClient.getQueryData<VorTableItem[]>(['editable-vor-items', vorId])
 
     if (!freshEditableItems || freshEditableItems.length === 0) {
-      console.warn('⚠️ Нет реальных записей для применения pending изменений') // LOG: предупреждение
       return
     }
 
-    console.log('📊 Доступно реальных записей для обновления:', freshEditableItems.length) // LOG: количество записей
 
     // Создаем маппинг синтетических ID к реальным записям
     // Логика: work_1 -> первая работа, work_2 -> вторая работа, material_1_1 -> первый материал первой работы
@@ -1390,14 +1376,8 @@ const VorView = () => {
       }
     })
 
-    console.log('🗂️ Создан маппинг синтетических ID:', {
-      works: Array.from(workIndex.keys()),
-      materials: Array.from(materialIndex.keys())
-    }) // LOG: маппинг
-
     // Применяем изменения
     for (const [syntheticId, newName] of Object.entries(pendingChanges)) {
-      console.log('🔄 Обрабатываем pending изменение:', syntheticId, '->', newName) // LOG: обработка изменения
 
       let realItem: VorTableItem | undefined
 
@@ -1408,31 +1388,24 @@ const VorView = () => {
       }
 
       if (realItem) {
-        console.log('✅ Найдена реальная запись для', syntheticId, '- ID:', realItem.id) // LOG: найдена запись
 
         try {
           if (realItem.type === 'work') {
             // Обновляем работу
             await updateVorWork(realItem.id, { rate_id: newName })
-            console.log('✅ Работа обновлена:', realItem.id, 'новый rate_id:', newName) // LOG: работа обновлена
           } else if (realItem.type === 'material') {
             // Обновляем материал
             await updateVorMaterial(realItem.id, { supplier_material_name: newName })
-            console.log('✅ Материал обновлен:', realItem.id, 'новое название:', newName) // LOG: материал обновлен
           }
         } catch (error) {
-          console.error('❌ Ошибка обновления записи', realItem.id, ':', error) // LOG: ошибка обновления
         }
       } else {
-        console.warn('⚠️ Не найдена реальная запись для синтетического ID:', syntheticId) // LOG: запись не найдена
       }
     }
 
-    console.log('✅ Все pending изменения применены к реальным записям') // LOG: изменения применены
   }
 
   const handleSave = async () => {
-    console.log('🔍 Начинаем сохранение изменений...', editedItems) // LOG: отладочная информация
 
     try {
       // Используем тот же приоритет данных, что и в таблице
@@ -1444,33 +1417,19 @@ const VorView = () => {
             ? vorItemsData
             : vorItems || []
 
-      console.log('🔍 Используем источник данных для сохранения:', {
-        isEditingEnabled,
-        editableVorDataLength: editableVorData.length,
-        editableVorItemsLength: editableVorItems?.length || 0,
-        vorItemsDataLength: vorItemsData.length,
-        vorItemsLength: vorItems?.length || 0,
-        selectedSource: currentData === editableVorData ? 'editableVorData' :
-                       currentData === editableVorItems ? 'editableVorItems' :
-                       currentData === vorItemsData ? 'vorItemsData' : 'vorItems'
-      }) // LOG: выбор источника данных
-
       for (const itemId of editedItems) {
         const item = currentData.find(item => item.id === itemId)
         const editedData = editedItemsData[itemId]
 
         if (!item || !editedData) {
-          console.log('⚠️ Элемент не найден:', { itemId, hasItem: !!item, hasEditedData: !!editedData }) // LOG: элемент не найден
           continue
         }
 
-        console.log('🔍 Сохраняем элемент:', { itemId, item, editedData, itemType: item.type, isSyntheticId: itemId.includes('_') }) // LOG: отладочная информация
 
         // Проверяем, синтетический ли это ID (содержит подчеркивание)
         const isSyntheticId = itemId.includes('_')
 
         if (isSyntheticId) {
-          console.log('⚠️ Попытка сохранить элемент с синтетическим ID:', itemId, 'Пропускаем сохранение в БД') // LOG: синтетический ID
           continue
         }
 
@@ -1495,9 +1454,7 @@ const VorView = () => {
             updateData.is_modified = true
           }
 
-          console.log('🔍 Обновляем материал:', { itemId, updateData }) // LOG: отладочная информация
           const result = await updateVorMaterial(itemId, updateData)
-          console.log('🔍 Результат обновления материала:', result) // LOG: результат API
 
         } else if (item.type === 'work') {
           // Работа - обновляем согласно алгоритму
@@ -1523,12 +1480,10 @@ const VorView = () => {
               // Есть базовая цена в справочнике - пересчитываем коэффициент
               const newCoefficient = editedData.work_price / ratesBaseRate
               updateData.coefficient = newCoefficient
-              console.log('🔍 Пересчитываем коэффициент:', { work_price: editedData.work_price, ratesBaseRate, newCoefficient }) // LOG: отладочная информация
             } else {
               // Нет базовой цены - сохраняем в base_rate, коэффициент = 1
               updateData.base_rate = editedData.work_price
               updateData.coefficient = 1.0
-              console.log('🔍 Сохраняем в base_rate:', { work_price: editedData.work_price }) // LOG: отладочная информация
             }
           }
 
@@ -1537,25 +1492,20 @@ const VorView = () => {
             updateData.is_modified = true
           }
 
-          console.log('🔍 Обновляем работу:', { itemId, updateData }) // LOG: отладочная информация
           const result = await updateVorWork(itemId, updateData)
-          console.log('🔍 Результат обновления работы:', result) // LOG: результат API
         }
       }
 
       // Сохраняем новые материалы
-      console.log('🔍 Сохраняем новые материалы...', newMaterialRows) // LOG: отладочная информация
       for (const materialId of newMaterialRows) {
         const tempData = tempMaterialData[materialId]
         const materialItem = editableVorData.find(item => item.id === materialId)
 
         if (!tempData || !materialItem || !materialItem.vor_work_id) {
-          console.log('🔍 Пропускаем материал:', { materialId, tempData, materialItem }) // LOG: отладочная информация
           continue
         }
 
         if (!tempData.supplier_material_name) {
-          console.log('🔍 Материал без названия, пропускаем:', materialId) // LOG: отладочная информация
           continue
         }
 
@@ -1567,9 +1517,7 @@ const VorView = () => {
           price: tempData.price,
         }
 
-        console.log('🔍 Создаем новый материал:', { materialId, materialData }) // LOG: отладочная информация
         const newMaterial = await createVorMaterial(materialData)
-        console.log('🔍 Результат создания материала:', newMaterial) // LOG: результат API
 
         // Заменяем временную строку на реальную
         setEditableVorData(prevData =>
@@ -1591,25 +1539,12 @@ const VorView = () => {
       }
 
       // Применяем изменения названий
-      console.log('🔍 Применяем изменения названий...', nameChanges) // LOG: отладочная информация
-      console.log('🔍 Доступные справочники:', { ratesCount: rates?.length || 0, suppliersCount: suppliers?.length || 0 }) // LOG: отладочная информация
       // Используем тот же источник данных currentData, что и выше
-
-      console.log('🔍 Источники данных:', { // LOG: отладочная информация
-        editableVorDataLength: editableVorData.length,
-        editableVorItemsLength: editableVorItems?.length || 0,
-        vorItemsDataLength: vorItemsData.length,
-        vorItemsLength: vorItems?.length || 0,
-        selectedSourceLength: currentData.length
-      })
-      console.log('🔍 Доступные данные для поиска:', currentData.map(item => ({ id: item.id, type: item.type, name: item.name }))) // LOG: отладочная информация
       for (const [itemId, newName] of Object.entries(nameChanges)) {
-        console.log('🔍 Ищем элемент с ID:', itemId) // LOG: отладочная информация
 
         // Проверяем, синтетический ли это ID (содержит подчеркивание)
         const isSyntheticId = itemId.includes('_')
         if (isSyntheticId) {
-          console.log('📝 Сохраняем изменение для синтетического ID в pending:', itemId, '->', newName) // LOG: синтетический ID
           // Сохраняем изменения синтетических ID в pending для применения к реальным записям
           setPendingNameChanges(prev => ({ ...prev, [itemId]: newName }))
           continue
@@ -1617,13 +1552,10 @@ const VorView = () => {
 
         const item = currentData.find(item => item.id === itemId)
         if (!item) {
-          console.warn('⚠️ Элемент не найден:', itemId) // LOG: предупреждение
           continue
         }
-        console.log('✅ Найден элемент:', { id: item.id, type: item.type, currentName: item.name }) // LOG: отладочная информация
 
         if (item.type === 'material') {
-          console.log('🔍 Обновляем название материала:', { itemId, newName }) // LOG: отладочная информация
           // Нужно найти поставщика по названию номенклатуры из справочника
           const selectedSupplier = suppliers.find(supplier => supplier.name === newName)
           if (selectedSupplier) {
@@ -1639,7 +1571,6 @@ const VorView = () => {
             })
           }
         } else if (item.type === 'work') {
-          console.log('🔍 Обновляем название работы:', { itemId, newName }) // LOG: отладочная информация
           // Нужно найти rate_id по названию работы из справочника расценок
           const selectedRate = rates.find(rate => rate.work_name === newName)
           if (selectedRate) {
@@ -1648,18 +1579,15 @@ const VorView = () => {
               base_rate: selectedRate.base_rate
             })
           } else {
-            console.warn('Не найдена расценка для названия работы:', newName) // LOG: предупреждение
           }
         }
       }
 
       // Применяем удаления
-      console.log('🔍 Применяем удаления...', deletedItems) // LOG: отладочная информация
       for (const itemId of deletedItems) {
         const item = editableVorData.find(item => item.id === itemId)
         if (!item) continue
 
-        console.log('🔍 Удаляем элемент:', { itemId, type: item.type }) // LOG: отладочная информация
 
         if (item.type === 'work') {
           // Сначала удаляем все материалы этой работы
@@ -1673,12 +1601,9 @@ const VorView = () => {
 
       // Проверяем наличие pending изменений для синтетических ID ПЕРЕД очисткой состояний
       if (Object.keys(pendingNameChanges).length > 0) {
-        console.log('🔄 Обнаружены pending изменения для синтетических ID:', pendingNameChanges) // LOG: pending изменения
-        console.log('📊 Текущее состояние БД - editableVorItems:', editableVorItems?.length || 0, 'записей') // LOG: состояние БД
 
         // Если нет реальных записей в БД, но есть pending изменения - создаем записи и применяем изменения
         if ((!editableVorItems || editableVorItems.length === 0) && setsData && setsData.length > 0) {
-          console.log('⚡ Автоматически создаем реальные записи в БД и применяем pending изменения...') // LOG: создание записей
 
           try {
             // Создаем реальные записи в БД
@@ -1689,10 +1614,8 @@ const VorView = () => {
 
             // Применяем pending изменения к созданным записям
             await applyPendingNameChanges(pendingNameChanges)
-            console.log('✅ Реальные записи созданы и pending изменения применены') // LOG: записи созданы
 
           } catch (error) {
-            console.error('❌ Ошибка создания реальных записей:', error) // LOG: ошибка создания
           }
         }
       }
@@ -1704,13 +1627,10 @@ const VorView = () => {
       setNameChanges({})
       setPendingNameChanges({})
 
-      console.log('✅ Все изменения сохранены') // LOG: успешное сохранение
       messageApi.success('Изменения сохранены')
 
       // Перезагружаем данные
-      console.log('🔍 Инвалидируем кеш для vor_id:', vorId) // LOG: инвалидация кеша
       await queryClient.invalidateQueries({ queryKey: ['editable-vor-items', vorId] })
-      console.log('🔍 Кеш инвалидирован') // LOG: инвалидация завершена
 
       setViewMode('view')
       setIsEditingEnabled(false)
@@ -1718,7 +1638,6 @@ const VorView = () => {
       setEditedItemsData({})
 
     } catch (error) {
-      console.error('❌ Ошибка сохранения:', error) // LOG: ошибка сохранения
       messageApi.error('Ошибка при сохранении изменений')
     }
   }
@@ -1757,7 +1676,6 @@ const VorView = () => {
 
   // Пометка работы как удаленной (не удаляем сразу)
   const handleDeleteWork = (workId: string) => {
-    console.log('🔍 Помечаем работу для удаления:', workId) // LOG: отладочная информация
 
     // Помечаем работу как удаленную
     setDeletedItems(prev => new Set([...prev, workId]))
@@ -1780,7 +1698,6 @@ const VorView = () => {
 
   // Пометка материала как удаленного (не удаляем сразу)
   const handleDeleteMaterial = (materialId: string) => {
-    console.log('🔍 Помечаем материал для удаления:', materialId) // LOG: отладочная информация
 
     // Если это новый материал (еще не сохранен в БД)
     if (newMaterialRows.has(materialId)) {
@@ -1812,7 +1729,6 @@ const VorView = () => {
   }
 
   const handleSaveEditName = (itemId: string, itemType: 'work' | 'material') => {
-    console.log('🔍 Сохраняем изменение названия во временное состояние:', { itemId, itemType, newName: editingNameValue }) // LOG: отладочная информация
 
     // Сохраняем изменение названия во временном состоянии
     setNameChanges(prev => ({
@@ -1904,10 +1820,8 @@ const VorView = () => {
 
     try {
       const setId = setsData[0].id
-      console.log('🔄 Принудительная загрузка данных из комплекта в БД...', { vorId, setId }) // LOG: начало загрузки
 
       // Очищаем существующие данные ВОР
-      console.log('🗑️ Очищаем существующие данные ВОР...') // LOG: очистка
 
       // Сначала удаляем материалы (у них есть внешний ключ на работы)
       const { error: deleteMaterialsError } = await supabase
@@ -1921,7 +1835,6 @@ const VorView = () => {
         )
 
       if (deleteMaterialsError) {
-        console.error('Ошибка удаления материалов ВОР:', deleteMaterialsError) // LOG: ошибка
         throw deleteMaterialsError
       }
 
@@ -1932,17 +1845,13 @@ const VorView = () => {
         .eq('vor_id', vorId)
 
       if (deleteWorksError) {
-        console.error('Ошибка удаления работ ВОР:', deleteWorksError) // LOG: ошибка
         throw deleteWorksError
       }
 
-      console.log('✅ Старые данные ВОР удалены') // LOG: успешная очистка
 
       // Вызываем функцию заполнения ВОР данными из комплекта
-      console.log('⚡ Заполняем ВОР данными из комплекта...') // LOG: заполнение
       await populateVorFromChessboardSet(vorId, setId)
 
-      console.log('✅ Данные ВОР успешно загружены из комплекта') // LOG: успех
 
       // Инвалидируем кеш для обновления данных
       queryClient.invalidateQueries({ queryKey: ['editable-vor-items', vorId] })
@@ -1950,7 +1859,6 @@ const VorView = () => {
 
       messageApi.success('Данные ВОР успешно загружены из комплекта')
     } catch (error) {
-      console.error('Ошибка при загрузке данных из комплекта:', error) // LOG: ошибка
       messageApi.error('Ошибка при загрузке данных из комплекта')
     }
   }
@@ -2853,13 +2761,6 @@ const VorView = () => {
   // Формирование информации о комплекте для заголовка
   const setInfo = setsData && setsData.length > 0
     ? setsData.map((set) => {
-        console.log('🔍 Данные комплекта для заголовка:', { // LOG: отладочная информация
-          id: set.id,
-          code: set.code,
-          set_number: set.set_number,
-          name: set.name,
-          created_at: set.created_at
-        })
         const setCode = set.code || set.set_number || set.name || `SET-${set.id.slice(0, 8)}`
         const setName = set.name || 'Название комплекта'
         const createdDate = set.created_at ? new Date(set.created_at).toLocaleDateString('ru-RU') : '30.09.2025'

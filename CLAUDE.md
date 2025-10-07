@@ -44,7 +44,7 @@ npm run format:check # Check formatting without changes
 npx tsc --noEmit     # Type checking only (standalone)
 
 # Testing
-npx playwright test  # Run end-to-end tests (base URL: http://localhost:5173)
+npx playwright test  # Run end-to-end tests (base URL: http://localhost:5199)
 npx playwright test --ui  # Run tests with UI mode
 npx playwright show-report  # Open test results in browser
 
@@ -52,6 +52,9 @@ npx playwright show-report  # Open test results in browser
 npx playwright test tests/auth.spec.js  # Run specific test file
 npx playwright test --grep "login"      # Run tests matching pattern
 npx playwright test --debug             # Run in debug mode
+
+# Override base URL for testing
+BASE_URL=http://localhost:5180 npx playwright test  # Test against different port
 ```
 
 ## Pre-commit Checklist
@@ -113,6 +116,10 @@ src/
 - `src/shared/contexts/` - React contexts for global state (LogoContext, ScaleContext)
 - `src/lib/supabase.ts` - Supabase client configuration
 - `src/components/` - Legacy UI components being migrated to FSD structure
+- `docs/` - Technical documentation (CODE_PATTERNS.md, PERFORMANCE_OPTIMIZATION.md)
+- `tests/` - Playwright E2E tests (auth.spec.js, chessboard-simple.spec.ts, etc.)
+- `sql/` - SQL migrations and schema changes (MUST store all SQL files here)
+- `temp/` - Temporary files that can be safely deleted at the end of the day
 
 ## Core Features
 
@@ -459,14 +466,15 @@ From technical specification (`tech_task.md`):
 ## Testing Configuration
 
 ### Playwright E2E Testing
-- **Base URL**: http://localhost:5199 (Playwright auto-server)
+- **Base URL**: http://localhost:5199 (auto-configured, can override with BASE_URL env var)
 - **Test directory**: `./tests`
-- **Browsers**: Chromium, Firefox, WebKit (Edge on Windows)
+- **Browsers**: Chromium, Edge (on Windows)
 - **Auto-start dev server**: Uses `npm run dev:local` command with 120s timeout
 - **Web server URL**: http://localhost:5199 (auto-configured in playwright.config.js)
 - **Reporters**: HTML report with screenshots and videos on failure
-- **Parallel execution**: Enabled for faster test runs
+- **Parallel execution**: Enabled for faster test runs (`fullyParallel: true`)
 - **Retry logic**: 2 retries on CI, 0 retries locally
+- **Workers**: 1 worker on CI, unlimited locally
 
 ## Application Structure Notes
 
