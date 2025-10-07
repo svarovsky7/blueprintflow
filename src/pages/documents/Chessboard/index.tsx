@@ -1,5 +1,6 @@
 import { useCallback, useState, useEffect, useMemo, useRef } from 'react'
 import { Typography, Pagination } from 'antd'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useScale } from '@/shared/contexts/ScaleContext'
 import { useFiltersState } from './hooks/useFiltersState'
 import { useChessboardData } from './hooks/useChessboardData'
@@ -18,6 +19,8 @@ const { Title } = Typography
 
 export default function Chessboard() {
   const { scale } = useScale()
+  const location = useLocation()
+  const navigate = useNavigate()
 
   // Состояние пагинации
   const [currentPage, setCurrentPage] = useState(() => {
@@ -168,6 +171,48 @@ export default function Chessboard() {
   useEffect(() => {
     statusSetManuallyRef.current = false
   }, [appliedFilters.project_id])
+
+  // Обработка URL параметра ?set={id} для автоматического применения фильтров комплекта
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const setId = params.get('set')
+
+    if (setId) {
+      const loadSetFilters = async () => {
+        try {
+          const set = await chessboardSetsApi.getSetById(setId)
+
+          if (set) {
+            // Применяем фильтры из комплекта
+            setAppliedFilters({
+              project_id: set.project_id,
+              documentation_section_ids: set.tag_id ? [set.tag_id.toString()] : [],
+              documentation_code_ids: set.documentation_ids || [],
+              documentation_version_ids: [],
+              block_ids: set.block_ids || [],
+              cost_category_ids: set.cost_category_ids || [],
+              detail_cost_category_ids: set.cost_type_ids || [],
+              set_ids: [setId],
+            })
+
+            // Устанавливаем статус комплекта
+            if (set.status) {
+              setCurrentStatus(set.status.id)
+              setCurrentSetName(set.name)
+              statusSetManuallyRef.current = true
+            }
+
+            // Удаляем параметр ?set из URL, чтобы избежать повторной загрузки
+            navigate(location.pathname, { replace: true })
+          }
+        } catch (error) {
+          console.error('Ошибка загрузки комплекта:', error)
+        }
+      }
+
+      loadSetFilters()
+    }
+  }, [location.search, location.pathname, navigate, setAppliedFilters])
 
   // Обработчики событий
   const handleAddRow = useCallback(() => {

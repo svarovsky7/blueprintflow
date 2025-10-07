@@ -8,6 +8,7 @@ import {
   FilterOutlined,
   UpOutlined,
   DownOutlined,
+  ImportOutlined,
 } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -16,9 +17,18 @@ import { useScale } from '@/shared/contexts/ScaleContext'
 import { StatusSelector } from './Finishing/components/StatusSelector'
 import { CreateFinishingPieModal } from './Finishing/components/CreateFinishingPieModal'
 import { VersionsModal } from './Finishing/components/VersionsModal'
+import { ImportConfirmModal } from './Finishing/components/ImportConfirmModal'
+import { ImportResultModal } from './Finishing/components/ImportResultModal'
+import { ValidationErrorModal } from './Finishing/components/ValidationErrorModal'
 import { useVersionsState } from './Finishing/hooks/useVersionsState'
+import { useImportToChessboard } from './Finishing/hooks/useImportToChessboard'
 import { createFinishingPie } from '@/entities/finishing/api/finishing-pie-api'
-import type { FinishingPie, CreateFinishingPieDto } from '@/entities/finishing/model/types'
+import type {
+  FinishingPie,
+  CreateFinishingPieDto,
+  ImportToChessboardResult,
+  ValidationError,
+} from '@/entities/finishing/model/types'
 
 const { Title } = Typography
 
@@ -41,6 +51,17 @@ interface DocumentVersion {
   id: string
   documentation_id: string
   version_number: number
+}
+
+interface FinishingPieWithSet extends FinishingPie {
+  finishing_pie_sets_mapping?: Array<{
+    set_id: string
+    chessboard_sets: {
+      id: string
+      set_number: string
+      set_name: string | null
+    }
+  }>
 }
 
 export default function Finishing() {
@@ -68,6 +89,14 @@ export default function Finishing() {
   const [filtersExpanded, setFiltersExpanded] = useState(true)
   const [createModalVisible, setCreateModalVisible] = useState(false)
 
+  // Состояние для импорта в Шахматку
+  const [importConfirmModalOpen, setImportConfirmModalOpen] = useState(false)
+  const [importResultModalOpen, setImportResultModalOpen] = useState(false)
+  const [validationErrorModalOpen, setValidationErrorModalOpen] = useState(false)
+  const [selectedForImport, setSelectedForImport] = useState<FinishingPieWithSet | null>(null)
+  const [importResult, setImportResult] = useState<ImportToChessboardResult | null>(null)
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
+
   // Хук для управления версиями документов
   const {
     versionsModalOpen,
@@ -77,6 +106,9 @@ export default function Finishing() {
     handleVersionSelect,
     applyVersions,
   } = useVersionsState()
+
+  // Хук для импорта в Шахматку
+  const importMutation = useImportToChessboard()
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -226,7 +258,7 @@ export default function Finishing() {
     enabled: selectedDocumentations.length > 0,
   })
 
-  const { data: finishingData = [] } = useQuery<FinishingPie[]>({
+  const { data: finishingData = [] } = useQuery<FinishingPieWithSet[]>({
     queryKey: [
       'finishing-pie-documents',
       appliedFilters.project,
@@ -241,7 +273,11 @@ export default function Finishing() {
 
       let query = supabase
         .from('finishing_pie')
-        .select('*, blocks(name), documentation_versions(documentation_id)')
+        .select(`
+          *,
+          blocks(name),
+          documentation_versions(documentation_id)
+        `)
         .eq('project_id', appliedFilters.project)
 
       if (appliedFilters.blocks.length > 0) {
@@ -258,8 +294,45 @@ export default function Finishing() {
 
       if (error) throw error
 
+      // Получить связи с комплектами отдельным запросом
+      const finishingPieIds = allData?.map((doc: any) => doc.id) || []
+      let setMappings: any[] = []
+
+      if (finishingPieIds.length > 0) {
+        const { data: mappingsData, error: mappingsError } = await supabase
+          .from('finishing_pie_sets_mapping')
+          .select('finishing_pie_id, set_id')
+          .in('finishing_pie_id', finishingPieIds)
+
+        if (!mappingsError && mappingsData && mappingsData.length > 0) {
+          // Получить информацию о комплектах
+          const setIds = mappingsData.map((m: any) => m.set_id)
+          const { data: setsData, error: setsError } = await supabase
+            .from('chessboard_sets')
+            .select('id, set_number, set_name')
+            .in('id', setIds)
+
+          if (!setsError && setsData) {
+            // Объединить маппинги с данными комплектов
+            setMappings = mappingsData.map((m: any) => ({
+              ...m,
+              chessboard_sets: setsData.find((s: any) => s.id === m.set_id),
+            }))
+          }
+        }
+      }
+
+      // Объединить данные finishing_pie с маппингами комплектов
+      const dataWithSets = allData?.map((doc: any) => {
+        const mapping = setMappings.find((m: any) => m.finishing_pie_id === doc.id)
+        return {
+          ...doc,
+          finishing_pie_sets_mapping: mapping ? [mapping] : [],
+        }
+      }) || []
+
       // Фильтрация по шифрам проектов и версиям на клиенте
-      let filtered = allData || []
+      let filtered = dataWithSets || []
 
       // Фильтр по шифрам проектов
       if (appliedFilters.documentations.length > 0) {
@@ -419,6 +492,113 @@ export default function Finishing() {
     })
   }, [documentationInfo, applyVersions])
 
+  // Обработчики импорта в Шахматку
+  const [importPreviewData, setImportPreviewData] = useState<{
+    documentInfo: any
+    statistics: any
+    setName: string
+  } | null>(null)
+
+  const handleImportClick = async (record: FinishingPieWithSet) => {
+    try {
+      const { data: pieMapping, error: pieError } = await supabase
+        .from('finishing_pie_mapping')
+        .select('id, pie_type_id')
+        .eq('finishing_pie_id', record.id)
+
+      if (pieError) throw pieError
+
+      const { data: calculation, error: calcError } = await supabase
+        .from('type_calculation_mapping')
+        .select('pie_type_id')
+        .eq('finishing_pie_id', record.id)
+
+      if (calcError) throw calcError
+
+      const activeTypeIds = new Set(
+        calculation?.map((c: any) => c.pie_type_id).filter(Boolean) || []
+      )
+
+      const totalRows = pieMapping?.length || 0
+      const activeTypes = activeTypeIds.size
+      const rowsToImport = pieMapping?.filter((t: any) => activeTypeIds.has(t.pie_type_id))
+        .length || 0
+      const excludedRows = totalRows - rowsToImport
+
+      const { data: versionData, error: versionError } = await supabase
+        .from('documentation_versions')
+        .select('documentation:documentation_id(code)')
+        .eq('id', record.version_id)
+        .single()
+
+      if (versionError) throw versionError
+
+      const docCode = (versionData as any)?.documentation?.code || 'Комплект отделки'
+
+      setImportPreviewData({
+        documentInfo: {
+          name: record.name,
+          projectName: projects.find((p) => p.value === selectedProject)?.label || '',
+          blockName: record.block_name || undefined,
+          costCategoryName: undefined,
+          documentationCode: docCode,
+        },
+        statistics: {
+          totalRows,
+          activeTypes,
+          rowsToImport,
+          excludedRows,
+          estimatedFloorMappings: rowsToImport * 2,
+        },
+        setName: docCode,
+      })
+
+      setSelectedForImport(record)
+      setImportConfirmModalOpen(true)
+    } catch (error: any) {
+      message.error(`Ошибка получения данных: ${error.message}`)
+    }
+  }
+
+  const handleImportConfirm = async () => {
+    if (!selectedForImport) return
+
+    try {
+      const result = await importMutation.mutateAsync(selectedForImport.id)
+
+      setImportConfirmModalOpen(false)
+
+      if (result.validationError && result.invalidRows) {
+        setValidationErrors(result.invalidRows)
+        setValidationErrorModalOpen(true)
+      } else {
+        setImportResult(result)
+        setImportResultModalOpen(true)
+      }
+    } catch (error: any) {
+      message.error(`Ошибка импорта: ${error.message}`)
+      setImportConfirmModalOpen(false)
+    }
+  }
+
+  const handleImportCancel = () => {
+    setImportConfirmModalOpen(false)
+    setSelectedForImport(null)
+    setImportPreviewData(null)
+  }
+
+  const handleCloseResultModal = () => {
+    setImportResultModalOpen(false)
+    setImportResult(null)
+    setSelectedForImport(null)
+  }
+
+  const handleCloseValidationModal = () => {
+    setValidationErrorModalOpen(false)
+    setValidationErrors([])
+    setSelectedForImport(null)
+  }
+
   const columns = [
     {
       title: 'Наименование документа',
@@ -502,18 +682,56 @@ export default function Finishing() {
       },
     },
     {
+      title: 'Комплект',
+      key: 'set',
+      width: '15%',
+      render: (_: any, record: FinishingPieWithSet) => {
+        const setMapping = record.finishing_pie_sets_mapping?.[0]
+        if (!setMapping) return '—'
+
+        const setInfo = setMapping.chessboard_sets
+        const setLabel = setInfo.set_name || `№${setInfo.set_number}`
+
+        return (
+          <Button
+            type="link"
+            onClick={() => navigate(`/documents/chessboard?set=${setInfo.id}`)}
+            style={{ padding: 0 }}
+          >
+            {setLabel}
+          </Button>
+        )
+      },
+    },
+    {
       title: '',
       key: 'actions',
-      width: '60px',
+      width: '100px',
       align: 'center' as const,
-      render: (_: any, record: FinishingPie) => (
-        <Button
-          type="text"
-          danger
-          icon={<DeleteOutlined />}
-          onClick={() => handleDelete(record.id)}
-        />
-      ),
+      render: (_: any, record: FinishingPieWithSet) => {
+        const hasSet = !!record.finishing_pie_sets_mapping?.[0]
+        const bothStatusesCompleted = record.status_finishing_pie && record.status_type_calculation
+        const canImport = bothStatusesCompleted && !hasSet
+
+        return (
+          <Space size="small">
+            {canImport && (
+              <Button
+                type="text"
+                icon={<ImportOutlined />}
+                onClick={() => handleImportClick(record)}
+                title="Импортировать в Шахматку"
+              />
+            )}
+            <Button
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDelete(record.id)}
+            />
+          </Space>
+        )
+      },
     },
   ]
 
@@ -713,6 +931,30 @@ export default function Finishing() {
         documentVersions={documentVersions}
         selectedVersions={selectedVersions}
         onVersionSelect={handleVersionSelect}
+      />
+
+      {importPreviewData && (
+        <ImportConfirmModal
+          open={importConfirmModalOpen}
+          onCancel={handleImportCancel}
+          onConfirm={handleImportConfirm}
+          loading={importMutation.isPending}
+          documentInfo={importPreviewData.documentInfo}
+          statistics={importPreviewData.statistics}
+          setName={importPreviewData.setName}
+        />
+      )}
+
+      <ImportResultModal
+        open={importResultModalOpen}
+        onClose={handleCloseResultModal}
+        result={importResult}
+      />
+
+      <ValidationErrorModal
+        open={validationErrorModalOpen}
+        onClose={handleCloseValidationModal}
+        errors={validationErrors}
       />
     </div>
   )

@@ -102,3 +102,31 @@ export interface UpdateFinishingPieRowDto {
   rate_id?: string | null // FK на rates (расценка)
   rate_unit_id?: string | null // FK на units
 }
+
+// Типы для импорта в Шахматку
+
+// Ошибка валидации строки типа пирога
+export interface ValidationError {
+  rowNumber: number
+  pieTypeName: string
+  materialName: string
+  unitName: string
+  detailCostCategoryName: string
+  missingFields: string[]
+}
+
+// Результат импорта в Шахматку
+export interface ImportToChessboardResult {
+  success: boolean
+  validationError?: boolean
+  set_id?: string | null
+  set_number?: string | null
+  set_name?: string | null
+  created_rows?: number
+  created_floor_mappings?: number
+  excluded_rows?: number
+  invalidRows?: ValidationError[]
+  errors: string[]
+  warnings: string[]
+  message?: string
+}
