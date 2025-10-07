@@ -240,10 +240,7 @@ export const getWorkSetsByFilters = async (costTypeIds?: number[], costCategoryI
       work_set,
       rates_detail_cost_categories_mapping(
         detail_cost_category_id,
-        detail_cost_categories:detail_cost_category_id(
-          id,
-          cost_category_id
-        )
+        cost_category_id
       )
     `)
     .eq('active', true)
@@ -264,7 +261,7 @@ export const getWorkSetsByFilters = async (costTypeIds?: number[], costCategoryI
   let filteredRates = data
 
   if (costTypeIds && costTypeIds.length > 0) {
-    // Приоритет 1: Фильтрация по видам затрат (detail_cost_categories)
+    // Приоритет 1: Фильтрация по видам затрат (detail_cost_category_id)
     filteredRates = data.filter(rate => {
       const mappings = rate.rates_detail_cost_categories_mapping || []
       return mappings.some(mapping =>
@@ -272,13 +269,12 @@ export const getWorkSetsByFilters = async (costTypeIds?: number[], costCategoryI
       )
     })
   } else if (costCategoryIds && costCategoryIds.length > 0) {
-    // Приоритет 2: Фильтрация по категориям затрат через detail_cost_categories
+    // Приоритет 2: Фильтрация по категориям затрат (cost_category_id)
     filteredRates = data.filter(rate => {
       const mappings = rate.rates_detail_cost_categories_mapping || []
-      return mappings.some(mapping => {
-        const detailCategory = mapping.detail_cost_categories
-        return detailCategory && costCategoryIds.includes(detailCategory.cost_category_id)
-      })
+      return mappings.some(mapping =>
+        costCategoryIds.includes(mapping.cost_category_id)
+      )
     })
   }
   // Если нет фильтров - возвращаем все

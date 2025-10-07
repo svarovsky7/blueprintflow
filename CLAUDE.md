@@ -124,28 +124,11 @@ src/
 - Cascading dropdowns with automatic location assignment
 - Column settings persistence in localStorage
 
-#### Изменение ширины столбцов в Chessboard
+#### Изменение ширины столбцов
 
-**ВАЖНО:** Ширина столбцов автоматически масштабируется для разных scale (0.7, 0.8, 0.9, 1.0).
+Ширина столбцов автоматически масштабируется для разных scale (0.7, 0.8, 0.9, 1.0). Используйте `COLUMN_WIDTH_CONFIG_BASE` в `ChessboardTable.tsx` и функцию `increaseColumnWidth(baseWidth, percentage)` для правильного расчёта.
 
-**Пошаговая инструкция:**
-1. Найдите `COLUMN_WIDTH_CONFIG_BASE` в `src/pages/documents/Chessboard/components/ChessboardTable.tsx` (строка ~94)
-2. Используйте ТОЛЬКО `{ width: number }` для изменения ширины (НЕ minWidth/maxWidth!)
-3. Для расчета используйте функцию `increaseColumnWidth(baseWidth, percentage)`
-
-**Примеры:**
-```typescript
-// Увеличить "Вид затрат" на 30% от базовых 120px
-[COLUMN_KEYS.COST_TYPE]: { width: increaseColumnWidth(120, 30) }, // = 156px
-
-// Увеличить "Наименование работ" на 20% от базовых 200px
-[COLUMN_KEYS.WORK_NAME]: { width: increaseColumnWidth(200, 20) }, // = 240px
-```
-
-**Почему это работает:**
-- Базовые значения для `scale = 0.7`
-- При `scale = 1.0`: ширина автоматически станет `width / 0.7 * 1.0` (например, 156 → 223px)
-- Функция `getScaledWidth()` пересчитывает все размеры для текущего масштаба
+**Детальная инструкция:** См. [docs/CODE_PATTERNS.md#изменение-ширины-столбцов-в-chessboard](docs/CODE_PATTERNS.md#изменение-ширины-столбцов-в-chessboard)
 
 ### Excel Import Requirements
 - Headers use fuzzy matching for: "материал", "кол", "ед" columns
@@ -328,32 +311,13 @@ From technical specification (`tech_task.md`):
 - **Multi-language**: UI is in Russian, maintain Russian labels for user-facing elements
 
 ### Filter Components Requirements
-- **All Select components in filters MUST include:**
-  - `allowClear` - enables X button to clear selection
-  - `showSearch` - enables search by typing
-  - `filterOption` - custom filter function for Russian text support
 
-```typescript
-// Standard filter Select component pattern
-<Select
-  placeholder="Выберите значение"
-  allowClear
-  showSearch
-  filterOption={(input, option) => {
-    const text = (option?.children || option?.label)?.toString() || ""
-    return text.toLowerCase().includes(input.toLowerCase())
-  }}
-  // ... other props
->
-  {options.map(item => (
-    <Select.Option key={item.id} value={item.id}>
-      {item.name}
-    </Select.Option>
-  ))}
-</Select>
-```
+**All Select components in filters MUST include:**
+- `allowClear` - кнопка X для очистки
+- `showSearch` - поиск по вводу
+- `filterOption` - кастомная функция фильтрации для русского языка
 
-**Note:** For Select with `options` prop, use `option?.label`. For `Select.Option` children, use `option?.children`.
+**Детальные примеры и паттерны:** См. [docs/CODE_PATTERNS.md#компоненты-фильтров](docs/CODE_PATTERNS.md#компоненты-фильтров)
 
 ## Code Standards
 - Component names: `PascalCase`
@@ -393,217 +357,35 @@ From technical specification (`tech_task.md`):
 
 ### Шаблон "Документ" (Document Template)
 
-Применяется для страниц категории справочников и документов. При указании использовать "шаблон Документ", применяются следующие требования:
+Стандартизированный шаблон для страниц справочников и документов (Шахматка, ВОР, Расценки).
 
-#### 1. Структура страницы
-- **Заголовок страницы** отображается в верхней части
-- **Два блока фильтров** под шапкой:
-  - **Статичный блок** - основные фильтры (проект, корпус и т.д.), всегда видимый
-  - **Скрываемый блок** - дополнительные фильтры с кнопкой свернуть/развернуть
-- **Таблица данных** - основное содержимое страницы
+**Основные компоненты:**
+- Заголовок страницы
+- Два блока фильтров (статичный + скрываемый)
+- Таблица с режимами: view/add/edit/delete
+- Функциональность строк: добавление, копирование, редактирование, удаление, цветовая маркировка
+- Настройка столбцов с сохранением в localStorage
+- Пагинация (по умолчанию 100 строк)
+- Импорт/Экспорт Excel
 
-#### 2. Режимы работы таблицы
-- **Режим просмотра** (view) - отображение данных
-- **Режим добавления** (add) - добавление новых строк
-- **Режим редактирования** (edit) - inline редактирование существующих строк
-- **Режим удаления** (delete) - массовое удаление с чекбоксами в первом столбце
-- **Массовое редактирование** - одновременное редактирование нескольких строк
+**Цветовая схема:** green (#d9f7be), yellow (#fff1b8), blue (#e6f7ff), red (#ffa39e)
 
-#### 3. Функциональность строк
-- **Добавление строки** - кнопка "+" или "Добавить строку"
-- **Копирование строки** - иконка копирования в столбце действий (только иконка, без текста)
-- **Редактирование** - inline редактирование по клику на кнопку редактирования (только иконка, без текста)
-- **Удаление** - единичное через иконку или массовое в режиме удаления (только иконка, без текста)
-- **Цветовая маркировка** - выбор цвета строки через color picker в левой части
+**Полное описание и примеры кода:** См. [docs/CODE_PATTERNS.md#шаблон-страницы-документ](docs/CODE_PATTERNS.md#шаблон-страницы-документ)
 
-#### 4. Сохранение изменений
-- **Кнопка "Сохранить"** - сохранение всех изменений разом (появляется вместо кнопок Добавить/Удалить)
-- **Кнопка "Отмена"** - отмена всех несохраненных изменений
-- **Режимная логика кнопок**:
-  - В режиме добавления: Сохранить/Отмена
-  - В режиме редактирования: Сохранить/Отмена (вместо Добавить/Удалить)
-  - В режиме удаления: Удалить(N)/Отмена
-- **Условия отображения кнопок**:
-  - **Кнопка "Удалить"** показывается только после выбора проекта и применения фильтров (`appliedFilters.project_id`)
-  - **Кнопка "Отмена"** в режиме удаления также требует выбранного проекта
-- **Обработка конфликтов** - диалог при конфликте уникальных полей
-
-#### 5. Настройка столбцов
-- **Кнопка "Настройка столбцов"** в правой части скрываемого блока фильтров
-- **Стиль кнопки**: Обычная кнопка с иконкой (без `type="primary"` и `title`)
-- **Расположение**: В правой части блока с помощью `justify-content: space-between`
-- **Drawer справа** с шириной 350px, точно как в Шахматке
-- **Функции настройки**:
-  - **Чекбокс "Выделить все"** - массовое включение/отключение всех столбцов
-  - **Кнопка "По умолчанию"** - сброс к исходным настройкам
-  - **Список столбцов** с чекбоксами для включения/отключения видимости
-  - **Стрелки вверх/вниз** для изменения порядка столбцов
-  - Служебные столбцы (checkbox, actions) не управляются через настройки
-- **Сохранение в localStorage**:
-  - `{page-name}-column-visibility` - видимость столбцов
-  - `{page-name}-column-order` - порядок столбцов
-  - Автоматическое восстановление при следующем посещении страницы
-
-#### 6. Пагинация
-- **По умолчанию**: 100 строк на странице
-- **Варианты выбора**: 10, 20, 50, 100, 200, 500 строк
-- **Сохранение выбора** в localStorage
-
-#### 7. Закрепление элементов
-- **Sticky заголовок таблицы** - не уезжает при вертикальном скролле
-- **Блок фильтров** остается видимым при прокрутке
-- **Меню и шапка сайта** закреплены
-- **Горизонтальный и вертикальный скролл** таблицы с высотой calc(100vh - 300px)
-
-#### 8. Импорт/Экспорт
-- **Импорт из Excel** через drag-and-drop или выбор файла
-- **Обработка конфликтов** при импорте
-- **Экспорт в Excel** текущих отфильтрованных данных
-
-#### 9. Цветовая схема строк:
-- green: #d9f7be
-- yellow: #fff1b8
-- blue: #e6f7ff
-- red: #ffa39e
-
-### Пример использования шаблона
-
-При создании новой страницы с применением шаблона "Документ":
-
-1. Копировать структуру из `src/pages/documents/Chessboard.tsx`
-2. Адаптировать под конкретную сущность
-3. Сохранять все принципы работы с данными
-4. Использовать единые паттерны для фильтров и действий
+**Референс:** `src/pages/documents/Chessboard.tsx`
 
 ## Table Scroll Configuration
 
-### КРИТИЧЕСКИ ВАЖНО: Правильная настройка прокрутки для предотвращения двойного скролла
+**КРИТИЧЕСКИ ВАЖНО:** Правильная настройка прокрутки для предотвращения двойного скролла.
 
-При создании страниц с таблицами **ОБЯЗАТЕЛЬНО** используйте следующую структуру для предотвращения двойного вертикального скролла:
+**Ключевые правила:**
+1. Главный контейнер: `height: calc(100vh - 96px)`, `overflow: hidden`
+2. Контейнер таблицы: `flex: 1`, `overflow: hidden` (НЕ auto!), `minHeight: 0`
+3. Table: `sticky`, `scroll.y: calc(100vh - 300px)` (фиксированная высота)
 
-#### Правильная структура (ИСПОЛЬЗОВАТЬ ВСЕГДА):
+**Адаптивный расчёт высоты:** Обязательно учитывать ВСЕ элементы страницы - header приложения, заголовки таблицы, Summary строку, borders и padding.
 
-```tsx
-// Главный контейнер страницы - фиксированная высота
-<div style={{ 
-  height: 'calc(100vh - 96px)', // 96px = высота header + отступы
-  display: 'flex', 
-  flexDirection: 'column',
-  overflow: 'hidden'  // ВАЖНО: предотвращает скролл страницы
-}}>
-  // Секция фильтров - не сжимается
-  <div style={{ flexShrink: 0, paddingBottom: 16 }}>
-    {/* Фильтры и управляющие элементы */}
-  </div>
-  
-  // Контейнер таблицы - занимает оставшееся пространство
-  <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>  // ВАЖНО: overflow: hidden, НЕ auto!
-    <Table
-      sticky  // Закрепление заголовков
-      scroll={{ 
-        x: 'max-content',
-        y: 'calc(100vh - 300px)'  // Фиксированная высота для скролла таблицы
-        // Если есть пагинация: y: 'calc(100vh - 350px)'
-      }}
-      // ... остальные props
-    />
-  </div>
-</div>
-```
-
-#### Ключевые правила для предотвращения двойного скролла:
-
-1. **Главный контейнер**: 
-   - `height: calc(100vh - 96px)` - фиксированная высота
-   - `overflow: hidden` - блокирует скролл страницы
-
-2. **Контейнер таблицы**:
-   - `flex: 1` - занимает оставшееся пространство
-   - `overflow: hidden` - **НЕ используйте `overflow: auto`!** Это создаст второй скролл
-   - `minHeight: 0` - важно для правильной работы flexbox
-
-3. **Настройки Table**:
-   - `sticky` - для закрепления заголовков
-   - `scroll.y: calc(100vh - 300px)` - фиксированная высота, НЕ используйте `100%` или `auto`
-   - Для страниц с пагинацией: `scroll.y: calc(100vh - 350px)`
-
-### КРИТИЧЕСКИ ВАЖНО: Адаптивный расчёт высоты таблицы
-
-При настройке `scroll.y` в Ant Design Table **ОБЯЗАТЕЛЬНО** учитывайте ВСЕ элементы страницы для корректного отображения последних строк и Summary.
-
-#### Правильный расчёт всех элементов:
-
-```tsx
-// Добавить состояние для адаптивной высоты
-const [tableScrollHeight, setTableScrollHeight] = useState('calc(100vh - 350px)')
-
-// Адаптивный расчёт высоты таблицы
-useEffect(() => {
-  const calculateTableHeight = () => {
-    const viewportHeight = window.innerHeight
-
-    // Подробный расчёт ВСЕХ элементов:
-    const headerHeight = 96          // header приложения
-    const pageHeaderHeight = 160     // заголовок ВОР + описание + название
-    const legendHeight = 60          // легенда цветов
-    const tableHeaderHeight = 45     // заголовки столбцов таблицы ⭐ КРИТИЧНО
-    const summaryRowHeight = 40      // итоговая строка ⭐ КРИТИЧНО
-    const paddingAndMargins = 40     // отступы контейнера + borders
-
-    const totalOffset = headerHeight + pageHeaderHeight + legendHeight +
-                       tableHeaderHeight + summaryRowHeight + paddingAndMargins
-
-    // Адаптивный расчёт с учётом размера экрана
-    if (viewportHeight <= 768) {
-      // Маленькие экраны - минимальные отступы
-      setTableScrollHeight(`calc(100vh - ${totalOffset - 40}px)`)
-    } else if (viewportHeight <= 1080) {
-      // Средние экраны - стандартные отступы
-      setTableScrollHeight(`calc(100vh - ${totalOffset}px)`)
-    } else {
-      // Большие экраны - дополнительный запас
-      setTableScrollHeight(`calc(100vh - ${totalOffset + 20}px)`)
-    }
-  }
-
-  calculateTableHeight()
-  window.addEventListener('resize', calculateTableHeight)
-  return () => window.removeEventListener('resize', calculateTableHeight)
-}, [])
-
-// Использовать в Table
-<Table
-  scroll={{
-    x: 'max-content',
-    y: tableScrollHeight,  // Динамическое значение
-  }}
-/>
-```
-
-#### Элементы, которые ОБЯЗАТЕЛЬНО учитывать:
-
-1. **Внешние элементы страницы:**
-   - Header приложения (~96px)
-   - Заголовок секции/ВОР (~160px)
-   - Легенда/описание (~60px)
-
-2. **Внутренние элементы таблицы (часто забывают!):**
-   - **Заголовки столбцов (thead)** - обычно 40-50px ⚠️
-   - **Summary строка** - добавляет 35-45px ⚠️
-   - **Borders и padding таблицы** - ещё 20-40px ⚠️
-
-3. **Отступы контейнера:**
-   - Padding контейнера таблицы
-   - Margins между элементами
-
-#### Типичные ошибки:
-
-❌ **НЕ учитывать заголовки таблицы** - приводит к обрезке последних строк
-❌ **НЕ учитывать Summary строку** - итоги не видны при прокрутке
-❌ **Фиксированные значения** - не работают на разных экранах
-❌ **Использовать `100%` или `auto`** - ломает прокрутку Ant Design Table
-
-✅ **Правильно:** Детальный расчёт всех элементов + адаптивность
+**Полное руководство с примерами:** См. [docs/CODE_PATTERNS.md#настройка-прокрутки-предотвращение-двойного-скролла](docs/CODE_PATTERNS.md#настройка-прокрутки-предотвращение-двойного-скролла) и [docs/CODE_PATTERNS.md#адаптивный-расчёт-высоты-таблицы](docs/CODE_PATTERNS.md#адаптивный-расчёт-высоты-таблицы)
 
 ## Specialized Agents
 
@@ -712,47 +494,14 @@ All entities follow the same structure:
 
 ## Dropdown Best Practices (КРИТИЧЕСКИ ВАЖНО)
 
-### Проблема: Dropdown скрываются под строками таблицы
-**ГЛАВНАЯ ПРИЧИНА:** Использование `getPopupContainer` в Select компонентах внутри таблиц
+**Проблема:** Dropdown в ячейках таблицы обрезаются нижними строками.
 
-### ❌ НЕПРАВИЛЬНО - вызывает обрезание dropdown:
-```typescript
-<Select
-  getPopupContainer={(triggerNode) => triggerNode.parentNode}
-  // ... другие свойства
-/>
-```
+**Главная причина:** Использование `getPopupContainer` в Select компонентах внутри таблиц.
 
-### ✅ ПРАВИЛЬНО - dropdown отображается поверх таблицы:
-```typescript
-// Функция для динамических dropdown с расширением до 500px
-const getDynamicDropdownStyle = (options: Array<{ label: string; value: any }>) => ({
-  ...STABLE_STYLES.dropdownStyle,
-  minWidth: calculateDropdownWidth(options),
-  width: calculateDropdownWidth(options),
-  maxWidth: '500px',
-  zIndex: 9999,
-})
+**Ключевые правила:**
+1. НИКОГДА не используйте `getPopupContainer` в Select внутри таблиц
+2. Всегда используйте высокий z-index (9999)
+3. Применяйте динамическое расширение через `getDynamicDropdownStyle`
+4. Максимальная ширина dropdown: 500px, минимальная: 150px
 
-<Select
-  value={value}
-  onChange={onChange}
-  options={data}
-  allowClear
-  showSearch
-  filterOption={(input, option) =>
-    (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
-  }
-  placeholder="Выберите значение"
-  size="small"
-  style={{ width: '100%' }}
-  dropdownStyle={getDynamicDropdownStyle(data)}
-  // ❗ НЕ ДОБАВЛЯЙТЕ getPopupContainer!
-/>
-```
-
-### Правила для dropdown в таблицах:
-1. **НИКОГДА не используйте `getPopupContainer` в Select внутри таблиц**
-2. **Всегда используйте высокий z-index (9999)**
-3. **Применяйте динамическое расширение через `getDynamicDropdownStyle`**
-4. **Максимальная ширина dropdown: 500px, минимальная: 150px**
+**Полное руководство с примерами кода:** См. [docs/CODE_PATTERNS.md#dropdown-в-таблицах](docs/CODE_PATTERNS.md#dropdown-в-таблицах)

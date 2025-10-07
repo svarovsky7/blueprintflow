@@ -845,14 +845,14 @@ const VorView = () => {
     enabled: viewMode === 'edit' || viewMode === 'add', // Загружаем только в режиме редактирования
   })
 
-  // Загружаем рабочие наборы для редактирования
+  // Загружаем рабочие наборы для редактирования с учетом фильтров комплекта
   const { data: workSets = [] } = useQuery({
-    queryKey: ['work-sets-options'],
+    queryKey: ['work-sets-options', setFilters?.costTypeIds, setFilters?.costCategoryIds],
     queryFn: async () => {
-      const { getWorkSetsOptions } = await import('@/entities/vor')
-      return getWorkSetsOptions()
+      const { getWorkSetsByFilters } = await import('@/entities/vor')
+      return getWorkSetsByFilters(setFilters?.costTypeIds, setFilters?.costCategoryIds)
     },
-    enabled: viewMode === 'edit' || viewMode === 'add',
+    enabled: (viewMode === 'edit' || viewMode === 'add') && !!setFilters,
   })
 
   // Синхронизируем локальные данные с данными из запроса
@@ -2199,6 +2199,7 @@ const VorView = () => {
                 value={editingWorkSetValue}
                 onChange={setEditingWorkSetValue}
                 style={{ width: '100%', marginBottom: 8 }}
+                dropdownStyle={{ width: 500 }}
                 showSearch
                 allowClear
                 placeholder="Выберите рабочий набор"
@@ -2233,6 +2234,7 @@ const VorView = () => {
         }
 
         const isDeleted = deletedItems.has(record.id)
+        const currentWorkSet = ('work_set_name' in record) ? (record.work_set_name || '') : ''
 
         return (
           <div
@@ -2242,12 +2244,12 @@ const VorView = () => {
               textDecoration: isDeleted ? 'line-through' : 'none',
             }}
             onClick={() => {
-              if (viewMode === 'edit' && !isDeleted) {
-                handleStartEditWorkSet(record.id, record.work_set_name || '')
+              if (viewMode === 'edit' && !isDeleted && record.type === 'work') {
+                handleStartEditWorkSet(record.id, currentWorkSet)
               }
             }}
           >
-            {record.work_set_name || '-'}
+            {currentWorkSet || '-'}
           </div>
         )
       },
@@ -2270,6 +2272,7 @@ const VorView = () => {
                 showSearch
                 placeholder="Выберите материал"
                 style={{ width: '100%' }}
+                dropdownStyle={{ width: 500 }}
                 value={tempMaterialData[record.id]?.supplier_material_name}
                 onSearch={(value) => {
                   // Обновляем локальные данные немедленно для отзывчивости UI
@@ -2320,14 +2323,20 @@ const VorView = () => {
 
         // В режиме редактирования показываем возможность редактирования названий
         if (viewMode === 'edit' && editingNameId === record.id) {
+          // Фильтруем расценки по рабочему набору текущей работы
+          const filteredRates = record.type === 'work' && record.work_set_name
+            ? rates.filter(rate => rate.work_set === record.work_set_name)
+            : rates
+
           return (
             <div style={{ paddingLeft: record.level === 2 ? 20 : 0 }}>
               {record.type === 'work' ? (
-                // Для работ показываем выпадающий список расценок
+                // Для работ показываем выпадающий список расценок, отфильтрованных по рабочему набору
                 <Select
                   value={editingNameValue}
                   onChange={setEditingNameValue}
                   style={{ width: '100%', marginBottom: 8 }}
+                  dropdownStyle={{ width: 500 }}
                   showSearch
                   allowClear
                   placeholder="Выберите расценку"
@@ -2336,7 +2345,7 @@ const VorView = () => {
                     return text.toLowerCase().includes(input.toLowerCase())
                   }}
                 >
-                  {rates.map(rate => (
+                  {filteredRates.map(rate => (
                     <Select.Option key={rate.id} value={rate.work_name}>
                       {rate.work_name}
                     </Select.Option>
@@ -2348,6 +2357,7 @@ const VorView = () => {
                   value={editingNameValue}
                   onChange={setEditingNameValue}
                   style={{ width: '100%', marginBottom: 8 }}
+                  dropdownStyle={{ width: 500 }}
                   showSearch
                   allowClear
                   placeholder="Выберите номенклатуру"

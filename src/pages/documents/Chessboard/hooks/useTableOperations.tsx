@@ -530,7 +530,6 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
 
       // Сохранение отредактированных строк
       for (const [rowId, updates] of editedRows.entries()) {
-
         // Обновляем только поля, которые есть в основной таблице chessboard
         const chessboardUpdateData: any = {}
 
@@ -594,10 +593,18 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
         // Обновляем updated_at
         chessboardUpdateData.updated_at = new Date().toISOString()
 
-
         // Обновляем основную таблицу только если есть что обновлять
         if (Object.keys(chessboardUpdateData).length > 1) { // > 1 потому что updated_at всегда есть
-          const chessboardPromise = supabase.from('chessboard').update(chessboardUpdateData).eq('id', rowId)
+          const chessboardPromise = supabase
+            .from('chessboard')
+            .update(chessboardUpdateData)
+            .eq('id', rowId)
+            .then(({ data, error }) => {
+              if (error) {
+                throw error
+              }
+              return { data, error }
+            })
           promises.push(chessboardPromise)
         }
 
@@ -926,24 +933,39 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
         }
 
         // Обновляем nomenclature mapping для номенклатуры
-        if ('nomenclatureId' in updates || 'supplier' in updates) {
-          const nomenclatureId = updates.nomenclatureId !== undefined ? updates.nomenclatureId : null
+        // КРИТИЧНО: проверяем явное изменение, а не просто наличие ключа в updates
+        if (updates.nomenclatureId !== undefined || updates.supplier !== undefined) {
+          const nomenclatureId = updates.nomenclatureId
+          const supplierName = updates.supplier
 
           if (nomenclatureId) {
-            // Используем upsert вместо delete + insert для избежания конфликта 409
-            promises.push(
-              supabase.from('chessboard_nomenclature_mapping').upsert({
-                chessboard_id: rowId,
-                nomenclature_id: nomenclatureId,
-                supplier_name: updates.supplier || null
-              }, { onConflict: 'chessboard_id' })
-            )
-          } else {
-            // Если nomenclatureId пустой, удаляем связь
+            // Сначала удаляем старую связь, затем создаем новую (вместо upsert с неправильным onConflict)
+            const nomenclaturePromise = async () => {
+              // Удаляем существующую связь
+              await supabase
+                .from('chessboard_nomenclature_mapping')
+                .delete()
+                .eq('chessboard_id', rowId)
+
+              // Создаем новую связь
+              const { error } = await supabase
+                .from('chessboard_nomenclature_mapping')
+                .insert({
+                  chessboard_id: rowId,
+                  nomenclature_id: nomenclatureId,
+                  supplier_name: supplierName || null
+                })
+
+              if (error) throw error
+            }
+            promises.push(nomenclaturePromise())
+          } else if (nomenclatureId === null || nomenclatureId === '') {
+            // ТОЛЬКО если nomenclatureId явно установлен в null или пустую строку - удаляем связь
             promises.push(
               supabase.from('chessboard_nomenclature_mapping').delete().eq('chessboard_id', rowId)
             )
           }
+          // Если nomenclatureId === undefined - НЕ трогаем существующую связь!
         }
 
         // Обновляем rates mapping для наименования работ
@@ -971,7 +993,6 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
 
       // Сохранение строк в режиме backup редактирования (полная логика)
       for (const [rowId, editedRowData] of Object.entries(editingRows)) {
-
         // Обновляем основную таблицу chessboard
         const chessboardUpdateData: any = {}
 
@@ -981,15 +1002,21 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
         if (editedRowData.unitId !== undefined) {
           chessboardUpdateData.unit_id = editedRowData.unitId || null
         }
-        if (editedRowData.material !== undefined) {
-          chessboardUpdateData.material = editedRowData.material || null
+        // КРИТИЧНО: используем materialId (UUID), а не material (название)
+        if (editedRowData.materialId !== undefined) {
+          chessboardUpdateData.material = editedRowData.materialId || null
         }
 
         chessboardUpdateData.updated_at = new Date().toISOString()
 
         if (Object.keys(chessboardUpdateData).length > 1) {
           promises.push(
-            supabase.from('chessboard').update(chessboardUpdateData).eq('id', rowId)
+            supabase.from('chessboard').update(chessboardUpdateData).eq('id', rowId).then(({ data, error }) => {
+              if (error) {
+                throw error
+              }
+              return { data, error }
+            })
           )
         }
 
@@ -1038,25 +1065,247 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
           promises.push(mappingPromise)
         }
 
+        // Обновляем floors mapping для этажей и количеств (BACKUP режим)
+        if (editedRowData.floors !== undefined || editedRowData.floorQuantities !== undefined ||
+            editedRowData.quantityPd !== undefined || editedRowData.quantitySpec !== undefined || editedRowData.quantityRd !== undefined) {
+
+          // Создаем функцию обновления этажей и количеств для backup режима
+          const updateFloorsPromise = async () => {
+            try {
+              // 1. Сначала получаем существующие данные этажей
+              const { data: existingFloors } = await supabase
+                .from('chessboard_floor_mapping')
+                .select('*')
+                .eq('chessboard_id', rowId)
+
+              // 2. Проверяем, есть ли этажи или количества для обработки
+              const floorsString = editedRowData.floors !== undefined ? editedRowData.floors : ''
+              const floorQuantities = editedRowData.floorQuantities || {}
+
+              // Проверяем, есть ли прямые изменения количеств (без этажей)
+              const hasDirectQuantityUpdates = editedRowData.quantityPd !== undefined ||
+                                               editedRowData.quantitySpec !== undefined ||
+                                               editedRowData.quantityRd !== undefined
+
+              // Проверяем, есть ли существующие этажи в БД (кроме записей с floor_number = null)
+              const existingFloorsWithNumbers = existingFloors?.filter(floor => floor.floor_number !== null) || []
+              const hasExistingFloors = existingFloorsWithNumbers.length > 0
+
+              if (floorsString && floorsString.trim()) {
+                // Обработка с указанными этажами
+                const floors = parseFloorsFromString(floorsString)
+
+                if (floors.length > 0) {
+                  // При указании этажей удаляем ВСЕ существующие записи для данной строки
+                  const { error: deleteError } = await supabase
+                    .from('chessboard_floor_mapping')
+                    .delete()
+                    .eq('chessboard_id', rowId)
+
+                  if (deleteError) {
+                    throw deleteError
+                  }
+
+                  // Создаем новые записи для указанных этажей
+                  const totalFloors = floors.length
+                  const newFloorRecords = floors.map(floor => {
+                    const existingFloorRecord = existingFloors?.find(f => f.floor_number === floor)
+
+                    const floorQuantityData = {
+                      quantityPd: hasDirectQuantityUpdates && editedRowData.quantityPd !== undefined
+                        ? (editedRowData.quantityPd ? Number(editedRowData.quantityPd) / totalFloors : null)
+                        : (floorQuantities?.[floor]?.quantityPd
+                          ? Number(floorQuantities[floor].quantityPd)
+                          : (existingFloorRecord?.quantityPd || null)),
+                      quantitySpec: hasDirectQuantityUpdates && editedRowData.quantitySpec !== undefined
+                        ? (editedRowData.quantitySpec ? Number(editedRowData.quantitySpec) / totalFloors : null)
+                        : (floorQuantities?.[floor]?.quantitySpec
+                          ? Number(floorQuantities[floor].quantitySpec)
+                          : (existingFloorRecord?.quantitySpec || null)),
+                      quantityRd: hasDirectQuantityUpdates && editedRowData.quantityRd !== undefined
+                        ? (editedRowData.quantityRd ? Number(editedRowData.quantityRd) / totalFloors : null)
+                        : (floorQuantities?.[floor]?.quantityRd
+                          ? Number(floorQuantities[floor].quantityRd)
+                          : (existingFloorRecord?.quantityRd || null)),
+                    }
+
+                    return {
+                      chessboard_id: rowId,
+                      floor_number: floor,
+                      ...floorQuantityData
+                    }
+                  })
+
+                  const { error: insertError } = await supabase
+                    .from('chessboard_floor_mapping')
+                    .insert(newFloorRecords)
+
+                  if (insertError) {
+                    throw insertError
+                  }
+                }
+              } else if (hasExistingFloors && hasDirectQuantityUpdates) {
+                // Есть существующие этажи в БД, обновляем количества для них
+                const { error: deleteError } = await supabase
+                  .from('chessboard_floor_mapping')
+                  .delete()
+                  .eq('chessboard_id', rowId)
+
+                if (deleteError) {
+                  throw deleteError
+                }
+
+                const totalFloors = existingFloorsWithNumbers.length
+                const updatedFloorRecords = existingFloorsWithNumbers.map(existingFloor => {
+                  return {
+                    chessboard_id: rowId,
+                    floor_number: existingFloor.floor_number,
+                    quantityPd: hasDirectQuantityUpdates && editedRowData.quantityPd !== undefined
+                      ? (editedRowData.quantityPd ? Number(editedRowData.quantityPd) / totalFloors : null)
+                      : (existingFloor.quantityPd || null),
+                    quantitySpec: hasDirectQuantityUpdates && editedRowData.quantitySpec !== undefined
+                      ? (editedRowData.quantitySpec ? Number(editedRowData.quantitySpec) / totalFloors : null)
+                      : (existingFloor.quantitySpec || null),
+                    quantityRd: hasDirectQuantityUpdates && editedRowData.quantityRd !== undefined
+                      ? (editedRowData.quantityRd ? Number(editedRowData.quantityRd) / totalFloors : null)
+                      : (existingFloor.quantityRd || null),
+                  }
+                })
+
+                const { error: insertError } = await supabase
+                  .from('chessboard_floor_mapping')
+                  .insert(updatedFloorRecords)
+
+                if (insertError) {
+                  throw insertError
+                }
+              } else if (hasDirectQuantityUpdates && (!floorsString || !floorsString.trim()) && !hasExistingFloors) {
+                // Обработка количеств БЕЗ указания этажей
+                const existingRecord = existingFloors?.find(floor => floor.floor_number === null)
+
+                if (existingRecord) {
+                  // Обновляем существующую запись
+                  const updateData: any = {}
+
+                  if (editedRowData.quantityPd !== undefined) {
+                    updateData.quantityPd = editedRowData.quantityPd ? Number(editedRowData.quantityPd) : null
+                  }
+                  if (editedRowData.quantitySpec !== undefined) {
+                    updateData.quantitySpec = editedRowData.quantitySpec ? Number(editedRowData.quantitySpec) : null
+                  }
+                  if (editedRowData.quantityRd !== undefined) {
+                    updateData.quantityRd = editedRowData.quantityRd ? Number(editedRowData.quantityRd) : null
+                  }
+
+                  const { error: updateError } = await supabase
+                    .from('chessboard_floor_mapping')
+                    .update(updateData)
+                    .eq('id', existingRecord.id)
+
+                  if (updateError) {
+                    throw updateError
+                  }
+                } else {
+                  // Создаем новую запись
+                  const quantityMapping = {
+                    chessboard_id: rowId,
+                    floor_number: null,
+                    quantityPd: editedRowData.quantityPd !== undefined
+                      ? (editedRowData.quantityPd ? Number(editedRowData.quantityPd) : null)
+                      : null,
+                    quantitySpec: editedRowData.quantitySpec !== undefined
+                      ? (editedRowData.quantitySpec ? Number(editedRowData.quantitySpec) : null)
+                      : null,
+                    quantityRd: editedRowData.quantityRd !== undefined
+                      ? (editedRowData.quantityRd ? Number(editedRowData.quantityRd) : null)
+                      : null,
+                  }
+
+                  const { error: insertError } = await supabase
+                    .from('chessboard_floor_mapping')
+                    .insert(quantityMapping)
+
+                  if (insertError) {
+                    throw insertError
+                  }
+                }
+              } else if (hasExistingFloors && editedRowData.floors !== undefined && (!floorsString || !floorsString.trim())) {
+                // Удаление этажей - переход от этажей к количествам без этажей
+                const totalQuantities = existingFloorsWithNumbers.reduce((totals, floor) => {
+                  return {
+                    quantityPd: (totals.quantityPd || 0) + (floor.quantityPd || 0),
+                    quantitySpec: (totals.quantitySpec || 0) + (floor.quantitySpec || 0),
+                    quantityRd: (totals.quantityRd || 0) + (floor.quantityRd || 0),
+                  }
+                }, { quantityPd: 0, quantitySpec: 0, quantityRd: 0 })
+
+                const { error: deleteError } = await supabase
+                  .from('chessboard_floor_mapping')
+                  .delete()
+                  .eq('chessboard_id', rowId)
+
+                if (deleteError) {
+                  throw deleteError
+                }
+
+                const nullFloorRecord = {
+                  chessboard_id: rowId,
+                  floor_number: null,
+                  quantityPd: totalQuantities.quantityPd || null,
+                  quantitySpec: totalQuantities.quantitySpec || null,
+                  quantityRd: totalQuantities.quantityRd || null,
+                }
+
+                const { error: insertError } = await supabase
+                  .from('chessboard_floor_mapping')
+                  .insert(nullFloorRecord)
+
+                if (insertError) {
+                  throw insertError
+                }
+              }
+            } catch (error) {
+              throw error
+            }
+          }
+
+          promises.push(updateFloorsPromise())
+        }
+
         // Обновляем nomenclature mapping для backup строки
-        if ('nomenclatureId' in editedRowData || 'supplier' in editedRowData) {
+        // КРИТИЧНО: проверяем явное изменение, а не просто наличие ключа в editedRowData
+        if (editedRowData.nomenclatureId !== undefined || editedRowData.supplier !== undefined) {
           const nomenclatureId = editedRowData.nomenclatureId
+          const supplierName = editedRowData.supplier
 
           if (nomenclatureId) {
-            // Используем upsert вместо delete + insert для избежания конфликта 409
-            promises.push(
-              supabase.from('chessboard_nomenclature_mapping').upsert({
-                chessboard_id: rowId,
-                nomenclature_id: nomenclatureId,
-                supplier_name: editedRowData.supplier || null
-              }, { onConflict: 'chessboard_id' })
-            )
-          } else {
-            // Если nomenclatureId пустой, удаляем связь
+            // Сначала удаляем старую связь, затем создаем новую (вместо upsert с неправильным onConflict)
+            const nomenclaturePromise = async () => {
+              // Удаляем существующую связь
+              await supabase
+                .from('chessboard_nomenclature_mapping')
+                .delete()
+                .eq('chessboard_id', rowId)
+
+              // Создаем новую связь
+              const { error } = await supabase
+                .from('chessboard_nomenclature_mapping')
+                .insert({
+                  chessboard_id: rowId,
+                  nomenclature_id: nomenclatureId,
+                  supplier_name: supplierName || null
+                })
+
+              if (error) throw error
+            }
+            promises.push(nomenclaturePromise())
+          } else if (nomenclatureId === null || nomenclatureId === '') {
+            // ТОЛЬКО если nomenclatureId явно установлен в null или пустую строку - удаляем связь
             promises.push(
               supabase.from('chessboard_nomenclature_mapping').delete().eq('chessboard_id', rowId)
             )
           }
+          // Если nomenclatureId === undefined - НЕ трогаем существующую связь!
         }
 
         // Обновляем rates mapping для backup строки
