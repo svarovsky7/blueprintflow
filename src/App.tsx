@@ -9,6 +9,7 @@ import {
   SettingOutlined,
   PieChartOutlined,
   ExperimentOutlined,
+  UserOutlined,
 } from '@ant-design/icons'
 import Dashboard from './pages/Dashboard'
 import Documents from './pages/Documents'
@@ -31,15 +32,23 @@ import Documentation from './pages/documents/Documentation'
 import Reports from './pages/Reports'
 import ProjectAnalysis from './pages/reports/ProjectAnalysis'
 import Admin from './pages/Admin'
-import DocumentationTags from './pages/admin/DocumentationTags'
-import Statuses from './pages/admin/Statuses'
-import ApiSettings from './pages/admin/ApiSettings'
+import Administration from './pages/Administration'
+import DocumentationTags from './pages/administration/DocumentationTags'
+import Statuses from './pages/administration/Statuses'
+import ApiSettings from './pages/administration/ApiSettings'
+import Users from './pages/administration/Users'
+import UserGroups from './pages/administration/UserGroups'
+import Roles from './pages/administration/Roles'
+import Permissions from './pages/administration/Permissions'
 import Experiments from './pages/experiments'
 import ChessboardML from './pages/experiments/ChessboardML'
+import Login from './pages/Login'
 import PortalHeader from './components/PortalHeader'
 import TestTableStructure from './pages/TestTableStructure'
 import { useLogo } from './shared/contexts/LogoContext'
 import { useScale } from './shared/contexts/ScaleContext'
+import { useAuthStore } from '@/features/auth'
+import { ProtectedRoute } from '@/shared/components/ProtectedRoute'
 
 import { debugTableScroll } from './shared/debugTableScroll'
 
@@ -57,12 +66,17 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
   const location = useLocation()
   const { lightLogo, darkLogo } = useLogo()
   const { scale, setScale } = useScale()
+  const { checkAuth } = useAuthStore()
   const scaleOptions = [
     { value: 0.7, label: '70%' },
     { value: 0.8, label: '80%' },
     { value: 0.9, label: '90%' },
     { value: 1, label: '100%' },
   ]
+
+  useEffect(() => {
+    checkAuth()
+  }, [])
 
   // Состояние для управления всплывающим меню
   const [hoveredMenu, setHoveredMenu] = useState<string | null>(null)
@@ -164,6 +178,9 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     }
     if (location.pathname.startsWith('/reports')) {
       newOpenKeys.push('reports')
+    }
+    if (location.pathname.startsWith('/administration')) {
+      newOpenKeys.push('administration')
     }
     if (location.pathname.startsWith('/admin')) {
       newOpenKeys.push('admin')
@@ -334,40 +351,69 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
       onClick: () => navigate('/experiments'),
     },
     {
-      key: 'admin',
+      key: 'administration',
       icon: collapsed ? (
         <div
-          {...createHoverMenu('admin', [
+          {...createHoverMenu('administration', [
             {
               key: 'documentation-tags',
               label: 'Тэги документации',
-              path: '/admin/documentation-tags',
+              path: '/administration/documentation-tags',
             },
-            { key: 'statuses', label: 'Статусы', path: '/admin/statuses' },
-            { key: 'api-settings', label: 'API', path: '/admin/api-settings' },
+            { key: 'statuses', label: 'Статусы', path: '/administration/statuses' },
+            { key: 'api-settings', label: 'API', path: '/administration/api-settings' },
+            { key: 'users', label: 'Пользователи', path: '/administration/users' },
+            { key: 'user-groups', label: 'Группы', path: '/administration/user-groups' },
+            { key: 'roles', label: 'Роли', path: '/administration/roles' },
+            { key: 'permissions', label: 'Разрешения', path: '/administration/permissions' },
           ])}
         >
-          <SettingOutlined />
+          <UserOutlined />
         </div>
       ) : (
-        <SettingOutlined />
+        <UserOutlined />
       ),
-      label: collapsed ? '' : 'Настройки',
+      label: collapsed ? '' : 'Админка',
       children: collapsed
         ? undefined
         : [
             {
               key: 'documentation-tags',
-              label: <Link to="/admin/documentation-tags">Тэги документации</Link>,
+              label: <Link to="/administration/documentation-tags">Тэги документации</Link>,
             },
             {
               key: 'statuses',
-              label: <Link to="/admin/statuses">Статусы</Link>,
+              label: <Link to="/administration/statuses">Статусы</Link>,
             },
             {
               key: 'api-settings',
-              label: <Link to="/admin/api-settings">API</Link>,
+              label: <Link to="/administration/api-settings">API</Link>,
             },
+            {
+              key: 'users',
+              label: <Link to="/administration/users">Пользователи</Link>,
+            },
+            {
+              key: 'user-groups',
+              label: <Link to="/administration/user-groups">Группы</Link>,
+            },
+            {
+              key: 'roles',
+              label: <Link to="/administration/roles">Роли</Link>,
+            },
+            {
+              key: 'permissions',
+              label: <Link to="/administration/permissions">Разрешения</Link>,
+            },
+          ],
+    },
+    {
+      key: 'admin',
+      icon: <SettingOutlined />,
+      label: collapsed ? '' : 'Настройки',
+      children: collapsed
+        ? undefined
+        : [
             {
               key: 'scale',
               label: (
@@ -707,8 +753,30 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
           >
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
               <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/documents" element={<Documents />}>
+                <Route
+                  path="/login"
+                  element={
+                    <ProtectedRoute requireAuth={false}>
+                      <Login />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/"
+                  element={
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/documents"
+                  element={
+                    <ProtectedRoute>
+                      <Documents />
+                    </ProtectedRoute>
+                  }
+                >
                   <Route path="chessboard" element={<Chessboard />} />
                   <Route path="vor" element={<Vor />} />
                   <Route path="vor-view" element={<VorView />} />
@@ -717,7 +785,14 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                   <Route path="finishing-pie-type/:id" element={<FinishingPieType />} />
                   <Route path="finishing-calculation/:id" element={<FinishingCalculation />} />
                 </Route>
-                <Route path="/references" element={<References />}>
+                <Route
+                  path="/references"
+                  element={
+                    <ProtectedRoute>
+                      <References />
+                    </ProtectedRoute>
+                  }
+                >
                   <Route path="units" element={<Units />} />
                   <Route path="cost-categories" element={<CostCategories />} />
                   <Route path="projects" element={<Projects />} />
@@ -727,19 +802,70 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                   <Route path="nomenclature" element={<Nomenclature />} />
                   <Route path="surface-types" element={<SurfaceTypes />} />
                 </Route>
-                <Route path="/reports" element={<Reports />}>
+                <Route
+                  path="/reports"
+                  element={
+                    <ProtectedRoute>
+                      <Reports />
+                    </ProtectedRoute>
+                  }
+                >
                   <Route path="project-analysis" element={<ProjectAnalysis />} />
                 </Route>
-                <Route path="/admin" element={<Admin />}>
+                <Route
+                  path="/administration"
+                  element={
+                    <ProtectedRoute>
+                      <Administration />
+                    </ProtectedRoute>
+                  }
+                >
                   <Route path="documentation-tags" element={<DocumentationTags />} />
                   <Route path="statuses" element={<Statuses />} />
                   <Route path="api-settings" element={<ApiSettings />} />
-                  {/* ОБРАТНАЯ СОВМЕСТИМОСТЬ: старый маршрут /admin/disk перенаправляет на /admin/api-settings */}
-                  <Route path="disk" element={<Navigate to="/admin/api-settings" replace />} />
+                  <Route path="users" element={<Users />} />
+                  <Route path="user-groups" element={<UserGroups />} />
+                  <Route path="roles" element={<Roles />} />
+                  <Route path="permissions" element={<Permissions />} />
                 </Route>
-                <Route path="/experiments" element={<Experiments />} />
-                <Route path="/experiments/chessboard-ml" element={<ChessboardML />} />
-                <Route path="/test-table" element={<TestTableStructure />} />
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute>
+                      <Admin />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route path="disk" element={<Navigate to="/administration/api-settings" replace />} />
+                  <Route path="users" element={<Navigate to="/administration/users" replace />} />
+                  <Route path="documentation-tags" element={<Navigate to="/administration/documentation-tags" replace />} />
+                  <Route path="statuses" element={<Navigate to="/administration/statuses" replace />} />
+                  <Route path="api-settings" element={<Navigate to="/administration/api-settings" replace />} />
+                </Route>
+                <Route
+                  path="/experiments"
+                  element={
+                    <ProtectedRoute>
+                      <Experiments />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/experiments/chessboard-ml"
+                  element={
+                    <ProtectedRoute>
+                      <ChessboardML />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/test-table"
+                  element={
+                    <ProtectedRoute>
+                      <TestTableStructure />
+                    </ProtectedRoute>
+                  }
+                />
               </Routes>
             </div>
           </Content>
@@ -939,6 +1065,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                 },
                 { key: 'statuses', label: 'Статусы', path: '/admin/statuses' },
                 { key: 'api-settings', label: 'API', path: '/admin/api-settings' },
+                { key: 'users', label: 'Пользователи', path: '/admin/users' },
               ].map((item) => (
                 <div
                   key={item.key}

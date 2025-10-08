@@ -2,9 +2,16 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
+import { getUserPermissions } from '@/entities/permissions'
+import { getUserRoles } from '@/entities/roles'
+import { updateLastLogin } from '@/entities/users'
+import type { UserPermissions } from '@/entities/permissions'
+import type { Role } from '@/entities/roles'
 
 interface AuthState {
   user: User | null
+  roles: Role[]
+  permissions: UserPermissions
   isLoading: boolean
   isAuthenticated: boolean
   signIn: (email: string, password: string) => Promise<void>
@@ -12,12 +19,17 @@ interface AuthState {
   signUp: (email: string, password: string) => Promise<void>
   checkAuth: () => Promise<void>
   setUser: (user: User | null) => void
+  loadUserRolesAndPermissions: (userId: string) => Promise<void>
+  hasPermission: (objectCode: string, action: 'view' | 'create' | 'edit' | 'delete') => boolean
+  hasRole: (roleCode: string) => boolean
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
+      roles: [],
+      permissions: {},
       isLoading: true,
       isAuthenticated: false,
 
@@ -27,6 +39,39 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: !!user,
           isLoading: false,
         }),
+
+      loadUserRolesAndPermissions: async (userId: string) => {
+        try {
+          const [roles, permissions] = await Promise.all([
+            getUserRoles(userId),
+            getUserPermissions(userId),
+          ])
+
+          set({ roles, permissions })
+        } catch (error) {
+          console.error('Ошибка загрузки ролей и прав:', error)
+          set({ roles: [], permissions: {} })
+        }
+      },
+
+      hasPermission: (objectCode: string, action: 'view' | 'create' | 'edit' | 'delete') => {
+        const { permissions } = get()
+        if (!permissions[objectCode]) return false
+
+        const actionMap = {
+          view: 'view',
+          create: 'create',
+          edit: 'edit',
+          delete: 'delete',
+        }
+
+        return permissions[objectCode][actionMap[action]] || false
+      },
+
+      hasRole: (roleCode: string) => {
+        const { roles } = get()
+        return roles.some((role) => role.code === roleCode)
+      },
 
       signIn: async (email, password) => {
         if (!supabase) {
@@ -48,6 +93,11 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: true,
           isLoading: false,
         })
+
+        if (data.user) {
+          await get().loadUserRolesAndPermissions(data.user.id)
+          await updateLastLogin(data.user.id)
+        }
       },
 
       signOut: async () => {
@@ -64,6 +114,8 @@ export const useAuthStore = create<AuthState>()(
 
         set({
           user: null,
+          roles: [],
+          permissions: {},
           isAuthenticated: false,
           isLoading: false,
         })
@@ -106,6 +158,10 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: !!user,
           isLoading: false,
         })
+
+        if (user) {
+          await get().loadUserRolesAndPermissions(user.id)
+        }
       },
     }),
     {
