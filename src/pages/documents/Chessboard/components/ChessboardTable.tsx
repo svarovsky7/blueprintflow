@@ -51,6 +51,19 @@ const getDynamicDropdownStyle = (options: Array<{ label: string; value: any }>) 
   zIndex: 9999,
 })
 
+// Функция для форматирования количественных значений в режиме просмотра
+const formatQuantityForDisplay = (value: string | number | null | undefined): string => {
+  if (!value) return '0'
+  const num = Number(value)
+  if (isNaN(num)) return '0'
+
+  // Если целое число - показываем без дробной части
+  if (num % 1 === 0) return num.toString()
+
+  // Если дробное - показываем максимум 2 знака после запятой, убираем trailing zeros
+  return num.toFixed(2).replace(/\.?0+$/, '')
+}
+
 // Функция для расчета масштабированной ширины
 // Базовые размеры рассчитаны для scale = 0.7
 const BASE_SCALE = 0.7
@@ -2519,11 +2532,11 @@ export const ChessboardTable = memo(({
                 style={{ padding: 0 }}
                 onClick={() => handleOpenFloorModal(record.id)()}
               >
-                {value || '0'}
+                {formatQuantityForDisplay(value)}
               </Button>
             )
           }
-          return <span>{value || '0'}</span>
+          return <span>{formatQuantityForDisplay(value)}</span>
         }
       },
     },
@@ -2617,11 +2630,11 @@ export const ChessboardTable = memo(({
                 style={{ padding: 0 }}
                 onClick={() => handleOpenFloorModal(record.id)()}
               >
-                {value || '0'}
+                {formatQuantityForDisplay(value)}
               </Button>
             )
           }
-          return <span>{value || '0'}</span>
+          return <span>{formatQuantityForDisplay(value)}</span>
         }
       },
     },
@@ -2715,11 +2728,11 @@ export const ChessboardTable = memo(({
                 style={{ padding: 0 }}
                 onClick={() => handleOpenFloorModal(record.id)()}
               >
-                {value || '0'}
+                {formatQuantityForDisplay(value)}
               </Button>
             )
           }
-          return <span>{value || '0'}</span>
+          return <span>{formatQuantityForDisplay(value)}</span>
         }
       },
     },
