@@ -21,6 +21,8 @@ export interface TypeCalculationRow {
   location_name?: string
   room_type_id: number | null
   room_type_name?: string
+  room_number_id?: string | null
+  room_number_name?: string | null
   pie_type_id: string | null
   pie_type_name?: string
   surface_type_id: string | null
@@ -53,6 +55,7 @@ export interface CreateTypeCalculationRowDto {
   block_id?: string | null
   location_id?: number | null
   room_type_id?: number | null
+  room_number_id?: string | null
   pie_type_id?: string | null
   surface_type_id?: string | null
 }
@@ -61,6 +64,7 @@ export interface UpdateTypeCalculationRowDto {
   block_id?: string | null
   location_id?: number | null
   room_type_id?: number | null
+  room_number_id?: string | null
   pie_type_id?: string | null
   surface_type_id?: string | null
 }

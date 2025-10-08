@@ -31,6 +31,7 @@ import {
   deleteTypeCalculationRow,
   upsertTypeCalculationFloors,
 } from '@/entities/calculation'
+import { getRoomNumbersByProject, getOrCreateRoomNumber } from '@/entities/rooms'
 import { updateFinishingPie, getFinishingPieById } from '@/entities/finishing'
 import { FloorQuantitiesModal } from './FinishingCalculation/components/FloorQuantitiesModal'
 import { StatusSelector } from './Finishing/components/StatusSelector'
@@ -114,6 +115,8 @@ interface CalculationRow {
   location_name?: string
   room_type_id: number | null
   room_type_name?: string
+  room_number_id?: string | null
+  room_number_name?: string | null
   pie_type_id: string | null
   pie_type_name?: string
   surface_type_id: string | null
@@ -301,6 +304,12 @@ export default function FinishingCalculation() {
     queryFn: getSurfaceTypes,
   })
 
+  const { data: roomNumbers = [] } = useQuery({
+    queryKey: ['room-numbers', projectId],
+    queryFn: () => getRoomNumbersByProject(projectId!),
+    enabled: !!projectId,
+  })
+
   const { data: finishingPieData } = useQuery({
     queryKey: ['finishing-pie-cost-category', selectedFinishingPieId],
     queryFn: async () => {
@@ -374,6 +383,7 @@ export default function FinishingCalculation() {
             block_id: row.block_id || null,
             location_id: row.location_id || null,
             room_type_id: row.room_type_id || null,
+            room_number_id: row.room_number_id || null,
             pie_type_id: row.pie_type_id || null,
             surface_type_id: row.surface_type_id || null,
           })
@@ -427,6 +437,7 @@ export default function FinishingCalculation() {
               block_id: row.block_id || null,
               location_id: row.location_id || null,
               room_type_id: row.room_type_id || null,
+              room_number_id: row.room_number_id || null,
               pie_type_id: row.pie_type_id || null,
               surface_type_id: row.surface_type_id || null,
             },
@@ -539,6 +550,8 @@ export default function FinishingCalculation() {
       location_name: record.location_name,
       room_type_id: record.room_type_id,
       room_type_name: record.room_type_name,
+      room_number_id: record.room_number_id,
+      room_number_name: record.room_number_name,
       pie_type_id: record.pie_type_id,
       pie_type_name: record.pie_type_name,
       surface_type_id: record.surface_type_id,
@@ -998,6 +1011,48 @@ export default function FinishingCalculation() {
           )
         }
         return record.room_type_name || '-'
+      },
+    },
+    {
+      title: 'Номер помещения',
+      dataIndex: 'room_number_id',
+      key: 'room_number_id',
+      width: 150,
+      render: (value: string | null, record: EditableRow) => {
+        if ((mode === 'add' || mode === 'edit') && (record.isNew || record.isEditing)) {
+          return (
+            <Select
+              mode="tags"
+              value={record.room_number_name ? [record.room_number_name] : []}
+              onChange={async (values) => {
+                const newValue = values[values.length - 1]
+                if (newValue && projectId) {
+                  try {
+                    const roomNumber = await getOrCreateRoomNumber(projectId, newValue)
+                    handleUpdateEditingRow(record.id!, 'room_number_id', roomNumber.id)
+                    handleUpdateEditingRow(record.id!, 'room_number_name', roomNumber.name)
+                    queryClient.invalidateQueries({ queryKey: ['room-numbers', projectId] })
+                  } catch (error) {
+                    console.error('Ошибка создания номера помещения:', error)
+                  }
+                } else {
+                  handleUpdateEditingRow(record.id!, 'room_number_id', null)
+                  handleUpdateEditingRow(record.id!, 'room_number_name', null)
+                }
+              }}
+              options={roomNumbers.map((rn) => ({ value: rn.name, label: rn.name }))}
+              placeholder="Введите или выберите"
+              allowClear
+              showSearch
+              maxTagCount={1}
+              filterOption={(input, option) =>
+                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              }
+              style={{ width: '100%' }}
+            />
+          )
+        }
+        return record.room_number_name || '-'
       },
     },
     {

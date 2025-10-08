@@ -69,12 +69,9 @@ export const statusesMappingApi = {
       .eq('entity_type', entityType)
       .eq('entity_id', entityId)
       .eq('is_current', true)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return null // Статус не найден
-      }
       console.error('Failed to fetch current status:', error)
       throw error
     }

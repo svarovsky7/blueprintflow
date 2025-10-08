@@ -110,34 +110,74 @@ async function prepareImportData(
 
   const filteredPieRows = pieRows.filter((row) => row.pie_type_id && activeTypeIds.has(row.pie_type_id))
 
-  for (const pieRow of filteredPieRows) {
-    const matchingCalcRows = calcRows.filter((calc) => calc.pie_type_id === pieRow.pie_type_id)
+  // Этап 1: Группировка строк Расчета по типу пирога
+  const calcRowsByType = new Map<string, TypeCalculationRow[]>()
+  calcRows.forEach((row) => {
+    if (!row.pie_type_id) return
+    if (!calcRowsByType.has(row.pie_type_id)) {
+      calcRowsByType.set(row.pie_type_id, [])
+    }
+    calcRowsByType.get(row.pie_type_id)!.push(row)
+  })
 
-    for (const calcRow of matchingCalcRows) {
+  // Этап 2: Суммирование количеств по этажам для каждого типа
+  const floorSumsByType = new Map<
+    string,
+    {
+      floorSums: Map<number, { quantitySpec: number; quantityRd: number }>
+      firstCalcRow: TypeCalculationRow
+    }
+  >()
+
+  for (const [pieTypeId, calcRowsForType] of calcRowsByType.entries()) {
+    const floorSums = new Map<number, { quantitySpec: number; quantityRd: number }>()
+
+    for (const calcRow of calcRowsForType) {
       const floors = await getTypeCalculationFloors(calcRow.id)
 
-      importData.push({
-        project_id: doc.project_id,
-        cost_category_id: doc.cost_category_id,
-        documentation_tag_id: doc.documentation_tag_id,
-        version_id: doc.version_id,
-        block_id: calcRow.block_id,
-        location_id: calcRow.location_id,
-        material_id: pieRow.material_id!,
-        unit_id: pieRow.unit_id!,
-        detail_cost_category_id: pieRow.detail_cost_category_id!,
-        work_name_id: pieRow.work_name_id,
-        rate_id: pieRow.rate_id,
-        consumption: pieRow.consumption || 1.0,
-        floors: floors.map((floor: TypeCalculationFloor) => ({
-          floor_number: floor.floor_number,
-          quantityPd: (floor.quantityPd || 0) * (pieRow.consumption || 1.0),
-          quantitySpec: (floor.quantitySpec || 0) * (pieRow.consumption || 1.0),
-          quantityRd: (floor.quantityRd || 0) * (pieRow.consumption || 1.0),
-          location_id: calcRow.location_id,
-        })),
+      floors.forEach((floor: TypeCalculationFloor) => {
+        const current = floorSums.get(floor.floor_number) || { quantitySpec: 0, quantityRd: 0 }
+        floorSums.set(floor.floor_number, {
+          quantitySpec: current.quantitySpec + (floor.quantitySpec || 0),
+          quantityRd: current.quantityRd + (floor.quantityRd || 0),
+        })
       })
     }
+
+    floorSumsByType.set(pieTypeId, {
+      floorSums,
+      firstCalcRow: calcRowsForType[0],
+    })
+  }
+
+  // Этап 3: Создание записей для импорта
+  for (const pieRow of filteredPieRows) {
+    const typeData = floorSumsByType.get(pieRow.pie_type_id!)
+    if (!typeData) continue
+
+    const { floorSums, firstCalcRow } = typeData
+
+    importData.push({
+      project_id: doc.project_id,
+      cost_category_id: doc.cost_category_id,
+      documentation_tag_id: doc.documentation_tag_id,
+      version_id: doc.version_id,
+      block_id: firstCalcRow.block_id,
+      location_id: firstCalcRow.location_id,
+      material_id: pieRow.material_id!,
+      unit_id: pieRow.unit_id!,
+      detail_cost_category_id: pieRow.detail_cost_category_id!,
+      work_name_id: pieRow.work_name_id,
+      rate_id: pieRow.rate_id,
+      consumption: pieRow.consumption || 1.0,
+      floors: Array.from(floorSums.entries()).map(([floor_number, sums]) => ({
+        floor_number,
+        quantityPd: 0,
+        quantitySpec: sums.quantitySpec * (pieRow.consumption || 1.0),
+        quantityRd: sums.quantityRd * (pieRow.consumption || 1.0),
+        location_id: null, // location_id должен быть NULL когда есть floor_number
+      })),
+    })
   }
 
   return importData
@@ -196,7 +236,7 @@ async function createChessboardRecords(
             location_id: floor.location_id,
           })
 
-        if (!floorError || floorError.message.includes('duplicate')) {
+        if (!floorError) {
           createdFloorMappings++
         } else {
           console.error('Ошибка вставки floor mapping:', floorError)
@@ -223,12 +263,24 @@ async function createChessboardRecords(
           .eq('id', item.rate_id)
           .maybeSingle()
 
+        let workSetRateId = null
+        if (rateData?.work_set) {
+          const { data: workSetRate } = await supabase
+            .from('rates')
+            .select('id')
+            .eq('work_set', rateData.work_set)
+            .limit(1)
+            .maybeSingle()
+
+          workSetRateId = workSetRate?.id || null
+        }
+
         const { error: ratesError } = await supabase
           .from('chessboard_rates_mapping')
           .insert({
             chessboard_id: chessboardId,
             rate_id: item.rate_id,
-            work_set: rateData?.work_set || null,
+            work_set: workSetRateId,
           })
 
         if (ratesError && !ratesError.message.includes('duplicate')) {

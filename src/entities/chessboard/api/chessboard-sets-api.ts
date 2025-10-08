@@ -678,12 +678,9 @@ export const chessboardSetsApi = {
       .eq('entity_type', 'chessboard_set')
       .eq('entity_id', setId)
       .eq('is_current', true)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return null // Статус не найден
-      }
       console.error('Failed to fetch current status:', error)
       throw error
     }

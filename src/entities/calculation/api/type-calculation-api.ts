@@ -18,6 +18,7 @@ export async function getTypeCalculationRows(
       blocks:block_id (name),
       location:location_id (name),
       type_rooms:room_type_id (name),
+      room_numbers:room_number_id (id, name),
       finishing_pie_types:pie_type_id (name),
       surface_types:surface_type_id (name),
       type_calculation_floor_mapping (
@@ -43,6 +44,8 @@ export async function getTypeCalculationRows(
       location_name: row.location?.name || null,
       room_type_id: row.room_type_id,
       room_type_name: row.type_rooms?.name || null,
+      room_number_id: row.room_number_id,
+      room_number_name: row.room_numbers?.name || null,
       pie_type_id: row.pie_type_id,
       pie_type_name: row.finishing_pie_types?.name || null,
       surface_type_id: row.surface_type_id,
