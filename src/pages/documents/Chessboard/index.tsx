@@ -217,16 +217,16 @@ export default function Chessboard() {
   // Обработчики событий
   const handleAddRow = useCallback(() => {
     if (appliedFilters.project_id) {
-      addNewRow(appliedFilters.project_id, 'first')
+      addNewRow(appliedFilters.project_id, appliedFilters, 'first')
     }
-  }, [appliedFilters.project_id, addNewRow])
+  }, [appliedFilters, addNewRow])
 
   const handleAddRowAfter = useCallback((rowIndex: number) => {
     if (appliedFilters.project_id) {
-      addNewRow(appliedFilters.project_id, 'after', rowIndex)
+      addNewRow(appliedFilters.project_id, appliedFilters, 'after', rowIndex)
     } else {
     }
-  }, [appliedFilters.project_id, addNewRow])
+  }, [appliedFilters, addNewRow])
 
   const handleCopyRowAfter = useCallback((rowData: any, rowIndex: number) => {
     copyRow(rowData, 'after', rowIndex)

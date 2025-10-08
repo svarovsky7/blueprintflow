@@ -4,7 +4,7 @@ import { App } from 'antd'
 import type { Key } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ratesApi } from '@/entities/rates/api/rates-api'
-import type { TableMode, RowData, RowColor } from '../types'
+import type { TableMode, RowData, RowColor, AppliedFilters } from '../types'
 import { parseFloorsFromString } from '../utils/floors'
 
 export const useTableOperations = (refetch?: () => void, data: RowData[] = []) => {
@@ -48,31 +48,99 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
   }, [])
 
   // Добавление новой строки
-  const addNewRow = useCallback((projectId: string, insertPosition: 'first' | 'after' = 'first', afterRowIndex?: number) => {
+  const addNewRow = useCallback(async (
+    projectId: string,
+    appliedFilters: AppliedFilters,
+    insertPosition: 'first' | 'after' = 'first',
+    afterRowIndex?: number
+  ) => {
     if (!projectId) {
       message.warning('Выберите проект для добавления строки')
       return
+    }
+
+    // Извлекаем первые элементы из фильтров
+    const firstDocSectionId = appliedFilters.documentation_section_ids.length > 0 ? appliedFilters.documentation_section_ids[0] : ''
+    const firstDocCodeId = appliedFilters.documentation_code_ids.length > 0 ? appliedFilters.documentation_code_ids[0] : ''
+    const firstBlockId = appliedFilters.block_ids.length > 0 ? appliedFilters.block_ids[0] : ''
+    const firstCostCategoryId = appliedFilters.cost_category_ids.length > 0 ? appliedFilters.cost_category_ids[0] : ''
+    const firstCostTypeId = appliedFilters.detail_cost_category_ids.length > 0 ? appliedFilters.detail_cost_category_ids[0] : ''
+
+    // Получаем названия для выбранных ID
+    let docSectionName = ''
+    let docCode = ''
+    let docProjectName = ''
+    let blockName = ''
+    let costCategoryName = ''
+    let costTypeName = ''
+
+    if (firstDocSectionId) {
+      const { data: sectionData } = await supabase
+        .from('documentation_tags')
+        .select('name')
+        .eq('id', firstDocSectionId)
+        .maybeSingle()
+      if (sectionData) docSectionName = sectionData.name
+    }
+
+    if (firstDocCodeId) {
+      const { data: docData } = await supabase
+        .from('documentations')
+        .select('code, project_name')
+        .eq('id', firstDocCodeId)
+        .maybeSingle()
+      if (docData) {
+        docCode = docData.code
+        docProjectName = docData.project_name
+      }
+    }
+
+    if (firstBlockId) {
+      const { data: blockData } = await supabase
+        .from('blocks')
+        .select('name')
+        .eq('id', firstBlockId)
+        .maybeSingle()
+      if (blockData) blockName = blockData.name
+    }
+
+    if (firstCostCategoryId) {
+      const { data: categoryData } = await supabase
+        .from('cost_categories')
+        .select('name')
+        .eq('id', firstCostCategoryId)
+        .maybeSingle()
+      if (categoryData) costCategoryName = categoryData.name
+    }
+
+    if (firstCostTypeId) {
+      const { data: typeData } = await supabase
+        .from('detail_cost_categories')
+        .select('name')
+        .eq('id', firstCostTypeId)
+        .maybeSingle()
+      if (typeData) costTypeName = typeData.name
     }
 
     const newRow: RowData = {
       id: `new-${Date.now()}-${Math.random()}`,
       project: '',
       projectId,
-      // Данные из документации
-      documentationSection: '',
-      documentationCode: '',
-      documentationProjectName: '',
+      // Данные из документации (заполняем из фильтров)
+      documentationSection: docSectionName,
+      documentationCode: docCode,
+      documentationProjectName: docProjectName,
       documentationVersion: '',
       documentationVersionId: '',
-      documentationCodeId: '',
-      // Данные из маппингов
-      block: '',
-      blockId: '',
+      documentationCodeId: firstDocCodeId,
+      // Данные из маппингов (заполняем из фильтров)
+      block: blockName,
+      blockId: firstBlockId,
       floors: '',
-      costCategory: '',
-      costCategoryId: '',
-      costType: '',
-      costTypeId: '',
+      costCategory: costCategoryName,
+      costCategoryId: firstCostCategoryId,
+      costType: costTypeName,
+      costTypeId: firstCostTypeId,
       workSet: '',
       workSetId: '',
       workName: '',
@@ -114,7 +182,7 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
       const result = [...prev, newRow]
       return result
     })
-  }, [tableMode.mode])
+  }, [tableMode.mode, message])
 
   // Удаление новой строки
   const removeNewRow = useCallback((rowId: string) => {
