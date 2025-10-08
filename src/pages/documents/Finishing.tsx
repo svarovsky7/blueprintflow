@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Typography, Select, Button, Space, Table, App } from 'antd'
+import { Typography, Select, Button, Space, Table, App, Modal } from 'antd'
 import {
   PlusOutlined,
   DeleteOutlined,
@@ -22,6 +22,7 @@ import { ImportResultModal } from './Finishing/components/ImportResultModal'
 import { ValidationErrorModal } from './Finishing/components/ValidationErrorModal'
 import { useVersionsState } from './Finishing/hooks/useVersionsState'
 import { useImportToChessboard } from './Finishing/hooks/useImportToChessboard'
+import { useDeleteFinishingSet } from './Finishing/hooks/useDeleteFinishingSet'
 import { createFinishingPie } from '@/entities/finishing/api/finishing-pie-api'
 import type {
   FinishingPie,
@@ -59,7 +60,7 @@ interface FinishingPieWithSet extends FinishingPie {
     chessboard_sets: {
       id: string
       set_number: string
-      set_name: string | null
+      name: string | null
     }
   }>
 }
@@ -109,6 +110,7 @@ export default function Finishing() {
 
   // Хук для импорта в Шахматку
   const importMutation = useImportToChessboard()
+  const deleteSetMutation = useDeleteFinishingSet()
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -307,10 +309,19 @@ export default function Finishing() {
         if (!mappingsError && mappingsData && mappingsData.length > 0) {
           // Получить информацию о комплектах
           const setIds = mappingsData.map((m: any) => m.set_id)
-          const { data: setsData, error: setsError } = await supabase
+
+          let setsQuery = supabase
             .from('chessboard_sets')
-            .select('id, set_number, set_name')
-            .in('id', setIds)
+            .select('id, set_number, name')
+
+          // Использовать eq для одного элемента, in для нескольких
+          if (setIds.length === 1) {
+            setsQuery = setsQuery.eq('id', setIds[0])
+          } else {
+            setsQuery = setsQuery.in('id', setIds)
+          }
+
+          const { data: setsData, error: setsError } = await setsQuery
 
           if (!setsError && setsData) {
             // Объединить маппинги с данными комплектов
@@ -599,6 +610,32 @@ export default function Finishing() {
     setSelectedForImport(null)
   }
 
+  const handleDeleteSet = (record: FinishingPieWithSet) => {
+    const setMapping = record.finishing_pie_sets_mapping?.[0]
+    if (!setMapping) return
+
+    const setInfo = setMapping.chessboard_sets
+    const setLabel = setInfo.name || `№${setInfo.set_number}`
+
+    Modal.confirm({
+      title: 'Удаление комплекта',
+      content: `Вы уверены, что хотите удалить комплект "${setLabel}" и все связанные записи в Шахматке?`,
+      okText: 'Удалить',
+      cancelText: 'Отмена',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await deleteSetMutation.mutateAsync({
+            finishingPieId: record.id,
+            setId: setInfo.id,
+          })
+        } catch (error: any) {
+          message.error(`Ошибка удаления: ${error.message}`)
+        }
+      },
+    })
+  }
+
   const columns = [
     {
       title: 'Наименование документа',
@@ -690,16 +727,29 @@ export default function Finishing() {
         if (!setMapping) return '—'
 
         const setInfo = setMapping.chessboard_sets
-        const setLabel = setInfo.set_name || `№${setInfo.set_number}`
+        const setLabel = setInfo.name || `№${setInfo.set_number}`
 
         return (
-          <Button
-            type="link"
-            onClick={() => navigate(`/documents/chessboard?set=${setInfo.id}`)}
-            style={{ padding: 0 }}
-          >
-            {setLabel}
-          </Button>
+          <Space size="small">
+            <Button
+              type="link"
+              onClick={() => navigate(`/documents/chessboard?set=${setInfo.id}`)}
+              style={{ padding: 0 }}
+            >
+              {setLabel}
+            </Button>
+            <Button
+              type="text"
+              danger
+              size="small"
+              icon={<DeleteOutlined />}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDeleteSet(record)
+              }}
+              title="Удалить комплект"
+            />
+          </Space>
         )
       },
     },

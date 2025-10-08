@@ -243,6 +243,116 @@ async function createChessboardRecords(
   return { createdRows, createdFloorMappings, errors }
 }
 
+export async function deleteFinishingChessboardSet(
+  finishingPieId: string,
+  setId: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const { data: mapping, error: mappingError } = await supabase
+      .from('finishing_pie_sets_mapping')
+      .select('*')
+      .eq('finishing_pie_id', finishingPieId)
+      .eq('set_id', setId)
+      .maybeSingle()
+
+    if (mappingError || !mapping) {
+      return {
+        success: false,
+        message: 'Связь между документом и комплектом не найдена',
+      }
+    }
+
+    const { data: setData, error: setError } = await supabase
+      .from('chessboard_sets')
+      .select('project_id, block_ids, cost_category_ids, version_id')
+      .eq('id', setId)
+      .maybeSingle()
+
+    if (setError || !setData) {
+      console.error('Ошибка получения данных комплекта:', setError)
+      return {
+        success: false,
+        message: 'Комплект не найден',
+      }
+    }
+
+    const { data: chessboardMappings, error: mappingsError } = await supabase
+      .from('chessboard_mapping')
+      .select('chessboard_id')
+      .in('block_id', setData.block_ids || [])
+      .in('cost_category_id', setData.cost_category_ids || [])
+
+    if (mappingsError) {
+      console.error('Ошибка получения маппингов chessboard:', mappingsError)
+    }
+
+    const chessboardIds = chessboardMappings?.map((m) => m.chessboard_id).filter(Boolean) || []
+
+    if (chessboardIds.length > 0) {
+      const { data: chessboardRecords, error: chessboardError } = await supabase
+        .from('chessboard')
+        .select('id')
+        .eq('project_id', setData.project_id)
+        .in('id', chessboardIds)
+
+      if (!chessboardError && chessboardRecords && chessboardRecords.length > 0) {
+        const recordIds = chessboardRecords.map((r) => r.id)
+
+        const { error: deleteChessboardError } = await supabase
+          .from('chessboard')
+          .delete()
+          .in('id', recordIds)
+
+        if (deleteChessboardError) {
+          console.error('Ошибка удаления записей chessboard:', deleteChessboardError)
+          return {
+            success: false,
+            message: `Ошибка удаления записей: ${deleteChessboardError.message}`,
+          }
+        }
+      }
+    }
+
+    const { error: deleteMappingError } = await supabase
+      .from('finishing_pie_sets_mapping')
+      .delete()
+      .eq('finishing_pie_id', finishingPieId)
+      .eq('set_id', setId)
+
+    if (deleteMappingError) {
+      console.error('Ошибка удаления связи:', deleteMappingError)
+      return {
+        success: false,
+        message: `Ошибка удаления связи: ${deleteMappingError.message}`,
+      }
+    }
+
+    const { error: deleteSetError } = await supabase
+      .from('chessboard_sets')
+      .delete()
+      .eq('id', setId)
+
+    if (deleteSetError) {
+      console.error('Ошибка удаления комплекта:', deleteSetError)
+      return {
+        success: false,
+        message: `Ошибка удаления комплекта: ${deleteSetError.message}`,
+      }
+    }
+
+    return {
+      success: true,
+      message: 'Комплект и все связанные записи успешно удалены',
+    }
+  } catch (error: any) {
+    console.error('Критическая ошибка удаления:', error)
+    return {
+      success: false,
+      message: error.message || 'Неизвестная ошибка при удалении',
+    }
+  }
+}
+
 export async function importFinishingToChessboard(
   finishingPieId: string
 ): Promise<ImportToChessboardResult> {

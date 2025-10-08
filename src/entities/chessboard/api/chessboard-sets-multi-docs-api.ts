@@ -164,14 +164,22 @@ export const chessboardSetsMultiDocsApi = {
           // Загружаем статус комплекта
           const { data: statusMapping } = await supabase
             .from('statuses_mapping')
-            .select('status:statuses(id, name, color)')
+            .select('status_id')
             .eq('entity_type', 'chessboard_set')
             .eq('entity_id', set.id)
             .eq('is_current', true)
             .single()
 
-          if (statusMapping?.status) {
-            set.status = statusMapping.status
+          if (statusMapping?.status_id) {
+            const { data: statusData } = await supabase
+              .from('statuses')
+              .select('id, name, color')
+              .eq('id', statusMapping.status_id)
+              .single()
+
+            if (statusData) {
+              set.status = statusData
+            }
           }
 
           return set as ChessboardSet

@@ -179,7 +179,7 @@ export default function ProjectAnalysis() {
           // Загружаем статус комплекта
           const { data: statusMapping, error: statusError } = await supabase!
             .from('statuses_mapping')
-            .select('status:statuses(id, name, color)')
+            .select('status_id')
             .eq('entity_type', 'chessboard_set')
             .eq('entity_id', set.id)
             .eq('is_current', true)
@@ -187,6 +187,16 @@ export default function ProjectAnalysis() {
 
           if (statusError && statusError.code !== 'PGRST116') {
             console.error('Error loading status for set:', set.id, statusError)
+          }
+
+          let statusData = null
+          if (statusMapping?.status_id) {
+            const { data: status } = await supabase!
+              .from('statuses')
+              .select('id, name, color')
+              .eq('id', statusMapping.status_id)
+              .single()
+            statusData = status
           }
 
           // Извлекаем документы из JSONB поля
@@ -210,7 +220,7 @@ export default function ProjectAnalysis() {
           return {
             ...set,
             documents,
-            status: statusMapping?.status || null,
+            status: statusData || null,
           } as SetWithDocuments
         }),
       )

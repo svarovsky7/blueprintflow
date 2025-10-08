@@ -194,17 +194,31 @@ export const chessboardSetsApi = {
     if (setIds.length > 0) {
       const { data: statusMappings } = await supabase
         .from('statuses_mapping')
-        .select(
-          `
-          entity_id,
-          status:statuses(id, name, color)
-        `,
-        )
+        .select('entity_id, status_id')
         .eq('entity_type', 'chessboard_set')
         .in('entity_id', setIds)
         .eq('is_current', true)
 
-      statusesMap = (statusMappings || []).reduce(
+      // Получаем статусы отдельным запросом
+      const statusIds = [...new Set((statusMappings || []).map((m: any) => m.status_id))]
+      let statusesData: any[] = []
+
+      if (statusIds.length > 0) {
+        const { data: statuses } = await supabase
+          .from('statuses')
+          .select('id, name, color')
+          .in('id', statusIds)
+
+        statusesData = statuses || []
+      }
+
+      // Объединяем данные на клиенте
+      const mappingsWithStatuses = (statusMappings || []).map((m: any) => ({
+        entity_id: m.entity_id,
+        status: statusesData.find((s: any) => s.id === m.status_id)
+      }))
+
+      statusesMap = mappingsWithStatuses.reduce(
         (acc, mapping) => {
           if (mapping.status && !Array.isArray(mapping.status)) {
             acc[mapping.entity_id] = mapping.status
@@ -617,12 +631,7 @@ export const chessboardSetsApi = {
 
     const { data, error } = await supabase
       .from('statuses_mapping')
-      .select(
-        `
-        *,
-        status:statuses(id, name, color)
-      `,
-      )
+      .select('*')
       .eq('entity_type', 'chessboard_set')
       .eq('entity_id', setId)
       .order('assigned_at', { ascending: false })
@@ -632,10 +641,26 @@ export const chessboardSetsApi = {
       throw error
     }
 
+    // Получаем статусы отдельным запросом
+    const statusIds = [...new Set((data || []).map((item: any) => item.status_id))]
+    let statusesMap: Record<string, { name: string; color?: string }> = {}
+
+    if (statusIds.length > 0) {
+      const { data: statuses } = await supabase
+        .from('statuses')
+        .select('id, name, color')
+        .in('id', statusIds)
+
+      statusesMap = (statuses || []).reduce((acc: any, s: any) => {
+        acc[s.id] = { name: s.name, color: s.color }
+        return acc
+      }, {})
+    }
+
     return (data || []).map((item) => ({
       status_id: item.status_id,
-      status_name: item.status?.name || '',
-      status_color: item.status?.color,
+      status_name: statusesMap[item.status_id]?.name || '',
+      status_color: statusesMap[item.status_id]?.color,
       assigned_at: item.assigned_at,
       assigned_by: item.assigned_by,
       comment: item.comment,
@@ -649,12 +674,7 @@ export const chessboardSetsApi = {
 
     const { data, error } = await supabase
       .from('statuses_mapping')
-      .select(
-        `
-        *,
-        status:statuses(id, name, color)
-      `,
-      )
+      .select('*')
       .eq('entity_type', 'chessboard_set')
       .eq('entity_id', setId)
       .eq('is_current', true)
@@ -670,10 +690,17 @@ export const chessboardSetsApi = {
 
     if (!data) return null
 
+    // Получаем данные статуса отдельным запросом
+    const { data: statusData } = await supabase
+      .from('statuses')
+      .select('id, name, color')
+      .eq('id', data.status_id)
+      .single()
+
     return {
       status_id: data.status_id,
-      status_name: data.status?.name || '',
-      status_color: data.status?.color,
+      status_name: statusData?.name || '',
+      status_color: statusData?.color,
       assigned_at: data.assigned_at,
       assigned_by: data.assigned_by,
       comment: data.comment,

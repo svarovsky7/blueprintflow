@@ -65,12 +65,7 @@ export const statusesMappingApi = {
 
     const { data, error } = await supabase
       .from('statuses_mapping')
-      .select(
-        `
-        *,
-        status:statuses(id, name, color)
-      `,
-      )
+      .select('*')
       .eq('entity_type', entityType)
       .eq('entity_id', entityId)
       .eq('is_current', true)
@@ -84,7 +79,19 @@ export const statusesMappingApi = {
       throw error
     }
 
-    return data as StatusMappingWithDetails
+    if (!data) return null
+
+    // Получаем данные статуса отдельным запросом
+    const { data: statusData } = await supabase
+      .from('statuses')
+      .select('id, name, color')
+      .eq('id', data.status_id)
+      .single()
+
+    return {
+      ...data,
+      status: statusData ? { id: statusData.id, name: statusData.name, color: statusData.color } : undefined
+    } as StatusMappingWithDetails
   },
 
   // Получение истории статусов сущности
@@ -96,12 +103,7 @@ export const statusesMappingApi = {
 
     const { data, error } = await supabase
       .from('statuses_mapping')
-      .select(
-        `
-        *,
-        status:statuses(id, name, color)
-      `,
-      )
+      .select('*')
       .eq('entity_type', entityType)
       .eq('entity_id', entityId)
       .order('assigned_at', { ascending: false })
@@ -111,7 +113,26 @@ export const statusesMappingApi = {
       throw error
     }
 
-    return (data || []) as StatusMappingWithDetails[]
+    // Получаем статусы отдельным запросом
+    const statusIds = [...new Set((data || []).map((item: any) => item.status_id))]
+    let statusesMap: Record<string, { id: string; name: string; color?: string }> = {}
+
+    if (statusIds.length > 0) {
+      const { data: statuses } = await supabase
+        .from('statuses')
+        .select('id, name, color')
+        .in('id', statusIds)
+
+      statusesMap = (statuses || []).reduce((acc: any, s: any) => {
+        acc[s.id] = { id: s.id, name: s.name, color: s.color }
+        return acc
+      }, {})
+    }
+
+    return (data || []).map((item: any) => ({
+      ...item,
+      status: statusesMap[item.status_id]
+    })) as StatusMappingWithDetails[]
   },
 
   // Удаление статуса (soft delete - просто снимаем флаг is_current)
@@ -177,12 +198,7 @@ export const statusesMappingApi = {
 
     let query = supabase
       .from('statuses_mapping')
-      .select(
-        `
-        *,
-        status:statuses(id, name, color)
-      `,
-      )
+      .select('*')
       .eq('status_id', statusId)
       .eq('is_current', true)
 
@@ -197,6 +213,18 @@ export const statusesMappingApi = {
       throw error
     }
 
-    return (data || []) as StatusMappingWithDetails[]
+    // Получаем данные статуса отдельным запросом
+    const { data: statusData } = await supabase
+      .from('statuses')
+      .select('id, name, color')
+      .eq('id', statusId)
+      .single()
+
+    const status = statusData ? { id: statusData.id, name: statusData.name, color: statusData.color } : undefined
+
+    return (data || []).map((item: any) => ({
+      ...item,
+      status
+    })) as StatusMappingWithDetails[]
   },
 }
