@@ -90,6 +90,10 @@ body[data-theme='dark'] {
   color: #000000 !important;
 }
 
+.editing-row {
+  background-color: #fffbdd !important;
+}
+
 .ant-table {
   font-size: calc(14px * var(--app-scale));
 }

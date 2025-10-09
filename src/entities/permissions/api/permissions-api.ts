@@ -61,7 +61,6 @@ export async function createPermission(dto: CreatePermissionDto): Promise<Permis
         can_create: dto.can_create || false,
         can_edit: dto.can_edit || false,
         can_delete: dto.can_delete || false,
-        conditions: dto.conditions,
       },
     ])
     .select()
@@ -170,14 +169,114 @@ export async function updatePermissionByRoleAndObject(
   objectId: string,
   dto: UpdatePermissionDto
 ): Promise<Permission> {
-  const { data, error } = await supabase
+  // Сначала проверяем, существует ли запись
+  const { data: existing } = await supabase
     .from('permissions')
-    .update(dto)
+    .select('id')
     .eq('role_id', roleId)
     .eq('portal_object_id', objectId)
-    .select()
-    .single()
+    .maybeSingle()
 
-  if (error) throw error
-  return data
+  if (existing) {
+    // Если запись существует - обновляем
+    const { data, error } = await supabase
+      .from('permissions')
+      .update(dto)
+      .eq('role_id', roleId)
+      .eq('portal_object_id', objectId)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  } else {
+    // Если записи нет - создаем новую
+    const insertData = {
+      role_id: roleId,
+      portal_object_id: objectId,
+      can_view: dto.can_view ?? false,
+      can_create: dto.can_create ?? false,
+      can_edit: dto.can_edit ?? false,
+      can_delete: dto.can_delete ?? false,
+    }
+
+    const { data, error } = await supabase
+      .from('permissions')
+      .insert(insertData)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+}
+
+export async function batchUpdatePermissions(
+  updates: { roleId: string; objectId: string; data: UpdatePermissionDto }[]
+): Promise<void> {
+  // Получаем все существующие записи одним запросом
+  const objectIds = updates.map((u) => u.objectId)
+  const roleId = updates[0]?.roleId
+
+  if (!roleId) return
+
+  const { data: existing } = await supabase
+    .from('permissions')
+    .select('id, role_id, portal_object_id')
+    .eq('role_id', roleId)
+    .in('portal_object_id', objectIds)
+
+  const existingMap = new Map(
+    existing?.map((item) => [item.portal_object_id, item.id]) || []
+  )
+
+  // Разделяем на обновления и вставки
+  const toUpdate: { id: string; data: UpdatePermissionDto }[] = []
+  const toInsert: any[] = []
+
+  updates.forEach((update) => {
+    const existingId = existingMap.get(update.objectId)
+    if (existingId) {
+      toUpdate.push({ id: existingId, data: update.data })
+    } else {
+      toInsert.push({
+        role_id: update.roleId,
+        portal_object_id: update.objectId,
+        can_view: update.data.can_view ?? false,
+        can_create: update.data.can_create ?? false,
+        can_edit: update.data.can_edit ?? false,
+        can_delete: update.data.can_delete ?? false,
+      })
+    }
+  })
+
+  // Выполняем операции
+  const promises: Promise<any>[] = []
+
+  // Массовый insert для новых записей
+  if (toInsert.length > 0) {
+    promises.push(supabase.from('permissions').insert(toInsert))
+  }
+
+  // Для обновлений делаем отдельные update запросы (можно оптимизировать через RPC функцию)
+  toUpdate.forEach((item) => {
+    promises.push(
+      supabase
+        .from('permissions')
+        .update({
+          can_view: item.data.can_view ?? false,
+          can_create: item.data.can_create ?? false,
+          can_edit: item.data.can_edit ?? false,
+          can_delete: item.data.can_delete ?? false,
+        })
+        .eq('id', item.id)
+    )
+  })
+
+  const results = await Promise.all(promises)
+  const errors = results.filter((r) => r.error).map((r) => r.error)
+
+  if (errors.length > 0) {
+    throw errors[0]
+  }
 }

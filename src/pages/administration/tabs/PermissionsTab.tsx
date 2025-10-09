@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Table, Select, message, Checkbox, Tag, Space, Button, Tooltip } from 'antd'
+import { Table, Select, App, Checkbox, Tag, Space, Button, Tooltip } from 'antd'
 import { EditOutlined, SaveOutlined, CloseOutlined, CheckSquareOutlined, CopyOutlined } from '@ant-design/icons'
 import {
   getPermissions,
-  updatePermissionByRoleAndObject,
+  batchUpdatePermissions,
 } from '@/entities/permissions/api/permissions-api'
 import { getRoles } from '@/entities/roles'
 import { getPortalObjects } from '@/entities/portal-objects/api/portal-objects-api'
@@ -29,6 +29,7 @@ interface EditedPermissions {
 }
 
 export default function PermissionsTab() {
+  const { message } = App.useApp()
   const [selectedRole, setSelectedRole] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [editedPermissions, setEditedPermissions] = useState<EditedPermissions>({})
@@ -51,9 +52,7 @@ export default function PermissionsTab() {
 
   const updateMutation = useMutation({
     mutationFn: async (updates: { roleId: string; objectId: string; data: UpdatePermissionDto }[]) => {
-      for (const update of updates) {
-        await updatePermissionByRoleAndObject(update.roleId, update.objectId, update.data)
-      }
+      await batchUpdatePermissions(updates)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['permissions'] })
@@ -190,12 +189,14 @@ export default function PermissionsTab() {
       dataIndex: 'objectCode',
       key: 'objectCode',
       width: 150,
+      sorter: (a, b) => a.objectCode.localeCompare(b.objectCode),
     },
     {
       title: 'Тип',
       dataIndex: 'objectType',
       key: 'objectType',
       width: 120,
+      sorter: (a, b) => a.objectType.localeCompare(b.objectType),
       render: (type: string) => {
         const colors: Record<string, string> = {
           page: 'blue',

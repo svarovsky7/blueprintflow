@@ -775,6 +775,8 @@ export default function FinishingPieType() {
                 size="small"
                 title="Редактировать строку"
                 onClick={() => {
+                  // Первый клик - переходим в режим edit
+                  setMode('edit')
                   setEditingRows([{ ...record, isEditing: true }])
                 }}
               />
@@ -795,6 +797,25 @@ export default function FinishingPieType() {
             </Space>
           )
         }
+
+        // В режиме edit, если строка НЕ редактируется - показываем кнопку для добавления в редактирование
+        if (mode === 'edit' && !isRowEditing(record)) {
+          return (
+            <Space size="small">
+              <Button
+                type="text"
+                icon={<EditOutlined />}
+                size="small"
+                title="Редактировать строку"
+                onClick={() => {
+                  // Добавляем строку к уже редактируемым
+                  setEditingRows(prev => [...prev, { ...record, isEditing: true }])
+                }}
+              />
+            </Space>
+          )
+        }
+
         return null
       },
     },
@@ -1097,7 +1118,7 @@ export default function FinishingPieType() {
             ) : (
               <>
                 <Button type="primary" icon={<SaveOutlined />} onClick={handleSaveDocument}>
-                  Сохранить
+                  Сохранить {editingRows.length > 0 && `(${editingRows.length})`}
                 </Button>
                 <Button icon={<CloseOutlined />} onClick={handleCancelEdit}>
                   Отмена
@@ -1126,6 +1147,13 @@ export default function FinishingPieType() {
                 }
               : undefined
           }
+          rowClassName={(record) => {
+            // Подсветка редактируемых строк
+            if (isRowEditing(record as FinishingPieRow)) {
+              return 'editing-row'
+            }
+            return ''
+          }}
         />
       </div>
     </div>

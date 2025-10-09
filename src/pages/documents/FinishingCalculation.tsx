@@ -135,6 +135,17 @@ interface EditableRow extends Partial<CalculationRow> {
   quantitySpec?: number | null
   quantityRd?: number | null
   floorRange?: string  // Строка диапазона этажей: "1-3", "2,4-6"
+  _originalValues?: {
+    floorRange?: string
+    quantitySpec?: number | null
+    quantityRd?: number | null
+    floors?: Array<{
+      type_calculation_mapping_id: string
+      floor_number: number
+      quantitySpec: number | null
+      quantityRd: number | null
+    }>
+  }
 }
 
 export default function FinishingCalculation() {
@@ -370,12 +381,8 @@ export default function FinishingCalculation() {
       return
     }
 
-    console.log('🔍 LOG: handleSaveDocument - начало сохранения', { editingRows }) // LOG
-
     try {
       for (const row of editingRows) {
-        console.log('🔍 LOG: обработка строки', { row }) // LOG
-
         if (row.isNew) {
           // Создаем новую строку расчета
           const newRow = await createMutation.mutateAsync({
@@ -388,15 +395,12 @@ export default function FinishingCalculation() {
             surface_type_id: row.surface_type_id || null,
           })
 
-          console.log('🔍 LOG: создана новая строка', { newRow }) // LOG
-
           // Создаем массив этажей из floorRange и количеств
           let floorsToSave = row.floors || []
 
           // Если есть floorRange, создаем floors из него
           if (row.floorRange) {
             const floorNumbers = parseFloorRange(row.floorRange)
-            console.log('🔍 LOG: распарсили этажи', { floorRange: row.floorRange, floorNumbers }) // LOG
 
             if (floorNumbers.length > 0) {
               // Если уже есть детальные данные по этажам (из модального окна), используем их
@@ -412,47 +416,71 @@ export default function FinishingCalculation() {
                   quantitySpec: totalSpec > 0 ? totalSpec / floorCount : null,
                   quantityRd: totalRd > 0 ? totalRd / floorCount : null,
                 }))
-
-                console.log('🔍 LOG: создали floors с равномерным распределением', { floorsToSave }) // LOG
-              } else {
-                console.log('🔍 LOG: используем существующие floors', { floorsToSave }) // LOG
               }
             }
           }
 
           // Сохраняем этажи, если они есть
           if (floorsToSave && floorsToSave.length > 0) {
-            console.log('🔍 LOG: сохраняем этажи', { newRowId: newRow.id, floorsToSave }) // LOG
             await upsertTypeCalculationFloors(newRow.id, floorsToSave)
-            console.log('🔍 LOG: этажи сохранены успешно') // LOG
-          } else {
-            console.log('🔍 LOG: нет этажей для сохранения') // LOG
           }
 
         } else if (row.isEditing) {
           // Обновляем существующую строку
+          const dto = {
+            block_id: row.block_id ?? null,
+            location_id: row.location_id ?? null,
+            room_type_id: row.room_type_id ?? null,
+            room_number_id: row.room_number_id ?? null,
+            pie_type_id: row.pie_type_id ?? null,
+            surface_type_id: row.surface_type_id ?? null,
+          }
+
           await updateMutation.mutateAsync({
             id: row.id!,
-            dto: {
-              block_id: row.block_id || null,
-              location_id: row.location_id || null,
-              room_type_id: row.room_type_id || null,
-              room_number_id: row.room_number_id || null,
-              pie_type_id: row.pie_type_id || null,
-              surface_type_id: row.surface_type_id || null,
-            },
+            dto,
           })
 
-          // Создаем массив этажей из floorRange и количеств
-          let floorsToSave = row.floors || []
+          // Проверяем, были ли изменения в этажах/количествах
+          const floorRangeChanged = row.floorRange !== row._originalValues?.floorRange
+          const quantitySpecChanged = row.quantitySpec !== row._originalValues?.quantitySpec
+          const quantityRdChanged = row.quantityRd !== row._originalValues?.quantityRd
 
-          if (row.floorRange) {
-            const floorNumbers = parseFloorRange(row.floorRange)
+          // Обновляем floors только если были изменения
+          if (floorRangeChanged || quantitySpecChanged || quantityRdChanged) {
+
+            const floorNumbers = parseFloorRange(row.floorRange || '')
 
             if (floorNumbers.length > 0) {
-              if (!floorsToSave || floorsToSave.length === 0) {
-                const totalSpec = row.quantitySpec || 0
-                const totalRd = row.quantityRd || 0
+              let floorsToSave: Array<{
+                type_calculation_mapping_id: string
+                floor_number: number
+                quantitySpec: number | null
+                quantityRd: number | null
+              }> = []
+
+              // Проверяем, нужно ли использовать детальные данные floors или пересчитать
+              // Используем детальные данные ТОЛЬКО если НИ количество, НИ диапазон этажей НЕ изменились
+              const useDetailedFloors = row.floors &&
+                                        row.floors.length > 0 &&
+                                        row.floors.every(f => f.type_calculation_mapping_id === row.id) &&
+                                        !quantitySpecChanged &&
+                                        !quantityRdChanged &&
+                                        !floorRangeChanged
+
+              if (useDetailedFloors) {
+                // Используем детальные данные из модального окна (количество не менялось)
+                // Форматируем данные, оставляя только нужные поля
+                floorsToSave = row.floors!.map(f => ({
+                  type_calculation_mapping_id: row.id!,
+                  floor_number: f.floor_number,
+                  quantitySpec: f.quantitySpec,
+                  quantityRd: f.quantityRd,
+                }))
+              } else {
+                // Пересчитываем floors с равномерным распределением новых количеств
+                const totalSpec = row.quantitySpec ?? 0
+                const totalRd = row.quantityRd ?? 0
                 const floorCount = floorNumbers.length
 
                 floorsToSave = floorNumbers.map((floorNum) => ({
@@ -462,16 +490,15 @@ export default function FinishingCalculation() {
                   quantityRd: totalRd > 0 ? totalRd / floorCount : null,
                 }))
               }
-            }
-          }
 
-          if (floorsToSave && floorsToSave.length > 0) {
-            await upsertTypeCalculationFloors(row.id!, floorsToSave)
+              // Сохраняем этажи в БД
+              if (floorsToSave.length > 0) {
+                await upsertTypeCalculationFloors(row.id!, floorsToSave)
+              }
+            }
           }
         }
       }
-
-      console.log('🔍 LOG: все строки сохранены успешно') // LOG
 
       // Присвоить статус "В работе" при первом сохранении
       const { data: currentDoc } = await supabase
@@ -498,15 +525,14 @@ export default function FinishingCalculation() {
         }
       }
 
+      // Обновляем данные из БД и ждём завершения загрузки
+      await queryClient.invalidateQueries({ queryKey: ['type-calculation-rows', selectedFinishingPieId] })
+
       message.success('Документ сохранён')
       setMode('view')
       setEditingRows([])
-
-      // Обновляем данные из БД
-      queryClient.invalidateQueries({ queryKey: ['type-calculation-rows', selectedFinishingPieId] })
     } catch (error: unknown) {
       const err = error as { message?: string }
-      console.error('❌ LOG: ошибка сохранения', error) // LOG
       message.error(`Ошибка сохранения: ${err.message || 'Неизвестная ошибка'}`)
     }
   }
@@ -723,14 +749,24 @@ export default function FinishingCalculation() {
                   const quantitySpec = record.floors?.reduce((sum, f) => sum + (f.quantitySpec || 0), 0) || null
                   const quantityRd = record.floors?.reduce((sum, f) => sum + (f.quantityRd || 0), 0) || null
 
-                  setMode('edit')
-                  setEditingRows([{
+                  const editableRow = {
                     ...record,
                     isEditing: true,
                     floorRange,
                     quantitySpec,
                     quantityRd,
-                  }])
+                    floors: record.floors,
+                    _originalValues: {
+                      floorRange,
+                      quantitySpec,
+                      quantityRd,
+                      floors: record.floors ? [...record.floors] : []
+                    }
+                  }
+
+                  // Первый клик - переходим в режим edit
+                  setMode('edit')
+                  setEditingRows([editableRow])
                 }}
               />
               <Popconfirm
@@ -751,38 +787,80 @@ export default function FinishingCalculation() {
           )
         }
         if (mode === 'add' || mode === 'edit') {
-          return (
-            <Space size="small">
-              <Button
-                type="text"
-                icon={<PlusOutlined />}
-                size="small"
-                title="Добавить строку"
-                onClick={() => handleAddRow(record.id)}
-              />
-              <Button
-                type="text"
-                icon={<CopyOutlined />}
-                size="small"
-                title="Скопировать строку"
-                onClick={() => handleCopyRow(record, record.id)}
-              />
-              <Popconfirm
-                title="Удалить эту строку?"
-                onConfirm={() => handleDeleteSingleRow(record.id)}
-                okText="Да"
-                cancelText="Нет"
-              >
+          const isEditing = (record as EditableRow).isEditing || (record as EditableRow).isNew
+
+          if (isEditing) {
+            // Если строка редактируется - показываем кнопки управления
+            return (
+              <Space size="small">
                 <Button
                   type="text"
-                  danger
-                  icon={<DeleteOutlined />}
+                  icon={<PlusOutlined />}
                   size="small"
-                  title="Удалить строку"
+                  title="Добавить строку"
+                  onClick={() => handleAddRow(record.id)}
                 />
-              </Popconfirm>
-            </Space>
-          )
+                <Button
+                  type="text"
+                  icon={<CopyOutlined />}
+                  size="small"
+                  title="Скопировать строку"
+                  onClick={() => handleCopyRow(record, record.id)}
+                />
+                <Popconfirm
+                  title="Удалить эту строку?"
+                  onConfirm={() => handleDeleteSingleRow(record.id)}
+                  okText="Да"
+                  cancelText="Нет"
+                >
+                  <Button
+                    type="text"
+                    danger
+                    icon={<DeleteOutlined />}
+                    size="small"
+                    title="Удалить строку"
+                  />
+                </Popconfirm>
+              </Space>
+            )
+          } else if (mode === 'edit') {
+            // В режиме edit, если строка НЕ редактируется - показываем кнопку для добавления в редактирование
+            return (
+              <Space size="small">
+                <Button
+                  type="text"
+                  icon={<EditOutlined />}
+                  size="small"
+                  title="Редактировать строку"
+                  onClick={() => {
+                    // Преобразуем floors в floorRange и количества для редактирования
+                    const floorNumbers = record.floors?.map(f => f.floor_number).filter(n => n != null) || []
+                    const floorRange = formatFloorRange(floorNumbers)
+                    const quantitySpec = record.floors?.reduce((sum, f) => sum + (f.quantitySpec || 0), 0) || null
+                    const quantityRd = record.floors?.reduce((sum, f) => sum + (f.quantityRd || 0), 0) || null
+
+                    const editableRow = {
+                      ...record,
+                      isEditing: true,
+                      floorRange,
+                      quantitySpec,
+                      quantityRd,
+                      floors: record.floors,
+                      _originalValues: {
+                        floorRange,
+                        quantitySpec,
+                        quantityRd,
+                        floors: record.floors ? [...record.floors] : []
+                      }
+                    }
+
+                    // Добавляем строку к уже редактируемым
+                    setEditingRows(prev => [...prev, editableRow])
+                  }}
+                />
+              </Space>
+            )
+          }
         }
         return null
       },
@@ -1157,7 +1235,7 @@ export default function FinishingCalculation() {
             ) : (
               <>
                 <Button type="primary" icon={<SaveOutlined />} onClick={handleSaveDocument}>
-                  Сохранить
+                  Сохранить {editingRows.length > 0 && `(${editingRows.length})`}
                 </Button>
                 <Button icon={<CloseOutlined />} onClick={handleCancelEdit}>
                   Отмена
@@ -1184,6 +1262,14 @@ export default function FinishingCalculation() {
                 }
               : undefined
           }
+          rowClassName={(record) => {
+            // Подсветка редактируемых строк
+            const editableRecord = record as EditableRow
+            if (editableRecord.isEditing || editableRecord.isNew) {
+              return 'editing-row'
+            }
+            return ''
+          }}
           locale={{ emptyText: 'Нет данных' }}
         />
       </div>
