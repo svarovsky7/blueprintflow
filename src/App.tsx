@@ -32,14 +32,11 @@ import Documentation from './pages/documents/Documentation'
 import Reports from './pages/Reports'
 import ProjectAnalysis from './pages/reports/ProjectAnalysis'
 import Admin from './pages/Admin'
-import Administration from './pages/Administration'
+import AccessControl from './pages/administration/AccessControl'
+import Security from './pages/administration/Security'
 import DocumentationTags from './pages/administration/DocumentationTags'
 import Statuses from './pages/administration/Statuses'
 import ApiSettings from './pages/administration/ApiSettings'
-import Users from './pages/administration/Users'
-import UserGroups from './pages/administration/UserGroups'
-import Roles from './pages/administration/Roles'
-import Permissions from './pages/administration/Permissions'
 import Experiments from './pages/experiments'
 import ChessboardML from './pages/experiments/ChessboardML'
 import Login from './pages/Login'
@@ -356,16 +353,14 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         <div
           {...createHoverMenu('administration', [
             {
-              key: 'documentation-tags',
-              label: 'Тэги документации',
-              path: '/administration/documentation-tags',
+              key: 'access-control',
+              label: 'Управление доступом',
+              path: '/administration/access-control',
             },
+            { key: 'security', label: 'Роли и разрешения', path: '/administration/security' },
             { key: 'statuses', label: 'Статусы', path: '/administration/statuses' },
-            { key: 'api-settings', label: 'API', path: '/administration/api-settings' },
-            { key: 'users', label: 'Пользователи', path: '/administration/users' },
-            { key: 'user-groups', label: 'Группы', path: '/administration/user-groups' },
-            { key: 'roles', label: 'Роли', path: '/administration/roles' },
-            { key: 'permissions', label: 'Разрешения', path: '/administration/permissions' },
+            { key: 'documentation-tags', label: 'Тэги документации', path: '/administration/documentation-tags' },
+            { key: 'api-settings', label: 'Настройки API', path: '/administration/api-settings' },
           ])}
         >
           <UserOutlined />
@@ -378,32 +373,24 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
         ? undefined
         : [
             {
-              key: 'documentation-tags',
-              label: <Link to="/administration/documentation-tags">Тэги документации</Link>,
+              key: 'access-control',
+              label: <Link to="/administration/access-control">Управление доступом</Link>,
+            },
+            {
+              key: 'security',
+              label: <Link to="/administration/security">Роли и разрешения</Link>,
             },
             {
               key: 'statuses',
               label: <Link to="/administration/statuses">Статусы</Link>,
             },
             {
+              key: 'documentation-tags',
+              label: <Link to="/administration/documentation-tags">Тэги документации</Link>,
+            },
+            {
               key: 'api-settings',
-              label: <Link to="/administration/api-settings">API</Link>,
-            },
-            {
-              key: 'users',
-              label: <Link to="/administration/users">Пользователи</Link>,
-            },
-            {
-              key: 'user-groups',
-              label: <Link to="/administration/user-groups">Группы</Link>,
-            },
-            {
-              key: 'roles',
-              label: <Link to="/administration/roles">Роли</Link>,
-            },
-            {
-              key: 'permissions',
-              label: <Link to="/administration/permissions">Разрешения</Link>,
+              label: <Link to="/administration/api-settings">Настройки API</Link>,
             },
           ],
     },
@@ -812,22 +799,11 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                 >
                   <Route path="project-analysis" element={<ProjectAnalysis />} />
                 </Route>
-                <Route
-                  path="/administration"
-                  element={
-                    <ProtectedRoute>
-                      <Administration />
-                    </ProtectedRoute>
-                  }
-                >
-                  <Route path="documentation-tags" element={<DocumentationTags />} />
-                  <Route path="statuses" element={<Statuses />} />
-                  <Route path="api-settings" element={<ApiSettings />} />
-                  <Route path="users" element={<Users />} />
-                  <Route path="user-groups" element={<UserGroups />} />
-                  <Route path="roles" element={<Roles />} />
-                  <Route path="permissions" element={<Permissions />} />
-                </Route>
+                <Route path="/administration/access-control" element={<ProtectedRoute><AccessControl /></ProtectedRoute>} />
+                <Route path="/administration/security" element={<ProtectedRoute><Security /></ProtectedRoute>} />
+                <Route path="/administration/documentation-tags" element={<ProtectedRoute><DocumentationTags /></ProtectedRoute>} />
+                <Route path="/administration/statuses" element={<ProtectedRoute><Statuses /></ProtectedRoute>} />
+                <Route path="/administration/api-settings" element={<ProtectedRoute><ApiSettings /></ProtectedRoute>} />
                 <Route
                   path="/admin"
                   element={
@@ -837,7 +813,10 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                   }
                 >
                   <Route path="disk" element={<Navigate to="/administration/api-settings" replace />} />
-                  <Route path="users" element={<Navigate to="/administration/users" replace />} />
+                  <Route path="users" element={<Navigate to="/administration/access-control?tab=users" replace />} />
+                  <Route path="user-groups" element={<Navigate to="/administration/access-control?tab=groups" replace />} />
+                  <Route path="roles" element={<Navigate to="/administration/security?tab=roles" replace />} />
+                  <Route path="permissions" element={<Navigate to="/administration/security?tab=permissions" replace />} />
                   <Route path="documentation-tags" element={<Navigate to="/administration/documentation-tags" replace />} />
                   <Route path="statuses" element={<Navigate to="/administration/statuses" replace />} />
                   <Route path="api-settings" element={<Navigate to="/administration/api-settings" replace />} />

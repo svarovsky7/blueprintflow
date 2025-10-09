@@ -11,8 +11,8 @@ export async function getPortalObjects(): Promise<PortalObject[]> {
   const { data, error } = await supabase
     .from('portal_objects')
     .select('*')
-    .order('sort_order')
-    .order('name')
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true })
 
   if (error) throw error
   return data || []
@@ -23,8 +23,8 @@ export async function getPortalObjectsByType(type: PortalObjectType): Promise<Po
     .from('portal_objects')
     .select('*')
     .eq('object_type', type)
-    .order('sort_order')
-    .order('name')
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true })
 
   if (error) throw error
   return data || []

@@ -32,6 +32,11 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
       await createUser(dto)
       form.resetFields()
 
+      message.success(
+        'Регистрация успешна! Ваш аккаунт ожидает подтверждения администратором. Вы сможете войти после активации.',
+        8
+      )
+
       // Снимаем фокус с кнопки перед переключением вкладки
       if (document.activeElement instanceof HTMLElement) {
         document.activeElement.blur()

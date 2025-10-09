@@ -38,7 +38,7 @@ export async function getUserById(userId: string): Promise<User | null> {
 }
 
 export async function createUser(dto: CreateUserDto): Promise<User> {
-  const { data: authData, error: authError } = await supabase.auth.signUp({
+  const { data: authData, error: authError} = await supabase.auth.signUp({
     email: dto.email,
     password: dto.password,
   })
@@ -57,6 +57,7 @@ export async function createUser(dto: CreateUserDto): Promise<User> {
         position: dto.position,
         department: dto.department,
         phone: dto.phone,
+        is_active: false, // По умолчанию пользователь неактивен до подтверждения администратором
       },
     ])
     .select()
