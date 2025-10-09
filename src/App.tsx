@@ -45,7 +45,7 @@ import TestTableStructure from './pages/TestTableStructure'
 import { useLogo } from './shared/contexts/LogoContext'
 import { useScale } from './shared/contexts/ScaleContext'
 import { useAuthStore } from '@/features/auth'
-import { ProtectedRoute } from '@/shared/components/ProtectedRoute'
+import { ProtectedRoute, PermissionGuard } from '@/shared/components'
 
 import { debugTableScroll } from './shared/debugTableScroll'
 
@@ -440,6 +440,24 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     },
   ]
 
+  const isLoginPage = location.pathname === '/login'
+
+  // Если это страница логина - рендерим без Layout
+  if (isLoginPage) {
+    return (
+      <Routes>
+        <Route
+          path="/login"
+          element={
+            <ProtectedRoute requireAuth={false}>
+              <Login />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    )
+  }
+
   return (
     <>
       <style>
@@ -741,14 +759,6 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
               <Routes>
                 <Route
-                  path="/login"
-                  element={
-                    <ProtectedRoute requireAuth={false}>
-                      <Login />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
                   path="/"
                   element={
                     <ProtectedRoute>
@@ -764,13 +774,62 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                     </ProtectedRoute>
                   }
                 >
-                  <Route path="chessboard" element={<Chessboard />} />
-                  <Route path="vor" element={<Vor />} />
-                  <Route path="vor-view" element={<VorView />} />
-                  <Route path="documentation" element={<Documentation />} />
-                  <Route path="finishing" element={<Finishing />} />
-                  <Route path="finishing-pie-type/:id" element={<FinishingPieType />} />
-                  <Route path="finishing-calculation/:id" element={<FinishingCalculation />} />
+                  <Route
+                    path="chessboard"
+                    element={
+                      <PermissionGuard objectCode="chessboard_page">
+                        <Chessboard />
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="vor"
+                    element={
+                      <PermissionGuard objectCode="vor_page">
+                        <Vor />
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="vor-view"
+                    element={
+                      <PermissionGuard objectCode="vor_page">
+                        <VorView />
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="documentation"
+                    element={
+                      <PermissionGuard objectCode="documentation_page">
+                        <Documentation />
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="finishing"
+                    element={
+                      <PermissionGuard objectCode="finishing_page">
+                        <Finishing />
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="finishing-pie-type/:id"
+                    element={
+                      <PermissionGuard objectCode="finishing_page">
+                        <FinishingPieType />
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="finishing-calculation/:id"
+                    element={
+                      <PermissionGuard objectCode="finishing_page">
+                        <FinishingCalculation />
+                      </PermissionGuard>
+                    }
+                  />
                 </Route>
                 <Route
                   path="/references"
@@ -780,14 +839,70 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                     </ProtectedRoute>
                   }
                 >
-                  <Route path="units" element={<Units />} />
-                  <Route path="cost-categories" element={<CostCategories />} />
-                  <Route path="projects" element={<Projects />} />
-                  <Route path="locations" element={<Locations />} />
-                  <Route path="rooms" element={<Rooms />} />
-                  <Route path="rates" element={<Rates />} />
-                  <Route path="nomenclature" element={<Nomenclature />} />
-                  <Route path="surface-types" element={<SurfaceTypes />} />
+                  <Route
+                    path="units"
+                    element={
+                      <PermissionGuard objectCode="units_page">
+                        <Units />
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="cost-categories"
+                    element={
+                      <PermissionGuard objectCode="cost_categories_page">
+                        <CostCategories />
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="projects"
+                    element={
+                      <PermissionGuard objectCode="projects_page">
+                        <Projects />
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="locations"
+                    element={
+                      <PermissionGuard objectCode="locations_page">
+                        <Locations />
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="rooms"
+                    element={
+                      <PermissionGuard objectCode="rooms_page">
+                        <Rooms />
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="rates"
+                    element={
+                      <PermissionGuard objectCode="rates_page">
+                        <Rates />
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="nomenclature"
+                    element={
+                      <PermissionGuard objectCode="nomenclature_page">
+                        <Nomenclature />
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="surface-types"
+                    element={
+                      <PermissionGuard objectCode="surface_types_page">
+                        <SurfaceTypes />
+                      </PermissionGuard>
+                    }
+                  />
                 </Route>
                 <Route
                   path="/reports"
@@ -799,11 +914,56 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                 >
                   <Route path="project-analysis" element={<ProjectAnalysis />} />
                 </Route>
-                <Route path="/administration/access-control" element={<ProtectedRoute><AccessControl /></ProtectedRoute>} />
-                <Route path="/administration/security" element={<ProtectedRoute><Security /></ProtectedRoute>} />
-                <Route path="/administration/documentation-tags" element={<ProtectedRoute><DocumentationTags /></ProtectedRoute>} />
-                <Route path="/administration/statuses" element={<ProtectedRoute><Statuses /></ProtectedRoute>} />
-                <Route path="/administration/api-settings" element={<ProtectedRoute><ApiSettings /></ProtectedRoute>} />
+                <Route
+                  path="/administration/access-control"
+                  element={
+                    <ProtectedRoute>
+                      <PermissionGuard objectCode="users_page">
+                        <AccessControl />
+                      </PermissionGuard>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/administration/security"
+                  element={
+                    <ProtectedRoute>
+                      <PermissionGuard objectCode="roles_page">
+                        <Security />
+                      </PermissionGuard>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/administration/documentation-tags"
+                  element={
+                    <ProtectedRoute>
+                      <PermissionGuard objectCode="tags_page">
+                        <DocumentationTags />
+                      </PermissionGuard>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/administration/statuses"
+                  element={
+                    <ProtectedRoute>
+                      <PermissionGuard objectCode="statuses_page">
+                        <Statuses />
+                      </PermissionGuard>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/administration/api-settings"
+                  element={
+                    <ProtectedRoute>
+                      <PermissionGuard objectCode="api_settings_page">
+                        <ApiSettings />
+                      </PermissionGuard>
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="/admin"
                   element={

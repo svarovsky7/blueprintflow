@@ -1063,6 +1063,8 @@ interface ChessboardTableProps {
   onAddRowAfter?: (rowIndex: number) => void
   onCopyRowAfter?: (rowData: RowData, rowIndex: number) => void
   onRemoveNewRow?: (rowId: string) => void
+  canEdit?: boolean
+  canDelete?: boolean
 }
 
 export const ChessboardTable = memo(({
@@ -1081,6 +1083,8 @@ export const ChessboardTable = memo(({
   onAddRowAfter,
   onCopyRowAfter,
   onRemoveNewRow,
+  canEdit = true,
+  canDelete = true,
 }: ChessboardTableProps) => {
   // Получаем текущий масштаб приложения
   const { scale } = useScale()
@@ -1584,33 +1588,39 @@ export const ChessboardTable = memo(({
         <Space size="small">
           {(tableMode.mode === 'view' || tableMode.mode === 'edit') && (
             <>
-              <Tooltip title="Цвет строки">
-                <RowColorPicker
-                  value={record.color}
-                  onChange={(color) => onRowColorChange(record.id, color)}
-                />
-              </Tooltip>
-              <Tooltip title="Редактировать">
-                <div>
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<EditOutlined />}
-                    onClick={handleStartEditing(record.id, record)}
-                  />
-                </div>
-              </Tooltip>
-              <Tooltip title="Удалить">
-                <div>
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<DeleteOutlined />}
-                    danger
-                    onClick={handleRowDelete(record.id)}
-                  />
-                </div>
-              </Tooltip>
+              {canEdit && (
+                <>
+                  <Tooltip title="Цвет строки">
+                    <RowColorPicker
+                      value={record.color}
+                      onChange={(color) => onRowColorChange(record.id, color)}
+                    />
+                  </Tooltip>
+                  <Tooltip title="Редактировать">
+                    <div>
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<EditOutlined />}
+                        onClick={handleStartEditing(record.id, record)}
+                      />
+                    </div>
+                  </Tooltip>
+                </>
+              )}
+              {canDelete && (
+                <Tooltip title="Удалить">
+                  <div>
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<DeleteOutlined />}
+                      danger
+                      onClick={handleRowDelete(record.id)}
+                    />
+                  </div>
+                </Tooltip>
+              )}
             </>
           )}
           {tableMode.mode === 'add' && (

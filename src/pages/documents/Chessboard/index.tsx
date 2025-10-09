@@ -2,6 +2,7 @@ import { useCallback, useState, useEffect, useMemo, useRef } from 'react'
 import { Typography, Pagination } from 'antd'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useScale } from '@/shared/contexts/ScaleContext'
+import { usePermissions } from '@/shared/hooks/usePermissions'
 import { useFiltersState } from './hooks/useFiltersState'
 import { useChessboardData } from './hooks/useChessboardData'
 import { useColumnSettings } from './hooks/useColumnSettings'
@@ -21,6 +22,7 @@ export default function Chessboard() {
   const { scale } = useScale()
   const location = useLocation()
   const navigate = useNavigate()
+  const { canCreate, canEdit, canDelete } = usePermissions('chessboard_page')
 
   // Состояние пагинации
   const [currentPage, setCurrentPage] = useState(() => {
@@ -591,6 +593,9 @@ export default function Chessboard() {
           currentStatus={currentStatus}
           currentSetName={currentSetName}
           onStatusChange={handleStatusChange}
+          canCreate={canCreate}
+          canEdit={canEdit}
+          canDelete={canDelete}
         />
       </div>
 
@@ -631,6 +636,8 @@ export default function Chessboard() {
             onAddRowAfter={handleAddRowAfter}
             onCopyRowAfter={handleCopyRowAfter}
             onRemoveNewRow={removeNewRow}
+            canEdit={canEdit}
+            canDelete={canDelete}
           />
         </div>
 

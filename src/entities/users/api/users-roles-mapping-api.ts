@@ -51,7 +51,6 @@ export async function getRoleUsers(roleId: string): Promise<User[]> {
 }
 
 export async function getAllUserRolesMappings(): Promise<UserRoleMapping[]> {
-  console.log('🔍 getAllUserRolesMappings called') // LOG
   const { data, error } = await supabase
     .from('users_roles_mapping')
     .select(
@@ -63,17 +62,11 @@ export async function getAllUserRolesMappings(): Promise<UserRoleMapping[]> {
     )
     .order('user_id', { ascending: true })
 
-  console.log('🔍 Raw data from DB:', data) // LOG
-  console.log('🔍 Error:', error) // LOG
-
   if (error) throw error
 
-  const result = (data || []).map((item: any) => ({
+  return (data || []).map((item: any) => ({
     user_id: item.user_id,
     role_id: item.role_id,
     role: item.roles,
   }))
-
-  console.log('🔍 Mapped result:', result) // LOG
-  return result
 }

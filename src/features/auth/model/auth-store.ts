@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import { getUserPermissions } from '@/entities/permissions'
 import { getUserRoles } from '@/entities/roles'
-import { updateLastLogin } from '@/entities/users'
+import { getUserById } from '@/entities/users'
 import type { UserPermissions } from '@/entities/permissions'
 import type { Role } from '@/entities/roles'
 
@@ -88,16 +88,42 @@ export const useAuthStore = create<AuthState>()(
           throw error
         }
 
+        // Проверяем статус пользователя в таблице users
+        if (data.user) {
+          const userProfile = await getUserById(data.user.id)
+
+          if (!userProfile) {
+            set({ isLoading: false })
+            await supabase.auth.signOut()
+            throw new Error('Профиль пользователя не найден')
+          }
+
+          if (!userProfile.is_active) {
+            set({ isLoading: false })
+            await supabase.auth.signOut()
+            throw new Error('Ваша учётная запись отключена. Обратитесь к администратору.')
+          }
+
+          // Загружаем роли и разрешения
+          await get().loadUserRolesAndPermissions(data.user.id)
+
+          // Проверяем, что у пользователя есть хотя бы одна роль
+          const { roles } = get()
+          if (roles.length === 0) {
+            set({ isLoading: false })
+            await supabase.auth.signOut()
+            throw new Error(
+              'У вас нет назначенных ролей. Обратитесь к администратору для получения доступа.'
+            )
+          }
+
+        }
+
         set({
           user: data.user,
           isAuthenticated: true,
           isLoading: false,
         })
-
-        if (data.user) {
-          await get().loadUserRolesAndPermissions(data.user.id)
-          await updateLastLogin(data.user.id)
-        }
       },
 
       signOut: async () => {
@@ -153,15 +179,47 @@ export const useAuthStore = create<AuthState>()(
           data: { user },
         } = await supabase.auth.getUser()
 
+        if (user) {
+          // Проверяем статус пользователя
+          const userProfile = await getUserById(user.id)
+
+          if (!userProfile || !userProfile.is_active) {
+            // Если пользователь отключён - выполняем выход
+            await supabase.auth.signOut()
+            set({
+              user: null,
+              roles: [],
+              permissions: {},
+              isAuthenticated: false,
+              isLoading: false,
+            })
+            return
+          }
+
+          // Загружаем роли и разрешения
+          await get().loadUserRolesAndPermissions(user.id)
+
+          // Проверяем наличие ролей
+          const { roles } = get()
+          if (roles.length === 0) {
+            // Если нет ролей - выполняем выход
+            await supabase.auth.signOut()
+            set({
+              user: null,
+              roles: [],
+              permissions: {},
+              isAuthenticated: false,
+              isLoading: false,
+            })
+            return
+          }
+        }
+
         set({
           user,
           isAuthenticated: !!user,
           isLoading: false,
         })
-
-        if (user) {
-          await get().loadUserRolesAndPermissions(user.id)
-        }
       },
     }),
     {

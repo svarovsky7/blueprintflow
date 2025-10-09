@@ -106,11 +106,20 @@ export async function getUserPermissions(userId: string): Promise<UserPermission
 
   const permissions: UserPermissions = {}
   cache.forEach((item) => {
-    permissions[item.code] = {
-      view: item.can_view,
-      create: item.can_create,
-      edit: item.can_edit,
-      delete: item.can_delete,
+    if (!permissions[item.object_code]) {
+      permissions[item.object_code] = {
+        view: item.can_view,
+        create: item.can_create,
+        edit: item.can_edit,
+        delete: item.can_delete,
+      }
+    } else {
+      permissions[item.object_code] = {
+        view: permissions[item.object_code].view || item.can_view,
+        create: permissions[item.object_code].create || item.can_create,
+        edit: permissions[item.object_code].edit || item.can_edit,
+        delete: permissions[item.object_code].delete || item.can_delete,
+      }
     }
   })
 
@@ -132,7 +141,7 @@ export async function checkPermission(
     .from('user_permissions_cache')
     .select(`can_${action}`)
     .eq('user_id', userId)
-    .eq('code', objectCode)
+    .eq('object_code', objectCode)
     .maybeSingle()
 
   if (error) throw error

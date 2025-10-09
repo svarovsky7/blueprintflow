@@ -1,9 +1,10 @@
 import { Layout, Button, Space } from 'antd'
 import { BellOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useScale } from '../shared/contexts/ScaleContext'
+import { useAuthStore } from '../features/auth/model/auth-store'
 
 const { Header } = Layout
 
@@ -55,8 +56,10 @@ interface PortalHeaderProps {
 
 export default function PortalHeader({ isDark }: PortalHeaderProps) {
   const { pathname } = useLocation()
+  const navigate = useNavigate()
   const [userEmail, setUserEmail] = useState<string>('')
   const { scale } = useScale()
+  const signOut = useAuthStore((state) => state.signOut)
 
   useEffect(() => {
     if (!supabase) return
@@ -64,6 +67,15 @@ export default function PortalHeader({ isDark }: PortalHeaderProps) {
       setUserEmail(data.user?.email ?? '')
     })
   }, [])
+
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+      navigate('/login')
+    } catch (error) {
+      console.error('Logout error:', error)
+    }
+  }
 
   return (
     <Header
@@ -93,12 +105,7 @@ export default function PortalHeader({ isDark }: PortalHeaderProps) {
           <UserOutlined />
           <span>{userEmail}</span>
         </Space>
-        <Button
-          type="text"
-          icon={<LogoutOutlined />}
-          onClick={() => supabase?.auth.signOut()}
-          disabled={!supabase}
-        />
+        <Button type="text" icon={<LogoutOutlined />} onClick={handleSignOut} title="Выход" />
       </Space>
     </Header>
   )

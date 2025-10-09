@@ -37,12 +37,18 @@ export interface UpdatePermissionDto {
 
 export interface UserPermissionCache {
   user_id: string
-  code: string
+  object_code: string
+  object_type?: string
   route_path?: string | null
   can_view: boolean
   can_create: boolean
   can_edit: boolean
   can_delete: boolean
+  can_export?: boolean
+  can_import?: boolean
+  can_admin?: boolean
+  source?: string
+  role_name?: string
 }
 
 export interface UserPermissions {

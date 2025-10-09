@@ -21,6 +21,7 @@ import {
   removeRoleFromUser,
   getAllUserRolesMappings,
 } from '@/entities/users/api/users-roles-mapping-api'
+import { refreshPermissionsCache } from '@/entities/permissions/api/permissions-api'
 import {
   addUserToGroup,
   removeUserFromGroup,
@@ -63,9 +64,7 @@ export default function UsersTab() {
   const { data: usersRoles = {} } = useQuery({
     queryKey: ['users-roles-mappings'],
     queryFn: async () => {
-      console.log('🔍 Loading user roles mappings...') // LOG
       const mappings = await getAllUserRolesMappings()
-      console.log('🔍 Loaded mappings:', mappings) // LOG
       const result: Record<string, Role[]> = {}
 
       mappings.forEach((mapping) => {
@@ -77,7 +76,6 @@ export default function UsersTab() {
         }
       })
 
-      console.log('🔍 Processed usersRoles:', result) // LOG
       return result
     },
   })
@@ -135,20 +133,11 @@ export default function UsersTab() {
 
   const updateUserRolesMutation = useMutation({
     mutationFn: async ({ userId, roleIds }: { userId: string; roleIds: string[] }) => {
-      console.log('🔍 Updating roles for user:', userId) // LOG
-      console.log('🔍 Selected roleIds:', roleIds) // LOG
-
       const currentRoles = usersRoles[userId] || []
       const currentRoleIds = currentRoles.map((r) => r.id)
 
-      console.log('🔍 Current roles:', currentRoles) // LOG
-      console.log('🔍 Current roleIds:', currentRoleIds) // LOG
-
       const toAdd = roleIds.filter((id) => !currentRoleIds.includes(id))
       const toRemove = currentRoleIds.filter((id) => !roleIds.includes(id))
-
-      console.log('🔍 To add:', toAdd) // LOG
-      console.log('🔍 To remove:', toRemove) // LOG
 
       for (const roleId of toAdd) {
         await assignRoleToUser(userId, roleId)
@@ -156,14 +145,15 @@ export default function UsersTab() {
       for (const roleId of toRemove) {
         await removeRoleFromUser(userId, roleId)
       }
+
+      // Обновляем кеш разрешений после изменения ролей
+      await refreshPermissionsCache()
     },
     onSuccess: () => {
-      console.log('🔍 Roles updated successfully, invalidating cache') // LOG
       queryClient.invalidateQueries({ queryKey: ['users-roles-mappings'] })
-      message.success('Роли обновлены')
+      message.success('Роли обновлены, разрешения применены')
     },
     onError: (error: Error) => {
-      console.error('🔍 Error updating roles:', error) // LOG
       message.error(`Ошибка: ${error.message}`)
     },
   })

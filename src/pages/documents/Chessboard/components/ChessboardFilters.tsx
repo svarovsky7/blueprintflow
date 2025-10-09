@@ -51,6 +51,9 @@ interface ChessboardFiltersProps {
   currentStatus?: string
   currentSetName?: string
   onStatusChange?: (statusId: string) => void
+  canCreate?: boolean
+  canEdit?: boolean
+  canDelete?: boolean
 }
 
 export const ChessboardFilters = memo(
@@ -82,6 +85,9 @@ export const ChessboardFilters = memo(
     currentStatus,
     currentSetName,
     onStatusChange,
+    canCreate = true,
+    canEdit = true,
+    canDelete = true,
   }: ChessboardFiltersProps) => {
     // Состояние для панели настроек ML
     const [mlConfigOpen, setMLConfigOpen] = useState(false)
@@ -349,6 +355,9 @@ export const ChessboardFilters = memo(
             currentStatus={currentStatus}
             currentSetName={currentSetName}
             onStatusChange={onStatusChange}
+            canCreate={canCreate}
+            canEdit={canEdit}
+            canDelete={canDelete}
           />
         </div>
 

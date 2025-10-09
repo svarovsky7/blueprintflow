@@ -33,6 +33,9 @@ interface ChessboardActionButtonsProps {
   currentStatus?: string
   currentSetName?: string
   onStatusChange?: (statusId: string) => void
+  canCreate?: boolean
+  canEdit?: boolean
+  canDelete?: boolean
 }
 
 export const ChessboardActionButtons = memo(
@@ -53,6 +56,9 @@ export const ChessboardActionButtons = memo(
     currentStatus,
     currentSetName,
     onStatusChange,
+    canCreate = true,
+    canEdit = true,
+    canDelete = true,
   }: ChessboardActionButtonsProps) => {
     const { mode, selectedRowKeys } = tableMode
     const { scale } = useScale()
@@ -149,7 +155,7 @@ export const ChessboardActionButtons = memo(
     return (
       <Space>
         {/* Поле статусов с пиктограммами */}
-        {hasAppliedProject && (
+        {hasAppliedProject && canEdit && (
           <Select
             value={currentStatus}
             onChange={onStatusChange}
@@ -199,19 +205,21 @@ export const ChessboardActionButtons = memo(
           </Button>
         )}
 
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => {
-            onSetMode('add')
-            onAddRow()
-          }}
-          disabled={!hasAppliedProject}
-        >
-          Добавить
-        </Button>
+        {canCreate && (
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              onSetMode('add')
+              onAddRow()
+            }}
+            disabled={!hasAppliedProject}
+          >
+            Добавить
+          </Button>
+        )}
 
-        {hasAppliedProject && (
+        {hasAppliedProject && canDelete && (
           <Button icon={<DeleteOutlined />} onClick={() => onSetMode('delete')}>
             Удалить
           </Button>

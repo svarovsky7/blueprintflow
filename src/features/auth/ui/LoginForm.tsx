@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Form, Input, Button, Alert } from 'antd'
-import { UserOutlined, LockOutlined } from '@ant-design/icons'
+import { Form, Input, Button, Modal } from 'antd'
+import { UserOutlined, LockOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
 import { useAuthStore } from '../model/auth-store'
 
 interface LoginFormProps {
@@ -9,12 +9,10 @@ interface LoginFormProps {
 
 export function LoginForm({ onSuccess }: LoginFormProps) {
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const signIn = useAuthStore((state) => state.signIn)
 
   const handleSubmit = async (values: { email: string; password: string }) => {
     setLoading(true)
-    setError(null)
 
     try {
       await signIn(values.email, values.password)
@@ -22,20 +20,39 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
     } catch (err: any) {
       console.error('Login error:', err)
       let errorMessage = 'Ошибка входа. Проверьте email и пароль.'
+      let errorTitle = 'Ошибка входа'
 
       if (err?.message) {
-        errorMessage = err.message
         // Переводим частые ошибки на русский
         if (err.message.includes('Invalid login credentials')) {
-          errorMessage = 'Неверный email или пароль'
+          errorTitle = 'Неверные учётные данные'
+          errorMessage = 'Проверьте правильность введённого email и пароля.'
         } else if (err.message.includes('Email not confirmed')) {
-          errorMessage = 'Email не подтвержден. Проверьте почту и подтвердите регистрацию.'
+          errorTitle = 'Email не подтверждён'
+          errorMessage = 'Проверьте почту и подтвердите регистрацию.'
         } else if (err.message.includes('User not found')) {
-          errorMessage = 'Пользователь не найден'
+          errorTitle = 'Пользователь не найден'
+          errorMessage = 'Учётная запись с указанным email не существует.'
+        } else if (err.message.includes('отключена')) {
+          errorTitle = 'Доступ запрещён'
+          errorMessage = err.message
+        } else if (err.message.includes('нет назначенных ролей')) {
+          errorTitle = 'Доступ запрещён'
+          errorMessage = err.message
+        } else if (err.message.includes('Профиль пользователя не найден')) {
+          errorTitle = 'Ошибка профиля'
+          errorMessage = err.message
+        } else {
+          errorMessage = err.message
         }
       }
 
-      setError(errorMessage)
+      Modal.error({
+        title: errorTitle,
+        content: errorMessage,
+        icon: <ExclamationCircleOutlined />,
+        okText: 'Понятно',
+      })
     } finally {
       setLoading(false)
     }
@@ -43,12 +60,6 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
 
   return (
     <Form onFinish={handleSubmit} layout="vertical" size="large">
-      {error && (
-        <Form.Item>
-          <Alert message={error} type="error" showIcon closable onClose={() => setError(null)} />
-        </Form.Item>
-      )}
-
       <Form.Item
         name="email"
         label="Email"
