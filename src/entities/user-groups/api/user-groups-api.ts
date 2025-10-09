@@ -82,13 +82,16 @@ export async function addUserToGroup(
   groupId: string,
   assignedBy?: string
 ): Promise<void> {
-  const { error } = await supabase.from('users_groups_mapping').insert([
-    {
-      user_id: userId,
-      group_id: groupId,
-      assigned_by: assignedBy,
-    },
-  ])
+  const insertData: any = {
+    user_id: userId,
+    group_id: groupId,
+  }
+
+  if (assignedBy) {
+    insertData.assigned_by = assignedBy
+  }
+
+  const { error } = await supabase.from('users_groups_mapping').insert([insertData])
 
   if (error) throw error
 }
@@ -111,4 +114,27 @@ export async function getUserGroupsByUserId(userId: string): Promise<UserGroup[]
 
   if (error) throw error
   return (data || []).map((item) => (item as any).user_groups).filter(Boolean)
+}
+
+export async function getAllUserGroupsMappings(): Promise<
+  Array<{ user_id: string; group_id: string; group: UserGroup }>
+> {
+  const { data, error } = await supabase
+    .from('users_groups_mapping')
+    .select(
+      `
+      user_id,
+      group_id,
+      user_groups(id, name, code, description, color)
+    `
+    )
+    .order('user_id', { ascending: true })
+
+  if (error) throw error
+
+  return (data || []).map((item: any) => ({
+    user_id: item.user_id,
+    group_id: item.group_id,
+    group: item.user_groups,
+  }))
 }

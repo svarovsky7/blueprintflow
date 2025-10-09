@@ -8,17 +8,38 @@ import {
   Form,
   Input,
   Switch,
-  message,
+  App,
   Badge,
   Popconfirm,
   Tag,
+  Select,
 } from 'antd'
 import { EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { getUsers, updateUser, deleteUser, deactivateUser, activateUser } from '@/entities/users'
+import {
+  assignRoleToUser,
+  removeRoleFromUser,
+  getAllUserRolesMappings,
+} from '@/entities/users/api/users-roles-mapping-api'
+import {
+  addUserToGroup,
+  removeUserFromGroup,
+  getAllUserGroupsMappings,
+} from '@/entities/user-groups'
+import { getRoles } from '@/entities/roles'
+import { getUserGroups } from '@/entities/user-groups/api/user-groups-api'
 import type { User, UpdateUserDto } from '@/entities/users'
+import type { Role } from '@/entities/roles'
+import type { UserGroup } from '@/entities/user-groups'
 import type { ColumnsType } from 'antd/es/table'
 
+interface UserWithRelations extends User {
+  roles?: Role[]
+  groups?: UserGroup[]
+}
+
 export default function UsersTab() {
+  const { message } = App.useApp()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [form] = Form.useForm()
@@ -27,6 +48,57 @@ export default function UsersTab() {
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: () => getUsers(),
+  })
+
+  const { data: roles = [] } = useQuery({
+    queryKey: ['roles'],
+    queryFn: () => getRoles(),
+  })
+
+  const { data: userGroups = [] } = useQuery({
+    queryKey: ['user-groups'],
+    queryFn: () => getUserGroups(),
+  })
+
+  const { data: usersRoles = {} } = useQuery({
+    queryKey: ['users-roles-mappings'],
+    queryFn: async () => {
+      console.log('🔍 Loading user roles mappings...') // LOG
+      const mappings = await getAllUserRolesMappings()
+      console.log('🔍 Loaded mappings:', mappings) // LOG
+      const result: Record<string, Role[]> = {}
+
+      mappings.forEach((mapping) => {
+        if (!result[mapping.user_id]) {
+          result[mapping.user_id] = []
+        }
+        if (mapping.role) {
+          result[mapping.user_id].push(mapping.role)
+        }
+      })
+
+      console.log('🔍 Processed usersRoles:', result) // LOG
+      return result
+    },
+  })
+
+  const { data: usersGroups = {} } = useQuery({
+    queryKey: ['users-groups-mappings'],
+    queryFn: async () => {
+      const mappings = await getAllUserGroupsMappings()
+      const result: Record<string, UserGroup[]> = {}
+
+      mappings.forEach((mapping) => {
+        if (!result[mapping.user_id]) {
+          result[mapping.user_id] = []
+        }
+        if (mapping.group) {
+          result[mapping.user_id].push(mapping.group)
+        }
+      })
+
+      return result
+    },
   })
 
   const updateMutation = useMutation({
@@ -58,6 +130,65 @@ export default function UsersTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       message.success('Статус изменен')
+    },
+  })
+
+  const updateUserRolesMutation = useMutation({
+    mutationFn: async ({ userId, roleIds }: { userId: string; roleIds: string[] }) => {
+      console.log('🔍 Updating roles for user:', userId) // LOG
+      console.log('🔍 Selected roleIds:', roleIds) // LOG
+
+      const currentRoles = usersRoles[userId] || []
+      const currentRoleIds = currentRoles.map((r) => r.id)
+
+      console.log('🔍 Current roles:', currentRoles) // LOG
+      console.log('🔍 Current roleIds:', currentRoleIds) // LOG
+
+      const toAdd = roleIds.filter((id) => !currentRoleIds.includes(id))
+      const toRemove = currentRoleIds.filter((id) => !roleIds.includes(id))
+
+      console.log('🔍 To add:', toAdd) // LOG
+      console.log('🔍 To remove:', toRemove) // LOG
+
+      for (const roleId of toAdd) {
+        await assignRoleToUser(userId, roleId)
+      }
+      for (const roleId of toRemove) {
+        await removeRoleFromUser(userId, roleId)
+      }
+    },
+    onSuccess: () => {
+      console.log('🔍 Roles updated successfully, invalidating cache') // LOG
+      queryClient.invalidateQueries({ queryKey: ['users-roles-mappings'] })
+      message.success('Роли обновлены')
+    },
+    onError: (error: Error) => {
+      console.error('🔍 Error updating roles:', error) // LOG
+      message.error(`Ошибка: ${error.message}`)
+    },
+  })
+
+  const updateUserGroupsMutation = useMutation({
+    mutationFn: async ({ userId, groupIds }: { userId: string; groupIds: string[] }) => {
+      const currentGroups = usersGroups[userId] || []
+      const currentGroupIds = currentGroups.map((g) => g.id)
+
+      const toAdd = groupIds.filter((id) => !currentGroupIds.includes(id))
+      const toRemove = currentGroupIds.filter((id) => !groupIds.includes(id))
+
+      for (const groupId of toAdd) {
+        await addUserToGroup(userId, groupId)
+      }
+      for (const groupId of toRemove) {
+        await removeUserFromGroup(userId, groupId)
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users-groups-mappings'] })
+      message.success('Группы обновлены')
+    },
+    onError: (error: Error) => {
+      message.error(`Ошибка: ${error.message}`)
     },
   })
 
@@ -109,6 +240,60 @@ export default function UsersTab() {
       dataIndex: 'department',
       key: 'department',
       sorter: (a, b) => (a.department || '').localeCompare(b.department || ''),
+    },
+    {
+      title: 'Роли',
+      key: 'roles',
+      width: 250,
+      render: (_, record) => {
+        const userRolesList = usersRoles[record.id] || []
+        return (
+          <Select
+            mode="multiple"
+            style={{ width: '100%' }}
+            placeholder="Выберите роли"
+            value={userRolesList.map((r) => r.id)}
+            onChange={(roleIds) => updateUserRolesMutation.mutate({ userId: record.id, roleIds })}
+            allowClear
+            showSearch
+            filterOption={(input, option) =>
+              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+            options={roles.map((r) => ({
+              label: `${r.name} (${r.code})`,
+              value: r.id,
+            }))}
+          />
+        )
+      },
+    },
+    {
+      title: 'Группы',
+      key: 'groups',
+      width: 250,
+      render: (_, record) => {
+        const userGroupsList = usersGroups[record.id] || []
+        return (
+          <Select
+            mode="multiple"
+            style={{ width: '100%' }}
+            placeholder="Выберите группы"
+            value={userGroupsList.map((g) => g.id)}
+            onChange={(groupIds) =>
+              updateUserGroupsMutation.mutate({ userId: record.id, groupIds })
+            }
+            allowClear
+            showSearch
+            filterOption={(input, option) =>
+              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+            options={userGroups.map((g) => ({
+              label: g.name,
+              value: g.id,
+            }))}
+          />
+        )
+      },
     },
     {
       title: 'Статус',
@@ -168,7 +353,7 @@ export default function UsersTab() {
         rowKey="id"
         loading={isLoading}
         pagination={{ pageSize: 50, showSizeChanger: true, showTotal: (total) => `Всего: ${total}` }}
-        scroll={{ y: 'calc(100vh - 400px)' }}
+        scroll={{ y: 'calc(100vh - 400px)', x: 1400 }}
       />
 
       <Modal

@@ -8,6 +8,7 @@ export {
   addUserToGroup,
   removeUserFromGroup,
   getUserGroupsByUserId,
+  getAllUserGroupsMappings,
 } from './api/user-groups-api'
 
 export type {
