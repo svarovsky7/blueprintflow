@@ -16,6 +16,7 @@ import {
 import type { Color } from 'antd/es/color-picker'
 import { EditOutlined, DeleteOutlined, PlusOutlined, SafetyOutlined } from '@ant-design/icons'
 import { getRoles, createRole, updateRole, deleteRole } from '@/entities/roles'
+import { createPermissionsForAllObjects } from '@/entities/permissions/api/permissions-api'
 import type { Role, CreateRoleDto, UpdateRoleDto } from '@/entities/roles'
 import type { ColumnsType } from 'antd/es/table'
 
@@ -31,10 +32,15 @@ export default function RolesTab() {
   })
 
   const createMutation = useMutation({
-    mutationFn: createRole,
+    mutationFn: async (dto: CreateRoleDto) => {
+      const role = await createRole(dto)
+      await createPermissionsForAllObjects(role.id)
+      return role
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['roles'] })
-      message.success('Роль создана')
+      queryClient.invalidateQueries({ queryKey: ['permissions'] })
+      message.success('Роль создана и разрешения инициализированы')
       handleCloseModal()
     },
     onError: (error: Error) => {

@@ -141,3 +141,43 @@ export async function checkPermission(
 
   return data[`can_${action}`] || false
 }
+
+export async function createPermissionsForAllObjects(roleId: string): Promise<void> {
+  const { data: objects, error: objectsError } = await supabase
+    .from('portal_objects')
+    .select('id')
+
+  if (objectsError) throw objectsError
+
+  if (!objects || objects.length === 0) return
+
+  const permissions = objects.map((obj) => ({
+    role_id: roleId,
+    portal_object_id: obj.id,
+    can_view: false,
+    can_create: false,
+    can_edit: false,
+    can_delete: false,
+  }))
+
+  const { error } = await supabase.from('permissions').insert(permissions)
+
+  if (error) throw error
+}
+
+export async function updatePermissionByRoleAndObject(
+  roleId: string,
+  objectId: string,
+  dto: UpdatePermissionDto
+): Promise<Permission> {
+  const { data, error } = await supabase
+    .from('permissions')
+    .update(dto)
+    .eq('role_id', roleId)
+    .eq('portal_object_id', objectId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
