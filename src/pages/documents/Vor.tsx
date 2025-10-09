@@ -20,6 +20,7 @@ import { EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { getVorTableData, calculateVorTotals, calculateVorTotalFromChessboard } from '@/entities/vor'
 
 const { Text } = Typography
 
@@ -204,221 +205,22 @@ const Vor = () => {
 
         for (const vorId of vorIds) {
           try {
-            // Получаем основные данные ВОР для коэффициента пересчета
-            const currentVor = vorData.find((v) => v.id === vorId)
-            const rateCoefficient = currentVor?.rate_coefficient || 1
+            // Используем ту же логику приоритетов, что и VorView:
+            // 1. Пробуем получить данные из БД (vor_works + vor_materials)
+            const vorTableData = await getVorTableData(vorId)
 
-            // Получаем комплекты для этого ВОР
-            const vorSetIds = vorSetMap.get(vorId) || []
+            let totalAmount = 0
 
-            if (vorSetIds.length === 0) {
-              calculationMap.set(vorId, 0)
-              continue
+            if (vorTableData && vorTableData.length > 0) {
+              // Если есть сохранённые данные в БД - используем их (ВОР был отредактирован)
+              const totals = calculateVorTotals(vorTableData)
+              totalAmount = totals.grandTotal
+            } else {
+              // Если данных в БД нет - строим из комплектов шахматки (новый ВОР)
+              totalAmount = await calculateVorTotalFromChessboard(vorId)
             }
 
-            // Получаем подробные данные комплектов
-            const { data: detailedSetsData } = await supabase
-              .from('chessboard_sets')
-              .select(
-                `
-                id, project_id, documentation_id, block_ids, 
-                cost_category_ids, cost_type_ids
-              `,
-              )
-              .in('id', vorSetIds)
-
-            if (!detailedSetsData || detailedSetsData.length === 0) {
-              calculationMap.set(vorId, 0)
-              continue
-            }
-
-            // Получаем данные chessboard по проектам комплектов
-            const projectIds = [...new Set(detailedSetsData.map((set) => set.project_id))]
-            const { data: chessboardData } = await supabase
-              .from('chessboard')
-              .select('id, project_id, material, unit_id')
-              .in('project_id', projectIds)
-
-            if (!chessboardData || chessboardData.length === 0) {
-              calculationMap.set(vorId, 0)
-              continue
-            }
-
-            const chessboardIds = chessboardData.map((c) => c.id)
-
-            // Получаем все необходимые связанные данные параллельно
-            const [
-              ,
-              { data: unitsData },
-              { data: ratesData },
-              { data: mappingData },
-              { data: floorMappingData },
-              { data: nomenclatureMappingData },
-            ] = await Promise.all([
-              supabase
-                .from('materials')
-                .select('uuid, name')
-                .in('uuid', chessboardData.map((c) => c.material).filter(Boolean)),
-              supabase
-                .from('units')
-                .select('id, name')
-                .in('id', chessboardData.map((c) => c.unit_id).filter(Boolean)),
-              supabase
-                .from('chessboard_rates_mapping')
-                .select(
-                  `
-                chessboard_id, rate_id, rates:rate_id(work_name_id, base_rate, unit_id, units:unit_id(id, name), work_names:work_name_id(id, name))
-              `,
-                )
-                .in('chessboard_id', chessboardIds),
-              supabase
-                .from('chessboard_mapping')
-                .select('chessboard_id, block_id, cost_category_id, cost_type_id')
-                .in('chessboard_id', chessboardIds),
-              supabase
-                .from('chessboard_floor_mapping')
-                .select('chessboard_id, "quantityRd"')
-                .in('chessboard_id', chessboardIds),
-              supabase
-                .from('chessboard_nomenclature_mapping')
-                .select(
-                  `
-                chessboard_id,
-                nomenclature_id,
-                supplier_name,
-                nomenclature:nomenclature_id(id, name, material_prices(price, purchase_date))
-              `,
-                )
-                .in('chessboard_id', chessboardIds),
-            ])
-
-            // Создаем индексы для быстрого поиска
-            const ratesMap = new Map()
-            ratesData?.forEach((r) => {
-              if (!ratesMap.has(r.chessboard_id)) {
-                ratesMap.set(r.chessboard_id, [])
-              }
-              ratesMap.get(r.chessboard_id)?.push(r)
-            })
-
-            const mappingMap = new Map(mappingData?.map((m) => [m.chessboard_id, m]) || [])
-            const floorQuantitiesMap = new Map()
-            floorMappingData?.forEach((f) => {
-              const currentSum = floorQuantitiesMap.get(f.chessboard_id) || 0
-              const quantityRd = f.quantityRd || 0
-              floorQuantitiesMap.set(f.chessboard_id, currentSum + quantityRd)
-            })
-
-            // Создаем индексы для единиц измерения и номенклатуры
-            const unitsMap = new Map(unitsData?.map((u) => [u.id, u]) || [])
-            const nomenclatureMap = new Map()
-            nomenclatureMappingData?.forEach((n) => {
-              if (!nomenclatureMap.has(n.chessboard_id)) {
-                nomenclatureMap.set(n.chessboard_id, [])
-              }
-              nomenclatureMap.get(n.chessboard_id)?.push(n)
-            })
-
-            // Фильтруем данные chessboard по настройкам комплектов
-            const filteredChessboardData = chessboardData.filter((item) => {
-              return detailedSetsData.some((set) => {
-                if (set.project_id !== item.project_id) return false
-
-                const mapping = mappingMap.get(item.id)
-
-                if (set.block_ids?.length > 0) {
-                  if (!mapping?.block_id || !set.block_ids.includes(mapping.block_id)) {
-                    return false
-                  }
-                }
-
-                if (set.cost_category_ids?.length > 0) {
-                  if (
-                    !mapping?.cost_category_id ||
-                    !set.cost_category_ids.includes(mapping.cost_category_id)
-                  ) {
-                    return false
-                  }
-                }
-
-                if (set.cost_type_ids?.length > 0) {
-                  if (!mapping?.cost_type_id || !set.cost_type_ids.includes(mapping.cost_type_id)) {
-                    return false
-                  }
-                }
-
-                return true
-              })
-            })
-
-            // Группируем по работам и вычисляем суммы
-            const workGroups = new Map()
-            filteredChessboardData.forEach((item) => {
-              const rates = ratesMap.get(item.id) || []
-              const workName = rates[0]?.rates?.work_names?.name || 'Работа не указана'
-
-              if (!workGroups.has(workName)) {
-                workGroups.set(workName, [])
-              }
-              workGroups.get(workName)?.push({
-                ...item,
-                rates: rates[0]?.rates,
-                units: unitsMap.get(item.unit_id),
-                nomenclatureItems: nomenclatureMap.get(item.id) || [],
-                quantityRd: floorQuantitiesMap.get(item.id) || 0,
-              })
-            })
-
-            // Вычисляем итоговую сумму в соответствии с новой логикой VorView
-            let totalSum = 0
-
-            workGroups.forEach((materials) => {
-              // Для работ: базовая ставка * количество * коэффициент
-              const firstMaterial = materials[0]
-              const rateInfo = firstMaterial?.rates
-              const baseRate = rateInfo?.base_rate || 0
-              const rateUnitName = rateInfo?.units?.name || ''
-
-              // Рассчитываем количество для работы
-              let workQuantity = 0
-              if (rateUnitName) {
-                workQuantity = materials
-                  .filter((material) => material.units?.name === rateUnitName)
-                  .reduce((sum: any, material: any) => sum + (material.quantityRd || 0), 0)
-              }
-              if (workQuantity === 0) {
-                workQuantity = materials.reduce(
-                  (sum: any, material: any) => sum + (material.quantityRd || 0),
-                  0,
-                )
-              }
-
-              const workTotal = baseRate * workQuantity * rateCoefficient
-              totalSum += workTotal
-
-              // Для материалов: номенклатурная цена * количество (без коэффициента для цены)
-              materials.forEach((material: any) => {
-                const nomenclatureItems = material.nomenclatureItems || []
-                nomenclatureItems.forEach((nomenclatureItem: any) => {
-                  // Получаем последнюю цену из справочника
-                  const prices = nomenclatureItem.nomenclature?.material_prices || []
-                  const latestPrice =
-                    prices.length > 0
-                      ? prices.sort(
-                          (a: any, b: any) =>
-                            new Date(b.purchase_date).getTime() -
-                            new Date(a.purchase_date).getTime(),
-                        )[0].price
-                      : 0
-
-                  const quantity = material.quantityRd || 0
-                  const materialTotal = latestPrice * quantity
-                  totalSum += materialTotal
-                })
-              })
-            })
-
-            calculationMap.set(vorId, totalSum)
+            calculationMap.set(vorId, totalAmount)
           } catch (error) {
             console.warn(`Ошибка расчета суммы для ВОР ${vorId}:`, error)
             calculationMap.set(vorId, 0)
@@ -606,12 +408,12 @@ const Vor = () => {
     },
     {
       title: 'Дата',
-      dataIndex: 'updated_at',
-      key: 'updated_at',
+      dataIndex: 'created_at',
+      key: 'created_at',
       width: 150,
       render: (date: string) => new Date(date).toLocaleDateString('ru-RU'),
       sorter: (a: VorRecord, b: VorRecord) =>
-        new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime(),
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
     },
     {
       title: 'Шифр проектов',

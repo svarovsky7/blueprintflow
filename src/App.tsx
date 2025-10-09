@@ -40,6 +40,7 @@ import ApiSettings from './pages/administration/ApiSettings'
 import Experiments from './pages/experiments'
 import ChessboardML from './pages/experiments/ChessboardML'
 import Login from './pages/Login'
+import UserProfile from './pages/UserProfile'
 import PortalHeader from './components/PortalHeader'
 import TestTableStructure from './pages/TestTableStructure'
 import { useLogo } from './shared/contexts/LogoContext'
@@ -207,10 +208,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
   )
 
   // Создаем простое всплывающее меню без Popover
-  const createHoverMenu = (
-    menuKey: string,
-    _menuItems: Array<{ key: string; label: React.ReactNode; path: string }>,
-  ) => {
+  const createHoverMenu = (menuKey: string) => {
     const handleMouseEnter = (e: React.MouseEvent) => {
       // Отменяем предыдущий таймер сокрытия
       if (hideMenuTimer) {
@@ -251,14 +249,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     {
       key: 'documents',
       icon: collapsed ? (
-        <div
-          {...createHoverMenu('documents', [
-            { key: 'chessboard', label: 'Шахматка', path: '/documents/chessboard' },
-            { key: 'vor', label: 'ВОР', path: '/documents/vor' },
-            { key: 'docs', label: 'Документация', path: '/documents/documentation' },
-            { key: 'finishing', label: 'Отделка', path: '/documents/finishing' },
-          ])}
-        >
+        <div {...createHoverMenu('documents')}>
           <FileTextOutlined />
         </div>
       ) : (
@@ -277,15 +268,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     {
       key: 'reports',
       icon: collapsed ? (
-        <div
-          {...createHoverMenu('reports', [
-            {
-              key: 'project-analysis',
-              label: 'Анализ документации',
-              path: '/reports/project-analysis',
-            },
-          ])}
-        >
+        <div {...createHoverMenu('reports')}>
           <BarChartOutlined />
         </div>
       ) : (
@@ -304,21 +287,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     {
       key: 'references',
       icon: collapsed ? (
-        <div
-          {...createHoverMenu('references', [
-            { key: 'units', label: 'Единицы измерения', path: '/references/units' },
-            {
-              key: 'cost-categories',
-              label: 'Категории затрат',
-              path: '/references/cost-categories',
-            },
-            { key: 'projects', label: 'Проекты', path: '/references/projects' },
-            { key: 'locations', label: 'Локализации', path: '/references/locations' },
-            { key: 'rooms', label: 'Помещения', path: '/references/rooms' },
-            { key: 'rates', label: 'Расценки', path: '/references/rates' },
-            { key: 'nomenclature', label: 'Номенклатура', path: '/references/nomenclature' },
-          ])}
-        >
+        <div {...createHoverMenu('references')}>
           <DatabaseOutlined />
         </div>
       ) : (
@@ -350,19 +319,7 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
     {
       key: 'administration',
       icon: collapsed ? (
-        <div
-          {...createHoverMenu('administration', [
-            {
-              key: 'access-control',
-              label: 'Управление доступом',
-              path: '/administration/access-control',
-            },
-            { key: 'security', label: 'Роли и разрешения', path: '/administration/security' },
-            { key: 'statuses', label: 'Статусы', path: '/administration/statuses' },
-            { key: 'documentation-tags', label: 'Тэги документации', path: '/administration/documentation-tags' },
-            { key: 'api-settings', label: 'Настройки API', path: '/administration/api-settings' },
-          ])}
-        >
+        <div {...createHoverMenu('administration')}>
           <UserOutlined />
         </div>
       ) : (
@@ -1002,6 +959,14 @@ const App = ({ isDark, toggleTheme }: AppProps) => {
                   element={
                     <ProtectedRoute>
                       <TestTableStructure />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/profile"
+                  element={
+                    <ProtectedRoute>
+                      <UserProfile />
                     </ProtectedRoute>
                   }
                 />

@@ -101,9 +101,14 @@ export default function PortalHeader({ isDark }: PortalHeaderProps) {
       </div>
       <Space size={16 * scale}>
         <Button type="text" icon={<BellOutlined />} />
-        <Space size={4 * scale}>
+        <Space
+          size={4 * scale}
+          style={{ cursor: 'pointer' }}
+          onClick={() => navigate('/profile')}
+          title="Перейти в профиль"
+        >
           <UserOutlined />
-          <span>{userEmail}</span>
+          <span style={{ textDecoration: 'underline' }}>{userEmail}</span>
         </Space>
         <Button type="text" icon={<LogoutOutlined />} onClick={handleSignOut} title="Выход" />
       </Space>

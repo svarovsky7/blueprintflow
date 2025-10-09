@@ -105,6 +105,164 @@ export const calculateVorTotals = (items: VorTableItem[]) => {
   )
 }
 
+// Расчёт суммы ВОР на основе комплектов шахматки (как в VorView)
+export const calculateVorTotalFromChessboard = async (vorId: string): Promise<number> => {
+  if (!supabase) throw new Error('Supabase client not initialized')
+
+  try {
+    // 1. Получаем ВОР с коэффициентом
+    const { data: vorData, error: vorError } = await supabase
+      .from('vor')
+      .select('id, rate_coefficient, vor_chessboard_sets_mapping(set_id)')
+      .eq('id', vorId)
+      .single()
+
+    if (vorError || !vorData) return 0
+
+    const coefficient = vorData.rate_coefficient || 1
+    const setIds = vorData.vor_chessboard_sets_mapping?.map((m: any) => m.set_id) || []
+
+    if (setIds.length === 0) return 0
+
+    // 2. Загружаем информацию о комплектах
+    const { data: setsData, error: setsError } = await supabase
+      .from('chessboard_sets')
+      .select('*')
+      .in('id', setIds)
+
+    if (setsError || !setsData || setsData.length === 0) return 0
+
+    // 3. Собираем все уникальные projectIds
+    const allProjectIds = [...new Set(setsData.map((s: any) => s.project_id).filter(Boolean))]
+    if (allProjectIds.length === 0) return 0
+
+    // 4. Загружаем базовые данные шахматки
+    const { data: chessboardData, error: chessboardError } = await supabase
+      .from('chessboard')
+      .select('id, project_id, material, unit_id')
+      .in('project_id', allProjectIds)
+
+    if (chessboardError || !chessboardData || chessboardData.length === 0) return 0
+
+    const chessboardIds = chessboardData.map((item: any) => item.id)
+
+    // 5. Загружаем связанные данные параллельно
+    const [unitsData, ratesData, mappingData, floorMappingData, nomenclatureMappingData] = await Promise.all([
+      supabase.from('units').select('id, name').in('id', chessboardData.map((item: any) => item.unit_id).filter(Boolean)),
+      supabase.from('chessboard_rates_mapping').select('chessboard_id, rate_id, rates:rate_id(work_name_id, base_rate, unit_id, units:unit_id(id, name), work_names:work_name_id(id, name))').in('chessboard_id', chessboardIds),
+      supabase.from('chessboard_mapping').select('chessboard_id, block_id, cost_category_id, cost_type_id, location_id').in('chessboard_id', chessboardIds),
+      supabase.from('chessboard_floor_mapping').select('chessboard_id, "quantityRd"').in('chessboard_id', chessboardIds),
+      supabase.from('chessboard_nomenclature_mapping').select('chessboard_id, nomenclature_id, supplier_name, nomenclature:nomenclature_id(id, name, material_prices(price, purchase_date))').in('chessboard_id', chessboardIds),
+    ])
+
+    // 6. Создаем индексы для быстрого поиска
+    const unitsMap = new Map(unitsData.data?.map((u: any) => [u.id, u]) || [])
+    const ratesMap = new Map<string, any[]>()
+    ratesData.data?.forEach((r: any) => {
+      if (!ratesMap.has(r.chessboard_id)) {
+        ratesMap.set(r.chessboard_id, [])
+      }
+      ratesMap.get(r.chessboard_id)?.push(r)
+    })
+    const mappingMap = new Map(mappingData.data?.map((m: any) => [m.chessboard_id, m]) || [])
+    const floorQuantitiesMap = new Map<string, number>()
+    floorMappingData.data?.forEach((f: any) => {
+      const currentSum = floorQuantitiesMap.get(f.chessboard_id) || 0
+      floorQuantitiesMap.set(f.chessboard_id, currentSum + (f.quantityRd || 0))
+    })
+    const nomenclatureMap = new Map<string, any[]>()
+    nomenclatureMappingData.data?.forEach((n: any) => {
+      if (!nomenclatureMap.has(n.chessboard_id)) {
+        nomenclatureMap.set(n.chessboard_id, [])
+      }
+      nomenclatureMap.get(n.chessboard_id)?.push(n)
+    })
+
+    // 7. Обогащаем и фильтруем данные шахматки по настройкам комплектов
+    const filteredChessboardData = chessboardData.filter((item: any) => {
+      return setsData.some((set: any) => {
+        if (set.project_id !== item.project_id) return false
+
+        const mapping = mappingMap.get(item.id)
+
+        if (set.block_ids && set.block_ids.length > 0) {
+          if (!mapping?.block_id || !set.block_ids.includes(mapping.block_id)) return false
+        }
+
+        if (set.cost_category_ids && set.cost_category_ids.length > 0) {
+          if (!mapping?.cost_category_id || !set.cost_category_ids.includes(mapping.cost_category_id)) return false
+        }
+
+        if (set.cost_type_ids && set.cost_type_ids.length > 0) {
+          if (!mapping?.cost_type_id || !set.cost_type_ids.includes(mapping.cost_type_id)) return false
+        }
+
+        return true
+      })
+    })
+
+    // 8. Группируем по работам
+    const workGroups = new Map<string, any[]>()
+    filteredChessboardData.forEach((item: any) => {
+      const rates = ratesMap.get(item.id) || []
+      const workName = rates[0]?.rates?.work_names?.name || 'Работа не указана'
+      if (!workGroups.has(workName)) {
+        workGroups.set(workName, [])
+      }
+      workGroups.get(workName)?.push({
+        ...item,
+        units: unitsMap.get(item.unit_id),
+        rates: rates[0]?.rates,
+        quantityRd: floorQuantitiesMap.get(item.id) || 0,
+        nomenclatureItems: nomenclatureMap.get(item.id) || [],
+      })
+    })
+
+    // 9. Вычисляем итоговую сумму
+    let totalSum = 0
+
+    workGroups.forEach((materials: any[]) => {
+      const firstMaterial = materials[0]
+      const rateInfo = firstMaterial?.rates
+      const baseRate = rateInfo?.base_rate || 0
+      const rateUnitName = rateInfo?.units?.name || ''
+
+      // Рассчитываем количество для работы
+      let workQuantity = 0
+      if (rateUnitName) {
+        workQuantity = materials
+          .filter((material: any) => material.units?.name === rateUnitName)
+          .reduce((sum: number, material: any) => sum + (material.quantityRd || 0), 0)
+      }
+      if (workQuantity === 0) {
+        workQuantity = materials.reduce((sum: number, material: any) => sum + (material.quantityRd || 0), 0)
+      }
+
+      // Сумма работы
+      const workTotal = baseRate * workQuantity * coefficient
+      totalSum += workTotal
+
+      // Сумма материалов
+      materials.forEach((material: any) => {
+        const nomenclatureItems = material.nomenclatureItems || []
+        nomenclatureItems.forEach((nomenclatureItem: any) => {
+          const prices = nomenclatureItem.nomenclature?.material_prices || []
+          const latestPrice = prices.length > 0
+            ? prices.sort((a: any, b: any) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime())[0].price
+            : 0
+          const quantity = material.quantityRd || 0
+          totalSum += latestPrice * quantity
+        })
+      })
+    })
+
+    return totalSum
+  } catch (error) {
+    console.error('Ошибка расчёта суммы ВОР из комплектов:', error)
+    return 0
+  }
+}
+
 // Создание ВОР на основе комплекта шахматки
 export const createVorFromChessboardSet = async (dto: CreateVorFromChessboardSetDto): Promise<string> => {
   if (!supabase) throw new Error('Supabase client not initialized')
@@ -161,7 +319,7 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
     .select(`
       id,
       project_id,
-      documentation_id,
+      version_id,
       tag_id,
       block_ids,
       cost_category_ids,
@@ -239,14 +397,14 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
     query = query.in('chessboard_mapping.cost_type_id', setData.cost_type_ids)
   }
 
-  // Применяем фильтр по документации если указан
-  if (setData.documentation_id) {
+  // Применяем фильтр по версии документации если указан
+  if (setData.version_id) {
 
-    // Получаем ID записей шахматки, связанных с документацией
+    // Получаем ID записей шахматки, связанных с версией документа
     const { data: docMappingData, error: docMappingError } = await supabase
       .from('chessboard_documentation_mapping')
       .select('chessboard_id')
-      .eq('documentation_id', setData.documentation_id)
+      .eq('version_id', setData.version_id)
 
     if (docMappingError) {
       throw docMappingError

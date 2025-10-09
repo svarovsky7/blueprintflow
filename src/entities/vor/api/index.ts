@@ -5,6 +5,7 @@ export {
   getVorTableData,
   getUnitsOptions,
   calculateVorTotals,
+  calculateVorTotalFromChessboard,
   createVorFromChessboardSet,
   getVorsByChessboardSet,
   populateVorFromChessboardSet

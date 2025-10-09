@@ -514,9 +514,20 @@ export async function importFinishingToChessboard(
           ...new Set(importData.map((d) => d.detail_cost_category_id).filter((id) => !!id)),
         ],
       },
+      status_id: completedStatusId,
     }
 
     const newSet = await chessboardSetsApi.createSet(setFilters)
+
+    // Создаем запись в chessboard_sets_documents_mapping для корректного отображения в модальном окне
+    if (versionData?.documentation_id && doc.version_id) {
+      await supabase.from('chessboard_sets_documents_mapping').insert({
+        set_id: newSet.id,
+        documentation_id: versionData.documentation_id,
+        version_id: doc.version_id,
+        order_index: 0,
+      })
+    }
 
     const { createdRows, createdFloorMappings, errors } = await createChessboardRecords(
       importData,

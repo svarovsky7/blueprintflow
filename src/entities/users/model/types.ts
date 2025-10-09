@@ -42,6 +42,16 @@ export interface UpdateUserDto {
   is_active?: boolean
 }
 
+export interface UpdateUserProfileDto {
+  email?: string
+  first_name?: string
+  last_name?: string
+  middle_name?: string
+  position?: string
+  department?: string
+  phone?: string
+}
+
 export interface UserFilters {
   search?: string
   is_active?: boolean

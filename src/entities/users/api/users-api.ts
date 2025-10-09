@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import type { User, CreateUserDto, UpdateUserDto, UserFilters } from '../model/types'
+import type { User, CreateUserDto, UpdateUserDto, UpdateUserProfileDto, UserFilters } from '../model/types'
 
 export async function getUsers(filters?: UserFilters): Promise<User[]> {
   let query = supabase.from('users').select('*').order('last_name')
@@ -110,4 +110,48 @@ export async function updateLastLogin(userId: string): Promise<void> {
     .eq('id', userId)
 
   if (error) throw error
+}
+
+export async function getUserWithEmail(userId: string): Promise<User & { email: string }> {
+  const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+
+  if (authError) throw authError
+  if (!authUser || authUser.id !== userId) throw new Error('Unauthorized')
+
+  const userProfile = await getUserById(userId)
+  if (!userProfile) throw new Error('User profile not found')
+
+  return {
+    ...userProfile,
+    email: authUser.email || '',
+  }
+}
+
+export async function updateUserProfile(userId: string, dto: UpdateUserProfileDto): Promise<User> {
+  if (!supabase) throw new Error('Supabase client not initialized')
+
+  if (dto.email) {
+    const { error: emailError } = await supabase.auth.updateUser({
+      email: dto.email,
+    })
+    if (emailError) throw emailError
+  }
+
+  const { email, ...profileData } = dto
+
+  if (Object.keys(profileData).length > 0) {
+    const { data, error } = await supabase
+      .from('users')
+      .update(profileData)
+      .eq('id', userId)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  const userProfile = await getUserById(userId)
+  if (!userProfile) throw new Error('User profile not found')
+  return userProfile
 }
