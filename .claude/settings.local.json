@@ -89,7 +89,10 @@
       "Bash(fi)",
       "Bash(powershell -Command \"Get-Content ''C:\\Users\\postoev.e.v\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\Local Storage\\leveldb'' -ErrorAction SilentlyContinue | Select-String ''chessboard-column'' | Select-Object -First 5\")",
       "Bash(while read f)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(if [ -f \"temp/SECURITY_AUDIT_REPORT.md\" ])",
+      "Bash(then echo \"exists\")",
+      "Bash(else echo \"not found\")"
     ],
     "deny": [],
     "ask": []

@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect, useMemo, useRef } from 'react'
-import { Typography, Pagination } from 'antd'
+import { Typography, Pagination, message } from 'antd'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useScale } from '@/shared/contexts/ScaleContext'
 import { usePermissions } from '@/shared/hooks/usePermissions'
@@ -12,6 +12,7 @@ import { ChessboardFilters as ChessboardFiltersComponent } from './components/Ch
 import { ChessboardTable } from './components/ChessboardTable'
 import { ColumnSettingsDrawer } from './components/ColumnSettingsDrawer'
 import { VersionsModal } from './components/VersionsModal'
+import { CreateSetModal } from './components/CreateSetModal'
 import ChessboardSetsModal from '../ChessboardSetsModal'
 import { chessboardSetsApi } from '@/entities/chessboard/api/chessboard-sets-api'
 import type { ChessboardFilters } from './types'
@@ -113,6 +114,10 @@ export default function Chessboard() {
 
   // Ref для отслеживания ручной установки статуса (чтобы избежать переопределения через useEffect)
   const statusSetManuallyRef = useRef(false)
+
+  // Состояние для управления модалом создания комплекта
+  const [createSetModalOpen, setCreateSetModalOpen] = useState(false)
+  const [pendingStatusId, setPendingStatusId] = useState<string | undefined>(undefined)
 
   // Автоматическое определение статуса комплекта при изменении примененных фильтров
   useEffect(() => {
@@ -464,6 +469,31 @@ export default function Chessboard() {
     statusSetManuallyRef.current = false
   }, [resetFilters])
 
+  // Обработчик создания комплекта из модального окна
+  const handleCreateSetFromModal = useCallback(async (formData: any) => {
+    try {
+      const createdSet = await chessboardSetsApi.createSet(formData)
+      setCurrentSetName(createdSet.name)
+      setCreateSetModalOpen(false)
+      setPendingStatusId(undefined)
+      message.success(
+        `Создан новый комплект ${createdSet.name ? `"${createdSet.name}"` : createdSet.set_number} со статусом`
+      )
+    } catch (error) {
+      console.error('Ошибка при создании комплекта:', error)
+      message.error('Ошибка при создании комплекта')
+    }
+  }, [])
+
+  // Обработчик отмены создания комплекта
+  const handleCancelCreateSet = useCallback(() => {
+    setCreateSetModalOpen(false)
+    setPendingStatusId(undefined)
+    // Сбрасываем статус обратно
+    setCurrentStatus(undefined)
+    statusSetManuallyRef.current = false
+  }, [])
+
   // Обработчик изменения статуса
   const handleStatusChange = useCallback(async (statusId: string) => {
     setCurrentStatus(statusId)
@@ -489,9 +519,15 @@ export default function Chessboard() {
             status_id: statusId,
             comment: 'Статус обновлен через шахматку',
           })
+          message.success('Статус комплекта обновлен')
         } else {
+          // Комплект не найден - открываем модальное окно создания
+          setPendingStatusId(statusId)
+          setCreateSetModalOpen(true)
         }
       } catch (error) {
+        console.error('Ошибка при работе с комплектом:', error)
+        message.error('Ошибка при проверке комплекта')
       }
     }
   }, [
@@ -690,6 +726,24 @@ export default function Chessboard() {
         onClose={handleCloseSetsModal}
         projectId={appliedFilters.project_id}
         onSelectSet={handleSelectSet}
+      />
+
+      {/* Модальное окно создания комплекта */}
+      <CreateSetModal
+        open={createSetModalOpen}
+        onCancel={handleCancelCreateSet}
+        onOk={handleCreateSetFromModal}
+        initialFilters={{
+          project_id: appliedFilters.project_id,
+          project_name: filters.project,
+          documentation_section_ids: appliedFilters.documentation_section_ids,
+          documentation_code_ids: appliedFilters.documentation_code_ids,
+          documentation_version_ids: appliedFilters.documentation_version_ids,
+          block_ids: appliedFilters.block_ids,
+          cost_category_ids: appliedFilters.cost_category_ids,
+          detail_cost_category_ids: appliedFilters.detail_cost_category_ids,
+        }}
+        initialStatusId={pendingStatusId || ''}
       />
     </div>
   )

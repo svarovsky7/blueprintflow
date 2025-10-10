@@ -8,7 +8,7 @@ BlueprintFlow — портал для анализа рабочей докуме
 
 **Ключевые команды:**
 ```bash
-npm run dev          # http://192.168.8.85:5173 (network accessible)
+npm run dev          # http://192.168.8.75:5173 (network accessible)
 npm run dev:local    # http://localhost:5173 (localhost only)
 npm run build        # Build + type check (MUST pass before commit)
 npm run lint         # ESLint (MUST pass before commit)
@@ -26,13 +26,13 @@ npx playwright test  # E2E tests
 ```bash
 # Development
 npm install           # Install dependencies
-npm run dev          # Start dev server (http://192.168.8.85:5173, доступен по локальной сети)
+npm run dev          # Start dev server (http://192.168.8.75:5173, доступен по локальной сети)
 npm run dev:local    # Start local dev server (http://localhost:5173, только localhost)
 npm run preview      # Preview production build
 
 # Multiple Dev Servers (одновременно)
 # Terminal 1:
-npm run dev          # Network accessible: http://192.168.8.85:5173
+npm run dev          # Network accessible: http://192.168.8.75:5173
 # Terminal 2:
 npm run dev:local    # Localhost only: http://localhost:5173
 
@@ -44,7 +44,7 @@ npm run format:check # Check formatting without changes
 npx tsc --noEmit     # Type checking only (standalone)
 
 # Testing
-npx playwright test  # Run end-to-end tests (base URL: http://localhost:5199)
+npx playwright test  # Run end-to-end tests (base URL: http://localhost:5173)
 npx playwright test --ui  # Run tests with UI mode
 npx playwright show-report  # Open test results in browser
 
@@ -93,7 +93,7 @@ src/
 └── components/   # Legacy UI components (ConflictResolutionDialog, DataTable, FileUpload, etc.)
 ```
 
-**Note**: The project is in transition to FSD architecture. Current entities include: api-settings, calculation, chessboard, comments, disk, documentation, documentation-tags, finishing, materials, ml, projects, rates, rooms, statuses, units, and vor.
+**Note**: The project is in transition to FSD architecture. Current entities include: api-settings, calculation, chessboard, comments, disk, documentation, documentation-tags, finishing, materials, ml, permissions, portal-objects, projects, rates, roles, rooms, statuses, units, user-groups, users, and vor.
 
 ### Key Patterns
 - **Public API**: Each slice exposes through `index.ts`
@@ -110,7 +110,7 @@ src/
 - **Error Handling**: All Supabase queries must include error handling
 
 ### Key Directories
-- `src/entities/` - Domain entities (api-settings, calculation, chessboard, comments, disk, documentation, documentation-tags, finishing, materials, ml, projects, rates, rooms, statuses, units, vor)
+- `src/entities/` - Domain entities (api-settings, calculation, chessboard, comments, disk, documentation, documentation-tags, finishing, materials, ml, permissions, portal-objects, projects, rates, roles, rooms, statuses, units, user-groups, users, vor)
 - `src/pages/` - Main application pages organized by sections (admin/, documents/, references/, reports/, experiments/)
 - `src/features/auth/` - Authentication logic using Supabase
 - `src/shared/contexts/` - React contexts for global state (LogoContext, ScaleContext)
@@ -352,6 +352,8 @@ From technical specification (`tech_task.md`):
 - **Quotes**: Single quotes, double quotes for JSX
 - **Indentation**: 2 spaces, no tabs
 - **Line endings**: LF for cross-platform compatibility
+- **Bracket spacing**: Enabled
+- **Arrow parens**: Always
 
 ## TypeScript Configuration
 - Composite project with separate `tsconfig.app.json` and `tsconfig.node.json`
@@ -466,11 +468,11 @@ From technical specification (`tech_task.md`):
 ## Testing Configuration
 
 ### Playwright E2E Testing
-- **Base URL**: http://localhost:5199 (auto-configured, can override with BASE_URL env var)
+- **Base URL**: http://localhost:5173 (auto-configured, can override with BASE_URL env var)
 - **Test directory**: `./tests`
-- **Browsers**: Chromium, Edge (on Windows)
+- **Browsers**: Chromium, Firefox, WebKit (configurable in playwright.config.js)
 - **Auto-start dev server**: Uses `npm run dev:local` command with 120s timeout
-- **Web server URL**: http://localhost:5199 (auto-configured in playwright.config.js)
+- **Web server URL**: http://localhost:5173 (auto-configured in playwright.config.js)
 - **Reporters**: HTML report with screenshots and videos on failure
 - **Parallel execution**: Enabled for faster test runs (`fullyParallel: true`)
 - **Retry logic**: 2 retries on CI, 0 retries locally

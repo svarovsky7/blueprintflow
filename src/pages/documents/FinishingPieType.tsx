@@ -8,7 +8,7 @@ import {
   Input,
   InputNumber,
   Select,
-  Popconfirm,
+  Modal,
   App,
 } from 'antd'
 import {
@@ -747,20 +747,23 @@ export default function FinishingPieType() {
                 title="Скопировать строку"
                 onClick={() => handleCopyRow(record)}
               />
-              <Popconfirm
-                title="Удалить эту строку?"
-                onConfirm={() => handleDeleteSingleRow(record.id)}
-                okText="Да"
-                cancelText="Нет"
-              >
-                <Button
-                  type="text"
-                  danger
-                  icon={<DeleteOutlined />}
-                  size="small"
-                  title="Удалить строку"
-                />
-              </Popconfirm>
+              <Button
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                size="small"
+                title="Удалить строку"
+                onClick={() => {
+                  Modal.confirm({
+                    title: 'Подтверждение удаления',
+                    content: 'Вы уверены, что хотите удалить эту строку?',
+                    okText: 'Да',
+                    cancelText: 'Нет',
+                    okButtonProps: { danger: true },
+                    onOk: () => handleDeleteSingleRow(record.id),
+                  })
+                }}
+              />
             </Space>
           )
         }
@@ -780,20 +783,23 @@ export default function FinishingPieType() {
                   setEditingRows([{ ...record, isEditing: true }])
                 }}
               />
-              <Popconfirm
-                title="Удалить эту строку?"
-                onConfirm={() => handleDeleteSingleRow(record.id)}
-                okText="Да"
-                cancelText="Нет"
-              >
-                <Button
-                  type="text"
-                  danger
-                  icon={<DeleteOutlined />}
-                  size="small"
-                  title="Удалить строку"
-                />
-              </Popconfirm>
+              <Button
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                size="small"
+                title="Удалить строку"
+                onClick={() => {
+                  Modal.confirm({
+                    title: 'Подтверждение удаления',
+                    content: 'Вы уверены, что хотите удалить эту строку?',
+                    okText: 'Да',
+                    cancelText: 'Нет',
+                    okButtonProps: { danger: true },
+                    onOk: () => handleDeleteSingleRow(record.id),
+                  })
+                }}
+              />
             </Space>
           )
         }

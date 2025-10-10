@@ -2993,10 +2993,10 @@ const VorView = () => {
             {`
               /* Стили для строк с работами из справочника Расценок */
               .vor-work-row > td {
-                background-color: #E6E6FA !important;
+                background-color: #f0edf2 !important;
               }
               .vor-work-row:hover > td {
-                background-color: #DDD2E6 !important;
+                background-color: #e3dfe6 !important;
               }
 
               /* Стили для измененных строк - красная граница только в первом столбце */
@@ -3011,12 +3011,12 @@ const VorView = () => {
 
               /* Заголовки таблицы */
               .ant-table-thead > tr > th {
-                background-color: #D8D2E6 !important;
+                background-color: #c8c2cc !important;
               }
 
               /* Переопределяем встроенные hover стили Ant Design для предотвращения конфликтов */
               .ant-table-tbody > tr.vor-work-row:hover > td {
-                background-color: #DDD2E6 !important;
+                background-color: #e3dfe6 !important;
               }
             `}
           </style>
