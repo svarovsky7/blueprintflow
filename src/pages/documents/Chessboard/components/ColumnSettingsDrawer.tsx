@@ -91,6 +91,21 @@ export const ColumnSettingsDrawer = memo(
             const canMoveUp = index > 0
             const canMoveDown = index < managedColumns.length - 1
 
+            // Находим реальный индекс текущего столбца в ПОЛНОМ массиве columns
+            const realIndex = columns.findIndex((col) => col.key === column.key)
+
+            // Для перемещения вверх: находим реальный индекс предыдущего не-служебного столбца
+            const prevManagedColumn = canMoveUp ? managedColumns[index - 1] : null
+            const realPrevIndex = prevManagedColumn
+              ? columns.findIndex((col) => col.key === prevManagedColumn.key)
+              : -1
+
+            // Для перемещения вниз: находим реальный индекс следующего не-служебного столбца
+            const nextManagedColumn = canMoveDown ? managedColumns[index + 1] : null
+            const realNextIndex = nextManagedColumn
+              ? columns.findIndex((col) => col.key === nextManagedColumn.key)
+              : -1
+
             return (
               <List.Item
                 style={{
@@ -102,14 +117,14 @@ export const ColumnSettingsDrawer = memo(
                     size="small"
                     icon={<ArrowUpOutlined />}
                     disabled={!canMoveUp}
-                    onClick={() => onMoveColumn(index, index - 1)}
+                    onClick={() => onMoveColumn(realIndex, realPrevIndex)}
                   />,
                   <Button
                     type="text"
                     size="small"
                     icon={<ArrowDownOutlined />}
                     disabled={!canMoveDown}
-                    onClick={() => onMoveColumn(index, index + 1)}
+                    onClick={() => onMoveColumn(realIndex, realNextIndex)}
                   />,
                 ]}
               >

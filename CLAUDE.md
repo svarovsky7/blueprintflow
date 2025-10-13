@@ -21,6 +21,8 @@ npx playwright test  # E2E tests
 
 **Automated Mode:** Используй флаг `-dangerously-skip-permissions` для автоматического выполнения команд без запросов разрешений.
 
+**Plan Mode:** В режиме планирования план должен выдаваться БЕЗ кода. Вместо примеров кода используй ТОЛЬКО общий алгоритм действий в виде текстового описания шагов. Примеры кода можно показывать ТОЛЬКО после подтверждения плана пользователем и выхода из режима планирования.
+
 ## Common Development Commands
 
 ```bash
@@ -167,14 +169,25 @@ src/
 - `context7` — управление контекстом в многоагентных процессах
 - `brightdata` — веб-скрапинг и получение данных из интернета
 
+**Проверка доступности MCP-серверов:**
+```bash
+# Список всех доступных MCP-инструментов
+mcp list-tools
+
+# Проверка конкретного сервера (если настроен)
+npx @modelcontextprotocol/cli list-servers
+```
+
 ### Supabase Configuration
-Environment variables required:
+Environment variables required in `.env`:
 ```env
-VITE_SUPABASE_URL=https://hfqgcaxmufzitdfafdlp.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhmcWdjYXhtdWZ6aXRkZmFmZGxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4OTI5MjMsImV4cCI6MjA3MDQ2ODkyM30.XnOEKdwZdJM-DilhrjZ7PdzHU2rx3L72oQ1rJYo5pXc
+VITE_SUPABASE_URL=<your_supabase_url>
+VITE_SUPABASE_ANON_KEY=<your_supabase_anon_key>
 VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY=<fallback_key>  # Optional fallback key
 VITE_STORAGE_BUCKET=<storage_url>
 ```
+
+**ВАЖНО**: Реальные credentials хранятся в `.env` файле (не в git). Для получения актуальных значений обратитесь к владельцу проекта.
 
 Configuration: `src/lib/supabase.ts`
 
@@ -362,6 +375,33 @@ From technical specification (`tech_task.md`):
 - Build info cached in `node_modules/.tmp/`
 - Module resolution: bundler mode with ESNext modules
 
+## Error Handling Pattern
+
+**Стандартный подход к обработке ошибок:**
+```typescript
+try {
+  const { data, error } = await supabase.from('table').select();
+
+  if (error) {
+    console.error('Database error:', error);
+    message.error('Не удалось загрузить данные');
+    throw error;
+  }
+
+  return data;
+} catch (err) {
+  console.error('Unexpected error:', err);
+  message.error('Произошла непредвиденная ошибка');
+  throw err;
+}
+```
+
+**Ключевые принципы:**
+- Всегда проверяй `error` в Supabase response
+- Логируй ошибки в консоль для отладки
+- Показывай пользователю понятное сообщение через `message.error()`
+- Пробрасывай ошибку дальше для обработки в TanStack Query
+
 ## UI Templates
 
 ### Шаблон "Документ" (Document Template)
@@ -468,6 +508,9 @@ From technical specification (`tech_task.md`):
 ## Testing Configuration
 
 ### Playwright E2E Testing
+Configuration file: `playwright.config.js`
+
+**Key settings:**
 - **Base URL**: http://localhost:5173 (auto-configured, can override with BASE_URL env var)
 - **Test directory**: `./tests`
 - **Browsers**: Chromium, Firefox, WebKit (configurable in playwright.config.js)
@@ -477,6 +520,12 @@ From technical specification (`tech_task.md`):
 - **Parallel execution**: Enabled for faster test runs (`fullyParallel: true`)
 - **Retry logic**: 2 retries on CI, 0 retries locally
 - **Workers**: 1 worker on CI, unlimited locally
+
+**Writing tests:**
+- Place all test files in `tests/` directory with `.spec.ts` or `.spec.js` extension
+- Use descriptive test names that explain what is being tested
+- Include authentication tests before testing protected routes
+- Use `page.goto()` with relative paths (base URL is auto-configured)
 
 ## Application Structure Notes
 

@@ -42,6 +42,10 @@ export interface RowData {
   quantityPd: string // Кол-во по ПД
   quantitySpec: string // Кол-во по спеке РД
   quantityRd: string // Кол-во по пересчету РД
+  conversionCoefficient: string // Коэффициент пересчета
+  convertedQuantity: string // Кол-во пересчет (расчетное)
+  unitNomenclature: string // Ед.изм. номенклатуры (из supplier_names.unit_id)
+  unitNomenclatureId: string // ID единицы измерения номенклатуры
   nomenclature: string // Номенклатура
   nomenclatureId: string
   supplier: string // Наименование поставщика
@@ -188,6 +192,8 @@ export type NomenclatureMapping = {
   id: string
   nomenclature_id: string
   nomenclature: { id: string; name: string }
+  conversion_coefficient?: number | null
+  supplier_name?: string | null
 }
 
 export interface DbRow {

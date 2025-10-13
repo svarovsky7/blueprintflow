@@ -8,11 +8,12 @@ import {
   Input,
   InputNumber,
   Modal,
+  Select,
   Space,
   Table,
   Upload,
 } from 'antd'
-import type { UploadProps } from 'antd'
+import type { UploadFile, UploadProps } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import {
@@ -25,26 +26,55 @@ import {
 import * as XLSX from 'xlsx'
 import dayjs from 'dayjs'
 
+// supplier_names - название номенклатуры у поставщиков
 interface Material {
-  id: string
-  name: string
-  created_at: string
-  updated_at: string
+  id: string // id из supplier_names
+  nomenclature_id: string // id внутренней номенклатуры
+  nomenclature_name: string // название внутренней номенклатуры
+  name: string // название у поставщика (supplier_names.name)
+  unit_name?: string
+  unit_id?: string
+  material_group?: string
   average_price: number | null
-  suppliers: string[]
-  children?: Material[]
+}
+
+interface PriceDetail {
+  id?: string
+  price: number
+  delivery_price?: number
+  document_number?: string
+  purchase_date: string
 }
 
 interface MaterialExcelRow {
   Номенклатура: string
   'Наименование поставщика'?: string
+  'Ед.изм.'?: string
+  'Группа материалов'?: string
+  'Номер документа'?: string
   Цена?: number
+  'Цена доставки'?: number
   Дата?: string | number | Date
 }
 
 interface SupplierFormValue {
   id?: string
   name: string
+}
+
+interface UnitOption {
+  value: string
+  label: string
+}
+
+interface ImportStats {
+  inserted_nomenclature: number
+  inserted_supplier_names: number
+  updated_supplier_names: number
+  inserted_mappings: number
+  inserted_prices: number
+  updated_prices: number
+  total_prices: number
 }
 
 export default function Nomenclature() {
@@ -56,10 +86,9 @@ export default function Nomenclature() {
   const [supplierOptions, setSupplierOptions] = useState<{ value: string }[]>([])
   const [searchText, setSearchText] = useState('')
   const [supplierSearchText, setSupplierSearchText] = useState('')
-  const [priceDetails, setPriceDetails] = useState<
-    { id?: string; price: number; purchase_date: string }[]
-  >([])
+  const [priceDetails, setPriceDetails] = useState<PriceDetail[]>([])
   const [supplierDetails, setSupplierDetails] = useState<{ id: string; name: string }[]>([])
+  const [unitOptions, setUnitOptions] = useState<UnitOption[]>([])
 
   const [importModalOpen, setImportModalOpen] = useState(false)
   const [importStatus, setImportStatus] = useState<'idle' | 'processing' | 'finished'>('idle')
@@ -67,7 +96,8 @@ export default function Nomenclature() {
     processed: 0,
     total: 0,
   })
-  const [importResult, setImportResult] = useState(0)
+  const [importResult, setImportResult] = useState<ImportStats | null>(null)
+  const [importFile, setImportFile] = useState<File | null>(null)
   const importAbortRef = useRef(false)
 
   const {
@@ -78,93 +108,134 @@ export default function Nomenclature() {
     queryKey: ['nomenclature', searchText, supplierSearchText],
     queryFn: async () => {
       if (!supabase) return []
-      let query = supabase.from('nomenclature').select('*').order('name')
+
+      let supplierIds: string[] = []
+
+      // Если есть поиск по номенклатуре, сначала ищем в nomenclature
       if (searchText) {
-        query = query.ilike('name', `%${searchText}%`)
+        const { data: nomenclatures, error: nomenclatureError } = await supabase
+          .from('nomenclature')
+          .select('id')
+          .ilike('name', `%${searchText}%`)
+
+        if (nomenclatureError) throw nomenclatureError
+
+        const nomenclatureIds = (nomenclatures ?? []).map((n) => n.id)
+
+        if (nomenclatureIds.length > 0) {
+          // Находим связанные supplier_names через mapping
+          const { data: mappings, error: mappingError } = await supabase
+            .from('nomenclature_supplier_mapping')
+            .select('supplier_id')
+            .in('nomenclature_id', nomenclatureIds)
+
+          if (mappingError) throw mappingError
+
+          supplierIds = (mappings ?? []).map((m) => m.supplier_id)
+        }
+
+        if (supplierIds.length === 0) {
+          return []
+        }
       }
-      const { data: mats, error } = await query
+
+      // Загружаем supplier_names
+      let query = supabase
+        .from('supplier_names')
+        .select(
+          `
+          id,
+          name,
+          unit_id,
+          material_group,
+          units(name)
+        `,
+        )
+        .order('name')
+
+      // Если есть поиск по номенклатуре, фильтруем по найденным supplier_ids
+      if (searchText && supplierIds.length > 0) {
+        query = query.in('id', supplierIds)
+      }
+
+      // Если есть поиск по поставщику, добавляем фильтр
+      if (supplierSearchText) {
+        query = query.ilike('name', `%${supplierSearchText}%`)
+      }
+
+      const { data: suppliers, error } = await query
       if (error) throw error
-      const ids = (mats ?? []).map((m) => m.id)
+
+      const finalSupplierIds = (suppliers ?? []).map((s) => s.id)
+
+      // Загрузка nomenclature через nomenclature_supplier_mapping
+      const nomenclatureMap = new Map<string, { id: string; name: string }>()
+      const mappingChunkSize = 100
+      for (let i = 0; i < finalSupplierIds.length; i += mappingChunkSize) {
+        const chunk = finalSupplierIds.slice(i, i + mappingChunkSize)
+        const { data: mappingsChunk, error: mappingError } = await supabase
+          .from('nomenclature_supplier_mapping')
+          .select('supplier_id, nomenclature(id, name)')
+          .in('supplier_id', chunk)
+        if (mappingError) throw mappingError
+
+        const mappingsData = (mappingsChunk ?? []) as unknown as {
+          supplier_id: string
+          nomenclature: { id: string; name: string } | null
+        }[]
+        mappingsData.forEach((m) => {
+          if (m.nomenclature) {
+            nomenclatureMap.set(m.supplier_id, m.nomenclature)
+          }
+        })
+      }
+
+      // Загрузка цен (material_prices.supplier_names_id)
       interface PriceRow {
-        material_id: string
+        supplier_names_id: string
         price: number
       }
       const priceMap = new Map<string, { sum: number; count: number }>()
       const chunkSize = 100
-      for (let i = 0; i < ids.length; i += chunkSize) {
-        const chunk = ids.slice(i, i + chunkSize)
+      for (let i = 0; i < finalSupplierIds.length; i += chunkSize) {
+        const chunk = finalSupplierIds.slice(i, i + chunkSize)
         const { data: pricesChunk, error: priceError } = await supabase
           .from('material_prices')
-          .select('material_id, price')
-          .in('material_id', chunk)
+          .select('supplier_names_id, price')
+          .in('supplier_names_id', chunk)
         if (priceError) throw priceError
+
         pricesChunk?.forEach((p: PriceRow) => {
           const priceVal = Number(p.price)
           if (!Number.isNaN(priceVal)) {
-            const entry = priceMap.get(p.material_id) || { sum: 0, count: 0 }
+            const entry = priceMap.get(p.supplier_names_id) || { sum: 0, count: 0 }
             entry.sum += priceVal
             entry.count += 1
-            priceMap.set(p.material_id, entry)
+            priceMap.set(p.supplier_names_id, entry)
           }
         })
       }
-      const supplierMap = new Map<string, string[]>()
-      const mappingChunkSize = 100
-      for (let i = 0; i < ids.length; i += mappingChunkSize) {
-        const chunk = ids.slice(i, i + mappingChunkSize)
-        const { data: mappingsChunk, error: mappingError } = await supabase
-          .from('nomenclature_supplier_mapping')
-          .select('nomenclature_id, supplier_names(name)')
-          .in('nomenclature_id', chunk)
-        if (mappingError) throw mappingError
-        const mappingsData = (mappingsChunk ?? []) as unknown as {
-          nomenclature_id: string
-          supplier_names: { name: string } | null
-        }[]
-        mappingsData.forEach((m) => {
-          const name = m.supplier_names?.name
-          if (name) {
-            const arr = supplierMap.get(m.nomenclature_id) || []
-            arr.push(name)
-            supplierMap.set(m.nomenclature_id, arr)
-          }
-        })
-      }
-      const matsData = (mats ?? []) as Omit<Material, 'average_price' | 'suppliers' | 'children'>[]
-      return matsData
-        .map((m) => {
-          const suppliers = supplierMap.get(m.id) ?? []
-          if (supplierSearchText) {
-            const s = supplierSearchText.toLowerCase()
-            suppliers.sort((a, b) => {
-              const am = a.toLowerCase().includes(s)
-              const bm = b.toLowerCase().includes(s)
-              if (am === bm) return 0
-              return am ? -1 : 1
-            })
-          }
-          const children = suppliers.slice(1).map((s, idx) => ({
-            id: `${m.id}-sup-${idx}`,
-            name: '',
-            created_at: m.created_at,
-            updated_at: m.updated_at,
-            average_price: null,
-            suppliers: [s],
-          }))
-          return {
-            ...m,
-            average_price: priceMap.has(m.id)
-              ? Math.round(priceMap.get(m.id)!.sum / priceMap.get(m.id)!.count)
-              : null,
-            suppliers,
-            ...(children.length ? { children } : {}),
-          }
-        })
-        .filter((m) =>
-          supplierSearchText
-            ? m.suppliers.some((s) => s.toLowerCase().includes(supplierSearchText.toLowerCase()))
-            : true,
-        ) as Material[]
+
+      // Преобразование в Material[]
+      const materials = (suppliers ?? []).map((s) => {
+        const nomenclature = nomenclatureMap.get(s.id)
+        const unitsData = s.units as { name: string } | null
+
+        return {
+          id: s.id,
+          nomenclature_id: nomenclature?.id || '',
+          nomenclature_name: nomenclature?.name || '',
+          name: s.name,
+          unit_id: s.unit_id || undefined,
+          unit_name: unitsData?.name || undefined,
+          material_group: s.material_group || undefined,
+          average_price: priceMap.has(s.id)
+            ? Math.round(priceMap.get(s.id)!.sum / priceMap.get(s.id)!.count)
+            : null,
+        } as Material
+      })
+
+      return materials
     },
   })
 
@@ -177,7 +248,6 @@ export default function Nomenclature() {
 
   const openAddModal = () => {
     form.resetFields()
-    form.setFieldsValue({ suppliers: [{ name: '' }] })
     setSupplierDetails([])
     setModalMode('add')
     setCurrentMaterial(null)
@@ -186,10 +256,11 @@ export default function Nomenclature() {
   const openViewModal = async (record: Material) => {
     setCurrentMaterial(record)
     if (supabase) {
+      // material_prices.supplier_names_id - цены относятся к названию поставщика
       const { data } = await supabase
         .from('material_prices')
-        .select('price, purchase_date')
-        .eq('material_id', record.id)
+        .select('price, delivery_price, document_number, purchase_date')
+        .eq('supplier_names_id', record.id)
         .order('purchase_date', { ascending: false })
       setPriceDetails(data ?? [])
     }
@@ -199,44 +270,49 @@ export default function Nomenclature() {
   const openEditModal = async (record: Material) => {
     setCurrentMaterial(record)
     if (supabase) {
-      const [priceRes, supplierRes] = await Promise.all([
-        supabase
-          .from('material_prices')
-          .select('id, price, purchase_date')
-          .eq('material_id', record.id)
-          .order('purchase_date', { ascending: false }),
-        supabase
-          .from('nomenclature_supplier_mapping')
-          .select('supplier_id, supplier_names(name)')
-          .eq('nomenclature_id', record.id),
-      ])
-      setPriceDetails(priceRes.data ?? [])
-      const suppliersData = (supplierRes.data ?? []) as unknown as {
-        supplier_id: string
-        supplier_names: { name: string } | null
-      }[]
-      const suppliers = suppliersData.map((s) => ({
-        id: s.supplier_id,
-        name: s.supplier_names?.name ?? '',
-      }))
-      setSupplierDetails(suppliers)
+      // material_prices.supplier_names_id - цены относятся к названию поставщика
+      const { data: pricesData } = await supabase
+        .from('material_prices')
+        .select('id, price, delivery_price, document_number, purchase_date')
+        .eq('supplier_names_id', record.id)
+        .order('purchase_date', { ascending: false })
+
+      setPriceDetails(pricesData ?? [])
     }
     setModalMode('edit')
   }
 
   useEffect(() => {
+    const loadUnits = async () => {
+      if (!supabase) return
+      const { data } = await supabase.from('units').select('id, name').order('name')
+      setUnitOptions(
+        (data ?? []).map((u: { id: string; name: string }) => ({
+          value: u.id,
+          label: u.name,
+        })),
+      )
+    }
+    loadUnits()
+  }, [])
+
+  useEffect(() => {
     if (modalMode === 'edit' && currentMaterial) {
       form.setFieldsValue({
         name: currentMaterial.name,
-        suppliers: supplierDetails.map((s) => ({ id: s.id, name: s.name })),
+        nomenclature_name: currentMaterial.nomenclature_name,
+        unit_id: currentMaterial.unit_id,
+        material_group: currentMaterial.material_group,
         prices: priceDetails.map((p) => ({
           id: p.id,
           price: p.price,
+          delivery_price: p.delivery_price,
+          document_number: p.document_number,
           purchase_date: dayjs(p.purchase_date),
         })),
       })
     }
-  }, [modalMode, currentMaterial, priceDetails, supplierDetails, form])
+  }, [modalMode, currentMaterial, priceDetails, form])
 
   const handleNameSearch = async (value: string) => {
     if (!supabase) return
@@ -261,136 +337,153 @@ export default function Nomenclature() {
   const handleSave = async () => {
     try {
       const values = await form.validateFields()
-      const name: string = values.name.trim()
-      const price: number | undefined = modalMode === 'add' ? values.price : undefined
-      const prices: { id?: string; price: number; purchase_date: dayjs.Dayjs }[] =
-        values.prices || []
-      const suppliers: SupplierFormValue[] = values.suppliers || []
       if (!supabase) return
-      let materialId: string
-      const { data: existing } = await supabase
-        .from('nomenclature')
-        .select('id')
-        .eq('name', name)
-        .maybeSingle()
-      if (existing) {
-        materialId = existing.id
-        if (modalMode === 'edit' && currentMaterial && currentMaterial.id !== existing.id) {
-          message.error('Номенклатура с таким названием уже существует')
-          return
-        }
-      } else if (modalMode === 'add') {
-        const { data: inserted, error } = await supabase
+
+      // supplier_names - название номенклатуры у поставщиков
+      const supplierName: string = values.name?.trim() || ''
+      const nomenclatureName: string = values.nomenclature_name?.trim() || ''
+      const unitId: string | undefined = values.unit_id
+      const materialGroup: string | undefined = values.material_group?.trim()
+      const price: number | undefined = modalMode === 'add' ? values.price : undefined
+      const deliveryPrice: number | undefined = modalMode === 'add' ? values.delivery_price : undefined
+      const documentNumber: string | undefined = modalMode === 'add' ? values.document_number?.trim() : undefined
+
+      const prices: {
+        id?: string
+        price: number
+        delivery_price?: number
+        document_number?: string
+        purchase_date: dayjs.Dayjs
+      }[] = values.prices || []
+
+      if (!supplierName) {
+        message.error('Укажите наименование поставщика')
+        return
+      }
+
+      // 1. Работа с nomenclature (внутренняя номенклатура)
+      let nomenclatureId: string | undefined
+      if (nomenclatureName) {
+        const { data: existingNomenclature } = await supabase
           .from('nomenclature')
-          .insert({ name })
-          .select()
-          .single()
-        if (error) throw error
-        materialId = inserted.id
-      } else {
-        if (currentMaterial) {
-          await supabase.from('nomenclature').update({ name }).eq('id', currentMaterial.id)
-          materialId = currentMaterial.id
+          .select('id')
+          .eq('name', nomenclatureName)
+          .maybeSingle()
+
+        if (existingNomenclature) {
+          nomenclatureId = existingNomenclature.id
         } else {
-          return
+          const { data: insertedNomenclature, error } = await supabase
+            .from('nomenclature')
+            .insert({ name: nomenclatureName })
+            .select()
+            .single()
+          if (error) throw error
+          nomenclatureId = insertedNomenclature.id
         }
       }
 
+      // 2. Работа с supplier_names (название номенклатуры у поставщиков)
+      let supplierId: string
+      if (modalMode === 'edit' && currentMaterial) {
+        // Обновление существующего supplier_names
+        const { error } = await supabase
+          .from('supplier_names')
+          .update({
+            name: supplierName,
+            unit_id: unitId || null,
+            material_group: materialGroup || null,
+          })
+          .eq('id', currentMaterial.id)
+        if (error) throw error
+        supplierId = currentMaterial.id
+      } else {
+        // Добавление нового supplier_names
+        const { data: existingSupplier } = await supabase
+          .from('supplier_names')
+          .select('id')
+          .eq('name', supplierName)
+          .maybeSingle()
+
+        if (existingSupplier) {
+          // Обновляем существующего поставщика
+          const { error } = await supabase
+            .from('supplier_names')
+            .update({
+              unit_id: unitId || null,
+              material_group: materialGroup || null,
+            })
+            .eq('id', existingSupplier.id)
+          if (error) throw error
+          supplierId = existingSupplier.id
+        } else {
+          // Создаём нового поставщика
+          const { data: insertedSupplier, error: supplierError } = await supabase
+            .from('supplier_names')
+            .insert({
+              name: supplierName,
+              unit_id: unitId || null,
+              material_group: materialGroup || null,
+            })
+            .select()
+            .single()
+          if (supplierError) throw supplierError
+          supplierId = insertedSupplier.id
+        }
+      }
+
+      // 3. Создание связи nomenclature ↔ supplier_names
+      if (nomenclatureId) {
+        await supabase
+          .from('nomenclature_supplier_mapping')
+          .insert({ nomenclature_id: nomenclatureId, supplier_id: supplierId })
+          .select()
+          .maybeSingle()
+      }
+
+      // 4. Работа с ценами (material_prices.supplier_names_id)
       const currentIds = prices.map((p) => p.id).filter((v): v is string => Boolean(v))
       const removedIds = priceDetails
         .filter((p) => p.id)
         .map((p) => p.id as string)
         .filter((id) => !currentIds.includes(id))
 
+      // Обновление и добавление цен
       for (const p of prices) {
+        const priceData = {
+          price: p.price,
+          delivery_price: p.delivery_price || null,
+          document_number: p.document_number?.trim() || null,
+          purchase_date: dayjs(p.purchase_date).format('YYYY-MM-DD'),
+        }
+
         if (p.id) {
+          await supabase.from('material_prices').update(priceData).eq('id', p.id)
+        } else {
           await supabase
             .from('material_prices')
-            .update({
-              price: p.price,
-              purchase_date: dayjs(p.purchase_date).format('YYYY-MM-DD'),
+            .insert({
+              supplier_names_id: supplierId,
+              ...priceData,
             })
-            .eq('id', p.id)
-        } else {
-          await supabase.from('material_prices').insert({
-            material_id: materialId,
-            price: p.price,
-            purchase_date: dayjs(p.purchase_date).format('YYYY-MM-DD'),
-          })
         }
       }
 
+      // Удаление удалённых цен
       for (const id of removedIds) {
         await supabase.from('material_prices').delete().eq('id', id)
       }
 
-      if (price !== undefined && price !== null) {
+      // Добавление цены из режима добавления
+      if (modalMode === 'add' && price !== undefined && price !== null) {
         const today = dayjs().format('YYYY-MM-DD')
-        const { data: existingPrice } = await supabase
-          .from('material_prices')
-          .select('id')
-          .eq('material_id', materialId)
-          .eq('price', price)
-          .eq('purchase_date', today)
-          .maybeSingle()
-        if (existingPrice) {
-          await supabase
-            .from('material_prices')
-            .update({ price, purchase_date: today })
-            .eq('id', existingPrice.id)
-        } else {
-          await supabase.from('material_prices').insert({
-            material_id: materialId,
-            price,
-            purchase_date: today,
-          })
-        }
-      }
-
-      const newSupplierIds: string[] = []
-      for (const s of suppliers) {
-        const supplierName = s.name.trim()
-        if (!supplierName) continue
-        let supplierId = s.id
-        if (supplierId) {
-          await supabase.from('supplier_names').update({ name: supplierName }).eq('id', supplierId)
-        } else {
-          const { data: existingSupplier } = await supabase
-            .from('supplier_names')
-            .select('id')
-            .eq('name', supplierName)
-            .maybeSingle()
-          if (existingSupplier) {
-            supplierId = existingSupplier.id
-          } else {
-            const { data: insertedSupplier, error: supplierError } = await supabase
-              .from('supplier_names')
-              .insert({ name: supplierName })
-              .select()
-              .single()
-            if (supplierError) throw supplierError
-            supplierId = insertedSupplier.id
-          }
-        }
-        if (supplierId) newSupplierIds.push(supplierId)
-      }
-
-      const existingSupplierIds = supplierDetails.map((s) => s.id)
-      const supplierIdsToRemove = existingSupplierIds.filter((id) => !newSupplierIds.includes(id))
-      const supplierIdsToAdd = newSupplierIds.filter((id) => !existingSupplierIds.includes(id))
-
-      for (const id of supplierIdsToRemove) {
-        await supabase
-          .from('nomenclature_supplier_mapping')
-          .delete()
-          .eq('nomenclature_id', materialId)
-          .eq('supplier_id', id)
-      }
-
-      for (const id of supplierIdsToAdd) {
-        await supabase
-          .from('nomenclature_supplier_mapping')
-          .insert({ nomenclature_id: materialId, supplier_id: id })
+        await supabase.from('material_prices').insert({
+          supplier_names_id: supplierId,
+          price,
+          delivery_price: deliveryPrice || null,
+          document_number: documentNumber || null,
+          purchase_date: today,
+        })
       }
 
       message.success('Сохранено')
@@ -398,14 +491,16 @@ export default function Nomenclature() {
       setCurrentMaterial(null)
       form.resetFields()
       await refetch()
-    } catch {
+    } catch (err) {
+      console.error('Save error:', err)
       message.error('Не удалось сохранить')
     }
   }
 
   const handleDelete = async (record: Material) => {
     if (!supabase) return
-    const { error } = await supabase.from('nomenclature').delete().eq('id', record.id)
+    // Удаляем supplier_names (название номенклатуры поставщика)
+    const { error } = await supabase.from('supplier_names').delete().eq('id', record.id)
     if (error) {
       message.error('Не удалось удалить')
     } else {
@@ -414,19 +509,89 @@ export default function Nomenclature() {
     }
   }
 
-  const handleImport: UploadProps['beforeUpload'] = async (file) => {
-    if (!supabase) return false
+  const handleFileSelect: UploadProps['beforeUpload'] = (file) => {
+    setImportFile(file)
+    return false
+  }
+
+  const handleStartImport = async () => {
+    if (!importFile || !supabase) return
+
     importAbortRef.current = false
     setImportStatus('processing')
-    const data = await file.arrayBuffer()
+    const data = await importFile.arrayBuffer()
     const workbook = XLSX.read(data, { type: 'array' })
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
     const rows: MaterialExcelRow[] = XLSX.utils.sheet_to_json<MaterialExcelRow>(sheet, {
       defval: null,
     })
     setImportProgress({ processed: 0, total: rows.length })
-    const chunkSize = 1000
-    let successCount = 0
+    const chunkSize = 200 // Уменьшен для избежания timeout при большом объёме данных
+
+    // Подсчитываем статистику из данных Excel
+    const uniqueNomenclature = new Set<string>()
+    const uniqueSuppliers = new Set<string>()
+    let pricesCount = 0
+
+    rows.forEach((row) => {
+      const nomenclatureName = row['Номенклатура']?.trim()
+      const supplierName = row['Наименование поставщика']?.trim()
+      const priceVal = row['Цена']
+
+      if (nomenclatureName) {
+        uniqueNomenclature.add(nomenclatureName)
+      }
+      if (supplierName) {
+        uniqueSuppliers.add(supplierName)
+      }
+      if (
+        priceVal !== undefined &&
+        priceVal !== null &&
+        !Number.isNaN(Number(priceVal)) &&
+        supplierName
+      ) {
+        pricesCount++
+      }
+    })
+
+    // Получаем существующие nomenclature и supplier_names для определения новых/обновлённых
+    const { data: existingNomenclature } = await supabase
+      .from('nomenclature')
+      .select('name')
+      .in('name', Array.from(uniqueNomenclature))
+
+    const { data: existingSuppliers } = await supabase
+      .from('supplier_names')
+      .select('name')
+      .in('name', Array.from(uniqueSuppliers))
+
+    const existingNomenclatureNames = new Set(
+      (existingNomenclature || []).map((n: { name: string }) => n.name),
+    )
+    const existingSupplierNames = new Set(
+      (existingSuppliers || []).map((s: { name: string }) => s.name),
+    )
+
+    const newNomenclatureCount = Array.from(uniqueNomenclature).filter(
+      (name) => !existingNomenclatureNames.has(name),
+    ).length
+    const newSupplierCount = Array.from(uniqueSuppliers).filter(
+      (name) => !existingSupplierNames.has(name),
+    ).length
+    const updateSupplierCount = Array.from(uniqueSuppliers).filter((name) =>
+      existingSupplierNames.has(name),
+    ).length
+
+    const totalStats: ImportStats = {
+      inserted_nomenclature: newNomenclatureCount,
+      inserted_supplier_names: newSupplierCount,
+      updated_supplier_names: updateSupplierCount,
+      inserted_mappings: uniqueNomenclature.size,
+      inserted_prices: 0,
+      updated_prices: 0,
+      total_prices: pricesCount,
+    }
+
     for (let i = 0; i < rows.length; i += chunkSize) {
       if (importAbortRef.current) break
       const chunk = rows
@@ -437,13 +602,27 @@ export default function Nomenclature() {
             priceVal !== undefined && priceVal !== null && !Number.isNaN(Number(priceVal))
               ? Number(priceVal)
               : null
+
+          const deliveryPriceVal = row['Цена доставки']
+          const deliveryPrice =
+            deliveryPriceVal !== undefined &&
+            deliveryPriceVal !== null &&
+            !Number.isNaN(Number(deliveryPriceVal))
+              ? Number(deliveryPriceVal)
+              : null
+
           const dateVal = row['Дата']
           const parsedDate = dateVal ? dayjs(dateVal) : null
           const date = parsedDate && parsedDate.isValid() ? parsedDate.format('YYYY-MM-DD') : null
+
           return {
             name: row['Номенклатура']?.trim(),
             supplier: row['Наименование поставщика']?.trim(),
+            unit_name: row['Ед.изм.']?.trim(),
+            material_group: row['Группа материалов']?.trim(),
+            document_number: row['Номер документа']?.trim(),
             price,
+            delivery_price: deliveryPrice,
             date,
           }
         })
@@ -452,23 +631,23 @@ export default function Nomenclature() {
         setImportProgress({ processed: Math.min(i + chunkSize, rows.length), total: rows.length })
         continue
       }
-      const { data: inserted, error } = await supabase.rpc('import_nomenclature', { rows: chunk })
+      const { error } = await supabase.rpc('import_nomenclature', { rows: chunk })
       if (error) {
         console.error(error)
         message.error('Ошибка импорта данных')
-      } else {
-        successCount += inserted || 0
       }
       setImportProgress({ processed: Math.min(i + chunkSize, rows.length), total: rows.length })
+
+      // Небольшая задержка между чанками для стабильности
+      await new Promise((resolve) => setTimeout(resolve, 100))
     }
     if (importAbortRef.current) {
       importAbortRef.current = false
-      return false
+      return
     }
-    setImportResult(successCount)
+    setImportResult(totalStats)
     setImportStatus('finished')
     refetch()
-    return false
   }
 
   const handleImportAbort = () => {
@@ -476,30 +655,67 @@ export default function Nomenclature() {
     setImportModalOpen(false)
     setImportStatus('idle')
     setImportProgress({ processed: 0, total: 0 })
-    setImportResult(0)
+    setImportResult(null)
+    setImportFile(null)
   }
 
-  const supplierFilters = Array.from(new Set(materials.flatMap((m) => m.suppliers))).map(
-    (name) => ({ text: name, value: name }),
-  )
+  const handleImportCancel = () => {
+    setImportModalOpen(false)
+    setImportStatus('idle')
+    setImportProgress({ processed: 0, total: 0 })
+    setImportResult(null)
+    setImportFile(null)
+  }
+
+  // Фильтры для столбцов
+  const nomenclatureFilters = Array.from(new Set(materials.map((m) => m.nomenclature_name)))
+    .filter(Boolean)
+    .map((name) => ({ text: name, value: name }))
+
+  const supplierFilters = Array.from(new Set(materials.map((m) => m.name)))
+    .filter(Boolean)
+    .map((name) => ({ text: name, value: name }))
+
+  const unitFilters = Array.from(new Set(materials.map((m) => m.unit_name)))
+    .filter(Boolean)
+    .map((name) => ({ text: name, value: name }))
+
+  const materialGroupFilters = Array.from(new Set(materials.map((m) => m.material_group)))
+    .filter(Boolean)
+    .map((name) => ({ text: name, value: name }))
 
   const columns = [
     {
       title: 'Номенклатура',
+      dataIndex: 'nomenclature_name',
+      filters: nomenclatureFilters,
+      onFilter: (value: boolean | Key, record: Material) => record.nomenclature_name === value,
+      sorter: (a: Material, b: Material) => a.nomenclature_name.localeCompare(b.nomenclature_name),
+    },
+    {
+      title: 'Наименование поставщика',
       dataIndex: 'name',
-      filters: materials.map((m) => ({ text: m.name, value: m.name })),
+      filters: supplierFilters,
       onFilter: (value: boolean | Key, record: Material) => record.name === value,
       sorter: (a: Material, b: Material) => a.name.localeCompare(b.name),
     },
     {
-      title: 'Наименование поставщика',
-      dataIndex: 'suppliers',
-      filters: supplierFilters,
-      onFilter: (value: boolean | Key, record: Material) =>
-        record.suppliers.includes(value as string),
+      title: 'Ед.изм.',
+      dataIndex: 'unit_name',
+      filters: unitFilters,
+      onFilter: (value: boolean | Key, record: Material) => record.unit_name === value,
       sorter: (a: Material, b: Material) =>
-        (a.suppliers[0] || '').localeCompare(b.suppliers[0] || ''),
-      render: (_: unknown, record: Material) => record.suppliers[0] || '-',
+        (a.unit_name || '').localeCompare(b.unit_name || ''),
+      render: (value: string | undefined) => value || '-',
+    },
+    {
+      title: 'Группа материалов',
+      dataIndex: 'material_group',
+      filters: materialGroupFilters,
+      onFilter: (value: boolean | Key, record: Material) => record.material_group === value,
+      sorter: (a: Material, b: Material) =>
+        (a.material_group || '').localeCompare(b.material_group || ''),
+      render: (value: string | undefined) => value || '-',
     },
     {
       title: 'Цена',
@@ -510,34 +726,33 @@ export default function Nomenclature() {
     {
       title: 'Действия',
       dataIndex: 'actions',
-      render: (_: unknown, record: Material) =>
-        record.name ? (
-          <Space>
-            <Button
-              icon={<EyeOutlined />}
-              onClick={() => openViewModal(record)}
-              aria-label="Просмотр"
-            />
-            <Button
-              icon={<EditOutlined />}
-              onClick={() => openEditModal(record)}
-              aria-label="Редактировать"
-            />
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              aria-label="Удалить"
-              onClick={() =>
-                modal.confirm({
-                  title: 'Удалить запись?',
-                  okText: 'Да',
-                  cancelText: 'Нет',
-                  onOk: () => handleDelete(record),
-                })
-              }
-            />
-          </Space>
-        ) : null,
+      render: (_: unknown, record: Material) => (
+        <Space>
+          <Button
+            icon={<EyeOutlined />}
+            onClick={() => openViewModal(record)}
+            aria-label="Просмотр"
+          />
+          <Button
+            icon={<EditOutlined />}
+            onClick={() => openEditModal(record)}
+            aria-label="Редактировать"
+          />
+          <Button
+            danger
+            icon={<DeleteOutlined />}
+            aria-label="Удалить"
+            onClick={() =>
+              modal.confirm({
+                title: 'Удалить запись?',
+                okText: 'Да',
+                cancelText: 'Нет',
+                onOk: () => handleDelete(record),
+              })
+            }
+          />
+        </Space>
+      ),
     },
   ]
 
@@ -615,93 +830,111 @@ export default function Nomenclature() {
       >
         {modalMode === 'view' ? (
           <div>
-            <p>Номенклатура: {currentMaterial?.name}</p>
-            <p>Средняя цена: {formatPrice(currentMaterial?.average_price ?? null)}</p>
-            {priceDetails.map((p) => (
-              <p key={p.purchase_date + p.price}>
-                {formatPrice(p.price)} от {dayjs(p.purchase_date).format('DD.MM.YYYY')}
-              </p>
-            ))}
+            <p>
+              <strong>Внутренняя номенклатура:</strong> {currentMaterial?.nomenclature_name || '-'}
+            </p>
+            <p>
+              <strong>Наименование поставщика:</strong> {currentMaterial?.name}
+            </p>
+            <p>
+              <strong>Ед.изм.:</strong> {currentMaterial?.unit_name || '-'}
+            </p>
+            <p>
+              <strong>Группа материалов:</strong> {currentMaterial?.material_group || '-'}
+            </p>
+            <p>
+              <strong>Средняя цена:</strong> {formatPrice(currentMaterial?.average_price ?? null)}
+            </p>
+            <div style={{ marginTop: 16 }}>
+              <strong>Список всех закупок:</strong>
+              {priceDetails.length > 0 ? (
+                priceDetails.map((p, index) => (
+                  <p key={`${p.purchase_date}-${p.price}-${index}`} style={{ marginLeft: 16 }}>
+                    Цена: {formatPrice(p.price)} руб.
+                    {p.delivery_price !== null &&
+                      p.delivery_price !== undefined &&
+                      `, Цена доставки: ${formatPrice(p.delivery_price)} руб.`}
+                    {p.document_number && `, № Документа: ${p.document_number}`}, Дата:{' '}
+                    {dayjs(p.purchase_date).format('DD.MM.YYYY')}
+                  </p>
+                ))
+              ) : (
+                <p style={{ marginLeft: 16, color: '#999' }}>Нет данных о закупках</p>
+              )}
+            </div>
           </div>
         ) : (
           <Form form={form} layout="vertical">
-            <Form.Item
-              label="Номенклатура"
-              name="name"
-              rules={[{ required: true, message: 'Введите номенклатуру' }]}
-            >
-              {modalMode === 'add' ? (
-                <AutoComplete
-                  options={autoOptions}
-                  onSearch={handleNameSearch}
-                  filterOption={false}
-                  listHeight={192}
-                  style={{ width: '100%' }}
-                >
-                  <Input />
-                </AutoComplete>
-              ) : (
-                <Input />
-              )}
+            <Form.Item label="Внутренняя номенклатура" name="nomenclature_name">
+              <AutoComplete
+                options={autoOptions}
+                onSearch={handleNameSearch}
+                filterOption={false}
+                listHeight={192}
+                placeholder="Начните вводить для поиска"
+              />
             </Form.Item>
-            <Form.List name="suppliers">
-              {(fields, { add, remove }) => (
-                <>
-                  {fields.map(({ key, name, ...restField }) => (
-                    <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
-                      <Form.Item {...restField} name={[name, 'id']} hidden>
-                        <Input type="hidden" />
-                      </Form.Item>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'name']}
-                        label="Наименование поставщика"
-                        rules={[{ required: true, message: 'Введите поставщика' }]}
-                      >
-                        <AutoComplete
-                          options={supplierOptions}
-                          onSearch={handleSupplierSearch}
-                          filterOption={false}
-                          listHeight={192}
-                          style={{ width: 300 }}
-                        >
-                          <Input />
-                        </AutoComplete>
-                      </Form.Item>
-                      <Button
-                        icon={<DeleteOutlined />}
-                        onClick={() => remove(name)}
-                        aria-label="Удалить поставщика"
-                      />
-                    </Space>
-                  ))}
-                  <Form.Item>
-                    <Button
-                      type="dashed"
-                      onClick={() => add({ name: '' })}
-                      block
-                      icon={<PlusOutlined />}
-                    >
-                      Добавить наименование поставщика
-                    </Button>
-                  </Form.Item>
-                </>
-              )}
-            </Form.List>
+            <Form.Item
+              label="Наименование поставщика"
+              name="name"
+              rules={[{ required: true, message: 'Введите наименование поставщика' }]}
+            >
+              <AutoComplete
+                options={supplierOptions}
+                onSearch={handleSupplierSearch}
+                filterOption={false}
+                listHeight={192}
+                placeholder="Начните вводить для поиска"
+              />
+            </Form.Item>
+            <Form.Item label="Ед.изм." name="unit_id">
+              <Select
+                options={unitOptions}
+                allowClear
+                showSearch
+                placeholder="Выберите единицу измерения"
+                filterOption={(input, option) =>
+                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                }
+              />
+            </Form.Item>
+            <Form.Item label="Группа материалов" name="material_group">
+              <Input placeholder="Введите группу материалов" />
+            </Form.Item>
             {modalMode === 'add' && (
-              <Form.Item label="Цена" name="price">
-                <InputNumber<number>
-                  min={0}
-                  step={0.01}
-                  formatter={(v) =>
-                    v !== undefined && v !== null
-                      ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
-                      : ''
-                  }
-                  parser={(v) => (v ? parseFloat(v.replace(/\s/g, '').replace(',', '.')) : 0)}
-                  style={{ width: '100%' }}
-                />
-              </Form.Item>
+              <>
+                <Form.Item label="Цена" name="price">
+                  <InputNumber<number>
+                    min={0}
+                    step={0.01}
+                    placeholder="0.00"
+                    formatter={(v) =>
+                      v !== undefined && v !== null
+                        ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+                        : ''
+                    }
+                    parser={(v) => (v ? parseFloat(v.replace(/\s/g, '').replace(',', '.')) : 0)}
+                    style={{ width: '100%' }}
+                  />
+                </Form.Item>
+                <Form.Item label="Цена доставки" name="delivery_price">
+                  <InputNumber<number>
+                    min={0}
+                    step={0.01}
+                    placeholder="0.00"
+                    formatter={(v) =>
+                      v !== undefined && v !== null
+                        ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+                        : ''
+                    }
+                    parser={(v) => (v ? parseFloat(v.replace(/\s/g, '').replace(',', '.')) : 0)}
+                    style={{ width: '100%' }}
+                  />
+                </Form.Item>
+                <Form.Item label="Номер документа" name="document_number">
+                  <Input placeholder="Введите номер документа" />
+                </Form.Item>
+              </>
             )}
             {modalMode === 'edit' && (
               <Form.List name="prices">
@@ -711,7 +944,7 @@ export default function Nomenclature() {
                       <Space
                         key={key}
                         align="baseline"
-                        style={{ display: 'flex', marginBottom: 8 }}
+                        style={{ display: 'flex', marginBottom: 8, flexWrap: 'wrap' }}
                       >
                         <Form.Item {...restField} name={[name, 'id']} hidden>
                           <Input type="hidden" />
@@ -728,8 +961,34 @@ export default function Nomenclature() {
                             parser={(v) =>
                               v ? parseFloat(v.replace(/\s/g, '').replace(',', '.')) : 0
                             }
-                            style={{ width: 150 }}
+                            style={{ width: 120 }}
                           />
+                        </Form.Item>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'delivery_price']}
+                          label="Цена доставки"
+                        >
+                          <InputNumber<number>
+                            min={0}
+                            step={0.01}
+                            formatter={(v) =>
+                              v !== undefined && v !== null
+                                ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+                                : ''
+                            }
+                            parser={(v) =>
+                              v ? parseFloat(v.replace(/\s/g, '').replace(',', '.')) : 0
+                            }
+                            style={{ width: 120 }}
+                          />
+                        </Form.Item>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'document_number']}
+                          label="№ документа"
+                        >
+                          <Input style={{ width: 150 }} />
                         </Form.Item>
                         <Form.Item {...restField} name={[name, 'purchase_date']} label="Дата">
                           <DatePicker format="DD.MM.YYYY" />
@@ -753,24 +1012,12 @@ export default function Nomenclature() {
         title="Импорт из Excel"
         onCancel={() => {
           if (importStatus === 'processing') return
-          setImportModalOpen(false)
-          setImportStatus('idle')
-          setImportProgress({ processed: 0, total: 0 })
-          setImportResult(0)
+          handleImportCancel()
         }}
         footer={
           importStatus === 'finished'
             ? [
-                <Button
-                  key="ok"
-                  type="primary"
-                  onClick={() => {
-                    setImportModalOpen(false)
-                    setImportStatus('idle')
-                    setImportProgress({ processed: 0, total: 0 })
-                    setImportResult(0)
-                  }}
-                >
+                <Button key="ok" type="primary" onClick={handleImportCancel}>
                   OK
                 </Button>,
               ]
@@ -780,17 +1027,35 @@ export default function Nomenclature() {
                     Прервать
                   </Button>,
                 ]
-              : null
+              : [
+                  <Button key="cancel" onClick={handleImportCancel}>
+                    Отмена
+                  </Button>,
+                  <Button
+                    key="import"
+                    type="primary"
+                    onClick={handleStartImport}
+                    disabled={!importFile}
+                  >
+                    Импортировать
+                  </Button>,
+                ]
         }
       >
         <Space direction="vertical" style={{ width: '100%' }}>
           <div>
-            <p>Поля файла: Номенклатура, Наименование поставщика, Цена, Дата</p>
+            <p>
+              Поля файла: Номенклатура, Наименование поставщика, Ед.изм., Группа материалов,
+              Номер документа, Цена, Цена доставки, Дата
+            </p>
             <Upload
-              beforeUpload={handleImport}
-              showUploadList={false}
+              beforeUpload={handleFileSelect}
+              showUploadList={true}
               accept=".xlsx,.xls"
               disabled={importStatus === 'processing'}
+              maxCount={1}
+              fileList={importFile ? [importFile as unknown as UploadFile] : []}
+              onRemove={() => setImportFile(null)}
             >
               <Button icon={<UploadOutlined />} disabled={importStatus === 'processing'}>
                 Выбрать файл
@@ -802,7 +1067,28 @@ export default function Nomenclature() {
               Импортировано {importProgress.processed} / {importProgress.total}
             </p>
           )}
-          {importStatus === 'finished' && <p>Загружено {importResult} строк</p>}
+          {importStatus === 'finished' && importResult && (
+            <div style={{ marginTop: 16 }}>
+              <p>
+                <strong>Результаты импорта:</strong>
+              </p>
+              <ul style={{ marginLeft: 20, marginTop: 8 }}>
+                <li>Добавлено номенклатур: {importResult.inserted_nomenclature}</li>
+                <li>
+                  Добавлено наименований поставщиков: {importResult.inserted_supplier_names}
+                </li>
+                <li>
+                  Обновлено наименований поставщиков: {importResult.updated_supplier_names}
+                </li>
+                <li>Создано связей номенклатура ↔ поставщик: {importResult.inserted_mappings}</li>
+                <li>Добавлено цен: {importResult.inserted_prices}</li>
+                <li>Обновлено цен: {importResult.updated_prices}</li>
+                <li>
+                  <strong>Всего обработано цен: {importResult.total_prices}</strong>
+                </li>
+              </ul>
+            </div>
+          )}
         </Space>
       </Modal>
     </div>

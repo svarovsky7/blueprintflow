@@ -63,6 +63,9 @@ export const COLUMN_KEYS = {
   QUANTITY_PD: 'quantityPd', // Кол-во по ПД
   QUANTITY_SPEC: 'quantitySpec', // Кол-во по спеке РД
   QUANTITY_RD: 'quantityRd', // Кол-во по пересчету РД
+  CONVERSION_COEFFICIENT: 'conversionCoefficient', // Коэффициент пересчета
+  CONVERTED_QUANTITY: 'convertedQuantity', // Кол-во пересчет (расчетное)
+  UNIT_NOMENCLATURE: 'unitNomenclature', // Ед.Изм. Номенкл.
   NOMENCLATURE: 'nomenclature', // Номенклатура
   SUPPLIER: 'supplier', // Наименование поставщика
   UNIT: 'unit', // Ед.изм.
@@ -87,12 +90,15 @@ export const DEFAULT_COLUMN_ORDER = [
   COLUMN_KEYS.LOCATION,
   COLUMN_KEYS.MATERIAL,
   COLUMN_KEYS.MATERIAL_TYPE,
+  COLUMN_KEYS.UNIT,
   COLUMN_KEYS.QUANTITY_PD,
   COLUMN_KEYS.QUANTITY_SPEC,
   COLUMN_KEYS.QUANTITY_RD,
+  COLUMN_KEYS.CONVERSION_COEFFICIENT, // Новый столбец: Коэфф-т
+  COLUMN_KEYS.CONVERTED_QUANTITY, // Новый столбец: Кол-во пересчет
+  COLUMN_KEYS.UNIT_NOMENCLATURE, // Новый столбец: Ед.Изм. Номенкл.
   COLUMN_KEYS.NOMENCLATURE,
   COLUMN_KEYS.SUPPLIER,
-  COLUMN_KEYS.UNIT,
   COLUMN_KEYS.COMMENTS,
 ]
 

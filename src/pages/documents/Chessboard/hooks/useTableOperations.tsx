@@ -154,6 +154,10 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
       quantityPd: '',
       quantitySpec: '',
       quantityRd: '',
+      conversionCoefficient: '', // Коэффициент пересчета
+      convertedQuantity: '0', // Кол-во пересчет (расчетное)
+      unitNomenclature: '', // Ед.Изм. Номенкл.
+      unitNomenclatureId: '', // ID единицы измерения номенклатуры
       nomenclature: '',
       nomenclatureId: '',
       supplier: '',
@@ -507,7 +511,8 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
               .insert({
                 chessboard_id: newRowId,
                 nomenclature_id: row.nomenclatureId,
-                supplier_name: row.supplier || null
+                supplier_name: row.supplier || null,
+                conversion_coefficient: row.conversionCoefficient ? Number(row.conversionCoefficient) : null
               })
 
             if (nomError) {
@@ -1002,7 +1007,7 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
 
         // Обновляем nomenclature mapping для номенклатуры
         // КРИТИЧНО: проверяем явное изменение, а не просто наличие ключа в updates
-        if (updates.nomenclatureId !== undefined || updates.supplier !== undefined) {
+        if (updates.nomenclatureId !== undefined || updates.supplier !== undefined || updates.conversionCoefficient !== undefined) {
           const nomenclatureId = updates.nomenclatureId
           const supplierName = updates.supplier
 
@@ -1021,7 +1026,8 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
                 .insert({
                   chessboard_id: rowId,
                   nomenclature_id: nomenclatureId,
-                  supplier_name: supplierName || null
+                  supplier_name: supplierName || null,
+                  conversion_coefficient: updates.conversionCoefficient ? Number(updates.conversionCoefficient) : null
                 })
 
               if (error) throw error
@@ -1032,6 +1038,19 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
             promises.push(
               supabase.from('chessboard_nomenclature_mapping').delete().eq('chessboard_id', rowId)
             )
+          } else if (updates.conversionCoefficient !== undefined) {
+            // Обновляем только коэффициент для существующей записи
+            const nomenclaturePromise = async () => {
+              const { error } = await supabase
+                .from('chessboard_nomenclature_mapping')
+                .update({
+                  conversion_coefficient: updates.conversionCoefficient ? Number(updates.conversionCoefficient) : null
+                })
+                .eq('chessboard_id', rowId)
+
+              if (error) throw error
+            }
+            promises.push(nomenclaturePromise())
           }
           // Если nomenclatureId === undefined - НЕ трогаем существующую связь!
         }
@@ -1342,7 +1361,7 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
 
         // Обновляем nomenclature mapping для backup строки
         // КРИТИЧНО: проверяем явное изменение, а не просто наличие ключа в editedRowData
-        if (editedRowData.nomenclatureId !== undefined || editedRowData.supplier !== undefined) {
+        if (editedRowData.nomenclatureId !== undefined || editedRowData.supplier !== undefined || editedRowData.conversionCoefficient !== undefined) {
           const nomenclatureId = editedRowData.nomenclatureId
           const supplierName = editedRowData.supplier
 
@@ -1361,7 +1380,8 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
                 .insert({
                   chessboard_id: rowId,
                   nomenclature_id: nomenclatureId,
-                  supplier_name: supplierName || null
+                  supplier_name: supplierName || null,
+                  conversion_coefficient: editedRowData.conversionCoefficient ? Number(editedRowData.conversionCoefficient) : null
                 })
 
               if (error) throw error
@@ -1372,6 +1392,19 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
             promises.push(
               supabase.from('chessboard_nomenclature_mapping').delete().eq('chessboard_id', rowId)
             )
+          } else if (editedRowData.conversionCoefficient !== undefined) {
+            // Обновляем только коэффициент для существующей записи
+            const nomenclaturePromise = async () => {
+              const { error } = await supabase
+                .from('chessboard_nomenclature_mapping')
+                .update({
+                  conversion_coefficient: editedRowData.conversionCoefficient ? Number(editedRowData.conversionCoefficient) : null
+                })
+                .eq('chessboard_id', rowId)
+
+              if (error) throw error
+            }
+            promises.push(nomenclaturePromise())
           }
           // Если nomenclatureId === undefined - НЕ трогаем существующую связь!
         }

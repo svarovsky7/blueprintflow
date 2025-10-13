@@ -1,17 +1,15 @@
-import { useCallback, memo, useState } from 'react'
+import { useCallback, useState, memo } from 'react'
 import { Button, Select, Space, Input, Badge } from 'antd'
 import {
   FilterOutlined,
   CaretUpFilled,
   CaretDownFilled,
   SettingOutlined,
-  RobotOutlined,
 } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { documentationApi } from '@/entities/documentation'
 import { documentationTagsApi } from '@/entities/documentation-tags'
-import { MLConfigPanel } from '@/entities/ml'
 import { ChessboardActionButtons } from './ChessboardActionButtons'
 import type {
   ChessboardFilters,
@@ -89,9 +87,6 @@ export const ChessboardFilters = memo(
     canEdit = true,
     canDelete = true,
   }: ChessboardFiltersProps) => {
-    // Состояние для панели настроек ML
-    const [mlConfigOpen, setMLConfigOpen] = useState(false)
-
     // Обработчик применения фильтров с автосворачиванием
     const handleApplyFilters = useCallback(() => {
       onApplyFilters()
@@ -424,15 +419,6 @@ export const ChessboardFilters = memo(
 
               {/* Кнопки управления */}
               <Space>
-                {/* Кнопка настроек ML */}
-                <Button
-                  icon={<RobotOutlined />}
-                  onClick={() => setMLConfigOpen(true)}
-                  title="ML настройки поиска номенклатуры поставщика"
-                >
-                  ML
-                </Button>
-
                 {/* Кнопка настройки столбцов */}
                 <Button icon={<SettingOutlined />} onClick={onOpenColumnSettings}>
                   Настройка столбцов
@@ -441,14 +427,6 @@ export const ChessboardFilters = memo(
             </div>
           </div>
         )}
-
-        {/* Панель настроек ML */}
-        <MLConfigPanel
-          open={mlConfigOpen}
-          onClose={() => setMLConfigOpen(false)}
-          onConfigUpdate={(newConfig) => {
-          }}
-        />
       </div>
     )
   },

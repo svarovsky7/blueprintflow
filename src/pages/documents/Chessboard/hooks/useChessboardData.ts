@@ -51,7 +51,17 @@ function buildSelectQuery(appliedFilters: AppliedFilters): string {
     chessboard_nomenclature_mapping!left(
       nomenclature_id,
       supplier_name,
-      nomenclature!chessboard_nomenclature_mapping_nomenclature_id_fkey(name)
+      conversion_coefficient,
+      nomenclature!chessboard_nomenclature_mapping_nomenclature_id_fkey(
+        name,
+        nomenclature_supplier_mapping!nomenclature_supplier_mapping_nomenclature_id_fkey(
+          supplier_id,
+          supplier_names!nomenclature_supplier_mapping_supplier_id_fkey(
+            unit_id,
+            units!supplier_names_unit_id_fkey(name)
+          )
+        )
+      )
     )
   `
 }
@@ -656,6 +666,35 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
         quantityPd: String(totalQuantityPd || 0),
         quantitySpec: String(totalQuantitySpec || 0),
         quantityRd: String(totalQuantityRd || 0),
+
+        // Новые поля для пересчета количества
+        conversionCoefficient: String(nomenclatureMapping?.conversion_coefficient || ''),
+        convertedQuantity: (() => {
+          // Расчет: если quantityRd != 0, то quantityRd × coefficient, иначе quantitySpec × coefficient
+          const coeff = Number(nomenclatureMapping?.conversion_coefficient || 0)
+          if (coeff === 0) return '0'
+
+          const baseQuantity = totalQuantityRd !== 0 ? totalQuantityRd : totalQuantitySpec
+          const result = baseQuantity * coeff
+
+          // Показываем только если != 0, форматируем до 2 знаков, убираем trailing zeros
+          return result !== 0 ? result.toFixed(2).replace(/\.?0+$/, '') : '0'
+        })(),
+        unitNomenclature: (() => {
+          // Получаем unit через nomenclature → nomenclature_supplier_mapping → supplier_names → units
+          const mapping = nomenclatureMapping?.nomenclature?.nomenclature_supplier_mapping
+          if (Array.isArray(mapping) && mapping.length > 0) {
+            return mapping[0]?.supplier_names?.units?.name || ''
+          }
+          return ''
+        })(),
+        unitNomenclatureId: (() => {
+          const mapping = nomenclatureMapping?.nomenclature?.nomenclature_supplier_mapping
+          if (Array.isArray(mapping) && mapping.length > 0) {
+            return mapping[0]?.supplier_names?.unit_id || ''
+          }
+          return ''
+        })(),
 
         // Номенклатура и поставщик из реальных маппингов
         nomenclature: nomenclatureMapping?.nomenclature?.name || '',

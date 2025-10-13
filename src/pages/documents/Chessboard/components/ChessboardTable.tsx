@@ -119,9 +119,12 @@ const COLUMN_WIDTH_CONFIG_BASE: Record<string, { width?: number; minWidth?: numb
   [COLUMN_KEYS.LOCATION]: { width: 80 }, // "Локализация" 80px
   [COLUMN_KEYS.MATERIAL]: { width: 200 }, // "Материал" 200px
   [COLUMN_KEYS.MATERIAL_TYPE]: { width: 60 }, // "Тип материала" 60px
-  [COLUMN_KEYS.QUANTITY_PD]: { width: 60 }, // "Кол-во по ПД" 60px
-  [COLUMN_KEYS.QUANTITY_SPEC]: { width: 90 }, // "Кол-во по спеке РД" 90px
-  [COLUMN_KEYS.QUANTITY_RD]: { width: 80 }, // "Кол-во по пересчету РД" 80px
+  [COLUMN_KEYS.QUANTITY_PD]: { width: 90 }, // "Кол-во по ПД" 90px (scale 0.7), 103px (0.8), 116px (0.9), 129px (1.0)
+  [COLUMN_KEYS.QUANTITY_SPEC]: { width: 90 }, // "Кол-во по спеке РД" 90px (scale 0.7), 103px (0.8), 116px (0.9), 129px (1.0)
+  [COLUMN_KEYS.QUANTITY_RD]: { width: 90 }, // "Кол-во по пересчету РД" 90px (scale 0.7), 103px (0.8), 116px (0.9), 129px (1.0)
+  [COLUMN_KEYS.CONVERSION_COEFFICIENT]: { width: 60 }, // "Коэфф-т" 60px
+  [COLUMN_KEYS.CONVERTED_QUANTITY]: { width: 80 }, // "Кол-во пересчет" 80px
+  [COLUMN_KEYS.UNIT_NOMENCLATURE]: { width: 60 }, // "Ед.Изм. Номенкл." 60px
   [COLUMN_KEYS.NOMENCLATURE]: { width: 200 }, // "Номенклатура" 200px
   [COLUMN_KEYS.SUPPLIER]: { width: 200 }, // "Наименование номенклатуры поставщика" 200px
   [COLUMN_KEYS.UNIT]: { width: 40 }, // "Ед.изм." 40px
@@ -1524,14 +1527,36 @@ export const ChessboardTable = memo(({
   // Обработчик изменения количеств с автоматическим перераспределением по этажам
   const handleQuantityChange = useCallback((recordId: string, field: 'quantityPd' | 'quantitySpec' | 'quantityRd', newValue: number) => {
 
-    // Сначала обновляем значение в записи
-    onRowUpdate(recordId, { [field]: newValue })
-
-    // Находим запись, чтобы получить этажи
+    // Находим запись, чтобы получить этажи и коэффициент
     const record = data.find(r => r.id === recordId)
     if (!record) {
       return
     }
+
+    // Подготавливаем обновления
+    const updates: Partial<RowData> = { [field]: newValue }
+
+    // Если изменяется quantityRd или quantitySpec, пересчитываем convertedQuantity
+    if (field === 'quantityRd' || field === 'quantitySpec') {
+      const coefficient = Number(record.conversionCoefficient) || 0
+      if (coefficient !== 0) {
+        // Определяем актуальные значения
+        const quantityRd = field === 'quantityRd' ? newValue : (Number(record.quantityRd) || 0)
+        const quantitySpec = field === 'quantitySpec' ? newValue : (Number(record.quantitySpec) || 0)
+
+        // Применяем формулу
+        const baseQuantity = quantityRd !== 0 ? quantityRd : quantitySpec
+        const convertedQuantity = baseQuantity * coefficient
+
+        // Форматируем результат
+        updates.convertedQuantity = convertedQuantity !== 0
+          ? convertedQuantity.toFixed(2).replace(/\.?0+$/, '')
+          : '0'
+      }
+    }
+
+    // Обновляем запись
+    onRowUpdate(recordId, updates)
 
     // Если есть этажи, запускаем перераспределение
     if (record.floors && record.floors.trim()) {
@@ -1542,6 +1567,32 @@ export const ChessboardTable = memo(({
       }, 100)
     }
   }, [data, onRowUpdate, handleFloorsChange])
+
+  // Обработчик изменения коэффициента пересчета с автоматическим пересчетом convertedQuantity
+  const handleConversionCoefficientChange = useCallback((recordId: string, newCoefficient: number) => {
+    // Находим запись
+    const record = data.find(r => r.id === recordId)
+    if (!record) {
+      return
+    }
+
+    // Применяем формулу: если quantityRd != 0, то quantityRd × coefficient, иначе quantitySpec × coefficient
+    const quantityRd = Number(record.quantityRd) || 0
+    const quantitySpec = Number(record.quantitySpec) || 0
+    const baseQuantity = quantityRd !== 0 ? quantityRd : quantitySpec
+    const convertedQuantity = baseQuantity * newCoefficient
+
+    // Форматируем результат (удаляем trailing zeros)
+    const formattedQuantity = convertedQuantity !== 0
+      ? convertedQuantity.toFixed(2).replace(/\.?0+$/, '')
+      : '0'
+
+    // Обновляем и coefficient и convertedQuantity
+    onRowUpdate(recordId, {
+      conversionCoefficient: String(newCoefficient),
+      convertedQuantity: formattedQuantity
+    })
+  }, [data, onRowUpdate])
 
   // ОПТИМИЗАЦИЯ: стабильные обработчики событий (ИСПРАВЛЕНО: убираем циклические зависимости)
   const handleStartEditing = useCallback((recordId: string, record: RowData) => () => onStartEditing(recordId, record), [onStartEditing])
@@ -2747,6 +2798,88 @@ export const ChessboardTable = memo(({
       },
     },
 
+    // Коэффициент пересчета
+    {
+      title: 'Коэфф-т',
+      key: COLUMN_KEYS.CONVERSION_COEFFICIENT,
+      dataIndex: 'conversionCoefficient',
+      width: 60,
+      onHeaderCell: () => ({
+        className: 'chessboard-header-cell',
+        style: {
+          whiteSpace: 'nowrap',
+          textAlign: 'center',
+          verticalAlign: 'middle',
+          lineHeight: '20px',
+          padding: '4px 8px',
+        },
+      }),
+      render: (value, record) => {
+        const isEditing = (record as any).isEditing
+
+        if (isEditing) {
+          return (
+            <InputNumber
+              className="conversion-coefficient"
+              value={value || ''}
+              onChange={(newValue) => {
+                const coefficient = newValue || 0
+                handleConversionCoefficientChange(record.id, coefficient)
+              }}
+              size="small"
+              style={{ width: '100%' }}
+              min={0}
+              precision={4}
+              placeholder="0"
+            />
+          )
+        }
+        return <span>{value || '0'}</span>
+      },
+    },
+
+    // Количество пересчет (расчетное)
+    {
+      title: 'Кол-во\nпересчет',
+      key: COLUMN_KEYS.CONVERTED_QUANTITY,
+      dataIndex: 'convertedQuantity',
+      width: 80,
+      onHeaderCell: () => ({
+        className: 'chessboard-header-cell',
+        style: {
+          whiteSpace: 'pre-line',
+          textAlign: 'center',
+          verticalAlign: 'middle',
+          lineHeight: '12px',
+          padding: '2px 4px',
+        },
+      }),
+      render: (value) => {
+        return <span>{formatQuantityForDisplay(value)}</span>
+      },
+    },
+
+    // Единица измерения номенклатуры (read-only)
+    {
+      title: 'Ед.Изм.\nНоменкл.',
+      key: COLUMN_KEYS.UNIT_NOMENCLATURE,
+      dataIndex: 'unitNomenclature',
+      width: 60,
+      onHeaderCell: () => ({
+        className: 'chessboard-header-cell',
+        style: {
+          whiteSpace: 'pre-line',
+          textAlign: 'center',
+          verticalAlign: 'middle',
+          lineHeight: '12px',
+          padding: '2px 4px',
+        },
+      }),
+      render: (value) => {
+        return <span>{value || '-'}</span>
+      },
+    },
+
     // Номенклатура
     {
       title: 'Номенклатура',
@@ -2955,12 +3088,19 @@ export const ChessboardTable = memo(({
     },
   ], [tableMode, onRowColorChange, handleStartEditing, handleRowDelete, handleRowCopy, handleOpenFloorModal, hasMultipleFloors])
 
-  // Фильтрация столбцов по видимости с нормализацией ширины
+  // Фильтрация и сортировка столбцов по видимости с нормализацией ширины
   const visibleColumnsData = useMemo(() => {
-    const filteredColumns = allColumns.filter(column =>
-      visibleColumns.includes(column.key as string)
+    // Создаем Map для быстрого поиска столбцов по ключу
+    const columnsMap = new Map(
+      allColumns.map(column => [column.key as string, column])
     )
-    return normalizeColumns(filteredColumns, scale)
+
+    // Сортируем столбцы в порядке из visibleColumns
+    const sortedColumns = visibleColumns
+      .map(key => columnsMap.get(key))
+      .filter((column): column is ColumnType<RowData> => column !== undefined)
+
+    return normalizeColumns(sortedColumns, scale)
   }, [allColumns, visibleColumns, scale])
 
   // Настройки выбора строк для режимов add/edit/delete

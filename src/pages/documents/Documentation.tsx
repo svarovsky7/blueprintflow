@@ -612,6 +612,29 @@ export default function Documentation() {
               />
             )
           }
+          if (editingKey === record.id || editingRows[record.id]) {
+            const editedRow = editingRows[record.id] || record
+            return (
+              <Select
+                size="small"
+                style={{ width: '100%' }}
+                value={editedRow.stage || 'П'}
+                onChange={(value) => {
+                  setEditingRows((prev) => ({
+                    ...prev,
+                    [record.id]: {
+                      ...editedRow,
+                      stage: value,
+                    },
+                  }))
+                }}
+                options={[
+                  { label: 'П', value: 'П' },
+                  { label: 'Р', value: 'Р' },
+                ]}
+              />
+            )
+          }
           return record.stage || 'П'
         },
         visible: true,
@@ -1155,12 +1178,15 @@ export default function Documentation() {
                     const editedRow = editingRows[record.id]
                     if (editedRow) {
                       try {
+                        // Находим tag_id по tag_name
+                        const tag = tags.find((t) => t.name === editedRow.tag_name)
+
                         // Обновляем запись через API
                         await documentationApi.updateDocumentation(editedRow.documentation_id, {
                           code: editedRow.project_code,
                           project_name: editedRow.project_name,
                           stage: editedRow.stage,
-                          tag_id: editedRow.tag_id,
+                          tag_id: tag?.id || editedRow.tag_id,
                         })
                         message.success('Запись обновлена')
                         setEditingRows((prev) => {
@@ -1916,11 +1942,14 @@ export default function Documentation() {
                     try {
                       // Массовое сохранение всех редактируемых записей
                       const updatePromises = Object.values(editingRows).map(async (editedRow) => {
+                        // Находим tag_id по tag_name
+                        const tag = tags.find((t) => t.name === editedRow.tag_name)
+
                         return documentationApi.updateDocumentation(editedRow.documentation_id, {
                           code: editedRow.project_code,
                           project_name: editedRow.project_name,
                           stage: editedRow.stage,
-                          tag_id: editedRow.tag_id,
+                          tag_id: tag?.id || editedRow.tag_id,
                         })
                       })
 
