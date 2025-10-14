@@ -17,13 +17,7 @@ export const StatusSelector: React.FC<StatusSelectorProps> = ({
 }) => {
   const { data: statuses = [] } = useQuery({
     queryKey: ['statuses', pageKey],
-    queryFn: async () => {
-      const allStatuses = await statusesApi.getStatuses()
-      return allStatuses.filter(
-        (status) =>
-          status.applicable_pages && status.applicable_pages.includes(pageKey)
-      )
-    },
+    queryFn: () => statusesApi.getStatuses(pageKey),
   })
 
   const currentStatus = statuses.find((s) => s.id === statusId)

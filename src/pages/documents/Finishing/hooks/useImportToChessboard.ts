@@ -7,18 +7,22 @@ export function useImportToChessboard() {
   const queryClient = useQueryClient()
   const { message } = App.useApp()
 
-  return useMutation<ImportToChessboardResult, Error, string>({
-    mutationFn: (finishingPieId: string) => importFinishingToChessboard(finishingPieId),
+  return useMutation<
+    ImportToChessboardResult,
+    Error,
+    { finishingPieId: string; setName?: string }
+  >({
+    mutationFn: ({ finishingPieId, setName }) =>
+      importFinishingToChessboard(finishingPieId, setName),
 
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['finishing-pies'] })
+      queryClient.invalidateQueries({ queryKey: ['finishing-pie-documents'] })
       queryClient.invalidateQueries({ queryKey: ['chessboard-sets'] })
       queryClient.invalidateQueries({ queryKey: ['chessboard-data'] })
 
       if (result.success) {
-        message.success(
-          `Комплект ${result.set_name || result.set_number} успешно создан!`
-        )
+        message.success(`Комплект ${result.set_name || result.set_number} успешно создан!`)
       }
     },
 

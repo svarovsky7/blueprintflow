@@ -29,9 +29,29 @@ export const statusesApi = {
     return data || []
   },
 
-  // Получение статусов (alias для getAllStatuses)
-  async getStatuses(): Promise<Status[]> {
-    return this.getAllStatuses()
+  // Получение активных статусов с фильтрацией по applicable_pages
+  async getStatuses(pageKey?: string): Promise<Status[]> {
+    if (!supabase) throw new Error('Supabase client not initialized')
+
+    const { data, error } = await supabase
+      .from('statuses')
+      .select('*')
+      .eq('is_active', true)
+      .order('name', { ascending: true })
+
+    if (error) {
+      console.error('Failed to fetch statuses:', error)
+      throw error
+    }
+
+    // Если передан pageKey, фильтруем по applicable_pages
+    if (pageKey && data) {
+      return data.filter(
+        (status) => status.applicable_pages && status.applicable_pages.includes(pageKey)
+      )
+    }
+
+    return data || []
   },
 
   // Инициализация статусов для Шахматки

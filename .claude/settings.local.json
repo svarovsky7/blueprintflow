@@ -92,7 +92,10 @@
       "Bash(done)",
       "Bash(if [ -f \"temp/SECURITY_AUDIT_REPORT.md\" ])",
       "Bash(then echo \"exists\")",
-      "Bash(else echo \"not found\")"
+      "Bash(else echo \"not found\")",
+      "Bash(if [ -f \"C:/Users/postoev.e.v/WebstormProjects/blueprintflow/supabase/schemas/prod.sql\" ])",
+      "Bash(then grep -A 30 \"chessboard_sets_with_documents\" \"C:/Users/postoev.e.v/WebstormProjects/blueprintflow/supabase/schemas/prod.sql\")",
+      "Bash(else echo \"File not found\")"
     ],
     "deny": [],
     "ask": []

@@ -17,6 +17,7 @@ export function useDeleteFinishingSet() {
 
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['finishing-pies'] })
+      queryClient.invalidateQueries({ queryKey: ['finishing-pie-documents'] })
       queryClient.invalidateQueries({ queryKey: ['chessboard-sets'] })
       queryClient.invalidateQueries({ queryKey: ['chessboard-data'] })
 

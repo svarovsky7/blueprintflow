@@ -155,12 +155,13 @@ export const chessboardSetsApi = {
   async getSets(filters?: ChessboardSetSearchFilters): Promise<ChessboardSetTableRow[]> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    // Используем представление с документами для получения полной информации
+    // Загружаем основные данные комплектов
     let query = supabase
-      .from('chessboard_sets_with_documents')
+      .from('chessboard_sets')
       .select(
         `
         *,
+        project:projects(id, name),
         tag:documentation_tags(id, name)
       `,
       )
@@ -169,9 +170,6 @@ export const chessboardSetsApi = {
     // Применяем фильтры
     if (filters?.project_id) {
       query = query.eq('project_id', filters.project_id)
-    }
-    if (filters?.documentation_id) {
-      query = query.eq('documentation_id', filters.documentation_id)
     }
     if (filters?.tag_id) {
       query = query.eq('tag_id', filters.tag_id)
@@ -187,16 +185,57 @@ export const chessboardSetsApi = {
       throw error
     }
 
-    // Получаем статусы для всех комплектов одним запросом
+    // Загружаем документы для всех комплектов одним запросом
     const setIds = (data || []).map((set) => set.id)
-    let statusesMap: Record<string, { id: string; name: string; color?: string }> = {}
+    let documentsMap: Record<string, any[]> = {}
 
     if (setIds.length > 0) {
+      const { data: docsData } = await supabase
+        .from('chessboard_sets_documents_mapping')
+        .select('set_id, documentation_id, version_id, order_index, documentations(id, code, project_name), documentation_versions(id, version_number, issue_date)')
+        .in('set_id', setIds)
+        .order('order_index', { ascending: true })
+
+      // Группируем документы по комплектам
+      if (docsData && docsData.length > 0) {
+        documentsMap = docsData.reduce((acc: Record<string, any[]>, doc: any) => {
+          if (!acc[doc.set_id]) acc[doc.set_id] = []
+          acc[doc.set_id].push({
+            documentation_id: doc.documentation_id,
+            version_id: doc.version_id,
+            order_index: doc.order_index,
+            code: doc.documentations?.code,
+            project_name: doc.documentations?.project_name,
+            version_number: doc.documentation_versions?.version_number,
+            issue_date: doc.documentation_versions?.issue_date,
+          })
+          return acc
+        }, {})
+      }
+    }
+
+    // Фильтруем комплекты по коду документа если указан
+    let documentFilteredData = data || []
+    if (filters?.documentation_code) {
+      const filteredSetIds = Object.entries(documentsMap)
+        .filter(([_, docs]) =>
+          docs.some((doc: any) => doc.code === filters.documentation_code)
+        )
+        .map(([setId]) => setId)
+
+      documentFilteredData = documentFilteredData.filter((set) => filteredSetIds.includes(set.id))
+    }
+
+    // Получаем статусы для всех комплектов одним запросом (после фильтрации по документам)
+    const filteredSetIds = documentFilteredData.map((set) => set.id)
+    let statusesMap: Record<string, { id: string; name: string; color?: string }> = {}
+
+    if (filteredSetIds.length > 0) {
       const { data: statusMappings } = await supabase
         .from('statuses_mapping')
         .select('entity_id, status_id')
         .eq('entity_type', 'chessboard_set')
-        .in('entity_id', setIds)
+        .in('entity_id', filteredSetIds)
         .eq('is_current', true)
 
       // Получаем статусы отдельным запросом
@@ -230,12 +269,12 @@ export const chessboardSetsApi = {
     }
 
     // Загружаем справочники для отображения названий
-    // Собираем все уникальные ID
+    // Собираем все уникальные ID (после фильтрации по документам)
     const allBlockIds = new Set<string>()
     const allCategoryIds = new Set<string>()
     const allTypeIds = new Set<string>()
 
-    ;(data || []).forEach((set) => {
+    documentFilteredData.forEach((set) => {
       if (set.block_ids) {
         set.block_ids.forEach((id: string) => allBlockIds.add(id))
       }
@@ -298,24 +337,33 @@ export const chessboardSetsApi = {
       )
     }
 
-    // Фильтр по статусу если указан
-    let filteredData = data || []
+    // Фильтр по статусу и категории затрат (применяется после фильтрации по документам)
+    let filteredData = documentFilteredData
     if (filters?.status_id) {
       filteredData = filteredData.filter((set) => statusesMap[set.id]?.id === filters.status_id)
+    }
+    if (filters?.cost_category_id) {
+      filteredData = filteredData.filter((set) => {
+        if (!set.cost_category_ids || set.cost_category_ids.length === 0) return false
+        // Приводим все элементы массива к числам для корректного сравнения
+        const categoryIds = set.cost_category_ids.map((id: any) =>
+          typeof id === 'string' ? parseInt(id, 10) : id
+        )
+        return categoryIds.includes(filters.cost_category_id!)
+      })
     }
 
     // Преобразуем в формат для таблицы
     return filteredData.map((set) => {
       const status = statusesMap[set.id]
 
-      // Обработка документов - берем первый для обратной совместимости отображения
-      const firstDoc = set.documents && set.documents.length > 0 ? set.documents[0] : null
-      const docCodes = set.documents
-        ? set.documents
-            .map((d: any) => d.code)
-            .filter(Boolean)
-            .join(', ')
-        : ''
+      // Получаем документы комплекта из documentsMap
+      const setDocuments = documentsMap[set.id] || []
+      const firstDoc = setDocuments.length > 0 ? setDocuments[0] : null
+      const docCodes = setDocuments
+        .map((d: any) => d.code)
+        .filter(Boolean)
+        .join(', ')
 
       // Формируем списки названий
       const blockNames = set.block_ids
@@ -348,6 +396,7 @@ export const chessboardSetsApi = {
         block_names: blockNames || 'Все',
         cost_category_names: categoryNames || 'Все',
         cost_type_names: typeNames || 'Все',
+        status_id: status?.id || undefined, // UUID статуса
         status_name: status?.name || '',
         status_color: status?.color || '#888888',
         created_at: set.created_at,
@@ -357,7 +406,8 @@ export const chessboardSetsApi = {
         block_ids: set.block_ids,
         cost_category_ids: set.cost_category_ids,
         cost_type_ids: set.cost_type_ids,
-        documents: set.documents,
+        documents: setDocuments,
+        project_id: set.project_id, // Для работы с ВОР
       }
     })
   },

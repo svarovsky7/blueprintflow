@@ -28,7 +28,9 @@ interface PreparedImportItem {
   detail_cost_category_id: number
   work_name_id: string | null
   rate_id: string | null
-  consumption: number
+  conversion_coefficient: number | null
+  nomenclature_id: string | null
+  supplier_name: string | null
   floors: Array<{
     floor_number: number
     quantityPd: number
@@ -66,6 +68,46 @@ async function validateRequiredFields(
   return {
     valid: invalidRows.length === 0,
     invalidRows,
+  }
+}
+
+function validateConsumption(pieRows: FinishingPieRow[]): {
+  valid: boolean
+  rowsWithInvalidConsumption: Array<{
+    rowNumber: number
+    pieTypeName: string
+    materialName: string
+    issue: string
+  }>
+} {
+  const rowsWithInvalidConsumption: Array<{
+    rowNumber: number
+    pieTypeName: string
+    materialName: string
+    issue: string
+  }> = []
+
+  pieRows.forEach((row, index) => {
+    if (row.consumption === 0) {
+      rowsWithInvalidConsumption.push({
+        rowNumber: index + 1,
+        pieTypeName: row.pie_type_name || '[не указан]',
+        materialName: row.material_name || '[не указан]',
+        issue: 'Значение 0',
+      })
+    } else if (row.consumption === null || row.consumption === undefined) {
+      rowsWithInvalidConsumption.push({
+        rowNumber: index + 1,
+        pieTypeName: row.pie_type_name || '[не указан]',
+        materialName: row.material_name || '[не указан]',
+        issue: 'Значение не указано',
+      })
+    }
+  })
+
+  return {
+    valid: rowsWithInvalidConsumption.length === 0,
+    rowsWithInvalidConsumption,
   }
 }
 
@@ -169,12 +211,14 @@ async function prepareImportData(
       detail_cost_category_id: pieRow.detail_cost_category_id!,
       work_name_id: pieRow.work_name_id,
       rate_id: pieRow.rate_id,
-      consumption: pieRow.consumption || 1.0,
+      conversion_coefficient: pieRow.consumption ?? null,
+      nomenclature_id: pieRow.nomenclature_id,
+      supplier_name: pieRow.supplier_name,
       floors: Array.from(floorSums.entries()).map(([floor_number, sums]) => ({
         floor_number,
         quantityPd: 0,
-        quantitySpec: sums.quantitySpec * (pieRow.consumption || 1.0),
-        quantityRd: sums.quantityRd * (pieRow.consumption || 1.0),
+        quantitySpec: sums.quantitySpec,
+        quantityRd: sums.quantityRd,
         location_id: null, // location_id должен быть NULL когда есть floor_number
       })),
     })
@@ -222,6 +266,24 @@ async function createChessboardRecords(
 
       if (mappingError && !mappingError.message.includes('duplicate')) {
         console.error('Ошибка вставки mapping:', mappingError)
+      }
+
+      // Вставка в chessboard_nomenclature_mapping только если:
+      // 1. Есть nomenclature_id или supplier_name
+      // 2. Коэффициент не null (указан в исходных данных)
+      if ((item.nomenclature_id || item.supplier_name) && item.conversion_coefficient !== null) {
+        const { error: nomenclatureError } = await supabase
+          .from('chessboard_nomenclature_mapping')
+          .insert({
+            chessboard_id: chessboardId,
+            nomenclature_id: item.nomenclature_id,
+            supplier_name: item.supplier_name,
+            conversion_coefficient: item.conversion_coefficient,
+          })
+
+        if (nomenclatureError && !nomenclatureError.message.includes('duplicate')) {
+          console.error('Ошибка вставки nomenclature mapping:', nomenclatureError)
+        }
       }
 
       for (const floor of item.floors) {
@@ -406,7 +468,8 @@ export async function deleteFinishingChessboardSet(
 }
 
 export async function importFinishingToChessboard(
-  finishingPieId: string
+  finishingPieId: string,
+  customSetName?: string
 ): Promise<ImportToChessboardResult> {
   try {
     const doc = await getFinishingPieById(finishingPieId)
@@ -462,6 +525,20 @@ export async function importFinishingToChessboard(
       }
     }
 
+    // Проверка на нули и отсутствие значений в столбце "Расход"
+    const consumptionValidation = validateConsumption(pieRows)
+    if (!consumptionValidation.valid) {
+      const rowsList = consumptionValidation.rowsWithInvalidConsumption
+        .map((r) => `Строка ${r.rowNumber}: ${r.pieTypeName} - ${r.materialName} (${r.issue})`)
+        .join('\n')
+      return {
+        success: false,
+        errors: ['Некорректные значения в столбце Расход', rowsList],
+        warnings: [],
+        message: `Обнаружено ${consumptionValidation.rowsWithInvalidConsumption.length} строк с некорректным расходом`,
+      }
+    }
+
     const calcRows = await getTypeCalculationRows(finishingPieId)
     if (calcRows.length === 0) {
       return {
@@ -491,7 +568,7 @@ export async function importFinishingToChessboard(
       }
     }
 
-    const setName = (await getDocumentationCode(doc.version_id!)) || doc.name
+    const setName = customSetName || (await getDocumentationCode(doc.version_id!)) || doc.name
 
     const importData = await prepareImportData(doc, pieRows, calcRows, activeTypeIds)
 

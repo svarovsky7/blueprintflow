@@ -152,6 +152,7 @@ export interface ChessboardSetTableRow {
   block_names?: string
   cost_category_names?: string
   cost_type_names?: string
+  status_id?: string // UUID статуса
   status_name: string
   status_color: string
   created_at: string
@@ -165,14 +166,17 @@ export interface ChessboardSetTableRow {
     documentation_id: string
     version_id: string
   }>
+  project_id?: string // Добавлено для работы с ВОР
 }
 
 // Фильтры для поиска комплектов
 export interface ChessboardSetSearchFilters {
   project_id?: string
-  documentation_id?: string
+  documentation_id?: string // UUID документа
+  documentation_code?: string // Шифр документа (код) для фильтрации
   status_id?: string // UUID из таблицы statuses
   tag_id?: number
+  cost_category_id?: number // ID категории затрат для фильтрации
   search?: string // поиск по номеру или названию комплекта
 }
 

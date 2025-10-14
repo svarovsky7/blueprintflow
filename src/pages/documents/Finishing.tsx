@@ -545,6 +545,7 @@ export default function Finishing() {
       if (versionError) throw versionError
 
       const docCode = (versionData as any)?.documentation?.code || 'Комплект отделки'
+      const defaultSetName = record.name || docCode
 
       setImportPreviewData({
         documentInfo: {
@@ -561,7 +562,7 @@ export default function Finishing() {
           excludedRows,
           estimatedFloorMappings: rowsToImport * 2,
         },
-        setName: docCode,
+        setName: defaultSetName,
       })
 
       setSelectedForImport(record)
@@ -572,10 +573,13 @@ export default function Finishing() {
   }
 
   const handleImportConfirm = async () => {
-    if (!selectedForImport) return
+    if (!selectedForImport || !importPreviewData) return
 
     try {
-      const result = await importMutation.mutateAsync(selectedForImport.id)
+      const result = await importMutation.mutateAsync({
+        finishingPieId: selectedForImport.id,
+        setName: importPreviewData.setName,
+      })
 
       setImportConfirmModalOpen(false)
 
@@ -589,6 +593,15 @@ export default function Finishing() {
     } catch (error: any) {
       message.error(`Ошибка импорта: ${error.message}`)
       setImportConfirmModalOpen(false)
+    }
+  }
+
+  const handleSetNameChange = (value: string) => {
+    if (importPreviewData) {
+      setImportPreviewData({
+        ...importPreviewData,
+        setName: value,
+      })
     }
   }
 
@@ -760,7 +773,10 @@ export default function Finishing() {
       align: 'center' as const,
       render: (_: any, record: FinishingPieWithSet) => {
         const hasSet = !!record.finishing_pie_sets_mapping?.[0]
-        const bothStatusesCompleted = record.status_finishing_pie && record.status_type_calculation
+        const COMPLETED_STATUS_ID = 'af9b114b-3396-4363-9bc6-95ff8aa31048'
+        const bothStatusesCompleted =
+          record.status_finishing_pie === COMPLETED_STATUS_ID &&
+          record.status_type_calculation === COMPLETED_STATUS_ID
         const canImport = bothStatusesCompleted && !hasSet
 
         return (
@@ -992,6 +1008,7 @@ export default function Finishing() {
           documentInfo={importPreviewData.documentInfo}
           statistics={importPreviewData.statistics}
           setName={importPreviewData.setName}
+          onSetNameChange={handleSetNameChange}
         />
       )}
 

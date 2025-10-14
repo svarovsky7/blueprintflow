@@ -38,6 +38,10 @@ export interface FinishingPieRow {
   unit_id: string | null
   unit_name?: string
   consumption: number | null
+  nomenclature_id: string | null // FK на nomenclature (внутренняя номенклатура)
+  nomenclature_name?: string // Название номенклатуры (для отображения)
+  supplier_name_id: string | null // FK на supplier_names (номенклатура поставщика)
+  supplier_name?: string // Наименование номенклатуры поставщика (для отображения)
   detail_cost_category_id: number | null // FK на detail_cost_categories (вид затрат)
   detail_cost_category_name?: string // Название вида затрат (для отображения)
   work_name_id: string | null // FK на work_names (наименование работы)
@@ -85,6 +89,8 @@ export interface CreateFinishingPieRowDto {
   material_id: string | null
   unit_id: string | null
   consumption: number | null
+  nomenclature_id: string | null // FK на nomenclature
+  supplier_name_id: string | null // FK на supplier_names
   detail_cost_category_id: number | null // FK на вид затрат
   work_name_id: string | null // FK на work_names (наименование работы)
   rate_id: string | null // FK на rates (расценка)
@@ -97,6 +103,8 @@ export interface UpdateFinishingPieRowDto {
   material_id?: string | null
   unit_id?: string | null
   consumption?: number | null
+  nomenclature_id?: string | null // FK на nomenclature
+  supplier_name_id?: string | null // FK на supplier_names
   detail_cost_category_id?: number | null // FK на вид затрат
   work_name_id?: string | null // FK на work_names (наименование работы)
   rate_id?: string | null // FK на rates (расценка)

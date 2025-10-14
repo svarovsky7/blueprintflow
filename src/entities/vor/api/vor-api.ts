@@ -152,7 +152,7 @@ export const calculateVorTotalFromChessboard = async (vorId: string): Promise<nu
       supabase.from('chessboard_rates_mapping').select('chessboard_id, rate_id, rates:rate_id(work_name_id, base_rate, unit_id, units:unit_id(id, name), work_names:work_name_id(id, name))').in('chessboard_id', chessboardIds),
       supabase.from('chessboard_mapping').select('chessboard_id, block_id, cost_category_id, cost_type_id, location_id').in('chessboard_id', chessboardIds),
       supabase.from('chessboard_floor_mapping').select('chessboard_id, "quantityRd"').in('chessboard_id', chessboardIds),
-      supabase.from('chessboard_nomenclature_mapping').select('chessboard_id, nomenclature_id, supplier_name, nomenclature:nomenclature_id(id, name, material_prices(price, purchase_date))').in('chessboard_id', chessboardIds),
+      supabase.from('chessboard_nomenclature_mapping').select('chessboard_id, nomenclature_id, supplier_name, nomenclature:nomenclature_id(id, name)').in('chessboard_id', chessboardIds),
     ])
 
     // 6. Создаем индексы для быстрого поиска
@@ -243,13 +243,13 @@ export const calculateVorTotalFromChessboard = async (vorId: string): Promise<nu
       totalSum += workTotal
 
       // Сумма материалов
+      // TODO: Реализовать получение цен через supplier_names.material_prices
+      // Пока пропускаем расчёт суммы материалов
       materials.forEach((material: any) => {
         const nomenclatureItems = material.nomenclatureItems || []
         nomenclatureItems.forEach((nomenclatureItem: any) => {
-          const prices = nomenclatureItem.nomenclature?.material_prices || []
-          const latestPrice = prices.length > 0
-            ? prices.sort((a: any, b: any) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime())[0].price
-            : 0
+          // Цены будут получены через supplier_names в будущем
+          const latestPrice = 0
           const quantity = material.quantityRd || 0
           totalSum += latestPrice * quantity
         })
@@ -368,8 +368,7 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
         nomenclature_id,
         supplier_name,
         nomenclature:nomenclature_id(
-          name,
-          material_prices(price, purchase_date)
+          name
         )
       ),
       chessboard_floor_mapping("quantityRd"),
@@ -487,26 +486,21 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
     // Добавляем все материалы независимо от типа и ед.изм. (для номенклатуры)
     if (item.chessboard_nomenclature_mapping) {
       item.chessboard_nomenclature_mapping.forEach((nomenclatureMapping: any) => {
-        if (nomenclatureMapping.nomenclature) {
-          // Получаем последнюю цену
-          const prices = nomenclatureMapping.nomenclature.material_prices || []
-          const latestPrice = prices.length > 0
-            ? prices.sort((a: any, b: any) =>
-                new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime()
-              )[0].price
-            : 0
+        // Используем nomenclature.name если есть, иначе supplier_name
+        const materialName = nomenclatureMapping.nomenclature?.name || nomenclatureMapping.supplier_name || 'Материал не указан'
 
-          // Используем общее количество материала для номенклатуры
-          const materialQuantity = item.chessboard_floor_mapping?.reduce((sum: number, floor: any) =>
-            sum + (floor.quantityRd || 0), 0) || 0
+        // Используем общее количество материала для номенклатуры
+        const materialQuantity = item.chessboard_floor_mapping?.reduce((sum: number, floor: any) =>
+          sum + (floor.quantityRd || 0), 0) || 0
 
-          workData.materials.push({
-            name: nomenclatureMapping.nomenclature.name,
-            quantity: materialQuantity,
-            price: latestPrice,
-            unit_id: item.unit_id
-          })
-        }
+        // Цена будет получена через supplier_names позже или установлена в 0
+        // TODO: Реализовать получение цены через supplier_names.material_prices
+        workData.materials.push({
+          name: materialName,
+          quantity: materialQuantity,
+          price: 0,
+          unit_id: item.unit_id
+        })
       })
     }
   })

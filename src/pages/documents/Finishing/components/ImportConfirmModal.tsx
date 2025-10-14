@@ -1,4 +1,4 @@
-import { Modal, Descriptions, Statistic, Row, Col, Alert } from 'antd'
+import { Modal, Descriptions, Statistic, Row, Col, Alert, Input } from 'antd'
 import { CheckCircleOutlined, WarningOutlined } from '@ant-design/icons'
 
 interface ImportConfirmModalProps {
@@ -21,6 +21,7 @@ interface ImportConfirmModalProps {
     estimatedFloorMappings: number
   }
   setName: string
+  onSetNameChange: (value: string) => void
 }
 
 export function ImportConfirmModal({
@@ -31,6 +32,7 @@ export function ImportConfirmModal({
   documentInfo,
   statistics,
   setName,
+  onSetNameChange,
 }: ImportConfirmModalProps) {
   return (
     <Modal
@@ -62,19 +64,23 @@ export function ImportConfirmModal({
         )}
       </Descriptions>
 
-      <Alert
-        message="Будет создан комплект"
-        description={
-          <div>
-            <strong>Название:</strong> {setName}
-            <br />
-            <strong>Номер комплекта:</strong> auto-generated
-          </div>
-        }
-        type="info"
-        icon={<CheckCircleOutlined />}
-        style={{ marginBottom: 16 }}
-      />
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 8, fontWeight: 500 }}>Будет создан комплект:</div>
+        <div style={{ marginBottom: 8 }}>
+          <label style={{ display: 'block', marginBottom: 4, fontWeight: 400 }}>
+            Название комплекта:
+          </label>
+          <Input
+            value={setName}
+            onChange={(e) => onSetNameChange(e.target.value)}
+            placeholder="Введите название комплекта"
+            disabled={loading}
+          />
+        </div>
+        <div style={{ fontSize: 12, color: '#8c8c8c' }}>
+          Номер комплекта: auto-generated
+        </div>
+      </div>
 
       <div style={{ marginBottom: 16 }}>
         <div style={{ marginBottom: 8, fontWeight: 500 }}>Анализ данных:</div>

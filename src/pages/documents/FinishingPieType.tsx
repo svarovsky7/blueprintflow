@@ -79,6 +79,10 @@ interface EditableRow extends Partial<FinishingPieRow> {
   isEditing?: boolean
   newTypeName?: string // Временное название нового типа
   newMaterialName?: string // Временное название нового материала
+  nomenclature_id?: string | null
+  nomenclature_name?: string | null
+  supplier_name_id?: string | null
+  supplier_name?: string | null
 }
 
 // Компонент для выбора рабочего набора
@@ -191,6 +195,64 @@ function WorkNameSelect({
   )
 }
 
+// Компонент для выбора наименования номенклатуры поставщика
+function SupplierNameSelect({
+  record,
+  value,
+  onChange,
+}: {
+  record: EditableRow
+  value: string | null
+  onChange: (val: string | null) => void
+}) {
+  const { data: supplierNames = [] } = useQuery({
+    queryKey: ['supplier-names-for-nomenclature', record.nomenclature_id],
+    queryFn: async () => {
+      if (!record.nomenclature_id) return []
+      const { data, error } = await supabase
+        .from('nomenclature_supplier_mapping')
+        .select(`
+          supplier_id,
+          supplier_names:supplier_id (id, name)
+        `)
+        .eq('nomenclature_id', record.nomenclature_id)
+
+      if (error) throw error
+
+      // Убираем дубликаты и преобразуем в формат для Select
+      const uniqueSuppliers = new Map<string, string>()
+      data?.forEach((item: any) => {
+        if (item.supplier_names) {
+          uniqueSuppliers.set(item.supplier_names.id, item.supplier_names.name)
+        }
+      })
+
+      return Array.from(uniqueSuppliers.entries()).map(([id, name]) => ({
+        value: id,
+        label: name,
+      }))
+    },
+    enabled: !!record.nomenclature_id,
+  })
+
+  return (
+    <Select
+      value={value}
+      onChange={onChange}
+      options={supplierNames}
+      placeholder="Выберите поставщика"
+      allowClear
+      showSearch
+      filterOption={(input, option) =>
+        (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+      }
+      style={{ width: '100%' }}
+      dropdownStyle={getDynamicDropdownStyle(supplierNames)}
+      disabled={!record.nomenclature_id}
+    />
+  )
+}
+
 export default function FinishingPieType() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -249,6 +311,20 @@ export default function FinishingPieType() {
     queryKey: ['units-for-finishing'],
     queryFn: async () => {
       const { data, error } = await supabase.from('units').select('id, name').order('name')
+
+      if (error) throw error
+      return data || []
+    },
+  })
+
+  // Загрузка номенклатуры
+  const { data: nomenclature = [] } = useQuery({
+    queryKey: ['nomenclature-for-finishing'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('nomenclature')
+        .select('id, name')
+        .order('name')
 
       if (error) throw error
       return data || []
@@ -443,6 +519,8 @@ export default function FinishingPieType() {
             material_id: row.material_id || null,
             unit_id: row.unit_id || null,
             consumption: row.consumption || null,
+            nomenclature_id: row.nomenclature_id || null,
+            supplier_name_id: row.supplier_name_id || null,
             detail_cost_category_id: row.detail_cost_category_id || null,
             work_name_id: row.work_name_id || null,
             rate_id: row.rate_id || null,
@@ -455,6 +533,8 @@ export default function FinishingPieType() {
             material_id: row.material_id || null,
             unit_id: row.unit_id || null,
             consumption: row.consumption || null,
+            nomenclature_id: row.nomenclature_id || null,
+            supplier_name_id: row.supplier_name_id || null,
             detail_cost_category_id: row.detail_cost_category_id || null,
             work_name_id: row.work_name_id || null,
             rate_id: row.rate_id || null,
@@ -491,7 +571,9 @@ export default function FinishingPieType() {
         pie_type_id: null,
         material_id: null,
         unit_id: null,
-        consumption: 1,
+        consumption: 0,
+        nomenclature_id: null,
+        supplier_name_id: null,
         detail_cost_category_id: null,
         work_set: null,
         work_name_id: null,
@@ -515,6 +597,10 @@ export default function FinishingPieType() {
         unit_id: record.unit_id,
         unit_name: record.unit_name,
         consumption: record.consumption,
+        nomenclature_id: record.nomenclature_id,
+        nomenclature_name: record.nomenclature_name,
+        supplier_name_id: record.supplier_name_id,
+        supplier_name: record.supplier_name,
         detail_cost_category_id: record.detail_cost_category_id,
         detail_cost_category_name: record.detail_cost_category_name,
         work_set: record.work_set,
@@ -703,6 +789,21 @@ export default function FinishingPieType() {
         )
       )
     }
+  }
+
+  // Обработчик изменения номенклатуры (каскадная очистка supplier_name)
+  const handleNomenclatureChange = (rowId: string, value: string | null) => {
+    setEditingRows((prev) =>
+      prev.map((row) =>
+        row.id === rowId
+          ? {
+              ...row,
+              nomenclature_id: value,
+              supplier_name_id: null, // Очищаем поставщика при смене номенклатуры
+            }
+          : row
+      )
+    )
   }
 
 
@@ -1047,6 +1148,50 @@ export default function FinishingPieType() {
           )
         }
         return <div className="work-name-cell-text">{record.work_name || '-'}</div>
+      },
+    },
+    {
+      title: 'Номенклатура',
+      dataIndex: 'nomenclature_id',
+      key: 'nomenclature_id',
+      width: 200,
+      render: (value: string | null, record: EditableRow) => {
+        if (isRowEditing(record as FinishingPieRow)) {
+          return (
+            <Select
+              value={value}
+              onChange={(val) => handleNomenclatureChange(record.id!, val)}
+              options={nomenclature.map((n) => ({ value: n.id, label: n.name }))}
+              placeholder="Выберите номенклатуру"
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              }
+              style={{ width: '100%' }}
+              dropdownStyle={getDynamicDropdownStyle(nomenclature.map((n) => ({ value: n.id, label: n.name })))}
+            />
+          )
+        }
+        return record.nomenclature_name || '-'
+      },
+    },
+    {
+      title: 'Наименование номенклатуры поставщика',
+      dataIndex: 'supplier_name_id',
+      key: 'supplier_name_id',
+      width: 250,
+      render: (value: string | null, record: EditableRow) => {
+        if (isRowEditing(record as FinishingPieRow)) {
+          return (
+            <SupplierNameSelect
+              record={record}
+              value={value}
+              onChange={(val) => handleUpdateEditingRow(record.id!, 'supplier_name_id', val)}
+            />
+          )
+        }
+        return record.supplier_name || '-'
       },
     },
   ]

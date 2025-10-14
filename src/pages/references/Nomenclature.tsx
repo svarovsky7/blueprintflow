@@ -514,6 +514,53 @@ export default function Nomenclature() {
     return false
   }
 
+  // Дедупликация строк по ключу (supplier + price + date)
+  // Приоритет: строки с заполненными delivery_price и document_number
+  const deduplicateRows = (
+    rows: {
+      name?: string
+      supplier?: string
+      unit_name?: string
+      material_group?: string
+      document_number?: string
+      price: number | null
+      delivery_price: number | null
+      date: string | null
+    }[],
+  ) => {
+    const rowsMap = new Map<
+      string,
+      {
+        name?: string
+        supplier?: string
+        unit_name?: string
+        material_group?: string
+        document_number?: string
+        price: number | null
+        delivery_price: number | null
+        date: string | null
+      }
+    >()
+
+    rows.forEach((row) => {
+      if (!row.supplier || row.price === null) return
+
+      const key = `${row.supplier}_${row.price}_${row.date || ''}`
+      const existing = rowsMap.get(key)
+
+      // Выбираем строку с большим количеством заполненных полей
+      if (
+        !existing ||
+        (row.delivery_price !== null && existing.delivery_price === null) ||
+        (row.document_number && !existing.document_number)
+      ) {
+        rowsMap.set(key, row)
+      }
+    })
+
+    return Array.from(rowsMap.values())
+  }
+
   const handleStartImport = async () => {
     if (!importFile || !supabase) return
 
@@ -526,7 +573,7 @@ export default function Nomenclature() {
       defval: null,
     })
     setImportProgress({ processed: 0, total: rows.length })
-    const chunkSize = 200 // Уменьшен для избежания timeout при большом объёме данных
+    const chunkSize = 100 // Уменьшен до 100 из-за DELETE операций в SQL (удаление большого количества цен)
 
     // Подсчитываем статистику из данных Excel
     const uniqueNomenclature = new Set<string>()
@@ -592,9 +639,57 @@ export default function Nomenclature() {
       total_prices: pricesCount,
     }
 
+    // КРИТИЧЕСКИ ВАЖНО: Удаляем все старые цены для поставщиков из Excel
+    // DELETE выполняется БАТЧАМИ по 50,000 записей, чтобы избежать timeout
+    // Вызываем функцию в цикле, пока она не вернет 0 (все удалено)
+    const suppliersList = Array.from(uniqueSuppliers)
+    let totalDeleted = 0
+    let iterationCount = 0
+
+    message.loading('Подготовка к импорту: удаление старых цен...', 0)
+
+    // Цикл удаления батчами
+    while (true) {
+      iterationCount++
+      const { data: deletedCount, error: prepareError } = await supabase.rpc(
+        'prepare_import_nomenclature',
+        {
+          supplier_names_list: suppliersList,
+        },
+      )
+
+      if (prepareError) {
+        message.destroy()
+        console.error('Ошибка подготовки к импорту:', prepareError)
+        message.error('Ошибка подготовки к импорту')
+        setImportStatus('idle')
+        return
+      }
+
+      totalDeleted += Number(deletedCount || 0)
+
+      // Обновляем сообщение с прогрессом
+      message.destroy()
+      message.loading(
+        `Подготовка к импорту: удалено ${totalDeleted.toLocaleString()} цен (итерация ${iterationCount})...`,
+        0,
+      )
+
+      // Если удалено 0 записей, значит все удалили
+      if (!deletedCount || deletedCount === 0) {
+        break
+      }
+
+      // Небольшая пауза между итерациями для снижения нагрузки на БД
+      await new Promise((resolve) => setTimeout(resolve, 500))
+    }
+
+    message.destroy()
+    message.success(`Старые цены удалены (${totalDeleted.toLocaleString()} записей), начинаем импорт...`)
+
     for (let i = 0; i < rows.length; i += chunkSize) {
       if (importAbortRef.current) break
-      const chunk = rows
+      const rawChunk = rows
         .slice(i, i + chunkSize)
         .map((row) => {
           const priceVal = row['Цена']
@@ -627,6 +722,10 @@ export default function Nomenclature() {
           }
         })
         .filter((r) => r.name)
+
+      // Дедупликация перед отправкой в БД
+      const chunk = deduplicateRows(rawChunk)
+
       if (chunk.length === 0) {
         setImportProgress({ processed: Math.min(i + chunkSize, rows.length), total: rows.length })
         continue
@@ -638,8 +737,8 @@ export default function Nomenclature() {
       }
       setImportProgress({ processed: Math.min(i + chunkSize, rows.length), total: rows.length })
 
-      // Небольшая задержка между чанками для стабильности
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      // Задержка между чанками для завершения DELETE операций в БД
+      await new Promise((resolve) => setTimeout(resolve, 200))
     }
     if (importAbortRef.current) {
       importAbortRef.current = false

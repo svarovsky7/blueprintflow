@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Modal, Table, Space, Button, Input, Select, Tag, Form, Row, Col, Card, App, Spin } from 'antd'
+import { Modal, Table, Space, Button, Input, Select, Tag, Form, Row, Col, Card, App, Spin, Badge } from 'antd'
 import {
   DeleteOutlined,
   EditOutlined,
@@ -8,7 +8,7 @@ import {
   PlusOutlined,
   MinusCircleOutlined,
 } from '@ant-design/icons'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import type { ColumnsType } from 'antd/es/table'
 import {
   chessboardSetsApi,
@@ -19,6 +19,7 @@ import { getVorsByChessboardSet } from '@/entities/vor'
 import { supabase } from '@/lib/supabase'
 import CreateVorModal from './CreateVorModal'
 import { useNavigate } from 'react-router-dom'
+import { StatusSelector } from './Finishing/components/StatusSelector'
 
 interface ChessboardSetsModalProps {
   open: boolean
@@ -66,6 +67,28 @@ export default function ChessboardSetsModal({
     queryKey: ['chessboard-sets', searchFilters],
     queryFn: () => chessboardSetsApi.getSets(searchFilters),
     enabled: open && !!projectId,
+  })
+
+  // Загрузка статусов для фильтра и изменения
+  const { data: allStatuses = [] } = useQuery({
+    queryKey: ['chessboard-set-statuses'],
+    queryFn: () => chessboardSetsApi.getStatuses(),
+    enabled: open,
+  })
+
+  // Мутация для обновления статуса комплекта
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ setId, statusId }: { setId: string; statusId: string }) => {
+      await chessboardSetsApi.updateSet(setId, { status_id: statusId })
+    },
+    onSuccess: () => {
+      message.success('Статус комплекта обновлён')
+      refetch()
+    },
+    onError: (error) => {
+      console.error('Ошибка обновления статуса:', error)
+      message.error('Ошибка при обновлении статуса комплекта')
+    },
   })
 
   // Загрузка ВОР для всех комплектов
@@ -160,7 +183,9 @@ export default function ChessboardSetsModal({
       }
 
       // Извлекаем данные блоков из связанных записей
-      return (data || []).map((item: any) => item.blocks).filter((block: any) => block !== null)
+      return (data || [])
+        .map((item: { blocks: { id: string; name: string } | null }) => item.blocks)
+        .filter((block): block is { id: string; name: string } => block !== null)
     },
     enabled: !!projectId,
   })
@@ -197,13 +222,17 @@ export default function ChessboardSetsModal({
     queryFn: async () => {
       const { data, error } = await supabase
         .from('detail_cost_categories_mapping')
-        .select('cost_category_id, detail_cost_categories(id, name)')
+        .select('cost_category_id, detail_cost_category_id, detail_cost_categories!inner(id, name)')
         .order('detail_cost_categories(name)')
       if (error) throw error
 
       // Преобразуем данные: каждая комбинация detail+category - отдельный элемент
       const transformedData =
-        data?.map((item) => ({
+        data?.map((item: {
+          cost_category_id: number
+          detail_cost_category_id: number
+          detail_cost_categories: { id: number; name: string }
+        }) => ({
           id: item.detail_cost_categories.id,
           name: item.detail_cost_categories.name,
           cost_category_id: item.cost_category_id,
@@ -412,6 +441,11 @@ export default function ChessboardSetsModal({
     onClose()
   }
 
+  // Обработчик изменения статуса комплекта
+  const handleStatusChange = (setId: string, statusId: string) => {
+    updateStatusMutation.mutate({ setId, statusId })
+  }
+
   const columns: ColumnsType<ChessboardSetTableRow> = [
     {
       title: 'Номер комплекта',
@@ -470,10 +504,21 @@ export default function ChessboardSetsModal({
     },
     {
       title: 'Статус',
-      dataIndex: 'status_name',
-      key: 'status_name',
-      width: '6%',
-      render: (statusName, record) => <Tag color={record.status_color}>{statusName}</Tag>,
+      dataIndex: 'status_id',
+      key: 'status_id',
+      width: '10%',
+      render: (statusId, record) => {
+        if (!statusId) {
+          return <Tag color={record.status_color}>{record.status_name || '—'}</Tag>
+        }
+        return (
+          <StatusSelector
+            statusId={statusId}
+            pageKey="documents/chessboard"
+            onChange={(newStatusId) => handleStatusChange(record.id, newStatusId)}
+          />
+        )
+      },
     },
     {
       title: 'Дата создания',
@@ -612,33 +657,56 @@ export default function ChessboardSetsModal({
           />
           <Select
             placeholder="Статус"
-            style={{ width: 150 }}
+            style={{ width: 200 }}
             value={searchFilters.status_id}
             onChange={(statusId) => setSearchFilters((prev) => ({ ...prev, status_id: statusId }))}
             allowClear
-            options={Array.from(
-              new Set(sets?.map((s) => ({ id: s.status_name, name: s.status_name }))),
-            ).map((status) => ({
+            showSearch
+            filterOption={(input, option) =>
+              (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+            }
+            options={allStatuses.map((status) => ({
               value: status.id,
-              label: status.name,
+              label: (
+                <Space size={4}>
+                  <Badge color={status.color || '#d9d9d9'} />
+                  <span>{status.name}</span>
+                </Space>
+              ),
             }))}
           />
           <Select
             placeholder="Шифр проекта"
             style={{ width: 200 }}
-            value={searchFilters.documentation_id}
-            onChange={(docId) => setSearchFilters((prev) => ({ ...prev, documentation_id: docId }))}
+            value={searchFilters.documentation_code}
+            onChange={(docCode) => setSearchFilters((prev) => ({ ...prev, documentation_code: docCode }))}
             allowClear
+            showSearch
+            filterOption={(input, option) =>
+              (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+            }
             options={Array.from(
-              new Set(
-                sets?.map((s) => ({
-                  id: s.documentation_code,
-                  name: s.documentation_code,
-                })),
-              ),
-            ).map((doc) => ({
-              value: doc.id,
-              label: doc.name,
+              new Set(sets?.map((s) => s.documentation_code).filter(Boolean)),
+            ).map((docCode) => ({
+              value: docCode,
+              label: docCode,
+            }))}
+          />
+          <Select
+            placeholder="Категория затрат"
+            style={{ width: 200 }}
+            value={searchFilters.cost_category_id}
+            onChange={(categoryId) =>
+              setSearchFilters((prev) => ({ ...prev, cost_category_id: categoryId }))
+            }
+            allowClear
+            showSearch
+            filterOption={(input, option) =>
+              (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+            }
+            options={costCategories?.map((category) => ({
+              value: category.id,
+              label: category.name,
             }))}
           />
         </Space>
@@ -753,8 +821,8 @@ export default function ChessboardSetsModal({
                                     return text.toLowerCase().includes(input.toLowerCase())
                                   }}
                                 >
-                                  {documentations?.map((doc) => (
-                                    <Select.Option key={doc.id} value={doc.id}>
+                                  {documentations?.map((doc, index) => (
+                                    <Select.Option key={`${doc.id}-${index}`} value={doc.id}>
                                       {doc.code}
                                     </Select.Option>
                                   ))}
