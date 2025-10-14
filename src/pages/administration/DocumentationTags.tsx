@@ -21,6 +21,7 @@ import {
   type DocumentationTagCreateInput,
   type DocumentationTagUpdateInput,
 } from '@/entities/documentation-tags'
+import { parseNumberWithSeparators } from '@/shared/lib'
 
 const { Title } = Typography
 
@@ -205,7 +206,12 @@ export default function DocumentationTags() {
               { type: 'number', min: 1, message: 'Номер должен быть больше 0' },
             ]}
           >
-            <InputNumber style={{ width: '100%' }} placeholder="Введите номер тэга" min={1} />
+            <InputNumber
+              style={{ width: '100%' }}
+              placeholder="Введите номер тэга"
+              min={1}
+              parser={parseNumberWithSeparators}
+            />
           </Form.Item>
 
           <Form.Item

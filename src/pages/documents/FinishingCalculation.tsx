@@ -36,6 +36,7 @@ import { updateFinishingPie, getFinishingPieById } from '@/entities/finishing'
 import { FloorQuantitiesModal } from './FinishingCalculation/components/FloorQuantitiesModal'
 import { StatusSelector } from './Finishing/components/StatusSelector'
 import { PAGE_FORMATS } from '@/shared/constants/statusColors'
+import { parseNumberWithSeparators } from '@/shared/lib'
 
 const { Title } = Typography
 
@@ -992,6 +993,7 @@ export default function FinishingCalculation() {
                 precision={2}
                 style={{ width: hasMultipleFloors ? 'calc(100% - 32px)' : '100%' }}
                 placeholder="0.00"
+                parser={parseNumberWithSeparators}
               />
               {hasMultipleFloors && (
                 <Button
@@ -1041,6 +1043,7 @@ export default function FinishingCalculation() {
                 precision={2}
                 style={{ width: hasMultipleFloors ? 'calc(100% - 32px)' : '100%' }}
                 placeholder="0.00"
+                parser={parseNumberWithSeparators}
               />
               {hasMultipleFloors && (
                 <Button

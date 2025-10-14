@@ -21,6 +21,7 @@ import {
   populateVorFromChessboardSet
 } from '@/entities/vor'
 import AddWorkModal from './VorView/components/AddWorkModal'
+import { parseNumberWithSeparators } from '@/shared/lib'
 
 const { Title, Text } = Typography
 
@@ -2428,6 +2429,7 @@ const VorView = () => {
               }}
               style={{ width: '100%' }}
               size="small"
+              parser={parseNumberWithSeparators}
             />
           )
         }
@@ -2458,6 +2460,7 @@ const VorView = () => {
               style={{ width: '100%' }}
               size="small"
               placeholder="1"
+              parser={parseNumberWithSeparators}
             />
           )
         }
@@ -2479,6 +2482,7 @@ const VorView = () => {
               }}
               style={{ width: '100%' }}
               size="small"
+              parser={parseNumberWithSeparators}
             />
           )
         }
@@ -2514,6 +2518,7 @@ const VorView = () => {
               style={{ width: '100%' }}
               size="small"
               placeholder="0"
+              parser={parseNumberWithSeparators}
             />
           )
         }
@@ -2535,6 +2540,7 @@ const VorView = () => {
               }}
               style={{ width: '100%' }}
               size="small"
+              parser={parseNumberWithSeparators}
             />
           )
         }
@@ -2570,6 +2576,7 @@ const VorView = () => {
               }}
               style={{ width: '100%' }}
               size="small"
+              parser={parseNumberWithSeparators}
             />
           )
         }
@@ -2838,6 +2845,7 @@ const VorView = () => {
                       onChange={handleCoefficientChange}
                       style={{ width: 80 }}
                       title={`Средний коэффициент по всем работам: ${averageCoefficient}`}
+                      parser={parseNumberWithSeparators}
                     />
                     <Text type="secondary" style={{ fontSize: '12px' }}>
                       (средний по таблице)

@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react'
 import { Modal, Table, Button, InputNumber } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { parseNumberWithSeparators } from '@/shared/lib'
 
 interface FloorModalRow {
   floor_number: number
@@ -95,6 +96,7 @@ export const FloorQuantitiesModal: React.FC<FloorQuantitiesModalProps> = ({
             precision={2}
             style={{ width: '100%' }}
             size="small"
+            parser={parseNumberWithSeparators}
           />
         ) : (
           value ?? '-'
@@ -114,6 +116,7 @@ export const FloorQuantitiesModal: React.FC<FloorQuantitiesModalProps> = ({
             precision={2}
             style={{ width: '100%' }}
             size="small"
+            parser={parseNumberWithSeparators}
           />
         ) : (
           value ?? '-'

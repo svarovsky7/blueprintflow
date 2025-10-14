@@ -3,6 +3,7 @@ import { Modal, Table, Button, Input, InputNumber } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { FloorModalRow, FloorModalInfo, FloorQuantities } from '../types'
+import { parseNumberWithSeparators } from '@/shared/lib'
 
 interface FloorQuantitiesModalProps {
   open: boolean

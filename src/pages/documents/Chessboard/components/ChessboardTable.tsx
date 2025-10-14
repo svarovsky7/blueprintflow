@@ -15,6 +15,7 @@ import { parseFloorsFromString, hasMultipleFloors as checkMultipleFloors, distri
 import { useNomenclatureSupplierCascade } from '../hooks/useNomenclatureSupplierCascade'
 import { chessboardCascadeApi } from '@/entities/chessboard'
 import { documentationApi } from '@/entities/documentation/api/documentation-api'
+import { parseNumberWithSeparators } from '@/shared/lib'
 
 // ОПТИМИЗАЦИЯ: константы стилей для предотвращения создания новых объектов на каждом рендере
 const STABLE_STYLES = {
@@ -2552,6 +2553,7 @@ export const ChessboardTable = memo(({
                     const num = Number(val)
                     return num % 1 === 0 ? num.toString() : num.toString()
                   }}
+                  parser={parseNumberWithSeparators}
                 />
                 <Button
                   type="primary"
@@ -2581,6 +2583,7 @@ export const ChessboardTable = memo(({
                   const num = Number(val)
                   return num % 1 === 0 ? num.toString() : num.toString()
                 }}
+                parser={parseNumberWithSeparators}
               />
             )
           }
@@ -2650,6 +2653,7 @@ export const ChessboardTable = memo(({
                     const num = Number(val)
                     return num % 1 === 0 ? num.toString() : num.toString()
                   }}
+                  parser={parseNumberWithSeparators}
                 />
                 <Button
                   type="primary"
@@ -2679,6 +2683,7 @@ export const ChessboardTable = memo(({
                   const num = Number(val)
                   return num % 1 === 0 ? num.toString() : num.toString()
                 }}
+                parser={parseNumberWithSeparators}
               />
             )
           }
@@ -2748,6 +2753,7 @@ export const ChessboardTable = memo(({
                     const num = Number(val)
                     return num % 1 === 0 ? num.toString() : num.toString()
                   }}
+                  parser={parseNumberWithSeparators}
                 />
                 <Button
                   type="primary"
@@ -2777,6 +2783,7 @@ export const ChessboardTable = memo(({
                   const num = Number(val)
                   return num % 1 === 0 ? num.toString() : num.toString()
                 }}
+                parser={parseNumberWithSeparators}
               />
             )
           }
@@ -2831,6 +2838,7 @@ export const ChessboardTable = memo(({
               min={0}
               precision={4}
               placeholder="0"
+              parser={parseNumberWithSeparators}
             />
           )
         }

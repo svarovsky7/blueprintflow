@@ -4,6 +4,7 @@ import { SearchOutlined, PlusOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getRatesOptions, createVorWork, getUnitsOptions, getWorkSetsOptions, getWorkSetsByFilters, type RateOption, type CreateVorWorkDto } from '@/entities/vor'
 import { ratesApi, type RateFormData, type Rate } from '@/entities/rates'
+import { parseNumberWithSeparators } from '@/shared/lib'
 
 interface AddWorkModalProps {
   visible: boolean
@@ -377,7 +378,7 @@ const AddWorkModal: React.FC<AddWorkModalProps> = ({ visible, onCancel, onSucces
                       step={0.01}
                       precision={2}
                       formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
-                      parser={(value) => value!.replace(/\s?/g, '')}
+                      parser={parseNumberWithSeparators}
                     />
                   </Form.Item>
 

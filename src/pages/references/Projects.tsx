@@ -22,6 +22,7 @@ import { blocksApi, blockConnectionsApi } from '@/entities/projects'
 import type { BlockType } from '@/entities/projects/model/types'
 import CascadeDeleteProject from '../../components/CascadeDeleteProject'
 import styles from './Projects.module.css'
+import { parseNumberWithSeparators } from '@/shared/lib'
 
 interface BlockInfo {
   id: string
@@ -1297,7 +1298,7 @@ export default function Projects() {
                   name="blocksCount"
                   rules={[{ required: true, message: 'Введите количество корпусов' }]}
                 >
-                  <InputNumber min={1} onChange={handleBlocksCountChange} />
+                  <InputNumber min={1} onChange={handleBlocksCountChange} parser={parseNumberWithSeparators} />
                 </Form.Item>
               </Col>
               <Col span={12}>
@@ -1309,6 +1310,7 @@ export default function Projects() {
                   <InputNumber
                     min={1}
                     onChange={handleUndergroundFloorsChange}
+                    parser={parseNumberWithSeparators}
                     addonAfter={
                       <Checkbox
                         checked={useUndergroundForAll}
@@ -1335,14 +1337,14 @@ export default function Projects() {
                   name={['blocks', index, 'bottom_floor']}
                   rules={[{ required: true, message: 'Введите нижний этаж' }]}
                 >
-                  <InputNumber />
+                  <InputNumber parser={parseNumberWithSeparators} />
                 </Form.Item>
                 <Form.Item
                   label="Верхний этаж"
                   name={['blocks', index, 'top_floor']}
                   rules={[{ required: true, message: 'Введите верхний этаж' }]}
                 >
-                  <InputNumber />
+                  <InputNumber parser={parseNumberWithSeparators} />
                 </Form.Item>
               </Space>
             ))}

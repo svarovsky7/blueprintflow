@@ -19,6 +19,7 @@ import { getRoles, createRole, updateRole, deleteRole } from '@/entities/roles'
 import { createPermissionsForAllObjects } from '@/entities/permissions/api/permissions-api'
 import type { Role, CreateRoleDto, UpdateRoleDto } from '@/entities/roles'
 import type { ColumnsType } from 'antd/es/table'
+import { parseNumberWithSeparators } from '@/shared/lib'
 
 export default function RolesTab() {
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -234,7 +235,13 @@ export default function RolesTab() {
             label="Уровень доступа"
             tooltip="0=обычный, 100=супер-админ"
           >
-            <InputNumber min={0} max={100} step={10} style={{ width: '100%' }} />
+            <InputNumber
+              min={0}
+              max={100}
+              step={10}
+              style={{ width: '100%' }}
+              parser={parseNumberWithSeparators}
+            />
           </Form.Item>
 
           <Form.Item name="color" label="Цвет">

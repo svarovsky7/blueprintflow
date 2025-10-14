@@ -77,6 +77,7 @@ import {
   getNomenclatureBySupplier,
 } from '@/entities/ml'
 import { mlModeApi, type MLMode } from '@/entities/api-settings'
+import { parseNumberWithSeparators } from '@/shared/lib'
 
 const { Text } = Typography
 
@@ -2167,6 +2168,7 @@ export default function Chessboard() {
             <InputNumber
               value={record.floor}
               onChange={(value) => handleFloorModalChange(index, 'floor', value ?? 0)}
+              parser={parseNumberWithSeparators}
             />
           ) : (
             record.floor

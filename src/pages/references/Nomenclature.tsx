@@ -25,6 +25,7 @@ import {
 } from '@ant-design/icons'
 import * as XLSX from 'xlsx'
 import dayjs from 'dayjs'
+import { parseNumberWithSeparators } from '@/shared/lib'
 
 // supplier_names - название номенклатуры у поставщиков
 interface Material {
@@ -640,49 +641,147 @@ export default function Nomenclature() {
     }
 
     // КРИТИЧЕСКИ ВАЖНО: Удаляем все старые цены для поставщиков из Excel
-    // DELETE выполняется БАТЧАМИ по 50,000 записей, чтобы избежать timeout
-    // Вызываем функцию в цикле, пока она не вернет 0 (все удалено)
+    // V5: Используем UUID вместо имён для избежания timeout с массивом из 101k имён
+    // Получаем UUID всех поставщиков → делим на батчи → удаляем по UUID
     const suppliersList = Array.from(uniqueSuppliers)
     let totalDeleted = 0
     let iterationCount = 0
 
-    message.loading('Подготовка к импорту: удаление старых цен...', 0)
+    message.loading('Подготовка к импорту: получение UUID поставщиков...', 0)
 
-    // Цикл удаления батчами
-    while (true) {
-      iterationCount++
-      const { data: deletedCount, error: prepareError } = await supabase.rpc(
-        'prepare_import_nomenclature',
+    console.log(`🔍 V5: Начало удаления. Поставщиков: ${suppliersList.length}`)
+
+    // Шаг 1: Получаем UUID всех поставщиков из Excel
+    // Используем RPC функцию для обхода лимитов URL (101k имён через POST body)
+    const supplierIds: string[] = []
+    const supplierNameChunkSize = 5000 // Большие чанки через RPC (POST body)
+
+    for (let i = 0; i < suppliersList.length; i += supplierNameChunkSize) {
+      const chunk = suppliersList.slice(i, i + supplierNameChunkSize)
+
+      console.log(
+        `🔄 Получение UUID: чанк ${Math.floor(i / supplierNameChunkSize) + 1}/${Math.ceil(suppliersList.length / supplierNameChunkSize)} (${chunk.length} имён)`,
+      )
+
+      const { data: supplierData, error: supplierError } = await supabase.rpc(
+        'get_supplier_ids_by_names',
         {
-          supplier_names_list: suppliersList,
+          supplier_names_list: chunk,
         },
       )
 
-      if (prepareError) {
+      if (supplierError) {
         message.destroy()
-        console.error('Ошибка подготовки к импорту:', prepareError)
-        message.error('Ошибка подготовки к импорту')
+        console.error('❌ Ошибка получения UUID поставщиков:', supplierError)
+        console.error('Детали:', {
+          chunk_index: Math.floor(i / supplierNameChunkSize) + 1,
+          chunk_size: chunk.length,
+          first_name: chunk[0],
+          last_name: chunk[chunk.length - 1],
+        })
+        message.error('Ошибка получения списка поставщиков')
         setImportStatus('idle')
         return
       }
 
-      totalDeleted += Number(deletedCount || 0)
+      supplierIds.push(...(supplierData || []).map((s: { id: string }) => s.id))
 
-      // Обновляем сообщение с прогрессом
-      message.destroy()
-      message.loading(
-        `Подготовка к импорту: удалено ${totalDeleted.toLocaleString()} цен (итерация ${iterationCount})...`,
-        0,
+      // Задержка между запросами для снижения нагрузки
+      if (i + supplierNameChunkSize < suppliersList.length) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+    }
+
+    console.log(
+      `✅ Получено UUID: ${supplierIds.length}. Начинаем удаление старых цен...`,
+    )
+
+    // Шаг 2: Разбиваем UUID на батчи по 100 для параллельной обработки
+    // Каждый батч UUID обрабатывается в цикле пока все цены не удалены
+    const uuidBatchSize = 100
+    const uuidBatches: string[][] = []
+
+    for (let i = 0; i < supplierIds.length; i += uuidBatchSize) {
+      uuidBatches.push(supplierIds.slice(i, i + uuidBatchSize))
+    }
+
+    console.log(`📦 UUID разбиты на ${uuidBatches.length} батчей по ${uuidBatchSize} UUID`)
+
+    message.destroy()
+    message.loading('Подготовка к импорту: удаление старых цен...', 0)
+
+    // Шаг 3: Цикл удаления по батчам UUID
+    for (let batchIndex = 0; batchIndex < uuidBatches.length; batchIndex++) {
+      const uuidBatch = uuidBatches[batchIndex]
+
+      console.log(
+        `📦 Батч ${batchIndex + 1}/${uuidBatches.length}: ${uuidBatch.length} UUID`,
       )
 
-      // Если удалено 0 записей, значит все удалили
-      if (!deletedCount || deletedCount === 0) {
-        break
-      }
+      // Для каждого батча UUID вызываем функцию удаления пока не вернет 0
+      let batchDeleted = 0
+      while (true) {
+        iterationCount++
 
-      // Небольшая пауза между итерациями для снижения нагрузки на БД
-      await new Promise((resolve) => setTimeout(resolve, 500))
+        const startTime = Date.now()
+
+        const { data: deletedCount, error: prepareError } = await supabase.rpc(
+          'prepare_import_nomenclature_by_ids',
+          {
+            supplier_ids_list: uuidBatch,
+          },
+        )
+
+        const endTime = Date.now()
+        const duration = ((endTime - startTime) / 1000).toFixed(2)
+
+        if (prepareError) {
+          message.destroy()
+          console.error(
+            `❌ Батч ${batchIndex + 1}, итерация ${iterationCount}: TIMEOUT после ${duration} секунд`,
+          )
+          console.error('Детали ошибки:', prepareError)
+          console.error('Параметры:', {
+            batch_index: batchIndex + 1,
+            uuid_count: uuidBatch.length,
+            iteration: iterationCount,
+            total_deleted_before_error: totalDeleted,
+          })
+          message.error(
+            `Ошибка удаления (батч ${batchIndex + 1}, итерация ${iterationCount}). Удалено ${totalDeleted.toLocaleString()} записей.`,
+          )
+          setImportStatus('idle')
+          return
+        }
+
+        const deleted = Number(deletedCount || 0)
+        totalDeleted += deleted
+        batchDeleted += deleted
+
+        console.log(
+          `✅ Батч ${batchIndex + 1}, итерация ${iterationCount}: Удалено ${deleted} записей за ${duration}с. Всего: ${totalDeleted.toLocaleString()}`,
+        )
+
+        message.destroy()
+        message.loading(
+          `Подготовка к импорту: удалено ${totalDeleted.toLocaleString()} цен (батч ${batchIndex + 1}/${uuidBatches.length}, ${duration}с)...`,
+          0,
+        )
+
+        // Если удалено 0 записей, переходим к следующему батчу
+        if (!deletedCount || deletedCount === 0) {
+          console.log(
+            `🎉 Батч ${batchIndex + 1} завершён. Удалено для батча: ${batchDeleted.toLocaleString()}`,
+          )
+          break
+        }
+
+        // Короткая пауза между итерациями
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
     }
+
+    console.log(`🎉 Удаление завершено. Всего удалено: ${totalDeleted.toLocaleString()} записей`)
 
     message.destroy()
     message.success(`Старые цены удалены (${totalDeleted.toLocaleString()} записей), начинаем импорт...`)
@@ -1012,7 +1111,7 @@ export default function Nomenclature() {
                         ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
                         : ''
                     }
-                    parser={(v) => (v ? parseFloat(v.replace(/\s/g, '').replace(',', '.')) : 0)}
+                    parser={parseNumberWithSeparators}
                     style={{ width: '100%' }}
                   />
                 </Form.Item>
@@ -1026,7 +1125,7 @@ export default function Nomenclature() {
                         ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
                         : ''
                     }
-                    parser={(v) => (v ? parseFloat(v.replace(/\s/g, '').replace(',', '.')) : 0)}
+                    parser={parseNumberWithSeparators}
                     style={{ width: '100%' }}
                   />
                 </Form.Item>
@@ -1057,9 +1156,7 @@ export default function Nomenclature() {
                                 ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
                                 : ''
                             }
-                            parser={(v) =>
-                              v ? parseFloat(v.replace(/\s/g, '').replace(',', '.')) : 0
-                            }
+                            parser={parseNumberWithSeparators}
                             style={{ width: 120 }}
                           />
                         </Form.Item>
@@ -1076,9 +1173,7 @@ export default function Nomenclature() {
                                 ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
                                 : ''
                             }
-                            parser={(v) =>
-                              v ? parseFloat(v.replace(/\s/g, '').replace(',', '.')) : 0
-                            }
+                            parser={parseNumberWithSeparators}
                             style={{ width: 120 }}
                           />
                         </Form.Item>

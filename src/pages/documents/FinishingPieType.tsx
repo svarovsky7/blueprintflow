@@ -44,6 +44,7 @@ import type {
 import { useScale } from '@/shared/contexts/ScaleContext'
 import { StatusSelector } from './Finishing/components/StatusSelector'
 import { PAGE_FORMATS } from '@/shared/constants/statusColors'
+import { parseNumberWithSeparators } from '@/shared/lib'
 
 const { Title } = Typography
 
@@ -1075,6 +1076,7 @@ export default function FinishingPieType() {
               style={{ width: '100%' }}
               min={0}
               precision={4}
+              parser={parseNumberWithSeparators}
             />
           )
         }

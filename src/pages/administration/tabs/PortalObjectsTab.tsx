@@ -28,6 +28,7 @@ import type {
   PortalObjectType,
 } from '@/entities/portal-objects/model/types'
 import type { ColumnsType } from 'antd/es/table'
+import { parseNumberWithSeparators } from '@/shared/lib'
 
 const OBJECT_TYPES: { label: string; value: PortalObjectType }[] = [
   { label: 'Страница', value: 'page' },
@@ -317,7 +318,7 @@ export default function PortalObjectsTab() {
           </Form.Item>
 
           <Form.Item name="sort_order" label="Порядок сортировки">
-            <InputNumber min={0} style={{ width: '100%' }} />
+            <InputNumber min={0} style={{ width: '100%' }} parser={parseNumberWithSeparators} />
           </Form.Item>
 
           <Form.Item name="is_visible" label="Видимость" valuePropName="checked">

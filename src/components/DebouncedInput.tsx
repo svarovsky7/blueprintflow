@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Input, InputNumber } from 'antd'
+import { parseNumberWithSeparators } from '@/shared/lib'
 
 interface DebouncedInputProps {
   value: any
@@ -109,6 +110,7 @@ const DebouncedInput: React.FC<DebouncedInputProps> = ({
         precision={3}
         step={0.001}
         controls={false}
+        parser={parseNumberWithSeparators}
         // Оптимизации производительности
         keyboard={false}
         changeOnWheel={false}

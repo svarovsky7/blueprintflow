@@ -39,6 +39,7 @@ import {
   type DeepseekSettings,
   type DeepseekUsageStats,
 } from '@/entities/api-settings'
+import { parseNumberWithSeparators } from '@/shared/lib'
 
 const { Title, Text } = Typography
 
@@ -468,6 +469,7 @@ const DeepseekTab = () => {
                       step={0.1}
                       style={{ width: '100%' }}
                       placeholder="0.7"
+                      parser={parseNumberWithSeparators}
                     />
                   </Form.Item>
                 </Col>
@@ -482,6 +484,7 @@ const DeepseekTab = () => {
                       max={4000}
                       style={{ width: '100%' }}
                       placeholder="1000"
+                      parser={parseNumberWithSeparators}
                     />
                   </Form.Item>
                 </Col>

@@ -9,6 +9,7 @@ import {
   type SupplierNameOption,
   type UnitOption
 } from '@/entities/vor'
+import { parseNumberWithSeparators } from '@/shared/lib'
 
 interface AddMaterialModalProps {
   visible: boolean
@@ -170,6 +171,7 @@ const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                 precision={4}
                 style={{ width: '100%' }}
                 placeholder="1"
+                parser={parseNumberWithSeparators}
               />
             </Form.Item>
 
@@ -188,7 +190,7 @@ const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                 style={{ width: '100%' }}
                 placeholder="0.00"
                 formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={(value) => value!.replace(/,/g, '')}
+                parser={parseNumberWithSeparators}
               />
             </Form.Item>
           </Space>

@@ -45,6 +45,7 @@ import {
 } from '@/entities/rates'
 import { supabase } from '@/lib/supabase'
 import { useScale } from '@/shared/contexts/ScaleContext'
+import { parseNumberWithSeparators } from '@/shared/lib'
 // import ConflictResolutionDialog from '@/components/ConflictResolutionDialog'
 
 const { Text, Title } = Typography
@@ -1048,6 +1049,7 @@ export default function Rates() {
                 }}
                 min={0}
                 precision={2}
+                parser={parseNumberWithSeparators}
                 style={{ width: '100%' }}
                 placeholder="Введите расценку"
               />
