@@ -694,6 +694,16 @@ table.ant-table thead tr th {
   background-color: #ff7875 !important;
 }
 
+/* ЧЕРЕДУЮЩЕЕСЯ ВЫДЕЛЕНИЕ СТРОК - Для улучшения читаемости таблицы */
+.chessboard-table .ant-table-tbody > tr.row-striped-even > td {
+  background-color: #f0f0f0;
+}
+
+/* Hover эффект для чередующихся строк */
+.chessboard-table .ant-table-tbody > tr.row-striped-even:hover > td {
+  background-color: #e8e8e8;
+}
+
 /* ГЛОБАЛЬНЫЕ правила переносов для ВСЕХ ячеек таблицы - только по пробелам */
 .chessboard-table .ant-table-tbody > tr > td {
   word-break: keep-all !important;
@@ -3196,12 +3206,13 @@ export const ChessboardTable = memo(({
     }
   }, [scale, tableScrollHeight])
 
-  // Обработка цвета строк
-  const rowClassName = (record: RowData) => {
+  // Обработка цвета строк с чередующимся выделением
+  const rowClassName = (record: RowData, index: number) => {
     if (record.color) {
       return `row-color-${record.color}`
     }
-    return ''
+    // Чередующееся выделение для строк без цветовой маркировки
+    return index % 2 === 0 ? 'row-striped-even' : ''
   }
 
   return (

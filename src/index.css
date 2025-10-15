@@ -248,3 +248,37 @@ body[data-theme='dark'] {
   word-break: break-word !important;
   line-height: 1.5 !important;
 }
+
+/* Цветовая схема строк - базовые стили */
+.ant-table-tbody > tr.row-color-green > td {
+  background-color: #d9f7be !important;
+}
+
+.ant-table-tbody > tr.row-color-yellow > td {
+  background-color: #fff1b8 !important;
+}
+
+.ant-table-tbody > tr.row-color-blue > td {
+  background-color: #e6f7ff !important;
+}
+
+.ant-table-tbody > tr.row-color-red > td {
+  background-color: #ffa39e !important;
+}
+
+/* Hover эффект для цветных строк */
+.ant-table-tbody > tr.row-color-green:hover > td {
+  background-color: #b7eb8f !important;
+}
+
+.ant-table-tbody > tr.row-color-yellow:hover > td {
+  background-color: #ffe58f !important;
+}
+
+.ant-table-tbody > tr.row-color-blue:hover > td {
+  background-color: #bae7ff !important;
+}
+
+.ant-table-tbody > tr.row-color-red:hover > td {
+  background-color: #ff7875 !important;
+}

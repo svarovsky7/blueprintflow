@@ -47,7 +47,6 @@ import { StatusSelector } from './Finishing/components/StatusSelector'
 import { PAGE_FORMATS } from '@/shared/constants/statusColors'
 import { parseNumberWithSeparators } from '@/shared/lib'
 import { RowColorPicker } from './Chessboard/components'
-import { colorMap } from './Chessboard/utils'
 import type { RowColor } from '@/entities/finishing'
 
 const { Title } = Typography
@@ -812,11 +811,6 @@ export default function FinishingPieType() {
       width: 80,
       align: 'center' as const,
       fixed: 'left' as const,
-      onCell: (record: FinishingPieRow) => ({
-        style: {
-          backgroundColor: (record.color && colorMap[record.color as RowColor]) || undefined,
-        },
-      }),
       render: (_: any, record: FinishingPieRow) => {
         // Если строка редактируется - показываем кнопки режима редактирования
         if (isRowEditing(record)) {
@@ -1196,6 +1190,51 @@ export default function FinishingPieType() {
         overflow: 'hidden',
       }}
     >
+      <style>{`
+        /* ЦВЕТОВАЯ СХЕМА СТРОК - Раскраска всей строки при выборе цвета */
+        .ant-table-tbody > tr.row-color-green > td {
+          background-color: #d9f7be !important;
+        }
+
+        .ant-table-tbody > tr.row-color-yellow > td {
+          background-color: #fff1b8 !important;
+        }
+
+        .ant-table-tbody > tr.row-color-blue > td {
+          background-color: #e6f7ff !important;
+        }
+
+        .ant-table-tbody > tr.row-color-red > td {
+          background-color: #ffa39e !important;
+        }
+
+        /* Hover эффект для цветных строк */
+        .ant-table-tbody > tr.row-color-green:hover > td {
+          background-color: #b7eb8f !important;
+        }
+
+        .ant-table-tbody > tr.row-color-yellow:hover > td {
+          background-color: #ffe58f !important;
+        }
+
+        .ant-table-tbody > tr.row-color-blue:hover > td {
+          background-color: #bae7ff !important;
+        }
+
+        .ant-table-tbody > tr.row-color-red:hover > td {
+          background-color: #ff7875 !important;
+        }
+
+        /* ЧЕРЕДУЮЩЕЕСЯ ВЫДЕЛЕНИЕ СТРОК - Для улучшения читаемости таблицы */
+        .ant-table-tbody > tr.row-striped-even > td {
+          background-color: #f0f0f0;
+        }
+
+        /* Hover эффект для чередующихся строк */
+        .ant-table-tbody > tr.row-striped-even:hover > td {
+          background-color: #e8e8e8;
+        }
+      `}</style>
       {/* Заголовок с кнопкой Назад */}
       <div style={{ padding: '16px 24px', flexShrink: 0 }}>
         <Space size="middle">
@@ -1289,17 +1328,25 @@ export default function FinishingPieType() {
                 }
               : undefined
           }
-          onRow={(record) => ({
-            style: {
-              backgroundColor: (record.color && colorMap[record.color as RowColor]) || undefined,
-            },
-          })}
-          rowClassName={(record) => {
+          rowClassName={(record, index) => {
+            const classes: string[] = []
+
+            // Цвет строки
+            if (record.color) {
+              classes.push(`row-color-${record.color}`)
+            } else {
+              // Чередующееся выделение для строк без цветовой маркировки
+              if (index % 2 === 0) {
+                classes.push('row-striped-even')
+              }
+            }
+
             // Подсветка редактируемых строк
             if (isRowEditing(record as FinishingPieRow)) {
-              return 'editing-row'
+              classes.push('editing-row')
             }
-            return ''
+
+            return classes.join(' ')
           }}
         />
       </div>

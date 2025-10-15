@@ -238,15 +238,98 @@ for file in sql/*.sql; do psql "$DATABASE_URL" -f "$file"; done
 - `chessboard` - Main data table for material tracking
 - `chessboard_mapping` - Mapping relationships between chessboard and categories/locations
 - `chessboard_sets` - Chessboard sets for documentation organization
-- `chessboard_documentation_mapping`, `chessboard_floor_mapping`, `chessboard_rates_mapping` - Additional mapping tables
+- `chessboard_sets_documents_mapping` - Mapping between chessboard sets and documents
+- `work_sets` - Work sets (normalized structure, replaces string field in old rates)
+- `work_set_rates` - Rates within work sets
+- `work_set_rates_categories_mapping` - Mapping between rates and cost categories
+- `finishing_pie_mapping` - Finishing pie types with color marking support
+- `type_calculation_mapping` - Type calculations with color marking support
 - `units` - Units of measurement
 - `cost_categories`, `detail_cost_categories` - Cost categorization
 - `location` - Location/localization data
 - `projects`, `blocks` - Project structure with `projects_blocks` mapping
 - `documentation` - Document management with versioning
 - `materials` - Materials catalog
-- `rates` - Rate management with cost categories
+- `rates` (deprecated, use work_set_rates) - Old rate management structure
 - **Schema files**: `supabase/schemas/prod.sql` (production) and `supabase.sql` (development)
+
+### Key Architectural Decisions
+
+#### 1. Database Normalization: rates → work_sets (October 2025)
+
+**Проблема:** Таблица `rates` хранила `work_set` как строковое поле, что приводило к:
+- Дублированию названий наборов работ
+- Невозможности управлять наборами централизованно
+- Сложности при фильтрации и группировке
+
+**Решение:** Нормализация структуры
+- Создана таблица `work_sets` (id, name, active)
+- Таблица `work_set_rates` использует FK на work_sets
+- Маппинг категорий затрат перенесен в `work_set_rates_categories_mapping`
+
+**Миграция:**
+- Старые типы помечены @deprecated в `src/entities/rates/model/types.ts`
+- Обратная совместимость сохранена на уровне типов
+- Новые API файлы: `work-sets-api.ts`, `work-set-rates-api.ts`, `work-set-rates-form-api.ts`
+
+**SQL миграция:** См. `sql/` директорию для миграционных скриптов
+
+#### 2. Row Color Marking System (October 2025)
+
+**Задача:** Расширить систему цветовой маркировки строк с Chessboard на другие документы.
+
+**Реализованные страницы:**
+- `FinishingPieType.tsx` - Типы пирога отделки
+- `FinishingCalculation.tsx` - Расчет по типам
+- `Chessboard.tsx` - Шахматка (reference implementation)
+
+**Техническое решение:**
+- Добавлен столбец `color` в таблицы `finishing_pie_mapping` и `type_calculation_mapping`
+- Тип данных: `text` с допустимыми значениями: '', 'green', 'yellow', 'blue', 'red'
+- SQL миграция: `sql/add_color_column_to_finishing_tables.sql`
+
+**Цветовая схема:**
+
+| Цвет | Базовый HEX | Hover HEX | Назначение |
+|------|-------------|-----------|------------|
+| green | #d9f7be | #b7eb8f | Обычно: завершенные/проверенные |
+| yellow | #fff1b8 | #ffe58f | Обычно: в работе/требует внимания |
+| blue | #e6f7ff | #bae7ff | Обычно: информационные |
+| red | #ffa39e | #ff7875 | Обычно: проблемные/критичные |
+
+**UI Implementation Pattern:**
+```typescript
+// rowClassName в Table компоненте
+rowClassName={(record) => {
+  const classes: string[] = []
+  if (record.color) {
+    classes.push(`row-color-${record.color}`)
+  }
+  if (isEditing(record)) {
+    classes.push('editing-row')
+  }
+  return classes.join(' ')
+}}
+```
+
+**CSS Location:** `src/index.css` (строки 252-284)
+
+**КРИТИЧЕСКИ ВАЖНО:**
+- НЕ используйте inline styles через `onRow`/`onCell` для цветов
+- Inline styles блокируют CSS hover псевдо-селекторы
+- Всегда используйте CSS классы `row-color-{color}`
+
+#### 3. Chessboard Mapping Tables Structure
+
+**Актуальные маппинг таблицы:**
+- `chessboard_sets_documents_mapping` - Связь наборов с документами (многие-ко-многим)
+
+**Устаревшие/неиспользуемые:**
+- `chessboard_documentation_mapping` - упоминается в старом коде
+- `chessboard_floor_mapping` - упоминается в старом коде
+- `chessboard_rates_mapping` - упоминается в старом коде
+
+**Примечание:** Проверить наличие этих таблиц через MCP перед использованием в новом коде.
 
 ### Database Rules
 - All tables MUST include `created_at` and `updated_at` fields
@@ -280,6 +363,9 @@ Entities may have multiple API files for different concerns:
 - `entity-cascade-api.ts` - Cascading updates and hierarchical operations
 - `entity-multi-docs-api.ts` - Multi-document operations
 - `vor-materials-api.ts`, `vor-works-api.ts` - VOR sub-entities management
+- `work-sets-api.ts` - Work sets management (rates entity, post-refactoring)
+- `work-set-rates-api.ts` - Work set rates CRUD operations (rates entity, post-refactoring)
+- `work-set-rates-form-api.ts` - Form-specific operations for rates (rates entity, post-refactoring)
 
 ## Performance Requirements
 
@@ -419,6 +505,15 @@ try {
 
 **Цветовая схема:** green (#d9f7be), yellow (#fff1b8), blue (#e6f7ff), red (#ffa39e)
 
+**Hover эффекты для цветных строк:**
+- green: #d9f7be → #b7eb8f (при наведении)
+- yellow: #fff1b8 → #ffe58f (при наведении)
+- blue: #e6f7ff → #bae7ff (при наведении)
+- red: #ffa39e → #ff7875 (при наведении)
+
+**Реализация:** CSS классы в `src/index.css` (строки 252-284).
+**Важно:** НЕ использовать inline styles - они блокируют hover эффекты.
+
 **Полное описание и примеры кода:** См. [docs/CODE_PATTERNS.md#шаблон-страницы-документ](docs/CODE_PATTERNS.md#шаблон-страницы-документ)
 
 **Референс:** `src/pages/documents/Chessboard.tsx`
@@ -550,6 +645,9 @@ All entities follow the same structure:
 - Column settings saved in localStorage for persistence across sessions
 - При применении шаблона "Документ" все компоненты страницы должны следовать описанным выше принципам
 - НИКОГДА не используйте `scroll.y` в Table компоненте для управления высотой - используйте CSS контейнеры
+- Цветовая маркировка строк: используй CSS классы `row-color-{color}`, НЕ inline styles
+- Таблицы с поддержкой цветов: chessboard, finishing_pie_mapping, type_calculation_mapping
+- При добавлении цветовой маркировки на новые страницы: добавь столбец `color text` в таблицу БД
 
 ## Dropdown Best Practices (КРИТИЧЕСКИ ВАЖНО)
 
