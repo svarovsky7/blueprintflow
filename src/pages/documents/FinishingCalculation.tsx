@@ -37,6 +37,9 @@ import { FloorQuantitiesModal } from './FinishingCalculation/components/FloorQua
 import { StatusSelector } from './Finishing/components/StatusSelector'
 import { PAGE_FORMATS } from '@/shared/constants/statusColors'
 import { parseNumberWithSeparators } from '@/shared/lib'
+import { RowColorPicker } from './Chessboard/components'
+import { colorMap } from './Chessboard/utils'
+import type { RowColor } from '@/entities/calculation'
 
 const { Title } = Typography
 
@@ -716,6 +719,23 @@ export default function FinishingCalculation() {
     }
   }
 
+  // Обработчик изменения цвета строки (сохранение напрямую в БД)
+  const handleUpdateRowColor = async (rowId: string, color: RowColor) => {
+    try {
+      const { error } = await supabase
+        .from('type_calculation_mapping')
+        .update({ color })
+        .eq('id', rowId)
+
+      if (error) throw error
+
+      // Обновляем данные
+      queryClient.invalidateQueries({ queryKey: ['type-calculation-rows', selectedFinishingPieId] })
+    } catch (error: any) {
+      message.error(`Ошибка обновления цвета: ${error.message}`)
+    }
+  }
+
   const dataSource = useMemo(() => {
     if (mode === 'add') {
       return [...editingRows, ...rows]
@@ -734,10 +754,19 @@ export default function FinishingCalculation() {
       width: 80,
       align: 'center' as const,
       fixed: 'left' as const,
+      onCell: (record: CalculationRow) => ({
+        style: {
+          backgroundColor: (record.color && colorMap[record.color as RowColor]) || undefined,
+        },
+      }),
       render: (_: any, record: CalculationRow) => {
         if (mode === 'view') {
           return (
             <Space size="small">
+              <RowColorPicker
+                value={(record.color as RowColor) || ''}
+                onChange={(color) => handleUpdateRowColor(record.id, color)}
+              />
               <Button
                 type="text"
                 icon={<EditOutlined />}
@@ -1271,6 +1300,11 @@ export default function FinishingCalculation() {
                 }
               : undefined
           }
+          onRow={(record) => ({
+            style: {
+              backgroundColor: (record.color && colorMap[record.color as RowColor]) || undefined,
+            },
+          })}
           rowClassName={(record) => {
             // Подсветка редактируемых строк
             const editableRecord = record as EditableRow

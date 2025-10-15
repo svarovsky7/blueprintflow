@@ -1,3 +1,6 @@
+// Тип цвета строки для визуальной маркировки
+export type RowColor = '' | 'green' | 'yellow' | 'blue' | 'red'
+
 // Документ типа пирога отделки (заголовок)
 export interface FinishingPie {
   id: string
@@ -50,6 +53,7 @@ export interface FinishingPieRow {
   work_set?: string // Рабочий набор (для отображения, из work_sets)
   rate_unit_id: string | null // FK на units (единица измерения работы)
   rate_unit_name?: string // Название единицы измерения
+  color?: RowColor // Цвет строки для визуальной маркировки
   created_at: string
   updated_at: string
 }
@@ -94,6 +98,7 @@ export interface CreateFinishingPieRowDto {
   detail_cost_category_id: number | null // FK на вид затрат
   work_set_rate_id: string | null // FK на work_set_rates (расценка в наборе)
   rate_unit_id: string | null // FK на units
+  color?: RowColor // Цвет строки для визуальной маркировки
 }
 
 // DTO для обновления строки табличной части
@@ -107,6 +112,7 @@ export interface UpdateFinishingPieRowDto {
   detail_cost_category_id?: number | null // FK на вид затрат
   work_set_rate_id?: string | null // FK на work_set_rates (расценка в наборе)
   rate_unit_id?: string | null // FK на units
+  color?: RowColor // Цвет строки для визуальной маркировки
 }
 
 // Типы для импорта в Шахматку

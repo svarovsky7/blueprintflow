@@ -35,7 +35,7 @@ function buildSelectQuery(appliedFilters: AppliedFilters): string {
     unit_id,
 
     materials!chessboard_material_fkey(name),
-    units!chessboard_unit_id_fkey(name),
+    units!chessboard_unit_id_fkey(id, name),
 
     chessboard_mapping!${joinType}(
       cost_category_id,

@@ -46,6 +46,9 @@ import { useScale } from '@/shared/contexts/ScaleContext'
 import { StatusSelector } from './Finishing/components/StatusSelector'
 import { PAGE_FORMATS } from '@/shared/constants/statusColors'
 import { parseNumberWithSeparators } from '@/shared/lib'
+import { RowColorPicker } from './Chessboard/components'
+import { colorMap } from './Chessboard/utils'
+import type { RowColor } from '@/entities/finishing'
 
 const { Title } = Typography
 
@@ -770,6 +773,22 @@ export default function FinishingPieType() {
     )
   }
 
+  // Обработчик изменения цвета строки (сохранение напрямую в БД)
+  const handleUpdateRowColor = async (rowId: string, color: RowColor) => {
+    try {
+      const { error } = await supabase
+        .from('finishing_pie_mapping')
+        .update({ color })
+        .eq('id', rowId)
+
+      if (error) throw error
+
+      // Обновляем данные
+      queryClient.invalidateQueries({ queryKey: ['finishing-pie-rows', id] })
+    } catch (error: any) {
+      message.error(`Ошибка обновления цвета: ${error.message}`)
+    }
+  }
 
   const dataSource = useMemo(() => {
     // Разделяем редактируемые строки на новые и существующие
@@ -793,6 +812,11 @@ export default function FinishingPieType() {
       width: 80,
       align: 'center' as const,
       fixed: 'left' as const,
+      onCell: (record: FinishingPieRow) => ({
+        style: {
+          backgroundColor: (record.color && colorMap[record.color as RowColor]) || undefined,
+        },
+      }),
       render: (_: any, record: FinishingPieRow) => {
         // Если строка редактируется - показываем кнопки режима редактирования
         if (isRowEditing(record)) {
@@ -837,6 +861,10 @@ export default function FinishingPieType() {
         if (mode === 'view') {
           return (
             <Space size="small">
+              <RowColorPicker
+                value={(record.color as RowColor) || ''}
+                onChange={(color) => handleUpdateRowColor(record.id, color)}
+              />
               <Button
                 type="text"
                 icon={<EditOutlined />}
@@ -1261,6 +1289,11 @@ export default function FinishingPieType() {
                 }
               : undefined
           }
+          onRow={(record) => ({
+            style: {
+              backgroundColor: (record.color && colorMap[record.color as RowColor]) || undefined,
+            },
+          })}
           rowClassName={(record) => {
             // Подсветка редактируемых строк
             if (isRowEditing(record as FinishingPieRow)) {

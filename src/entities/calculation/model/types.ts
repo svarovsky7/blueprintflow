@@ -2,6 +2,9 @@
 // Типы для модуля "Расчет по типам"
 // ========================================
 
+// Тип цвета строки для визуальной маркировки
+export type RowColor = '' | 'green' | 'yellow' | 'blue' | 'red'
+
 // Справочник типов поверхностей
 export interface SurfaceType {
   id: string
@@ -27,6 +30,7 @@ export interface TypeCalculationRow {
   pie_type_name?: string
   surface_type_id: string | null
   surface_type_name?: string
+  color?: RowColor
   floors?: TypeCalculationFloor[]
 }
 
@@ -58,6 +62,7 @@ export interface CreateTypeCalculationRowDto {
   room_number_id?: string | null
   pie_type_id?: string | null
   surface_type_id?: string | null
+  color?: RowColor
 }
 
 export interface UpdateTypeCalculationRowDto {
@@ -67,6 +72,7 @@ export interface UpdateTypeCalculationRowDto {
   room_number_id?: string | null
   pie_type_id?: string | null
   surface_type_id?: string | null
+  color?: RowColor
 }
 
 export interface CreateTypeCalculationFloorDto {

@@ -1170,10 +1170,17 @@ export const ChessboardTable = memo(({
       const { data, error } = await supabase
         .from('units')
         .select('id, name')
+        .not('name', 'is', null)
+        .range(0, 999)
         .order('name')
       if (error) throw error
-      return data.map(item => ({ value: item.id, label: item.name }))
+      return data
+        .filter(item => item.id && item.name)
+        .map(item => ({ value: item.id, label: item.name }))
     },
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
   })
 
   // Корпуса для выбранного проекта через projects_blocks
@@ -2453,7 +2460,7 @@ export const ChessboardTable = memo(({
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
-              placeholder={!categoryId || !costTypeId ? "Выберите категорию и вид" : ""}
+              placeholder=""
               size="small"
               style={{ width: '100%' }}
               disabled={!categoryId || !costTypeId}
@@ -3099,9 +3106,14 @@ export const ChessboardTable = memo(({
       render: (value, record) => {
         const isEditing = (record as any).isEditing
         if (isEditing) {
+          // Проверка существования текущего unitId в доступных опциях
+          const currentUnitExists = record.unitId
+            ? unitsData.some(opt => opt.value === record.unitId)
+            : true
+
           return (
             <Select
-              value={record.unitId || undefined}
+              value={currentUnitExists ? (record.unitId || undefined) : undefined}
               onChange={(newValue) => onRowUpdate(record.id, { unitId: newValue })}
               options={unitsData}
               allowClear
@@ -3112,7 +3124,10 @@ export const ChessboardTable = memo(({
               placeholder=""
               size="small"
               style={{ width: '100%' }}
-              dropdownStyle={getDynamicDropdownStyle(unitsData)}
+              dropdownStyle={{
+                ...getDynamicDropdownStyle(unitsData),
+                maxHeight: '400px', // Увеличена высота для отображения всех элементов
+              }}
             />
           )
         }

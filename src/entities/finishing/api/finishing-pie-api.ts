@@ -239,6 +239,7 @@ export async function getFinishingPieRows(finishingPieId: string): Promise<Finis
       work_set: row.work_set_rate?.work_sets?.name || null,
       rate_unit_id: row.rate_unit_id,
       rate_unit_name: row.rate_units?.name || null,
+      color: row.color || '',
       created_at: row.created_at,
       updated_at: row.updated_at,
     })) || []

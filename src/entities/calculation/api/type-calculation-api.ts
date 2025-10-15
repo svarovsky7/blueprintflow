@@ -50,6 +50,7 @@ export async function getTypeCalculationRows(
       pie_type_name: row.finishing_pie_types?.name || null,
       surface_type_id: row.surface_type_id,
       surface_type_name: row.surface_types?.name || null,
+      color: row.color || '',
       floors: row.type_calculation_floor_mapping || [],
     })) || []
   )
