@@ -44,10 +44,10 @@ export interface FinishingPieRow {
   supplier_name?: string // Наименование номенклатуры поставщика (для отображения)
   detail_cost_category_id: number | null // FK на detail_cost_categories (вид затрат)
   detail_cost_category_name?: string // Название вида затрат (для отображения)
-  work_name_id: string | null // FK на work_names (наименование работы)
-  work_name?: string // Название работы (для отображения)
-  rate_id: string | null // FK на rates (расценка)
-  work_set?: string // Рабочий набор (для отображения, из rates.work_set)
+  work_set_rate_id: string | null // FK на work_set_rates (расценка в наборе)
+  work_name_id?: string // ID наименования работы (для отображения, из work_set_rates)
+  work_name?: string // Название работы (для отображения, из work_set_rates)
+  work_set?: string // Рабочий набор (для отображения, из work_sets)
   rate_unit_id: string | null // FK на units (единица измерения работы)
   rate_unit_name?: string // Название единицы измерения
   created_at: string
@@ -92,8 +92,7 @@ export interface CreateFinishingPieRowDto {
   nomenclature_id: string | null // FK на nomenclature
   supplier_name_id: string | null // FK на supplier_names
   detail_cost_category_id: number | null // FK на вид затрат
-  work_name_id: string | null // FK на work_names (наименование работы)
-  rate_id: string | null // FK на rates (расценка)
+  work_set_rate_id: string | null // FK на work_set_rates (расценка в наборе)
   rate_unit_id: string | null // FK на units
 }
 
@@ -106,8 +105,7 @@ export interface UpdateFinishingPieRowDto {
   nomenclature_id?: string | null // FK на nomenclature
   supplier_name_id?: string | null // FK на supplier_names
   detail_cost_category_id?: number | null // FK на вид затрат
-  work_name_id?: string | null // FK на work_names (наименование работы)
-  rate_id?: string | null // FK на rates (расценка)
+  work_set_rate_id?: string | null // FK на work_set_rates (расценка в наборе)
   rate_unit_id?: string | null // FK на units
 }
 

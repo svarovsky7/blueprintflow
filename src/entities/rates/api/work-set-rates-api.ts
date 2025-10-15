@@ -260,15 +260,16 @@ export async function getWorkSetsByCategory(
  */
 export async function getWorkNamesByWorkSet(
   workSetId: string
-): Promise<Array<{ id: string; work_name_id: string; name: string; base_rate: number; unit_name?: string }>> {
+): Promise<Array<{ id: string; work_name_id: string; name: string; base_rate: number; unit_id?: string; unit_name?: string }>> {
   const { data, error } = await supabase
     .from('work_set_rates')
     .select(`
       id,
       work_name_id,
       base_rate,
+      unit_id,
       work_names:work_name_id(id, name),
-      units:unit_id(name)
+      units:unit_id(id, name)
     `)
     .eq('work_set_id', workSetId)
     .eq('active', true)
@@ -285,6 +286,7 @@ export async function getWorkNamesByWorkSet(
       work_name_id: item.work_name_id, // work_name.id для дополнительной информации
       name: item.work_names?.name || '',
       base_rate: item.base_rate,
+      unit_id: item.unit_id || item.units?.id,
       unit_name: item.units?.name,
     }))
     .sort((a, b) => a.name.localeCompare(b.name)) // Сортируем на клиенте

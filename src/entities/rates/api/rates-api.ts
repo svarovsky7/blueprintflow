@@ -522,7 +522,7 @@ export const ratesApi = {
   async getWorkSetsByCategory(
     costTypeId?: string,
     costCategoryId?: string
-  ): Promise<{ value: string; label: string }[]> {
+  ): Promise<{ value: string; label: string; workSetName: string }[]> {
     if (!supabase) throw new Error('Supabase is not configured')
 
     // Если не указан вид затрат - возвращаем пустой список
@@ -533,12 +533,15 @@ export const ratesApi = {
     const costTypeIdInt = parseInt(costTypeId)
     const costCategoryIdInt = costCategoryId ? parseInt(costCategoryId) : null
 
-    // Получаем расценки через mapping с фильтрацией по виду затрат
-    let query = supabase
+    // НОВЫЙ ПОДХОД: Запрашиваем mappings с фильтрами, затем получаем work_sets
+    // Это обходит лимит 1000 для rates
+    let mappingsQuery = supabase
       .from('rates_detail_cost_categories_mapping')
       .select(
         `
         rate_id,
+        detail_cost_category_id,
+        cost_category_id,
         rates!inner(
           id,
           work_set,
@@ -546,38 +549,46 @@ export const ratesApi = {
         )
       `
       )
-      .eq('detail_cost_category_id', costTypeIdInt)
-      .eq('rates.active', true)
-      .not('rates.work_set', 'is', null)
+
+    // Фильтруем mappings по виду затрат
+    mappingsQuery = mappingsQuery.eq('detail_cost_category_id', costTypeIdInt)
 
     // Если указана категория затрат - добавляем фильтрацию
     if (costCategoryIdInt) {
-      query = query.eq('cost_category_id', costCategoryIdInt)
+      mappingsQuery = mappingsQuery.eq('cost_category_id', costCategoryIdInt)
     }
 
-    const { data, error } = await query
+    // Фильтруем по активным rates с work_set
+    mappingsQuery = mappingsQuery
+      .eq('rates.active', true)
+      .not('rates.work_set', 'is', null)
+
+    const { data: mappings, error } = await mappingsQuery
 
     if (error) {
-      console.error('❌ Failed to get work sets by category:', error)
+      console.error('Ошибка загрузки рабочих наборов с фильтрами:', error)
       throw error
     }
 
-    if (!data || data.length === 0) {
+    if (!mappings || mappings.length === 0) {
       return []
     }
 
-    // Группируем по work_set и берем первый rate_id для каждого набора
-    const workSetsMap = new Map<string, string>()
-    data.forEach((item: any) => {
-      const rate = item.rates
-      if (rate && rate.work_set && !workSetsMap.has(rate.work_set)) {
-        workSetsMap.set(rate.work_set, rate.id)
+    // Извлекаем уникальные work_sets из результата
+    const uniqueWorkSets = new Map<string, { workSetName: string; rateId: string }>()
+
+    mappings.forEach((mapping: any) => {
+      const rate = mapping.rates
+      if (rate && rate.work_set && !uniqueWorkSets.has(rate.work_set)) {
+        uniqueWorkSets.set(rate.work_set, {
+          workSetName: rate.work_set,
+          rateId: rate.id,
+        })
       }
     })
 
-    // Преобразуем в нужный формат и сортируем
-    const result = Array.from(workSetsMap.entries())
-      .map(([workSetName, rateId]) => ({
+    const result = Array.from(uniqueWorkSets.values())
+      .map(({ workSetName, rateId }) => ({
         value: rateId, // UUID расценки для сохранения в work_set (FK на rates.id)
         label: workSetName, // Название рабочего набора для отображения
         workSetName: workSetName, // Название набора для фильтрации работ
@@ -676,42 +687,52 @@ export const ratesApi = {
     const detailCostCategoryIdInt = parseInt(detailCostCategoryId)
     const costCategoryIdInt = costCategoryId ? parseInt(costCategoryId) : null
 
-    // Запрос через rates_detail_cost_categories_mapping
-    let query = supabase
+    // НОВЫЙ ПОДХОД: Запрашиваем mappings с фильтрами, затем получаем work_names
+    // Это обходит лимит 1000 для rates
+    let mappingsQuery = supabase
       .from('rates_detail_cost_categories_mapping')
       .select(
         `
         rate_id,
         work_name_id,
+        detail_cost_category_id,
+        cost_category_id,
         work_names!inner(id, name),
         rates!inner(id, work_set, active)
       `
       )
-      .eq('detail_cost_category_id', detailCostCategoryIdInt)
+
+    // Фильтруем mappings по виду затрат
+    mappingsQuery = mappingsQuery.eq('detail_cost_category_id', detailCostCategoryIdInt)
+
+    // Если указана категория затрат - добавляем фильтрацию
+    if (costCategoryIdInt) {
+      mappingsQuery = mappingsQuery.eq('cost_category_id', costCategoryIdInt)
+    }
+
+    // Фильтруем по рабочему набору и активным rates
+    mappingsQuery = mappingsQuery
       .eq('rates.work_set', workSet)
       .eq('rates.active', true)
 
-    if (costCategoryIdInt) {
-      query = query.eq('cost_category_id', costCategoryIdInt)
-    }
-
-    const { data, error } = await query
+    const { data: mappings, error } = await mappingsQuery
 
     if (error) {
-      console.error('Failed to get work names by work set and category:', error)
+      console.error('Ошибка загрузки наименований работ с фильтрами:', error)
       throw error
     }
 
-    if (!data || data.length === 0) {
+    if (!mappings || mappings.length === 0) {
       return []
     }
 
     // Убираем дубликаты по work_name_id
     const uniqueWorkNames = new Map<string, { workNameId: string; workName: string; rateId: string }>()
-    data.forEach((item: any) => {
-      const workNameId = item.work_name_id
-      const workName = item.work_names?.name
-      const rateId = item.rate_id
+
+    mappings.forEach((mapping: any) => {
+      const workNameId = mapping.work_name_id
+      const workName = mapping.work_names?.name
+      const rateId = mapping.rate_id
 
       if (workNameId && workName && !uniqueWorkNames.has(workNameId)) {
         uniqueWorkNames.set(workNameId, {

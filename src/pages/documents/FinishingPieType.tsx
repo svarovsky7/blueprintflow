@@ -24,7 +24,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import {
   getFinishingPieById,
-  createFinishingPie,
   updateFinishingPie,
   getFinishingPieRows,
   createFinishingPieRow,
@@ -33,9 +32,11 @@ import {
   getFinishingPieTypes,
   createFinishingPieType,
   getDetailCostCategoriesByCostCategory,
-  getRateUnitId,
 } from '@/entities/finishing'
-import { ratesApi } from '@/entities/rates/api/rates-api'
+import {
+  getWorkSetsByCategory,
+  getWorkNamesByWorkSet,
+} from '@/entities/rates/api/work-set-rates-api'
 import type {
   FinishingPieRow,
   CreateFinishingPieRowDto,
@@ -84,46 +85,46 @@ interface EditableRow extends Partial<FinishingPieRow> {
   nomenclature_name?: string | null
   supplier_name_id?: string | null
   supplier_name?: string | null
+  work_set_id?: string | null // UUID набора работ (для API запросов)
 }
 
 // Компонент для выбора рабочего набора
 function WorkSetSelect({
   record,
-  value,
   onChange,
   costCategoryId,
 }: {
   record: EditableRow
-  value: string | null
-  onChange: (val: string | null) => void
+  onChange: (workSetId: string | null, workSetName?: string) => void
   costCategoryId: number | undefined
 }) {
   const { data: workSets = [], isLoading } = useQuery({
     queryKey: ['work-sets-for-finishing', record.detail_cost_category_id, costCategoryId],
     queryFn: async () => {
-      const result = await ratesApi.getWorkSetsByCategory(
-        record.detail_cost_category_id?.toString(),
-        costCategoryId?.toString()
+      const result = await getWorkSetsByCategory(
+        costCategoryId ? [costCategoryId] : undefined,
+        record.detail_cost_category_id ? [record.detail_cost_category_id] : undefined
       )
-      return result
+      return result.map((ws) => ({
+        value: ws.id,
+        label: ws.name,
+      }))
     },
     enabled: !!record.detail_cost_category_id && !!costCategoryId,
   })
 
-  // Находим value (rateId) по workSetName для корректного отображения в Select
-  const displayValue = value
-    ? workSets.find((opt: any) => opt.workSetName === value || opt.label === value)?.value || value
-    : null
+  // Для отображения используем work_set_id
+  const displayValue = record.work_set_id || null
 
   const handleChange = (selectedValue: string | null) => {
     if (!selectedValue) {
       onChange(null)
       return
     }
-    // Находим выбранную опцию чтобы получить workSetName
+    // Находим выбранную опцию чтобы получить название
     const selectedOption = workSets.find((opt: any) => opt.value === selectedValue)
-    const workSetName = selectedOption?.workSetName || selectedOption?.label || ''
-    onChange(workSetName)
+    const workSetName = selectedOption?.label || ''
+    onChange(selectedValue, workSetName)
   }
 
   return (
@@ -150,34 +151,32 @@ function WorkNameSelect({
   record,
   value,
   onChange,
-  costCategoryId,
 }: {
   record: EditableRow
   value: string | null
-  onChange: (workNameId: string | null, rateId?: string) => void
-  costCategoryId: number | undefined
+  onChange: (workSetRateId: string | null, unitId?: string | null) => void
 }) {
   const { data: workNames = [] } = useQuery({
-    queryKey: ['work-names-for-finishing', record.work_set, record.detail_cost_category_id, costCategoryId],
+    queryKey: ['work-names-for-finishing', record.work_set_id],
     queryFn: async () => {
-      if (!record.work_set || !record.detail_cost_category_id) return []
-      const result = await ratesApi.getWorkNamesByWorkSetAndCategory(
-        record.work_set,
-        record.detail_cost_category_id?.toString(),
-        costCategoryId?.toString()
-      )
-      return result
+      if (!record.work_set_id) return []
+      const result = await getWorkNamesByWorkSet(record.work_set_id)
+      return result.map((w) => ({
+        value: w.id, // work_set_rate.id (для сохранения в work_set_rate_id)
+        label: w.name,
+        unitId: w.unit_id, // ID единицы измерения для автозаполнения
+      }))
     },
-    enabled: !!record.work_set && !!record.detail_cost_category_id,
+    enabled: !!record.work_set_id,
   })
 
   return (
     <Select
       value={value}
-      onChange={(workNameId) => {
-        // Находим соответствующий rate_id
-        const selected = workNames.find(w => w.value === workNameId)
-        onChange(workNameId, selected?.rateId)
+      onChange={(workSetRateId) => {
+        // Находим соответствующую единицу измерения
+        const selected = workNames.find((w) => w.value === workSetRateId)
+        onChange(workSetRateId, selected?.unitId)
       }}
       options={workNames}
       placeholder="Выберите наименование работ"
@@ -190,7 +189,7 @@ function WorkNameSelect({
         width: '100%',
       }}
       dropdownStyle={getDynamicDropdownStyle(workNames)}
-      disabled={!record.work_set || !record.detail_cost_category_id}
+      disabled={!record.work_set_id}
       className="work-name-select-multiline"
     />
   )
@@ -523,8 +522,7 @@ export default function FinishingPieType() {
             nomenclature_id: row.nomenclature_id || null,
             supplier_name_id: row.supplier_name_id || null,
             detail_cost_category_id: row.detail_cost_category_id || null,
-            work_name_id: row.work_name_id || null,
-            rate_id: row.rate_id || null,
+            work_set_rate_id: row.work_set_rate_id || null,
             rate_unit_id: row.rate_unit_id || null,
           })
         } else if (row.isEditing) {
@@ -537,8 +535,7 @@ export default function FinishingPieType() {
             nomenclature_id: row.nomenclature_id || null,
             supplier_name_id: row.supplier_name_id || null,
             detail_cost_category_id: row.detail_cost_category_id || null,
-            work_name_id: row.work_name_id || null,
-            rate_id: row.rate_id || null,
+            work_set_rate_id: row.work_set_rate_id || null,
             rate_unit_id: row.rate_unit_id || null,
           })
         }
@@ -576,9 +573,9 @@ export default function FinishingPieType() {
         nomenclature_id: null,
         supplier_name_id: null,
         detail_cost_category_id: null,
+        work_set_id: null,
         work_set: null,
-        work_name_id: null,
-        rate_id: null,
+        work_set_rate_id: null,
         rate_unit_id: null,
       },
     ])
@@ -604,10 +601,9 @@ export default function FinishingPieType() {
         supplier_name: record.supplier_name,
         detail_cost_category_id: record.detail_cost_category_id,
         detail_cost_category_name: record.detail_cost_category_name,
+        work_set_id: (record as any).work_set_id || null,
         work_set: record.work_set,
-        work_name_id: record.work_name_id,
-        work_name: record.work_name,
-        rate_id: record.rate_id,
+        work_set_rate_id: record.work_set_rate_id,
         rate_unit_id: record.rate_unit_id,
         rate_unit_name: record.rate_unit_name,
       },
@@ -717,9 +713,9 @@ export default function FinishingPieType() {
           ? {
               ...row,
               detail_cost_category_id: value,
+              work_set_id: null,
               work_set: null,
-              work_name_id: null,
-              rate_id: null,
+              work_set_rate_id: null,
               rate_unit_id: null,
             }
           : row
@@ -728,15 +724,15 @@ export default function FinishingPieType() {
   }
 
   // Обработчик изменения рабочего набора
-  const handleWorkSetChange = (rowId: string, value: string | null) => {
+  const handleWorkSetChange = (rowId: string, workSetId: string | null, workSetName?: string) => {
     setEditingRows((prev) =>
       prev.map((row) =>
         row.id === rowId
           ? {
               ...row,
-              work_set: value,
-              work_name_id: null,
-              rate_id: null,
+              work_set_id: workSetId,
+              work_set: workSetName || null,
+              work_set_rate_id: null,
               rate_unit_id: null,
             }
           : row
@@ -745,51 +741,18 @@ export default function FinishingPieType() {
   }
 
   // Обработчик изменения наименования работ
-  const handleWorkNameChange = async (rowId: string, workNameId: string | null, rateId?: string) => {
-    if (workNameId && rateId) {
-      // Автозаполнение единицы измерения из расценки
-      try {
-        const unitId = await getRateUnitId(rateId)
-        setEditingRows((prev) =>
-          prev.map((row) =>
-            row.id === rowId
-              ? {
-                  ...row,
-                  work_name_id: workNameId,
-                  rate_id: rateId,
-                  rate_unit_id: unitId,
-                }
-              : row
-          )
-        )
-      } catch (error) {
-        console.error('Ошибка получения единицы измерения:', error)
-        setEditingRows((prev) =>
-          prev.map((row) =>
-            row.id === rowId
-              ? {
-                  ...row,
-                  work_name_id: workNameId,
-                  rate_id: rateId,
-                }
-              : row
-          )
-        )
-      }
-    } else {
-      setEditingRows((prev) =>
-        prev.map((row) =>
-          row.id === rowId
-            ? {
-                ...row,
-                work_name_id: null,
-                rate_id: null,
-                rate_unit_id: null,
-              }
-            : row
-        )
+  const handleWorkNameChange = async (rowId: string, workSetRateId: string | null, unitId?: string | null) => {
+    setEditingRows((prev) =>
+      prev.map((row) =>
+        row.id === rowId
+          ? {
+              ...row,
+              work_set_rate_id: workSetRateId,
+              rate_unit_id: unitId || null,
+            }
+          : row
       )
-    }
+    )
   }
 
   // Обработчик изменения номенклатуры (каскадная очистка supplier_name)
@@ -1116,13 +1079,12 @@ export default function FinishingPieType() {
       dataIndex: 'work_set',
       key: 'work_set',
       width: 150,
-      render: (value: string | null, record: EditableRow) => {
+      render: (_value: string | null, record: EditableRow) => {
         if (isRowEditing(record as FinishingPieRow)) {
           return (
             <WorkSetSelect
               record={record}
-              value={value}
-              onChange={(val) => handleWorkSetChange(record.id!, val)}
+              onChange={(workSetId, workSetName) => handleWorkSetChange(record.id!, workSetId, workSetName)}
               costCategoryId={document?.cost_category_id}
             />
           )
@@ -1132,8 +1094,8 @@ export default function FinishingPieType() {
     },
     {
       title: 'Наименование работ',
-      dataIndex: 'work_name_id',
-      key: 'work_name_id',
+      dataIndex: 'work_set_rate_id',
+      key: 'work_set_rate_id',
       width: 200,
       onCell: () => ({
         'data-work-name-cell': true,
@@ -1144,8 +1106,7 @@ export default function FinishingPieType() {
             <WorkNameSelect
               record={record}
               value={value}
-              onChange={(workNameId, rateId) => handleWorkNameChange(record.id!, workNameId, rateId)}
-              costCategoryId={document?.cost_category_id}
+              onChange={(workSetRateId, unitId) => handleWorkNameChange(record.id!, workSetRateId, unitId)}
             />
           )
         }
