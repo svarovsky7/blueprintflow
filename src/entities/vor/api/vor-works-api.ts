@@ -15,17 +15,15 @@ export const getVorWorks = async (filters: VorWorksFilters): Promise<VorWork[]> 
     .from('vor_works')
     .select(`
       *,
-      rates:rate_id(
-        id,
-        work_name_id,
-        base_rate,
-        unit_id,
-        units:unit_id(id, name),
-        work_names:work_name_id(id, name)
-      ),
       work_set_rate:work_set_rate_id(
         id,
-        work_set
+        base_rate,
+        work_name_id,
+        unit_id,
+        work_set_id,
+        units:unit_id(id, name),
+        work_names:work_name_id(id, name),
+        work_sets:work_set_id(id, name)
       )
     `)
     .eq('vor_id', filters.vor_id)
@@ -61,17 +59,15 @@ export const createVorWork = async (workData: CreateVorWorkDto): Promise<VorWork
     .insert(workData)
     .select(`
       *,
-      rates:rate_id(
-        id,
-        work_name_id,
-        base_rate,
-        unit_id,
-        units:unit_id(id, name),
-        work_names:work_name_id(id, name)
-      ),
       work_set_rate:work_set_rate_id(
         id,
-        work_set
+        base_rate,
+        work_name_id,
+        unit_id,
+        work_set_id,
+        units:unit_id(id, name),
+        work_names:work_name_id(id, name),
+        work_sets:work_set_id(id, name)
       )
     `)
     .single()
@@ -94,17 +90,15 @@ export const updateVorWork = async (id: string, workData: UpdateVorWorkDto): Pro
     .eq('id', id)
     .select(`
       *,
-      rates:rate_id(
-        id,
-        work_name_id,
-        base_rate,
-        unit_id,
-        units:unit_id(id, name),
-        work_names:work_name_id(id, name)
-      ),
       work_set_rate:work_set_rate_id(
         id,
-        work_set
+        base_rate,
+        work_name_id,
+        unit_id,
+        work_set_id,
+        units:unit_id(id, name),
+        work_names:work_name_id(id, name),
+        work_sets:work_set_id(id, name)
       )
     `)
     .single()
@@ -169,15 +163,16 @@ export const getRatesOptions = async (): Promise<RateOption[]> => {
   if (!supabase) throw new Error('Supabase client not initialized')
 
   const { data, error } = await supabase
-    .from('rates')
+    .from('work_set_rates')
     .select(`
       id,
       work_name_id,
       base_rate,
       unit_id,
-      work_set,
+      work_set_id,
       units:unit_id(name),
-      work_names:work_name_id(id, name)
+      work_names:work_name_id(id, name),
+      work_sets:work_set_id(id, name)
     `)
     .eq('active', true)
 
@@ -194,7 +189,7 @@ export const getRatesOptions = async (): Promise<RateOption[]> => {
       base_rate: rate.base_rate,
       unit_id: rate.unit_id,
       unit_name: rate.units?.name || undefined,
-      work_set: rate.work_set,
+      work_set: rate.work_sets?.name || '',
     }))
     .sort((a, b) => a.work_name.localeCompare(b.work_name))
 }
@@ -204,29 +199,20 @@ export const getWorkSetsOptions = async (): Promise<Array<{id: string, work_set:
   if (!supabase) throw new Error('Supabase client not initialized')
 
   const { data, error } = await supabase
-    .from('rates')
-    .select('id, work_set')
+    .from('work_sets')
+    .select('id, name')
     .eq('active', true)
-    .not('work_set', 'is', null)
-    .order('work_set', { ascending: true })
+    .order('name', { ascending: true })
 
   if (error) {
     console.error('Ошибка загрузки рабочих наборов:', error)
     throw error
   }
 
-  // Убираем дубликаты по work_set
-  const uniqueWorkSets = new Map<string, {id: string, work_set: string}>()
-  data?.forEach(rate => {
-    if (rate.work_set && !uniqueWorkSets.has(rate.work_set)) {
-      uniqueWorkSets.set(rate.work_set, {
-        id: rate.id,
-        work_set: rate.work_set
-      })
-    }
-  })
-
-  return Array.from(uniqueWorkSets.values())
+  return (data || []).map(ws => ({
+    id: ws.id,
+    work_set: ws.name
+  }))
 }
 
 // Получение рабочих наборов с учетом фильтров комплекта
@@ -234,17 +220,16 @@ export const getWorkSetsByFilters = async (costTypeIds?: number[], costCategoryI
   if (!supabase) throw new Error('Supabase client not initialized')
 
   let query = supabase
-    .from('rates')
+    .from('work_set_rates')
     .select(`
-      id,
-      work_set,
-      rates_detail_cost_categories_mapping(
+      work_set_id,
+      work_sets:work_set_id(id, name),
+      work_set_rates_categories_mapping(
         detail_cost_category_id,
         cost_category_id
       )
     `)
     .eq('active', true)
-    .not('work_set', 'is', null)
 
   const { data, error } = await query
 
@@ -263,7 +248,7 @@ export const getWorkSetsByFilters = async (costTypeIds?: number[], costCategoryI
   if (costTypeIds && costTypeIds.length > 0) {
     // Приоритет 1: Фильтрация по видам затрат (detail_cost_category_id)
     filteredRates = data.filter(rate => {
-      const mappings = rate.rates_detail_cost_categories_mapping || []
+      const mappings = rate.work_set_rates_categories_mapping || []
       return mappings.some(mapping =>
         costTypeIds.includes(mapping.detail_cost_category_id)
       )
@@ -271,7 +256,7 @@ export const getWorkSetsByFilters = async (costTypeIds?: number[], costCategoryI
   } else if (costCategoryIds && costCategoryIds.length > 0) {
     // Приоритет 2: Фильтрация по категориям затрат (cost_category_id)
     filteredRates = data.filter(rate => {
-      const mappings = rate.rates_detail_cost_categories_mapping || []
+      const mappings = rate.work_set_rates_categories_mapping || []
       return mappings.some(mapping =>
         costCategoryIds.includes(mapping.cost_category_id)
       )
@@ -279,13 +264,14 @@ export const getWorkSetsByFilters = async (costTypeIds?: number[], costCategoryI
   }
   // Если нет фильтров - возвращаем все
 
-  // Убираем дубликаты по work_set
+  // Убираем дубликаты по work_set_id
   const uniqueWorkSets = new Map<string, {id: string, work_set: string}>()
-  filteredRates.forEach(rate => {
-    if (rate.work_set && !uniqueWorkSets.has(rate.work_set)) {
-      uniqueWorkSets.set(rate.work_set, {
-        id: rate.id,
-        work_set: rate.work_set
+  filteredRates.forEach((rate: any) => {
+    const workSet = rate.work_sets
+    if (workSet && !uniqueWorkSets.has(workSet.id)) {
+      uniqueWorkSets.set(workSet.id, {
+        id: workSet.id,
+        work_set: workSet.name
       })
     }
   })

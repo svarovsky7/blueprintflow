@@ -38,10 +38,18 @@ import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile } from 'antd/es/upload'
 import * as XLSX from 'xlsx'
 import {
-  ratesApi,
-  type RateWithRelations,
-  type RateExcelRow,
-  type RateFormData,
+  getAllWorkSetRates,
+  getAllWorkSets,
+  createWorkSetRateFromForm,
+  updateWorkSetRateFromForm,
+  bulkCreateWorkSetRatesFromForm,
+  bulkUpdateWorkSetRatesFromForm,
+  bulkDeleteWorkSetRates,
+  deleteWorkSetRateById,
+  type WorkSetRateWithRelations,
+  type WorkSetRateExcelRow,
+  type WorkSetRateFormData,
+  type WorkSet,
 } from '@/entities/rates'
 import { supabase } from '@/lib/supabase'
 import { useScale } from '@/shared/contexts/ScaleContext'
@@ -53,14 +61,17 @@ const { Text, Title } = Typography
 type TableMode = 'view' | 'add' | 'edit' | 'delete'
 
 interface ConflictItem {
-  row: RateExcelRow
-  existing: RateWithRelations
+  row: WorkSetRateExcelRow
+  existing: WorkSetRateWithRelations
   index: number
 }
 
-interface RateTableRow extends RateWithRelations {
+interface RateTableRow extends Omit<WorkSetRateWithRelations, 'work_name' | 'work_set'> {
   isNew?: boolean
   isEditing?: boolean
+  // Поля для поддержки как объектов (из БД), так и строк (для новых строк)
+  work_name?: string | { id: string; name: string }
+  work_set?: string | { id: string; name: string; active: boolean }
 }
 
 // Настройки столбцов по умолчанию
@@ -133,10 +144,11 @@ export default function Rates() {
     skipped: number
     totalRows: number
     errors: string[]
+    unfoundUnits?: string[]
   } | null>(null)
   const [conflicts, setConflicts] = useState<ConflictItem[]>([])
   const [conflictDialogVisible, setConflictDialogVisible] = useState(false)
-  const [pendingImportData, setPendingImportData] = useState<RateExcelRow[]>([])
+  const [pendingImportData, setPendingImportData] = useState<WorkSetRateExcelRow[]>([])
 
   // Пагинация
   const [pageSize, setPageSize] = useState(() => {
@@ -146,8 +158,8 @@ export default function Rates() {
 
   // Загрузка данных
   const { data: rates = [], isLoading } = useQuery({
-    queryKey: ['rates'],
-    queryFn: ratesApi.getAll,
+    queryKey: ['work-set-rates'],
+    queryFn: () => getAllWorkSetRates(false),
     staleTime: 0,
     refetchOnMount: 'always',
   })
@@ -212,6 +224,18 @@ export default function Rates() {
     },
   })
 
+  const { data: unitSynonyms = [] } = useQuery({
+    queryKey: ['unit-synonyms'],
+    queryFn: async () => {
+      if (!supabase) throw new Error('Supabase is not configured')
+      const { data, error } = await supabase
+        .from('unit_synonyms')
+        .select('unit_id, synonym')
+      if (error) throw error
+      return data as Array<{ unit_id: string; synonym: string }>
+    },
+  })
+
   const { data: workNames = [] } = useQuery({
     queryKey: ['work-names'],
     queryFn: async () => {
@@ -220,6 +244,11 @@ export default function Rates() {
       if (error) throw error
       return data
     },
+  })
+
+  const { data: workSets = [] } = useQuery({
+    queryKey: ['work-sets'],
+    queryFn: () => getAllWorkSets(false),
   })
 
   // Сохранение настроек
@@ -369,11 +398,14 @@ export default function Rates() {
     try {
       // Сохранение новых строк
       for (const newRow of newRows) {
-        if (!newRow.work_name.trim()) continue
+        const workNameValue = typeof newRow.work_name === 'string' ? newRow.work_name : newRow.work_name?.name || ''
+        if (!workNameValue.trim()) continue
 
-        const formData: RateFormData = {
-          work_name: newRow.work_name,
-          work_set: newRow.work_set || undefined,
+        const workSetValue = typeof newRow.work_set === 'string' ? newRow.work_set : newRow.work_set?.name
+
+        const formData: WorkSetRateFormData = {
+          work_name: workNameValue,
+          work_set_name: workSetValue || undefined,
           base_rate: newRow.base_rate,
           unit_id: newRow.unit_id || undefined,
           detail_cost_category_id: newRow.detail_cost_category_id,
@@ -381,14 +413,17 @@ export default function Rates() {
           active: newRow.active,
         }
 
-        await ratesApi.create(formData)
+        await createWorkSetRateFromForm(formData)
       }
 
       // Сохранение отредактированных строк
       for (const [id, editedRow] of Object.entries(editingRows)) {
-        const formData: RateFormData = {
-          work_name: editedRow.work_name,
-          work_set: editedRow.work_set || undefined,
+        const workNameValue = typeof editedRow.work_name === 'string' ? editedRow.work_name : editedRow.work_name?.name || ''
+        const workSetValue = typeof editedRow.work_set === 'string' ? editedRow.work_set : editedRow.work_set?.name
+
+        const formData: WorkSetRateFormData = {
+          work_name: workNameValue,
+          work_set_name: workSetValue || undefined,
           base_rate: editedRow.base_rate,
           unit_id: editedRow.unit_id || undefined,
           detail_cost_category_id: editedRow.detail_cost_category_id,
@@ -396,10 +431,10 @@ export default function Rates() {
           active: editedRow.active,
         }
 
-        await ratesApi.update(id, formData)
+        await updateWorkSetRateFromForm(id, formData)
       }
 
-      await queryClient.invalidateQueries({ queryKey: ['rates'] })
+      await queryClient.invalidateQueries({ queryKey: ['work-set-rates'] })
       message.success('Данные успешно сохранены')
       cancelMode()
     } catch (error) {
@@ -410,8 +445,8 @@ export default function Rates() {
 
   const handleBulkDelete = useCallback(async () => {
     try {
-      await ratesApi.bulkDelete(Array.from(selectedRowsForDelete))
-      await queryClient.invalidateQueries({ queryKey: ['rates'] })
+      await bulkDeleteWorkSetRates(Array.from(selectedRowsForDelete))
+      await queryClient.invalidateQueries({ queryKey: ['work-set-rates'] })
       message.success(`Удалено ${selectedRowsForDelete.size} записей`)
       cancelMode()
     } catch (error) {
@@ -429,8 +464,8 @@ export default function Rates() {
   const handleConfirmDelete = useCallback(async () => {
     try {
       if (deleteTarget.type === 'single' && deleteTarget.id) {
-        await ratesApi.delete(deleteTarget.id)
-        await queryClient.invalidateQueries({ queryKey: ['rates'] })
+        await deleteWorkSetRateById(deleteTarget.id)
+        await queryClient.invalidateQueries({ queryKey: ['work-set-rates'] })
         message.success('Запись удалена')
       } else if (deleteTarget.type === 'bulk') {
         await handleBulkDelete()
@@ -444,13 +479,31 @@ export default function Rates() {
 
   // Excel импорт
   const processImportData = useCallback(
-    async (data: RateExcelRow[], resolutions?: Map<number, 'skip' | 'replace'>) => {
+    async (data: WorkSetRateExcelRow[], resolutions?: Map<number, 'skip' | 'replace'>) => {
       console.log(`🔄 Начало импорта: ${data.length} строк`)
       const errors: string[] = []
       let skippedCount = 0
+      const unfoundUnits = new Set<string>()
 
       try {
-        const processedData: RateFormData[] = []
+        const processedData: WorkSetRateFormData[] = []
+
+        // Функция поиска единицы измерения по имени или синониму
+        const findUnitByNameOrSynonym = (unitName: string) => {
+          const lowerName = unitName.toLowerCase().trim()
+
+          // Сначала ищем точное совпадение по имени
+          let unit = units.find((u) => u.name.toLowerCase() === lowerName)
+          if (unit) return unit
+
+          // Затем ищем по синонимам
+          const synonym = unitSynonyms.find((s) => s.synonym.toLowerCase() === lowerName)
+          if (synonym) {
+            unit = units.find((u) => u.id === synonym.unit_id)
+          }
+
+          return unit
+        }
 
         for (let i = 0; i < data.length; i++) {
           const row = data[i]
@@ -484,7 +537,9 @@ export default function Rates() {
           }
 
           const workName = findColumnValue([
+            'НАИМЕНОВАНИЕ РАБОТ УПРОЩЕННОЕ',
             'НАИМЕНОВАНИЕ РАБОТ',
+            'наименование работ упрощенное',
             'наименование работ',
             'работы',
             'наименование',
@@ -501,18 +556,30 @@ export default function Rates() {
           }
 
           // Поиск единицы измерения
-          const unitName = findColumnValue(['Ед.изм.', 'ед.изм', 'единица', 'единицы', 'ед', 'изм'])
+          const unitName = findColumnValue([
+            'Единица',
+            'Ед.изм.',
+            'ед.изм',
+            'единица',
+            'единицы',
+            'ед',
+            'изм',
+          ])
             ?.toString()
             .trim()
-          const unit = unitName
-            ? units.find((u) => u.name.toLowerCase() === unitName.toLowerCase())
-            : undefined
+          const unit = unitName ? findUnitByNameOrSynonym(unitName) : undefined
+
+          // Трекинг не найденных единиц измерения
+          if (unitName && !unit) {
+            unfoundUnits.add(unitName)
+          }
 
           // Поиск категорий и вида затрат
           const categoryName = findColumnValue([
+            'Категория затрат',
             'Категории затрат',
-            'категории затрат',
             'категория затрат',
+            'категории затрат',
             'категория',
             'затраты',
           ])
@@ -576,13 +643,14 @@ export default function Rates() {
             ?.toString()
             .trim()
 
-          const rateData: RateFormData = {
+          const rateData: WorkSetRateFormData = {
             work_name: workName,
-            work_set: workSet || undefined,
+            work_set_name: workSet || undefined,
             base_rate: baseRate,
-            unit_id: unit?.id,
+            unit_id: unit?.id || null,
             detail_cost_category_id: detailCostCategoryId,
             cost_category_id: costCategoryId,
+            active: true,
           }
 
           processedData.push(rateData)
@@ -591,8 +659,8 @@ export default function Rates() {
         console.log(`📊 Обработано строк: ${processedData.length}`)
 
         // Разделяем данные на create, update и skip
-        const toCreate: RateFormData[] = []
-        const toUpdate: Array<{ id: string; data: RateFormData }> = []
+        const toCreate: WorkSetRateFormData[] = []
+        const toUpdate: Array<{ id: string; data: WorkSetRateFormData }> = []
 
         for (const rateData of processedData) {
           const existing = rates.find(
@@ -600,9 +668,10 @@ export default function Rates() {
           )
 
           const originalIndex = data.findIndex(
-            (d) =>
-              d['НАИМЕНОВАНИЕ РАБОТ']?.toString().trim().toLowerCase() ===
-              rateData.work_name?.toLowerCase(),
+            (d) => {
+              const workNameInFile = d['НАИМЕНОВАНИЕ РАБОТ УПРОЩЕННОЕ'] || d['НАИМЕНОВАНИЕ РАБОТ']
+              return workNameInFile?.toString().trim().toLowerCase() === rateData.work_name?.toLowerCase()
+            }
           )
 
           if (existing && resolutions?.get(originalIndex) === 'replace') {
@@ -628,7 +697,7 @@ export default function Rates() {
           try {
             setImportProgress({ current: 0, total: toCreate.length + toUpdate.length })
             console.log(`➕ Создаем ${toCreate.length} новых записей батчами...`)
-            await ratesApi.bulkCreate(toCreate)
+            await bulkCreateWorkSetRatesFromForm(toCreate)
             createdCount = toCreate.length
             setImportProgress({ current: createdCount, total: toCreate.length + toUpdate.length })
           } catch (error) {
@@ -645,7 +714,7 @@ export default function Rates() {
               total: toCreate.length + toUpdate.length,
             })
             console.log(`🔄 Обновляем ${toUpdate.length} записей батчами...`)
-            await ratesApi.bulkUpdate(toUpdate)
+            await bulkUpdateWorkSetRatesFromForm(toUpdate)
             updatedCount = toUpdate.length
             setImportProgress({
               current: createdCount + updatedCount,
@@ -665,7 +734,12 @@ export default function Rates() {
           hasErrors: errors.length > 0,
         })
 
-        await queryClient.invalidateQueries({ queryKey: ['rates'] })
+        await queryClient.invalidateQueries({ queryKey: ['work-set-rates'] })
+
+        // Добавляем не найденные единицы в errors если они есть
+        if (unfoundUnits.size > 0) {
+          errors.push(`Не найдены единицы измерения (${unfoundUnits.size}): ${Array.from(unfoundUnits).join(', ')}`)
+        }
 
         // Сохраняем результат импорта
         // success=true только если нет ошибок
@@ -676,6 +750,7 @@ export default function Rates() {
           skipped: skippedCount,
           totalRows: data.length,
           errors,
+          unfoundUnits: unfoundUnits.size > 0 ? Array.from(unfoundUnits) : undefined,
         })
       } catch (error) {
         console.error('Process import error:', error)
@@ -690,7 +765,7 @@ export default function Rates() {
         })
       }
     },
-    [rates, units, detailCostCategories, costCategories, queryClient],
+    [rates, units, unitSynonyms, detailCostCategories, costCategories, queryClient],
   )
 
   const handleImport = useCallback(
@@ -712,7 +787,7 @@ export default function Rates() {
         const worksheet = workbook.Sheets[workbook.SheetNames[0]]
         console.log('📋 Лист выбран:', workbook.SheetNames[0])
 
-        const jsonData: RateExcelRow[] = XLSX.utils.sheet_to_json(worksheet)
+        const jsonData: WorkSetRateExcelRow[] = XLSX.utils.sheet_to_json(worksheet)
         console.log('🔄 Данные преобразованы в JSON:', {
           rowCount: jsonData.length,
           firstRow: jsonData[0],
@@ -720,11 +795,12 @@ export default function Rates() {
         })
 
         // Проверка конфликтов
-        const existingRates = new Map(rates.map((rate) => [rate.work_name.toLowerCase(), rate]))
+        const existingRates = new Map(rates.map((rate) => [rate.work_name?.name?.toLowerCase() || '', rate]))
         const conflictItems: ConflictItem[] = []
 
         jsonData.forEach((row, index) => {
-          const workName = row['НАИМЕНОВАНИЕ РАБОТ']?.toString().trim()
+          const typedRow = row as any
+          const workName = (typedRow['НАИМЕНОВАНИЕ РАБОТ'] || typedRow['НАИМЕНОВАНИЕ РАБОТ УПРОЩЕННОЕ'])?.toString().trim()
           if (workName && existingRates.has(workName.toLowerCase())) {
             console.log(`🔍 Найден конфликт в строке ${index}:`, {
               workName,
@@ -819,18 +895,23 @@ export default function Rates() {
         dataIndex: 'work_set',
         key: 'work_set',
         width: '15%',
-        sorter: (a, b) => (a.work_set || '').localeCompare(b.work_set || ''),
+        sorter: (a, b) => {
+          const aName = typeof a.work_set === 'string' ? a.work_set : a.work_set?.name || ''
+          const bName = typeof b.work_set === 'string' ? b.work_set : b.work_set?.name || ''
+          return aName.localeCompare(bName)
+        },
         onCell: () => ({
           style: {
             whiteSpace: 'normal',
             wordBreak: 'break-word',
           },
         }),
-        render: (text, record) => {
+        render: (workSet, record) => {
           if (record.isNew || editingRows[record.id]) {
+            const currentValue = editingRows[record.id]?.work_set ?? (typeof record.work_set === 'string' ? record.work_set : record.work_set?.name) ?? ''
             return (
               <Input
-                value={editingRows[record.id]?.work_set ?? record.work_set ?? ''}
+                value={currentValue}
                 onChange={(e) => {
                   if (record.isNew) {
                     setNewRows((prev) =>
@@ -849,7 +930,7 @@ export default function Rates() {
               />
             )
           }
-          return text || '-'
+          return (typeof workSet === 'string' ? workSet : workSet?.name) || '-'
         },
       },
       {
@@ -926,7 +1007,7 @@ export default function Rates() {
             const selectedCostCategoryId = editingRows[record.id]?.cost_category_id ?? record.cost_category_id
             const filteredDetails = selectedCostCategoryId
               ? detailCostCategories.filter((detail) =>
-                  detail.cost_categories?.some((cat) => cat?.id === selectedCostCategoryId),
+                  detail.cost_categories?.some((cat: any) => cat?.id === selectedCostCategoryId),
                 )
               : detailCostCategories
 
@@ -1111,10 +1192,15 @@ export default function Rates() {
                 icon={<CopyOutlined />}
                 onClick={() => {
                   const newId = `new-${Date.now()}`
+                  const workNameCopy = typeof record.work_name === 'string'
+                    ? `${record.work_name} (копия)`
+                    : record.work_name?.name
+                      ? `${record.work_name.name} (копия)`
+                      : '(копия)'
                   const copiedRow: RateTableRow = {
                     ...record,
                     id: newId,
-                    work_name: record.work_name?.name ? `${record.work_name.name} (копия)` : '(копия)',
+                    work_name: workNameCopy,
                     active: record.active, // Копируем статус активности
                     isNew: true,
                     created_at: new Date().toISOString(),
@@ -1623,9 +1709,9 @@ export default function Rates() {
                   borderRadius: 6,
                 }}
               >
-                <Text strong>Наименование: {conflict.row['НАИМЕНОВАНИЕ РАБОТ']}</Text>
+                <Text strong>Наименование: {(conflict.row as any)['НАИМЕНОВАНИЕ РАБОТ'] || (conflict.row as any)['НАИМЕНОВАНИЕ РАБОТ УПРОЩЕННОЕ']}</Text>
                 <br />
-                <Text>Новая расценка: {conflict.row['Расценка БАЗОВАЯ']}</Text>
+                <Text>Новая расценка: {(conflict.row as any)['Расценка БАЗОВАЯ']}</Text>
                 <br />
                 <Text>Текущая расценка: {conflict.existing.base_rate}</Text>
               </div>

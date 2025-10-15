@@ -201,8 +201,12 @@ export async function getFinishingPieRows(finishingPieId: string): Promise<Finis
       nomenclature:nomenclature_id (id, name),
       supplier_names:supplier_name_id (id, name),
       detail_cost_categories:detail_cost_category_id (id, name),
-      work_names:work_name_id (id, name),
-      rates:rate_id (id, work_set),
+      work_set_rate:work_set_rate_id (
+        id,
+        work_name_id,
+        work_names:work_name_id (id, name),
+        work_sets:work_set_id (id, name)
+      ),
       rate_units:rate_unit_id (name)
     `
     )
@@ -229,10 +233,10 @@ export async function getFinishingPieRows(finishingPieId: string): Promise<Finis
       supplier_name: row.supplier_names?.name || null,
       detail_cost_category_id: row.detail_cost_category_id,
       detail_cost_category_name: row.detail_cost_categories?.name || null,
-      work_name_id: row.work_name_id,
-      work_name: row.work_names?.name || null, // Название работы из work_names
-      rate_id: row.rate_id,
-      work_set: row.rates?.work_set || null, // Рабочий набор из rates (для отображения)
+      work_name_id: row.work_set_rate?.work_name_id || null,
+      work_name: row.work_set_rate?.work_names?.name || null,
+      work_set_rate_id: row.work_set_rate_id,
+      work_set: row.work_set_rate?.work_sets?.name || null,
       rate_unit_id: row.rate_unit_id,
       rate_unit_name: row.rate_units?.name || null,
       created_at: row.created_at,
@@ -285,7 +289,7 @@ export async function deleteFinishingPieRow(id: string): Promise<void> {
 // Получить ед.изм. работы по ID расценки
 export async function getRateUnitId(rateId: string): Promise<string | null> {
   const { data, error } = await supabase
-    .from('rates')
+    .from('work_set_rates')
     .select('unit_id')
     .eq('id', rateId)
     .maybeSingle()

@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { App } from 'antd'
 import type { Key } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ratesApi } from '@/entities/rates/api/rates-api'
+import { getOrCreateWorkSet, createWorkSetRate } from '@/entities/rates/api'
 import type { TableMode, RowData, RowColor, AppliedFilters } from '../types'
 import { parseFloorsFromString } from '../utils/floors'
 
@@ -520,37 +520,37 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
             }
           }
 
-          // 5. Создаем связи с расценками через API для работы с work_names
-          if (row.rateId || row.workName) {
+          // 5. Создаем связи с расценками
+          if (row.rateId || row.workName || row.workSet) {
+            let finalWorkSetRateId = row.rateId // rateId теперь это work_set_rate_id
 
-            let finalRateId = row.rateId
-
-            // Если есть workName но нет rateId, создаем через API
-            if (row.workName && row.workName.trim() && !finalRateId) {
+            // Если есть workName и workSet, но нет rateId, создаем новую расценку
+            if (row.workName && row.workName.trim() && row.workSet && row.workSet.trim() && !finalWorkSetRateId) {
               const workNameValue = row.workName.trim()
+              const workSetValue = row.workSet.trim()
 
-              // Создаем расценку через API, который работает с work_names
-              const newRate = await ratesApi.create({
-                work_name: workNameValue,
-                work_set: row.workSet || '',
+              // Получаем или создаем work_set
+              const workSetRecord = await getOrCreateWorkSet(workSetValue)
+
+              // Создаем новую расценку в work_set_rates
+              const newWorkSetRate = await createWorkSetRate({
+                work_set_id: workSetRecord.id,
+                work_name_id: row.workNameId || '', // Должен быть получен из dropdown
                 base_rate: 0,
                 unit_id: row.unitId || null,
                 active: true,
-                detail_cost_category_id: row.costTypeId ? parseInt(row.costTypeId) : undefined,
-                cost_category_id: row.costCategoryId ? parseInt(row.costCategoryId) : undefined,
               })
 
-              finalRateId = newRate.id
+              finalWorkSetRateId = newWorkSetRate.id
             }
 
-            // Создаем mapping только если есть finalRateId
-            if (finalRateId) {
+            // Создаем mapping только если есть finalWorkSetRateId
+            if (finalWorkSetRateId) {
               const { error: rateError } = await supabase
                 .from('chessboard_rates_mapping')
                 .insert({
                   chessboard_id: newRowId,
-                  rate_id: finalRateId,
-                  work_set: row.workSetId || null
+                  work_set_rate_id: finalWorkSetRateId,
                 })
 
               if (rateError) {
@@ -1057,20 +1057,28 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
 
         // Обновляем rates mapping для наименования работ
         if (updates.rateId !== undefined || updates.workName !== undefined) {
-          const rateId = updates.rateId !== undefined ? updates.rateId : null
-          const workSetId = updates.workSetId !== undefined ? updates.workSetId : null
+          const workSetRateId = updates.rateId !== undefined ? updates.rateId : null
 
-          if (rateId) {
-            // Используем upsert вместо delete + insert для избежания конфликта 409
-            promises.push(
-              supabase.from('chessboard_rates_mapping').upsert({
-                chessboard_id: rowId,
-                rate_id: rateId,
-                work_set: workSetId
-              }, { onConflict: 'chessboard_id,rate_id' })
-            )
+          if (workSetRateId) {
+            // Сначала удаляем старую связь, затем создаем новую
+            const ratesPromise = async () => {
+              await supabase
+                .from('chessboard_rates_mapping')
+                .delete()
+                .eq('chessboard_id', rowId)
+
+              const { error } = await supabase
+                .from('chessboard_rates_mapping')
+                .insert({
+                  chessboard_id: rowId,
+                  work_set_rate_id: workSetRateId,
+                })
+
+              if (error) throw error
+            }
+            promises.push(ratesPromise())
           } else {
-            // Если rateId пустой, удаляем связь
+            // Если workSetRateId пустой, удаляем связь
             promises.push(
               supabase.from('chessboard_rates_mapping').delete().eq('chessboard_id', rowId)
             )
@@ -1411,20 +1419,28 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
 
         // Обновляем rates mapping для backup строки
         if (editedRowData.rateId !== undefined || editedRowData.workName !== undefined || editedRowData.workSetId !== undefined) {
-          const rateId = editedRowData.rateId
-          const workSetId = editedRowData.workSetId
+          const workSetRateId = editedRowData.rateId
 
-          if (rateId) {
-            // Используем upsert вместо delete + insert для избежания конфликта 409
-            promises.push(
-              supabase.from('chessboard_rates_mapping').upsert({
-                chessboard_id: rowId,
-                rate_id: rateId,
-                work_set: workSetId
-              }, { onConflict: 'chessboard_id,rate_id' })
-            )
+          if (workSetRateId) {
+            // Сначала удаляем старую связь, затем создаем новую
+            const ratesPromise = async () => {
+              await supabase
+                .from('chessboard_rates_mapping')
+                .delete()
+                .eq('chessboard_id', rowId)
+
+              const { error } = await supabase
+                .from('chessboard_rates_mapping')
+                .insert({
+                  chessboard_id: rowId,
+                  work_set_rate_id: workSetRateId,
+                })
+
+              if (error) throw error
+            }
+            promises.push(ratesPromise())
           } else {
-            // Если rateId пустой, удаляем связь
+            // Если workSetRateId пустой, удаляем связь
             promises.push(
               supabase.from('chessboard_rates_mapping').delete().eq('chessboard_id', rowId)
             )

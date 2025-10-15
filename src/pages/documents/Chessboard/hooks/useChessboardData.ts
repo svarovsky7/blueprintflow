@@ -498,16 +498,16 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
           .select(
             `
             chessboard_id,
-            work_set,
-            rates!chessboard_rates_mapping_rate_id_fkey(
+            work_set_rate_id,
+            work_set_rate:work_set_rate_id(
               id,
-              work_name:work_names(id, name),
-              work_set,
+              work_name_id,
+              work_set_id,
               base_rate,
-              unit:units(name)
-            ),
-            work_set_rate:rates!chessboard_rates_mapping_work_set_fkey(
-              work_set
+              unit_id,
+              work_names:work_name_id(id, name),
+              work_sets:work_set_id(id, name),
+              units:unit_id(name)
             )
           `,
           )
@@ -582,12 +582,12 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
       const rowFloorsData = floorsByChessboardId.get(row.id) || []
 
       const rateMapping = ratesMappingIndex.get(row.id)
-      const workName = rateMapping?.rates?.work_name?.name || ''
-      const workNameId = rateMapping?.rates?.work_name?.id || ''
-      const rateId = rateMapping?.rates?.id || ''
-      const workUnit = rateMapping?.rates?.unit?.name || ''
-      const workSetId = rateMapping?.work_set || '' // UUID из chessboard_rates_mapping.work_set
-      const workSet = rateMapping?.work_set_rate?.work_set || '' // Название из связанной расценки
+      const workName = rateMapping?.work_set_rate?.work_names?.name || ''
+      const workNameId = rateMapping?.work_set_rate?.work_name_id || ''
+      const rateId = rateMapping?.work_set_rate_id || '' // ID расценки из work_set_rates
+      const workUnit = rateMapping?.work_set_rate?.units?.name || ''
+      const workSetId = rateMapping?.work_set_rate?.work_set_id || '' // UUID из work_sets
+      const workSet = rateMapping?.work_set_rate?.work_sets?.name || '' // Название рабочего набора
 
       // ОПТИМИЗАЦИЯ: агрегируем количества и формируем данные этажей в одном проходе
       let totalQuantityPd = 0

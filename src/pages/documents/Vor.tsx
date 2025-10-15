@@ -21,6 +21,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { getVorTableData, calculateVorTotals, calculateVorTotalFromChessboard } from '@/entities/vor'
+import { parseNumberWithSeparators } from '@/shared/lib'
 
 const { Text } = Typography
 
@@ -620,6 +621,7 @@ const Vor = () => {
                   handleCoefficientChange(editingVor.id, value)
                 }
               }}
+              parser={parseNumberWithSeparators}
             />
           </Form.Item>
         </Form>

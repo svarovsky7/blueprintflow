@@ -4,7 +4,7 @@ import { EditOutlined, DeleteOutlined, CopyOutlined, PlusOutlined, BgColorsOutli
 import type { ColumnsType, ColumnType } from 'antd/es/table'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { ratesApi } from '@/entities/rates/api/rates-api'
+import { getWorkSetsByCategory, getWorkNamesByWorkSet } from '@/entities/rates/api'
 import { useScale } from '@/shared/contexts/ScaleContext'
 import { RowColorPicker } from './RowColorPicker'
 import { CommentsCell } from './CommentsCell'
@@ -308,7 +308,18 @@ const WorkSetSelect: React.FC<WorkSetSelectProps> = ({ value, categoryId, costTy
   // Хук всегда вызывается на верхнем уровне компонента
   const { data: workSetOptions = [] } = useQuery({
     queryKey: stableQueryKey,
-    queryFn: () => ratesApi.getWorkSetsByCategory(normalizedCostTypeId, normalizedCategoryId),
+    queryFn: async () => {
+      const results = await getWorkSetsByCategory(
+        normalizedCategoryId ? [normalizedCategoryId] : undefined,
+        normalizedCostTypeId ? [normalizedCostTypeId] : undefined
+      )
+      // Преобразуем результат в формат для Select: { id, name } -> { value, label, workSetName }
+      return results.map(ws => ({
+        value: ws.id,
+        label: ws.name,
+        workSetName: ws.name,
+      }))
+    },
     enabled: !!normalizedCategoryId && !!normalizedCostTypeId, // Запрос только если есть и категория и вид затрат
   })
 
@@ -342,48 +353,57 @@ const WorkSetSelect: React.FC<WorkSetSelectProps> = ({ value, categoryId, costTy
 
 interface WorkNameSelectProps {
   value: string
-  workSet: string | undefined
-  costCategoryId: string | undefined
-  costTypeId: string | undefined
-  onChange: (value: string) => void
+  workSetId: string | undefined
+  onChange: (workSetRateId: string, workNameId: string) => void
 }
 
-const WorkNameSelect: React.FC<WorkNameSelectProps> = ({ value, workSet, costCategoryId, costTypeId, onChange }) => {
+const WorkNameSelect: React.FC<WorkNameSelectProps> = ({ value, workSetId, onChange }) => {
   // ИСПРАВЛЕНИЕ: Стабилизируем queryKey для предотвращения infinite render
   const stableQueryKey = useMemo(() => {
-    const key = ['works-by-work-set']
-    if (workSet) key.push(workSet)
-    if (costCategoryId) key.push(costCategoryId)
-    if (costTypeId) key.push(costTypeId)
+    const key = ['work-names-by-work-set']
+    if (workSetId) key.push(workSetId)
     return key
-  }, [workSet, costCategoryId, costTypeId])
+  }, [workSetId])
 
   // Хук всегда вызывается на верхнем уровне компонента
   const { data: workOptions = [] } = useQuery({
     queryKey: stableQueryKey,
-    queryFn: () => ratesApi.getWorksByWorkSet(workSet, costCategoryId, costTypeId),
-    enabled: !!workSet && !!costCategoryId && !!costTypeId, // Запрос только если есть все параметры
+    queryFn: async () => {
+      if (!workSetId) return []
+      const results = await getWorkNamesByWorkSet(workSetId)
+      // Результат уже в нужном формате: { id, name, base_rate, unit_name }
+      return results
+    },
+    enabled: !!workSetId, // Запрос только если есть workSetId
   })
 
   return (
     <Select
       value={value || undefined}
       placeholder=""
-      onChange={onChange}
+      onChange={(selectedWorkSetRateId) => {
+        // Находим выбранную работу для получения work_name_id
+        const selectedWork = workOptions.find((w: any) => w.id === selectedWorkSetRateId)
+        const workNameId = selectedWork?.work_name_id || ''
+        onChange(selectedWorkSetRateId, workNameId)
+      }}
       allowClear
       showSearch
       size="small"
       style={STABLE_STYLES.fullWidth}
-      dropdownStyle={getDynamicDropdownStyle(workOptions)}
+      dropdownStyle={{ width: 500, maxHeight: 300, zIndex: 9999 }}
       filterOption={(input, option) => {
         const text = option?.label?.toString() || ""
         return text.toLowerCase().includes(input.toLowerCase())
       }}
-      options={workOptions}
-      disabled={!workSet || !costCategoryId || !costTypeId} // Отключаем если не выбраны все параметры
+      options={workOptions.map((w: any) => ({
+        value: w.id, // work_set_rate.id
+        label: w.name, // название работы
+      }))}
+      disabled={!workSetId} // Отключаем если не выбран рабочий набор
       notFoundContent={
-        !workSet || !costCategoryId || !costTypeId
-          ? 'Выберите категорию затрат, вид затрат и рабочий набор'
+        !workSetId
+          ? 'Выберите рабочий набор'
           : 'Работы не найдены'
       }
     />
@@ -1311,11 +1331,21 @@ export const ChessboardTable = memo(({
       if (error) throw error
 
       // Создаём плоский список: каждая комбинация detail+category - отдельный элемент
-      return data.map(item => ({
+      const mapped = data.map(item => ({
         value: item.detail_cost_categories.id,
         label: item.detail_cost_categories.name,
         categoryId: item.cost_category_id
       }))
+
+      // Дедупликация по (value, categoryId) для предотвращения дубликатов
+      const uniqueMap = new Map<string, { value: number; label: string; categoryId: number }>()
+      mapped.forEach(item => {
+        const key = `${item.value}_${item.categoryId}`
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, item)
+        }
+      })
+      return Array.from(uniqueMap.values())
     },
   })
 
@@ -2184,20 +2214,30 @@ export const ChessboardTable = memo(({
                   locationId: ''
                 })
               }}
-              // Фильтрация по выбранной категории затрат
+              // Каскадная фильтрация: Вид затрат зависит от Категории затрат
               options={(() => {
                 const currentCategory = (record as any).costCategoryId
 
                 if (!currentCategory) {
-                  // Если категория не выбрана, показываем все виды затрат
-                  return allCostTypesData
+                  // Если категория не выбрана, возвращаем пустой список
+                  return []
                 }
 
-                return allCostTypesData.filter(type => {
+                // Фильтруем виды затрат по выбранной категории
+                const filtered = allCostTypesData.filter(type => {
                   const categoryId = currentCategory.toString()
                   const typeCategoryId = type.categoryId ? type.categoryId.toString() : null
                   return typeCategoryId === categoryId
                 })
+
+                // Дедупликация по value для предотвращения React key warnings
+                const uniqueTypes = new Map<number, { value: number; label: string; categoryId: number }>()
+                filtered.forEach(type => {
+                  if (!uniqueTypes.has(type.value)) {
+                    uniqueTypes.set(type.value, type)
+                  }
+                })
+                return Array.from(uniqueTypes.values())
               })()}
               allowClear
               showSearch
@@ -2214,10 +2254,23 @@ export const ChessboardTable = memo(({
               }}
               dropdownStyle={getDynamicDropdownStyle((() => {
                 const categoryId = record.costCategoryId ? record.costCategoryId.toString() : null
-                return allCostTypesData.filter(type => {
+                if (!categoryId) {
+                  // Если категория не выбрана, пустой список
+                  return []
+                }
+                const filtered = allCostTypesData.filter(type => {
                   const typeCategoryId = type.categoryId ? type.categoryId.toString() : null
                   return typeCategoryId === categoryId
                 })
+
+                // Дедупликация по value для предотвращения React key warnings
+                const uniqueTypes = new Map<number, { value: number; label: string; categoryId: number }>()
+                filtered.forEach(type => {
+                  if (!uniqueTypes.has(type.value)) {
+                    uniqueTypes.set(type.value, type)
+                  }
+                })
+                return Array.from(uniqueTypes.values())
               })())}
             />
           )
@@ -2297,23 +2350,19 @@ export const ChessboardTable = memo(({
       render: (value, record) => {
         const isEditing = (record as any).isEditing
         if (isEditing) {
-          const workSet = (record as RowData).workSet
-          const costCategoryId = (record as RowData).costCategoryId
-          const costTypeId = (record as RowData).costTypeId
+          const workSetId = (record as RowData).workSetId
           const currentRateId = (record as RowData).rateId
 
           return (
             <WorkNameSelect
-              value={currentRateId || ''} // Используем rateId как value
-              workSet={workSet}
-              costCategoryId={costCategoryId}
-              costTypeId={costTypeId}
-              onChange={(selectedRateId) => {
-                // selectedRateId - это ID расценки, получаем название работы из API
-                // Поскольку в новой логике работа всегда одна для выбранного рабочего набора,
-                // просто используем selectedRateId
+              value={currentRateId || ''} // Используем rateId (work_set_rate_id) как value
+              workSetId={workSetId}
+              onChange={(workSetRateId, workNameId) => {
+                // workSetRateId - ID расценки из work_set_rates для сохранения в chessboard_rates_mapping
+                // workNameId - ID работы из work_names для дополнительной информации
                 onRowUpdate(record.id, {
-                  rateId: selectedRateId
+                  rateId: workSetRateId,
+                  workNameId: workNameId
                 })
               }}
             />
