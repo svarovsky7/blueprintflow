@@ -30,6 +30,7 @@ export interface WorkSetRateWithRelations extends WorkSetRate {
   work_name?: {
     id: string
     name: string
+    unit_id: string | null
   }
   unit?: {
     id: string
@@ -106,6 +107,7 @@ export interface RateWithRelations extends Rate {
   work_name?: {
     id: string
     name: string
+    unit_id: string | null
   }
   unit?: {
     id: string

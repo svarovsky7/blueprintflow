@@ -1,4 +1,5 @@
 export type {
+  VorType,
   VorWork,
   VorMaterial,
   CreateVorWorkDto,
@@ -10,5 +11,10 @@ export type {
   SupplierNameOption,
   UnitOption,
   VorWorksFilters,
-  VorMaterialsFilters
+  VorMaterialsFilters,
+  CreateVorFromChessboardSetDto,
+  ChessboardSetVor,
+  ChessboardSetWithVors
 } from './types'
+
+export { VOR_TYPE_LABELS } from './types'

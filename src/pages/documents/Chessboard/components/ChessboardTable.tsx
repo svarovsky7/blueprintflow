@@ -13,7 +13,7 @@ import type { RowData, TableMode, RowColor, FloorModalRow, FloorModalInfo } from
 import { COLUMN_KEYS, TABLE_SCROLL_CONFIG, LARGE_TABLE_CONFIG, MATERIAL_TYPE_OPTIONS } from '../utils/constants'
 import { parseFloorsFromString, hasMultipleFloors as checkMultipleFloors, distributeQuantitiesAcrossFloors } from '../utils/floors'
 import { useNomenclatureSupplierCascade } from '../hooks/useNomenclatureSupplierCascade'
-import { chessboardCascadeApi } from '@/entities/chessboard'
+import { chessboardCascadeApi, getChessboardTypes, createChessboardType, getChessboardTypeByName } from '@/entities/chessboard'
 import { documentationApi } from '@/entities/documentation/api/documentation-api'
 import { parseNumberWithSeparators } from '@/shared/lib'
 
@@ -120,6 +120,7 @@ const COLUMN_WIDTH_CONFIG_BASE: Record<string, { width?: number; minWidth?: numb
   [COLUMN_KEYS.LOCATION]: { width: 80 }, // "Локализация" 80px
   [COLUMN_KEYS.MATERIAL]: { width: 200 }, // "Материал" 200px
   [COLUMN_KEYS.MATERIAL_TYPE]: { width: 60 }, // "Тип материала" 60px
+  [COLUMN_KEYS.TYPE]: { width: 100 }, // "Тип" 100px
   [COLUMN_KEYS.QUANTITY_PD]: { width: 90 }, // "Кол-во по ПД" 90px (scale 0.7), 103px (0.8), 116px (0.9), 129px (1.0)
   [COLUMN_KEYS.QUANTITY_SPEC]: { width: 90 }, // "Кол-во по спеке РД" 90px (scale 0.7), 103px (0.8), 116px (0.9), 129px (1.0)
   [COLUMN_KEYS.QUANTITY_RD]: { width: 90 }, // "Кол-во по пересчету РД" 90px (scale 0.7), 103px (0.8), 116px (0.9), 129px (1.0)
@@ -1193,6 +1194,17 @@ export const ChessboardTable = memo(({
     refetchOnMount: 'always',
   })
 
+  const { data: typesData = [], refetch: refetchTypes } = useQuery({
+    queryKey: ['chessboard-types-select'],
+    queryFn: async () => {
+      const types = await getChessboardTypes()
+      return types.map(type => ({ value: type.id, label: type.name }))
+    },
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
+  })
+
   // Корпуса для выбранного проекта через projects_blocks
   const { data: blocksData = [] } = useQuery({
     queryKey: ['blocks-select', currentProjectId],
@@ -1641,6 +1653,35 @@ export const ChessboardTable = memo(({
       convertedQuantity: formattedQuantity
     })
   }, [data, onRowUpdate])
+
+  // Обработчик изменения типа с автоматическим созданием нового типа
+  const handleTypeChange = useCallback(async (recordId: string, value: string | null) => {
+    if (!value) {
+      onRowUpdate(recordId, { typeId: '', type: '' })
+      return
+    }
+
+    // Проверяем, существует ли тип в списке (по ID или по названию)
+    const existingTypeById = typesData.find((t) => t.value === value)
+    const existingTypeByName = typesData.find((t) => t.label.toLowerCase() === value.toLowerCase())
+
+    if (existingTypeById) {
+      // Тип существует - сохраняем его ID и название
+      onRowUpdate(recordId, { typeId: value, type: existingTypeById.label })
+    } else if (existingTypeByName) {
+      // Тип существует по названию - сохраняем его ID
+      onRowUpdate(recordId, { typeId: existingTypeByName.value, type: existingTypeByName.label })
+    } else {
+      // Новый тип - создаём на лету
+      try {
+        const newType = await createChessboardType(value)
+        await refetchTypes()
+        onRowUpdate(recordId, { typeId: newType.id, type: newType.name })
+      } catch (error) {
+        console.error('Ошибка создания типа:', error)
+      }
+    }
+  }, [typesData, onRowUpdate, refetchTypes])
 
   // ОПТИМИЗАЦИЯ: стабильные обработчики событий (ИСПРАВЛЕНО: убираем циклические зависимости)
   const handleStartEditing = useCallback((recordId: string, record: RowData) => () => onStartEditing(recordId, record), [onStartEditing])
@@ -2567,6 +2608,58 @@ export const ChessboardTable = memo(({
               style={STABLE_STYLES.fullWidth}
               dropdownStyle={getDynamicDropdownStyle(MATERIAL_TYPE_OPTIONS)}
               placeholder=""
+            />
+          )
+        }
+        return <span>{value}</span>
+      },
+    },
+
+    // Тип
+    {
+      title: 'Тип',
+      key: COLUMN_KEYS.TYPE,
+      dataIndex: 'type',
+      width: 100,
+      filterMode: 'tree' as const,
+      filterSearch: true,
+      onFilter: (value, record) => record.type?.includes(value as string),
+      onHeaderCell: () => ({
+        className: 'chessboard-header-cell',
+        style: {
+          whiteSpace: 'pre-line',
+          textAlign: 'center',
+          verticalAlign: 'middle',
+          lineHeight: '20px',
+          padding: '4px 8px',
+        },
+      }),
+      render: (value, record) => {
+        const isEditing = (record as any).isEditing
+        if (isEditing) {
+          return (
+            <Select
+              value={record.typeId || undefined}
+              onChange={(newValue) => handleTypeChange(record.id, newValue)}
+              onBlur={(e) => {
+                const inputValue = (e.target as HTMLInputElement).value
+                if (
+                  inputValue &&
+                  !typesData.some((t) => t.label.toLowerCase() === inputValue.toLowerCase())
+                ) {
+                  handleTypeChange(record.id, inputValue)
+                }
+              }}
+              options={typesData}
+              size="small"
+              style={STABLE_STYLES.fullWidth}
+              dropdownStyle={getDynamicDropdownStyle(typesData)}
+              placeholder=""
+              showSearch
+              allowClear
+              filterOption={(inputValue, option) =>
+                option?.label?.toString().toUpperCase().indexOf(inputValue.toUpperCase()) !== -1
+              }
             />
           )
         }

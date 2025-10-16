@@ -1,5 +1,14 @@
 // Типы для работы с ВОР (Ведомость объема работ)
 
+// ENUM для типов ВОР
+export type VorType = 'brigade' | 'contractor'
+
+// Метки для отображения типов ВОР
+export const VOR_TYPE_LABELS: Record<VorType, string> = {
+  brigade: 'Бригада',
+  contractor: 'Подрядчик'
+}
+
 export interface VorWork {
   id: string
   vor_id: string
@@ -25,6 +34,7 @@ export interface VorWork {
     work_names?: {
       id: string
       name: string
+      unit_id: string | null
     }
   }
   // Данные рабочего набора
@@ -41,6 +51,7 @@ export interface VorWork {
     work_names?: {
       id: string
       name: string
+      unit_id: string | null
     }
     work_sets?: {
       id: string
@@ -176,6 +187,7 @@ export interface CreateVorFromChessboardSetDto {
   project_id: string
   set_id: string
   rate_coefficient?: number
+  vor_type: VorType // Тип ВОР: для бригады или для подрядчика
 }
 
 export interface ChessboardSetVor {

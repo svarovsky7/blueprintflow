@@ -39,6 +39,8 @@ export interface RowData {
   locationId: string
   material: string
   materialType: 'База' | 'Доп' | 'ИИ' // Тип материала
+  type: string // Тип (из справочника chessboard_types)
+  typeId: string // ID типа
   quantityPd: string // Кол-во по ПД
   quantitySpec: string // Кол-во по спеке РД
   quantityRd: string // Кол-во по пересчету РД

@@ -6,7 +6,8 @@
       "Bash(npx tsc:*)",
       "Bash(npm run build)",
       "Bash(npx playwright test:*)",
-      "Bash(npm run lint)"
+      "Bash(npm run lint)",
+      "Bash(npm run lint:*)"
     ],
     "deny": [],
     "ask": []

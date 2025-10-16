@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Table, Typography, Space, Spin, Alert, Button, InputNumber, message, Select, Input } from 'antd'
-import { ArrowLeftOutlined, DownloadOutlined, EditOutlined, SaveOutlined, CloseOutlined, PlusOutlined, MinusOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Table, Typography, Space, Spin, Alert, Button, InputNumber, message, Select, Input, Badge } from 'antd'
+import { ArrowLeftOutlined, DownloadOutlined, EditOutlined, SaveOutlined, CloseOutlined, PlusOutlined, MinusOutlined, DeleteOutlined, ReloadOutlined, CheckCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import * as XLSX from 'xlsx'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams, useNavigate } from 'react-router-dom'
@@ -18,9 +18,13 @@ import {
   getSupplierNamesOptions,
   getUnitsOptions,
   getRatesOptions,
-  populateVorFromChessboardSet
+  populateVorFromChessboardSet,
+  VOR_TYPE_LABELS,
+  type VorType
 } from '@/entities/vor'
+import { checkSetChanges, type SetChangeStatus } from '@/entities/chessboard'
 import AddWorkModal from './VorView/components/AddWorkModal'
+import VorChangesModal from './VorView/components/VorChangesModal'
 import { parseNumberWithSeparators } from '@/shared/lib'
 
 const { Title, Text } = Typography
@@ -152,6 +156,7 @@ const VorView = () => {
 
   // Состояния для модальных окон
   const [addWorkModalVisible, setAddWorkModalVisible] = useState(false)
+  const [changesModalVisible, setChangesModalVisible] = useState(false)
 
   // Функции форматирования для InputNumber - убирают лишние нули
   const formatNumber = (value: string | number | undefined): string => {
@@ -234,6 +239,7 @@ const VorView = () => {
           name,
           project_id,
           rate_coefficient,
+          vor_type,
           created_at,
           updated_at,
           vor_chessboard_sets_mapping (
@@ -306,6 +312,16 @@ const VorView = () => {
       return result
     },
     enabled: !!vorData?.vor,
+  })
+
+  // Получаем статус изменений комплекта для ВОР
+  const { data: changeStatus } = useQuery<SetChangeStatus | null>({
+    queryKey: ['vor-changes-status', vorId],
+    queryFn: () => {
+      if (!vorId) return null
+      return checkSetChanges(vorId)
+    },
+    enabled: !!vorId,
   })
 
   // Вычисляем фильтры комплекта для ограничения рабочих наборов
@@ -2888,9 +2904,45 @@ const VorView = () => {
               marginBottom: 16,
             }}
           >
-            <Button icon={<ArrowLeftOutlined />} onClick={handleGoBack} size="large">
-              Назад
-            </Button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <Button icon={<ArrowLeftOutlined />} onClick={handleGoBack} size="large">
+                Назад
+              </Button>
+
+              {/* Индикатор изменений в шахматке */}
+              {changeStatus && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Text strong>Изменения в шахматке:</Text>
+                  {changeStatus.hasChanges ? (
+                    <Badge
+                      status="error"
+                      text={
+                        <Button
+                          type="link"
+                          onClick={() => setChangesModalVisible(true)}
+                          style={{ padding: 0, height: 'auto' }}
+                        >
+                          <Space>
+                            <WarningOutlined style={{ color: '#ff4d4f' }} />
+                            <Text type="danger">Есть изменения ({changeStatus.changesCount})</Text>
+                          </Space>
+                        </Button>
+                      }
+                    />
+                  ) : (
+                    <Badge
+                      status="success"
+                      text={
+                        <Space>
+                          <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                          <Text type="success">Актуально</Text>
+                        </Space>
+                      }
+                    />
+                  )}
+                </div>
+              )}
+            </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               {viewMode === 'view' && (
@@ -2993,6 +3045,12 @@ const VorView = () => {
                 <Title level={3} style={{ margin: 0 }}>
                   ВЕДОМОСТЬ ОБЪЕМОВ РАБОТ по комплекту {setInfo}
                 </Title>
+
+                {vorData?.vor?.vor_type && (
+                  <Text type="secondary" style={{ fontSize: 14, marginTop: 4 }}>
+                    Тип: {VOR_TYPE_LABELS[vorData.vor.vor_type as VorType]}
+                  </Text>
+                )}
               </div>
 
               {headerExpanded && (
@@ -3168,13 +3226,22 @@ const VorView = () => {
 
       {/* Модальные окна */}
       {vorId && (
-        <AddWorkModal
-          visible={addWorkModalVisible}
-          onCancel={() => setAddWorkModalVisible(false)}
-          onSuccess={handleAddWorkSuccess}
-          vorId={vorId}
-          setFilters={setFilters}
-        />
+        <>
+          <AddWorkModal
+            visible={addWorkModalVisible}
+            onCancel={() => setAddWorkModalVisible(false)}
+            onSuccess={handleAddWorkSuccess}
+            vorId={vorId}
+            setFilters={setFilters}
+          />
+
+          <VorChangesModal
+            visible={changesModalVisible}
+            onCancel={() => setChangesModalVisible(false)}
+            vorId={vorId}
+            vorName={vorData?.vor?.name}
+          />
+        </>
       )}
 
     </>

@@ -49,6 +49,12 @@ export const chessboardSetsApi = {
   async createSet(request: CreateChessboardSetRequest): Promise<ChessboardSet> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
+    // Получить текущего пользователя
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    const currentUserId = user?.id || null
+
     // Проверяем, существует ли уже комплект с такими же фильтрами
     const existingSet = await this.findSetByFilters(request.filters)
     if (existingSet) {
@@ -79,6 +85,7 @@ export const chessboardSetsApi = {
       block_ids: request.filters.block_ids || null,
       cost_category_ids: request.filters.cost_category_ids || null,
       cost_type_ids: request.filters.cost_type_ids || null,
+      created_by: currentUserId,
     }
 
     const { data, error } = await supabase
@@ -660,7 +667,22 @@ export const chessboardSetsApi = {
   async addStatusToSet(request: AddChessboardSetStatusRequest): Promise<void> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    const { error } = await supabase.from('statuses_mapping').insert({
+    // ШАГО 1: Снимаем флаг is_current со всех предыдущих записей этого комплекта
+    // Это необходимо для избежания конфликта с уникальным индексом idx_statuses_mapping_unique_current
+    const { error: updateError } = await supabase
+      .from('statuses_mapping')
+      .update({ is_current: false })
+      .eq('entity_type', 'chessboard_set')
+      .eq('entity_id', request.chessboard_set_id)
+      .eq('is_current', true)
+
+    if (updateError) {
+      console.error('Failed to update previous status:', updateError)
+      throw updateError
+    }
+
+    // ШАГ 2: Вставляем новую запись с is_current = true
+    const { error: insertError } = await supabase.from('statuses_mapping').insert({
       entity_type: 'chessboard_set',
       entity_id: request.chessboard_set_id,
       status_id: request.status_id,
@@ -669,9 +691,9 @@ export const chessboardSetsApi = {
       is_current: true,
     })
 
-    if (error) {
-      console.error('Failed to add status to set:', error)
-      throw error
+    if (insertError) {
+      console.error('Failed to add status to set:', insertError)
+      throw insertError
     }
   },
 

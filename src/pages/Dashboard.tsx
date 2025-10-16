@@ -8,6 +8,41 @@ interface WorkVolumeData {
   total: number
 }
 
+// Вспомогательная функция для разбиения массива на батчи
+const batchArray = <T,>(array: T[], batchSize: number): T[][] => {
+  const batches: T[][] = []
+  for (let i = 0; i < array.length; i += batchSize) {
+    batches.push(array.slice(i, i + batchSize))
+  }
+  return batches
+}
+
+// Вспомогательная функция для выполнения запросов батчами
+const fetchInBatches = async <T,>(
+  tableName: string,
+  selectQuery: string,
+  ids: string[],
+  idColumnName: string,
+  batchSize = 100
+): Promise<T[]> => {
+  if (!supabase) throw new Error('Supabase client not initialized')
+
+  const batches = batchArray(ids, batchSize)
+  const results: T[] = []
+
+  for (const batch of batches) {
+    const { data, error } = await supabase
+      .from(tableName)
+      .select(selectQuery)
+      .in(idColumnName, batch)
+
+    if (error) throw error
+    if (data) results.push(...(data as T[]))
+  }
+
+  return results
+}
+
 // Вспомогательная функция для расчета суммы ВОР (синхронизировано с Vor.tsx)
 async function calculateVorAmount(vorId: string): Promise<number> {
   if (!supabase) return 0
@@ -49,47 +84,41 @@ async function calculateVorAmount(vorId: string): Promise<number> {
 
     if (!chessboardData || chessboardData.length === 0) return 0
     const chessboardIds = chessboardData.map((c) => c.id)
+    const unitIds = chessboardData.map((c) => c.unit_id).filter(Boolean)
 
-    // Получаем все необходимые связанные данные параллельно
-    const [
-      { data: unitsData },
-      { data: ratesData },
-      { data: mappingData },
-      { data: floorMappingData },
-      { data: nomenclatureMappingData },
-    ] = await Promise.all([
-      supabase
-        .from('units')
-        .select('id, name')
-        .in('id', chessboardData.map((c) => c.unit_id).filter(Boolean)),
-      supabase
-        .from('chessboard_rates_mapping')
-        .select(
-          `
-        chessboard_id, rate_id, rates:rate_id(work_names:work_name_id(id, name), base_rate, unit_id, units:unit_id(id, name))
-      `,
-        )
-        .in('chessboard_id', chessboardIds),
-      supabase
-        .from('chessboard_mapping')
-        .select('chessboard_id, block_id, cost_category_id, cost_type_id')
-        .in('chessboard_id', chessboardIds),
-      supabase
-        .from('chessboard_floor_mapping')
-        .select('chessboard_id, "quantityRd"')
-        .in('chessboard_id', chessboardIds),
-      supabase
-        .from('chessboard_nomenclature_mapping')
-        .select(
-          `
-        chessboard_id,
-        nomenclature_id,
-        supplier_name,
-        nomenclature:nomenclature_id(id, name, material_prices(price, purchase_date))
-      `,
-        )
-        .in('chessboard_id', chessboardIds),
-    ])
+    // Получаем все необходимые связанные данные параллельно с батчингом для больших массивов
+    const [unitsData, ratesData, mappingData, floorMappingData, nomenclatureMappingData] =
+      await Promise.all([
+        fetchInBatches('units', 'id, name', unitIds, 'id', 100),
+        fetchInBatches(
+          'chessboard_rates_mapping',
+          'chessboard_id, work_set_rate_id, work_set_rate:work_set_rate_id(work_names:work_name_id(id, name, unit_id), base_rate, unit_id, units:unit_id(id, name))',
+          chessboardIds,
+          'chessboard_id',
+          100
+        ),
+        fetchInBatches(
+          'chessboard_mapping',
+          'chessboard_id, block_id, cost_category_id, cost_type_id',
+          chessboardIds,
+          'chessboard_id',
+          100
+        ),
+        fetchInBatches(
+          'chessboard_floor_mapping',
+          'chessboard_id, "quantityRd"',
+          chessboardIds,
+          'chessboard_id',
+          100
+        ),
+        fetchInBatches(
+          'chessboard_nomenclature_mapping',
+          'chessboard_id, supplier_names_id, conversion_coefficient, supplier_names:supplier_names_id(id, name, unit_id, material_prices(price, purchase_date))',
+          chessboardIds,
+          'chessboard_id',
+          100
+        ),
+      ])
 
     // Создаем индексы для быстрого поиска
     const ratesMap = new Map()
@@ -154,14 +183,14 @@ async function calculateVorAmount(vorId: string): Promise<number> {
     const workGroups = new Map()
     filteredChessboardData.forEach((item) => {
       const rates = ratesMap.get(item.id) || []
-      const workName = rates[0]?.rates?.work_names?.name || 'Работа не указана'
+      const workName = rates[0]?.work_set_rate?.work_names?.name || 'Работа не указана'
 
       if (!workGroups.has(workName)) {
         workGroups.set(workName, [])
       }
       workGroups.get(workName)?.push({
         ...item,
-        rates: rates[0]?.rates,
+        work_set_rate: rates[0]?.work_set_rate,
         units: unitsMap.get(item.unit_id),
         nomenclatureItems: nomenclatureMap.get(item.id) || [],
         quantityRd: floorQuantitiesMap.get(item.id) || 0,
@@ -174,7 +203,7 @@ async function calculateVorAmount(vorId: string): Promise<number> {
     workGroups.forEach((materials, workName) => {
       // Для работ: базовая ставка * количество * коэффициент
       const firstMaterial = materials[0]
-      const rateInfo = firstMaterial?.rates
+      const rateInfo = firstMaterial?.work_set_rate
       const baseRate = rateInfo?.base_rate || 0
       const rateUnitName = rateInfo?.units?.name || ''
 
@@ -196,8 +225,8 @@ async function calculateVorAmount(vorId: string): Promise<number> {
       materials.forEach((material) => {
         const nomenclatureItems = material.nomenclatureItems || []
         nomenclatureItems.forEach((nomenclatureItem) => {
-          // Получаем последнюю цену из справочника
-          const prices = nomenclatureItem.nomenclature?.material_prices || []
+          // Получаем последнюю цену из справочника supplier_names
+          const prices = nomenclatureItem.supplier_names?.material_prices || []
           const latestPrice =
             prices.length > 0
               ? prices.sort(

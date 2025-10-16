@@ -105,6 +105,41 @@ export const calculateVorTotals = (items: VorTableItem[]) => {
   )
 }
 
+// Вспомогательная функция для разбиения массива на батчи
+const batchArray = <T>(array: T[], batchSize: number): T[][] => {
+  const batches: T[][] = []
+  for (let i = 0; i < array.length; i += batchSize) {
+    batches.push(array.slice(i, i + batchSize))
+  }
+  return batches
+}
+
+// Вспомогательная функция для выполнения запросов батчами
+const fetchInBatches = async <T>(
+  tableName: string,
+  selectQuery: string,
+  ids: string[],
+  idColumnName: string,
+  batchSize = 100
+): Promise<T[]> => {
+  if (!supabase) throw new Error('Supabase client not initialized')
+
+  const batches = batchArray(ids, batchSize)
+  const results: T[] = []
+
+  for (const batch of batches) {
+    const { data, error } = await supabase
+      .from(tableName)
+      .select(selectQuery)
+      .in(idColumnName, batch)
+
+    if (error) throw error
+    if (data) results.push(...data)
+  }
+
+  return results
+}
+
 // Расчёт суммы ВОР на основе комплектов шахматки (как в VorView)
 export const calculateVorTotalFromChessboard = async (vorId: string): Promise<number> => {
   if (!supabase) throw new Error('Supabase client not initialized')
@@ -145,33 +180,34 @@ export const calculateVorTotalFromChessboard = async (vorId: string): Promise<nu
     if (chessboardError || !chessboardData || chessboardData.length === 0) return 0
 
     const chessboardIds = chessboardData.map((item: any) => item.id)
+    const unitIds = chessboardData.map((item: any) => item.unit_id).filter(Boolean)
 
-    // 5. Загружаем связанные данные параллельно
+    // 5. Загружаем связанные данные параллельно с батчингом для больших массивов
     const [unitsData, ratesData, mappingData, floorMappingData, nomenclatureMappingData] = await Promise.all([
-      supabase.from('units').select('id, name').in('id', chessboardData.map((item: any) => item.unit_id).filter(Boolean)),
-      supabase.from('chessboard_rates_mapping').select('chessboard_id, rate_id, rates:rate_id(work_name_id, base_rate, unit_id, units:unit_id(id, name), work_names:work_name_id(id, name))').in('chessboard_id', chessboardIds),
-      supabase.from('chessboard_mapping').select('chessboard_id, block_id, cost_category_id, cost_type_id, location_id').in('chessboard_id', chessboardIds),
-      supabase.from('chessboard_floor_mapping').select('chessboard_id, "quantityRd"').in('chessboard_id', chessboardIds),
-      supabase.from('chessboard_nomenclature_mapping').select('chessboard_id, supplier_names_id, conversion_coefficient, supplier_names:supplier_names_id(id, name, unit_id, material_prices(price, purchase_date))').in('chessboard_id', chessboardIds),
+      fetchInBatches('units', 'id, name', unitIds, 'id', 100),
+      fetchInBatches('chessboard_rates_mapping', 'chessboard_id, work_set_rate_id, work_set_rate:work_set_rate_id(work_name_id, base_rate, unit_id, units:unit_id(id, name), work_names:work_name_id(id, name, unit_id))', chessboardIds, 'chessboard_id', 100),
+      fetchInBatches('chessboard_mapping', 'chessboard_id, block_id, cost_category_id, cost_type_id, location_id', chessboardIds, 'chessboard_id', 100),
+      fetchInBatches('chessboard_floor_mapping', 'chessboard_id, "quantityRd"', chessboardIds, 'chessboard_id', 100),
+      fetchInBatches('chessboard_nomenclature_mapping', 'chessboard_id, supplier_names_id, conversion_coefficient, supplier_names:supplier_names_id(id, name, unit_id, material_prices(price, purchase_date))', chessboardIds, 'chessboard_id', 100),
     ])
 
     // 6. Создаем индексы для быстрого поиска
-    const unitsMap = new Map(unitsData.data?.map((u: any) => [u.id, u]) || [])
+    const unitsMap = new Map(unitsData?.map((u: any) => [u.id, u]) || [])
     const ratesMap = new Map<string, any[]>()
-    ratesData.data?.forEach((r: any) => {
+    ratesData?.forEach((r: any) => {
       if (!ratesMap.has(r.chessboard_id)) {
         ratesMap.set(r.chessboard_id, [])
       }
       ratesMap.get(r.chessboard_id)?.push(r)
     })
-    const mappingMap = new Map(mappingData.data?.map((m: any) => [m.chessboard_id, m]) || [])
+    const mappingMap = new Map(mappingData?.map((m: any) => [m.chessboard_id, m]) || [])
     const floorQuantitiesMap = new Map<string, number>()
-    floorMappingData.data?.forEach((f: any) => {
+    floorMappingData?.forEach((f: any) => {
       const currentSum = floorQuantitiesMap.get(f.chessboard_id) || 0
       floorQuantitiesMap.set(f.chessboard_id, currentSum + (f.quantityRd || 0))
     })
     const nomenclatureMap = new Map<string, any[]>()
-    nomenclatureMappingData.data?.forEach((n: any) => {
+    nomenclatureMappingData?.forEach((n: any) => {
       if (!nomenclatureMap.has(n.chessboard_id)) {
         nomenclatureMap.set(n.chessboard_id, [])
       }
@@ -205,14 +241,14 @@ export const calculateVorTotalFromChessboard = async (vorId: string): Promise<nu
     const workGroups = new Map<string, any[]>()
     filteredChessboardData.forEach((item: any) => {
       const rates = ratesMap.get(item.id) || []
-      const workName = rates[0]?.rates?.work_names?.name || 'Работа не указана'
+      const workName = rates[0]?.work_set_rate?.work_names?.name || 'Работа не указана'
       if (!workGroups.has(workName)) {
         workGroups.set(workName, [])
       }
       workGroups.get(workName)?.push({
         ...item,
         units: unitsMap.get(item.unit_id),
-        rates: rates[0]?.rates,
+        work_set_rate: rates[0]?.work_set_rate,
         quantityRd: floorQuantitiesMap.get(item.id) || 0,
         nomenclatureItems: nomenclatureMap.get(item.id) || [],
       })
@@ -223,7 +259,7 @@ export const calculateVorTotalFromChessboard = async (vorId: string): Promise<nu
 
     workGroups.forEach((materials: any[]) => {
       const firstMaterial = materials[0]
-      const rateInfo = firstMaterial?.rates
+      const rateInfo = firstMaterial?.work_set_rate
       const baseRate = rateInfo?.base_rate || 0
       const rateUnitName = rateInfo?.units?.name || ''
 
@@ -268,13 +304,34 @@ export const createVorFromChessboardSet = async (dto: CreateVorFromChessboardSet
   if (!supabase) throw new Error('Supabase client not initialized')
 
   try {
+    // Получить текущего пользователя
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    const currentUserId = user?.id || null
+
+    // Получить текущую версию комплекта
+    const { data: setData, error: setVersionError } = await supabase
+      .from('chessboard_sets')
+      .select('version')
+      .eq('id', dto.set_id)
+      .single()
+
+    if (setVersionError) {
+      console.error('Ошибка получения версии комплекта:', setVersionError)
+      throw setVersionError
+    }
+
+    const currentSetVersion = setData?.version || 1
+
     // 1. Создаем основную запись ВОР
     const { data: vorData, error: vorError } = await supabase
       .from('vor')
       .insert({
         name: dto.name,
         project_id: dto.project_id,
-        rate_coefficient: dto.rate_coefficient || 1.0
+        rate_coefficient: dto.rate_coefficient || 1.0,
+        vor_type: dto.vor_type // Тип ВОР: brigade или contractor
       })
       .select('*')
       .single()
@@ -291,7 +348,10 @@ export const createVorFromChessboardSet = async (dto: CreateVorFromChessboardSet
       .from('vor_chessboard_sets_mapping')
       .insert({
         vor_id: vorId,
-        set_id: dto.set_id
+        set_id: dto.set_id,
+        source_set_version: currentSetVersion,
+        created_at: new Date().toISOString(),
+        created_by: currentUserId,
       })
 
     if (mappingError) {
@@ -312,6 +372,20 @@ export const createVorFromChessboardSet = async (dto: CreateVorFromChessboardSet
 // Заполнение ВОР данными из комплекта шахматки
 export const populateVorFromChessboardSet = async (vorId: string, setId: string): Promise<void> => {
   if (!supabase) throw new Error('Supabase client not initialized')
+
+  // 0. Получаем тип ВОР для определения логики копирования цен
+  const { data: vorTypeData, error: vorTypeError } = await supabase
+    .from('vor')
+    .select('vor_type')
+    .eq('id', vorId)
+    .single()
+
+  if (vorTypeError) {
+    console.error('Ошибка загрузки типа ВОР:', vorTypeError)
+    throw vorTypeError
+  }
+
+  const vorType = vorTypeData?.vor_type || 'brigade'
 
   // 1. Получаем настройки комплекта
   const { data: setData, error: setError } = await supabase
@@ -536,6 +610,9 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
 
   // 4.1. Создаём заполненные работы (с расценками)
   for (const [rateId, workData] of filledWorks) {
+    // Для contractor устанавливаем base_rate = 0, для brigade - реальную цену
+    const baseRate = vorType === 'brigade' ? workData.rate!.base_rate : 0
+
     const { data: vorWork, error: workError } = await supabase
       .from('vor_works')
       .insert({
@@ -543,7 +620,7 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
         work_set_rate_id: rateId,
         quantity: workData.totalQuantity,
         coefficient: 1.0,
-        base_rate: workData.rate!.base_rate,
+        base_rate: baseRate,
         sort_order: workSortOrder,
         is_modified: false // Начальные данные не модифицированы
       })
@@ -558,6 +635,9 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
     // 5. Создаем материалы для работы
     let materialSortOrder = 1
     for (const material of workData.materials) {
+      // Для contractor устанавливаем price = 0, для brigade - реальную цену
+      const materialPrice = vorType === 'brigade' ? material.price : 0
+
       const { error: materialError } = await supabase
         .from('vor_materials')
         .insert({
@@ -565,7 +645,7 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
           supplier_material_name: material.name,
           unit_id: material.unit_id,
           quantity: material.quantity,
-          price: material.price,
+          price: materialPrice,
           sort_order: materialSortOrder,
           is_modified: false // Начальные данные не модифицированы
         })
@@ -602,6 +682,9 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
       // Создаём материалы для пустой работы
       let materialSortOrder = 1
       for (const material of emptyWork.materials) {
+        // Для contractor устанавливаем price = 0, для brigade - реальную цену
+        const materialPrice = vorType === 'brigade' ? material.price : 0
+
         const { error: materialError } = await supabase
           .from('vor_materials')
           .insert({
@@ -609,7 +692,7 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
             supplier_material_name: material.name,
             unit_id: material.unit_id,
             quantity: material.quantity,
-            price: material.price,
+            price: materialPrice,
             sort_order: materialSortOrder,
             is_modified: false
           })

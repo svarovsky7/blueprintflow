@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Modal, Form, Input, App } from 'antd'
+import { Modal, Form, Input, App, Select } from 'antd'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { createVorFromChessboardSet } from '@/entities/vor'
-import type { CreateVorFromChessboardSetDto } from '@/entities/vor'
+import { createVorFromChessboardSet, VOR_TYPE_LABELS } from '@/entities/vor'
+import type { CreateVorFromChessboardSetDto, VorType } from '@/entities/vor'
 
 interface CreateVorModalProps {
   open: boolean
@@ -62,6 +62,7 @@ export default function CreateVorModal({
         project_id: chessboardSet.project_id,
         set_id: chessboardSet.id,
         rate_coefficient: 1.0, // По умолчанию коэффициент 1.0
+        vor_type: values.vor_type, // Тип ВОР: brigade или contractor
       }
 
       createVorMutation.mutate(dto)
@@ -130,6 +131,27 @@ export default function CreateVorModal({
             )}
           </div>
         )}
+
+        <Form.Item
+          name="vor_type"
+          label="Тип ведомости объемов работ"
+          initialValue="brigade"
+          rules={[{ required: true, message: 'Выберите тип ВОР' }]}
+        >
+          <Select
+            placeholder="Выберите тип ВОР"
+            options={[
+              {
+                value: 'brigade' as VorType,
+                label: 'Для бригады (с ценами работ и материалов)',
+              },
+              {
+                value: 'contractor' as VorType,
+                label: 'Для подрядчика (без цен, только объемы)',
+              },
+            ]}
+          />
+        </Form.Item>
 
         <Form.Item
           name="name"

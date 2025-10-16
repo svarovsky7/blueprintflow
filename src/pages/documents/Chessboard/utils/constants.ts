@@ -60,6 +60,7 @@ export const COLUMN_KEYS = {
   LOCATION: 'location', // Локализация
   MATERIAL: 'material', // Материал
   MATERIAL_TYPE: 'materialType', // Тип материала
+  TYPE: 'type', // Тип
   QUANTITY_PD: 'quantityPd', // Кол-во по ПД
   QUANTITY_SPEC: 'quantitySpec', // Кол-во по спеке РД
   QUANTITY_RD: 'quantityRd', // Кол-во по пересчету РД
@@ -90,6 +91,7 @@ export const DEFAULT_COLUMN_ORDER = [
   COLUMN_KEYS.LOCATION,
   COLUMN_KEYS.MATERIAL,
   COLUMN_KEYS.MATERIAL_TYPE,
+  COLUMN_KEYS.TYPE,
   COLUMN_KEYS.UNIT,
   COLUMN_KEYS.QUANTITY_PD,
   COLUMN_KEYS.QUANTITY_SPEC,

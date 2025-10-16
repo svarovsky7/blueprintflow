@@ -33,9 +33,11 @@ function buildSelectQuery(appliedFilters: AppliedFilters): string {
     created_at,
     updated_at,
     unit_id,
+    type_id,
 
     materials!chessboard_material_fkey(name),
     units!chessboard_unit_id_fkey(id, name),
+    chessboard_types!chessboard_type_id_fkey(id, name),
 
     chessboard_mapping!${joinType}(
       cost_category_id,
@@ -652,6 +654,10 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
         costCategoryId: String(mapping?.cost_category_id || ''),
         costType: mapping?.detail_cost_categories?.name || '',
         costTypeId: String(mapping?.cost_type_id || ''),
+
+        // Тип из справочника
+        type: row.chessboard_types?.name || '',
+        typeId: row.type_id || '',
 
         workSet: workSet,
         workSetId: String(workSetId || ''), // ID записи rates для work_set

@@ -341,7 +341,8 @@ rowClassName={(record) => {
 - Use optimistic locking via `updated_at` timestamp for concurrent edits
 
 ### API Pattern
-Standard Supabase query pattern:
+
+#### Standard Supabase Query Pattern
 ```typescript
 const { data, error } = await supabase
   .from('table')
@@ -353,6 +354,79 @@ if (error) {
   throw error;
 }
 ```
+
+#### Batching for Large ID Arrays (КРИТИЧЕСКИ ВАЖНО)
+
+**Проблема:** Запросы `.in('column', arrayOfIds)` с массивами 100+ элементов создают слишком длинные URL (>2048 символов), что приводит к ошибке 400 Bad Request.
+
+**Решение:** ВСЕГДА используй батчинг для массивов больше 50 элементов.
+
+**Обязательный паттерн батчинга:**
+```typescript
+// Вспомогательная функция для разбиения массива на батчи
+const batchArray = <T>(array: T[], batchSize: number): T[][] => {
+  const batches: T[][] = []
+  for (let i = 0; i < array.length; i += batchSize) {
+    batches.push(array.slice(i, i + batchSize))
+  }
+  return batches
+}
+
+// Вспомогательная функция для выполнения запросов батчами
+const fetchInBatches = async <T>(
+  tableName: string,
+  selectQuery: string,
+  ids: string[],
+  idColumnName: string,
+  batchSize = 100
+): Promise<T[]> => {
+  if (!supabase) throw new Error('Supabase client not initialized')
+
+  const batches = batchArray(ids, batchSize)
+  const results: T[] = []
+
+  for (const batch of batches) {
+    const { data, error } = await supabase
+      .from(tableName)
+      .select(selectQuery)
+      .in(idColumnName, batch)
+
+    if (error) throw error
+    if (data) results.push(...data)
+  }
+
+  return results
+}
+
+// Пример использования
+const chessboardIds = chessboardData.map((item) => item.id) // 1000+ элементов
+
+// ❌ НЕПРАВИЛЬНО: создаёт URL >40KB
+const { data } = await supabase
+  .from('chessboard_rates_mapping')
+  .select('*')
+  .in('chessboard_id', chessboardIds)
+
+// ✅ ПРАВИЛЬНО: батчинг по 100 ID
+const ratesData = await fetchInBatches(
+  'chessboard_rates_mapping',
+  'chessboard_id, work_set_rate_id, work_set_rate:work_set_rate_id(...)',
+  chessboardIds,
+  'chessboard_id',
+  100
+)
+```
+
+**Правила батчинга:**
+1. **Размер батча:** 100 элементов (оптимальный баланс)
+2. **Когда применять:** Массивы >50 элементов ОБЯЗАТЕЛЬНО
+3. **Где размещать:** В начале файла с API функциями
+4. **Референс:** `src/entities/vor/api/vor-api.ts` (строки 108-141)
+
+**КРИТИЧЕСКИ ВАЖНО:**
+- НИКОГДА не передавай массивы 100+ элементов напрямую в `.in()`
+- Всегда проверяй длину массива перед запросом
+- При работе с `chessboard`, `chessboard_mapping`, `chessboard_floor_mapping` - используй батчинг по умолчанию
 
 ### Complex Entity Relations
 Entities may have multiple API files for different concerns:
@@ -385,6 +459,7 @@ From technical specification (`tech_task.md`):
 - **КРИТИЧЕСКИ ВАЖНО**: При добавлении кода для логирования ОБЯЗАТЕЛЬНО указывать в комментариях, что строки относятся к логгированию (например: `// LOG: отладочная информация`, `// DEBUG LOG: проверка состояния`, `console.log('🔍 Loading data...') // LOG`). Это необходимо для безопасного удаления логов без случайного удаления рабочего кода
 - **КРИТИЧЕСКИ ВАЖНО**: Максимальный размер файла 600 строк - разбивай большие файлы на компоненты, хуки, утилиты и модули
 - **КРИТИЧЕСКИ ВАЖНО**: Все SQL файлы ОБЯЗАТЕЛЬНО сохранять в папку `sql/` - НИКОГДА не размещай SQL файлы в корневой папке или других директориях
+- **КРИТИЧЕСКИ ВАЖНО**: ВСЕГДА используй батчинг для массивов >50 элементов в `.in()` запросах - длинные URL (>2048 символов) вызывают 400 Bad Request. Референс: `src/entities/vor/api/vor-api.ts` строки 108-141
 - Run `npm run lint` before committing
 - Run `npm run format` for consistent code style
 - Handle all TypeScript strict mode requirements
@@ -405,6 +480,7 @@ From technical specification (`tech_task.md`):
 - Create documentation files proactively
 - Use RLS (Row Level Security)
 - Store secrets or generated artifacts in repository
+- **НИКОГДА** не передавай массивы 100+ элементов напрямую в `.in()` без батчинга - это создаёт слишком длинные URL и вызывает ошибку 400 Bad Request
 
 
 ## UI/UX Guidelines

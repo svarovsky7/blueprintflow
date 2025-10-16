@@ -1,15 +1,29 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { App } from 'antd'
 import type { Key } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getOrCreateWorkSet, createWorkSetRate } from '@/entities/rates/api'
+import { setCurrentUser } from '@/entities/chessboard'
 import type { TableMode, RowData, RowColor, AppliedFilters } from '../types'
 import { parseFloorsFromString } from '../utils/floors'
 
 export const useTableOperations = (refetch?: () => void, data: RowData[] = []) => {
   const queryClient = useQueryClient()
   const { message } = App.useApp()
+
+  // Получить текущего пользователя для setCurrentUser
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      setCurrentUserId(user?.id || null)
+    }
+    fetchUser()
+  }, [])
 
   // Режим таблицы (просмотр, добавление, редактирование, удаление)
   const [tableMode, setTableMode] = useState<TableMode>({
@@ -151,6 +165,8 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
       locationId: '',
       material: '',
       materialType: 'База',
+      type: '',
+      typeId: '',
       quantityPd: '',
       quantitySpec: '',
       quantityRd: '',
@@ -289,6 +305,10 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
       } else if (tableMode.mode === 'view') {
         // ИСПРАВЛЕНИЕ: В режиме просмотра сразу сохраняем цвет в БД без перевода в режим редактирования
         try {
+          // Устанавливаем текущего пользователя перед UPDATE chessboard
+          if (currentUserId) {
+            await setCurrentUser(currentUserId)
+          }
 
           const { error } = await supabase
             .from('chessboard')
@@ -310,7 +330,7 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
         updateEditedRow(rowId, { color })
       }
     },
-    [tableMode.mode, updateNewRow, updateEditedRow, updateEditingRow, editingRows, queryClient, message],
+    [tableMode.mode, updateNewRow, updateEditedRow, updateEditingRow, editingRows, queryClient, message, currentUserId],
   )
 
   // Сохранение всех изменений
@@ -409,6 +429,7 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
             unit_id: row.unitId || null,
             material: row.materialId || null,
             material_type: row.materialType || 'База',
+            type_id: row.typeId || null,
           }
 
           // Обработка материала - если это UUID, используем как есть, если название - ищем/создаем
@@ -454,6 +475,10 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
             }
           }
 
+          // Устанавливаем текущего пользователя перед INSERT в chessboard
+          if (currentUserId) {
+            await setCurrentUser(currentUserId)
+          }
 
           const { data: newChessboardRow, error: insertError } = await supabase
             .from('chessboard')
@@ -672,6 +697,9 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
         if (updates.materialType !== undefined) {
           chessboardUpdateData.material_type = updates.materialType
         }
+        if (updates.typeId !== undefined) {
+          chessboardUpdateData.type_id = updates.typeId || null
+        }
         // ИСПРАВЛЕНИЕ: floors и floorQuantities сохраняются в отдельной таблице chessboard_floor_mapping
         // Не пытаемся сохранить их в основную таблицу chessboard
 
@@ -680,17 +708,23 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
 
         // Обновляем основную таблицу только если есть что обновлять
         if (Object.keys(chessboardUpdateData).length > 1) { // > 1 потому что updated_at всегда есть
-          const chessboardPromise = supabase
-            .from('chessboard')
-            .update(chessboardUpdateData)
-            .eq('id', rowId)
-            .then(({ data, error }) => {
-              if (error) {
-                throw error
-              }
-              return { data, error }
-            })
-          promises.push(chessboardPromise)
+          const chessboardPromise = async () => {
+            // Устанавливаем текущего пользователя перед UPDATE chessboard
+            if (currentUserId) {
+              await setCurrentUser(currentUserId)
+            }
+
+            const { data, error } = await supabase
+              .from('chessboard')
+              .update(chessboardUpdateData)
+              .eq('id', rowId)
+
+            if (error) {
+              throw error
+            }
+            return { data, error }
+          }
+          promises.push(chessboardPromise())
         }
 
         // Обновляем mapping таблицу для остальных полей (с правильными типами данных)
@@ -1123,18 +1157,30 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
         if (editedRowData.materialId !== undefined) {
           chessboardUpdateData.material = editedRowData.materialId || null
         }
+        if (editedRowData.typeId !== undefined) {
+          chessboardUpdateData.type_id = editedRowData.typeId || null
+        }
 
         chessboardUpdateData.updated_at = new Date().toISOString()
 
         if (Object.keys(chessboardUpdateData).length > 1) {
-          promises.push(
-            supabase.from('chessboard').update(chessboardUpdateData).eq('id', rowId).then(({ data, error }) => {
-              if (error) {
-                throw error
-              }
-              return { data, error }
-            })
-          )
+          const chessboardBackupPromise = async () => {
+            // Устанавливаем текущего пользователя перед UPDATE chessboard (backup режим)
+            if (currentUserId) {
+              await setCurrentUser(currentUserId)
+            }
+
+            const { data, error } = await supabase
+              .from('chessboard')
+              .update(chessboardUpdateData)
+              .eq('id', rowId)
+
+            if (error) {
+              throw error
+            }
+            return { data, error }
+          }
+          promises.push(chessboardBackupPromise())
         }
 
         // Обновляем mapping таблицу для backup строки
@@ -1518,7 +1564,7 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
       console.error('Error saving changes:', error)
       message.error('Ошибка при сохранении изменений')
     }
-  }, [newRows, editedRows, editingRows, queryClient, setMode, message, data])
+  }, [newRows, editedRows, editingRows, queryClient, setMode, message, data, currentUserId])
 
   // Отмена всех изменений
   const cancelChanges = useCallback(() => {
@@ -1531,6 +1577,11 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
   // Удаление одной строки (каскадное)
   const deleteSingleRow = useCallback(async (rowId: string) => {
     try {
+      // Устанавливаем текущего пользователя перед DELETE из chessboard
+      if (currentUserId) {
+        await setCurrentUser(currentUserId)
+      }
+
       const { error } = await supabase
         .from('chessboard')
         .delete()
@@ -1554,7 +1605,7 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
       message.error('Произошла ошибка при удалении строки')
       return false
     }
-  }, [refetch, message, queryClient])
+  }, [refetch, message, queryClient, currentUserId])
 
   // Удаление выбранных строк
   const deleteSelectedRows = useCallback(async () => {
@@ -1564,6 +1615,11 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
     }
 
     try {
+      // Устанавливаем текущего пользователя перед DELETE из chessboard
+      if (currentUserId) {
+        await setCurrentUser(currentUserId)
+      }
+
       const { error } = await supabase
         .from('chessboard')
         .delete()
@@ -1588,7 +1644,7 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
       console.error('Error deleting rows:', error)
       message.error('Ошибка при удалении строк')
     }
-  }, [tableMode.selectedRowKeys, queryClient, setMode])
+  }, [tableMode.selectedRowKeys, queryClient, setMode, currentUserId])
 
   // Получение итоговых данных для отображения (с учетом новых, отредактированных строк и backup редактирования)
   const getDisplayData = useCallback((originalData: RowData[]) => {
