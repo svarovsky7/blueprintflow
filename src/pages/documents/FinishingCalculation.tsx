@@ -999,9 +999,15 @@ export default function FinishingCalculation() {
       },
     },
     {
-      title: 'Кол-во по спецификации РД',
+      title: (
+        <>
+          Кол-во по
+          <br />
+          спецификации РД
+        </>
+      ),
       key: 'quantitySpec',
-      width: 180,
+      width: 100,
       render: (_: unknown, record: EditableRow) => {
         if ((mode === 'add' || mode === 'edit') && (record.isNew || record.isEditing)) {
           const floors = parseFloorRange(record.floorRange || '')
@@ -1049,9 +1055,15 @@ export default function FinishingCalculation() {
       },
     },
     {
-      title: 'Кол-во по пересчету РД',
+      title: (
+        <>
+          Кол-во по
+          <br />
+          пересчету РД
+        </>
+      ),
       key: 'quantityRd',
-      width: 180,
+      width: 100,
       render: (_: unknown, record: EditableRow) => {
         if ((mode === 'add' || mode === 'edit') && (record.isNew || record.isEditing)) {
           const floors = parseFloorRange(record.floorRange || '')
@@ -1172,19 +1184,40 @@ export default function FinishingCalculation() {
       width: 200,
       render: (value: number | null, record: EditableRow) => {
         if ((mode === 'add' || mode === 'edit') && (record.isNew || record.isEditing)) {
+          // Используем labelInValue для правильного отображения названия вместо ID
+          const selectedValue = value ? {
+            value: value,
+            label: record.location_name || locations.find(l => l.id === value)?.name || String(value)
+          } : undefined
+
           return (
             <Select
-              value={value}
-              onChange={(val) => handleUpdateEditingRow(record.id!, 'location_id', val)}
-              options={locations.map((l) => ({ value: l.id, label: l.name }))}
+              labelInValue
+              value={selectedValue}
+              onChange={(option: any) => {
+                const val = option?.value
+                handleUpdateEditingRow(record.id!, 'location_id', val)
+                // Обновляем также location_name для корректного отображения
+                const location = locations.find(l => l.id === val)
+                if (location) {
+                  handleUpdateEditingRow(record.id!, 'location_name', location.name)
+                }
+              }}
               placeholder="Выберите локализацию"
               allowClear
               showSearch
+              optionFilterProp="label"
               filterOption={(input, option) =>
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
               style={{ width: '100%' }}
-            />
+            >
+              {locations.map((l) => (
+                <Select.Option key={l.id} value={l.id} label={l.name}>
+                  {l.name}
+                </Select.Option>
+              ))}
+            </Select>
           )
         }
         return record.location_name || '-'
@@ -1202,6 +1235,11 @@ export default function FinishingCalculation() {
       }}
     >
       <style>{`
+        /* ЦЕНТРИРОВАНИЕ ЗАГОЛОВКОВ СТОЛБЦОВ */
+        .ant-table-thead > tr > th {
+          text-align: center !important;
+        }
+
         /* ЦВЕТОВАЯ СХЕМА СТРОК - Раскраска всей строки при выборе цвета */
         .ant-table-tbody > tr.row-color-green > td {
           background-color: #d9f7be !important;
