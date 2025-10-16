@@ -49,16 +49,18 @@ function buildSelectQuery(appliedFilters: AppliedFilters): string {
     ),
 
     chessboard_nomenclature_mapping!left(
-      nomenclature_id,
-      supplier_name,
+      supplier_names_id,
       conversion_coefficient,
-      nomenclature!chessboard_nomenclature_mapping_nomenclature_id_fkey(
+      supplier_names!chessboard_nomenclature_mapping_supplier_names_id_fkey(
+        id,
         name,
-        nomenclature_supplier_mapping!nomenclature_supplier_mapping_nomenclature_id_fkey(
-          supplier_id,
-          supplier_names!nomenclature_supplier_mapping_supplier_id_fkey(
-            unit_id,
-            units!supplier_names_unit_id_fkey(name)
+        unit_id,
+        units!supplier_names_unit_id_fkey(name),
+        nomenclature_supplier_mapping!nomenclature_supplier_mapping_supplier_id_fkey(
+          nomenclature_id,
+          nomenclature!nomenclature_supplier_mapping_nomenclature_id_fkey(
+            id,
+            name
           )
         )
       )
@@ -680,27 +682,28 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
           // Показываем только если != 0, форматируем до 2 знаков, убираем trailing zeros
           return result !== 0 ? result.toFixed(2).replace(/\.?0+$/, '') : '0'
         })(),
-        unitNomenclature: (() => {
-          // Получаем unit через nomenclature → nomenclature_supplier_mapping → supplier_names → units
-          const mapping = nomenclatureMapping?.nomenclature?.nomenclature_supplier_mapping
-          if (Array.isArray(mapping) && mapping.length > 0) {
-            return mapping[0]?.supplier_names?.units?.name || ''
-          }
-          return ''
-        })(),
-        unitNomenclatureId: (() => {
-          const mapping = nomenclatureMapping?.nomenclature?.nomenclature_supplier_mapping
-          if (Array.isArray(mapping) && mapping.length > 0) {
-            return mapping[0]?.supplier_names?.unit_id || ''
-          }
-          return ''
-        })(),
+        unitNomenclature: nomenclatureMapping?.supplier_names?.units?.name || '',
+        unitNomenclatureId: nomenclatureMapping?.supplier_names?.unit_id || '',
 
         // Номенклатура и поставщик из реальных маппингов
-        nomenclature: nomenclatureMapping?.nomenclature?.name || '',
-        nomenclatureId: nomenclatureMapping?.nomenclature_id || '',
-        supplier: nomenclatureMapping?.supplier_name || '',
-        nomenclatureSupplier: nomenclatureMapping?.supplier_name || '', // Исправлено: добавлено поле для ML компонента
+        nomenclature: (() => {
+          const supplierNames = nomenclatureMapping?.supplier_names
+          const mapping = supplierNames?.nomenclature_supplier_mapping
+          if (Array.isArray(mapping) && mapping.length > 0) {
+            return mapping[0]?.nomenclature?.name || ''
+          }
+          return ''
+        })(),
+        nomenclatureId: (() => {
+          const supplierNames = nomenclatureMapping?.supplier_names
+          const mapping = supplierNames?.nomenclature_supplier_mapping
+          if (Array.isArray(mapping) && mapping.length > 0) {
+            return mapping[0]?.nomenclature_id || ''
+          }
+          return ''
+        })(),
+        supplier: nomenclatureMapping?.supplier_names?.name || '',
+        nomenclatureSupplier: nomenclatureMapping?.supplier_names?.name || '', // Исправлено: используем supplier_names.name
 
         unit: row.units?.name || '',
         unitId: row.unit_id || '',

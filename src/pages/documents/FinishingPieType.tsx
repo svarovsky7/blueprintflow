@@ -134,7 +134,7 @@ function WorkSetSelect({
       value={displayValue}
       onChange={handleChange}
       options={workSets}
-      placeholder="Выберите рабочий набор"
+      placeholder=""
       allowClear
       showSearch
       filterOption={(input, option) =>
@@ -181,7 +181,7 @@ function WorkNameSelect({
         onChange(workSetRateId, selected?.unitId)
       }}
       options={workNames}
-      placeholder="Выберите наименование работ"
+      placeholder=""
       allowClear
       showSearch
       filterOption={(input, option) =>
@@ -242,7 +242,7 @@ function SupplierNameSelect({
       value={value}
       onChange={onChange}
       options={supplierNames}
-      placeholder="Выберите поставщика"
+      placeholder=""
       allowClear
       showSearch
       filterOption={(input, option) =>
@@ -940,7 +940,7 @@ export default function FinishingPieType() {
                 }
               }}
               options={pieTypes.map((t) => ({ value: t.id, label: t.name }))}
-              placeholder="Выберите или введите тип"
+              placeholder=""
               allowClear
               showSearch
               filterOption={(input, option) =>
@@ -991,7 +991,7 @@ export default function FinishingPieType() {
                 }
               }}
               options={materials.map((m) => ({ value: m.uuid, label: m.name }))}
-              placeholder="Выберите или введите материал"
+              placeholder=""
               allowClear
               showSearch
               filterOption={(input, option) =>
@@ -1032,7 +1032,7 @@ export default function FinishingPieType() {
               value={value}
               onChange={(val) => handleUpdateEditingRow(record.id!, 'unit_id', val)}
               options={units.map((u) => ({ value: u.id, label: u.name }))}
-              placeholder="Ед.изм."
+              placeholder=""
               allowClear
               showSearch
               filterOption={(input, option) =>
@@ -1082,7 +1082,7 @@ export default function FinishingPieType() {
               value={value}
               onChange={(val) => handleDetailCostCategoryChange(record.id!, val)}
               options={detailCostCategories}
-              placeholder="Выберите вид затрат"
+              placeholder=""
               allowClear
               showSearch
               filterOption={(input, option) =>
@@ -1147,7 +1147,7 @@ export default function FinishingPieType() {
               value={value}
               onChange={(val) => handleNomenclatureChange(record.id!, val)}
               options={nomenclature.map((n) => ({ value: n.id, label: n.name }))}
-              placeholder="Выберите номенклатуру"
+              placeholder=""
               allowClear
               showSearch
               filterOption={(input, option) =>
@@ -1234,6 +1234,68 @@ export default function FinishingPieType() {
         .ant-table-tbody > tr.row-striped-even:hover > td {
           background-color: #e8e8e8;
         }
+
+        /* ФИКСАЦИЯ ШИРИНЫ СТОЛБЦОВ - Перенос текста и автоматическая высота строк */
+        .ant-table {
+          table-layout: fixed !important;
+        }
+
+        .ant-table-tbody > tr {
+          height: auto !important;
+        }
+
+        .ant-table-tbody > tr > td {
+          word-wrap: break-word;
+          word-break: break-word;
+          white-space: normal !important;
+          overflow: visible !important;
+          vertical-align: top !important;
+          height: auto !important;
+          padding: 8px !important;
+        }
+
+        /* Стили для Select компонентов внутри ячеек */
+        .ant-table-tbody > tr > td .ant-select {
+          width: 100% !important;
+          display: block !important;
+        }
+
+        .ant-table-tbody > tr > td .ant-select-selector {
+          white-space: normal !important;
+          height: auto !important;
+          min-height: 32px !important;
+          padding: 4px 11px !important;
+          display: flex !important;
+          align-items: flex-start !important;
+        }
+
+        .ant-table-tbody > tr > td .ant-select-selection-search {
+          margin-inline-start: 0 !important;
+        }
+
+        .ant-table-tbody > tr > td .ant-select-selection-item {
+          white-space: normal !important;
+          word-wrap: break-word !important;
+          word-break: break-word !important;
+          line-height: 1.5 !important;
+        }
+
+        .ant-table-tbody > tr > td .ant-select-selection-placeholder {
+          white-space: normal !important;
+          line-height: 1.5 !important;
+        }
+
+        /* Стили для Input компонентов */
+        .ant-table-tbody > tr > td .ant-input,
+        .ant-table-tbody > tr > td .ant-input-number {
+          width: 100% !important;
+        }
+
+        /* Стили для InputNumber */
+        .ant-table-tbody > tr > td .ant-input-number-input {
+          height: auto !important;
+          min-height: 24px !important;
+        }
       `}</style>
       {/* Заголовок с кнопкой Назад */}
       <div style={{ padding: '16px 24px', flexShrink: 0 }}>
@@ -1318,7 +1380,7 @@ export default function FinishingPieType() {
           rowKey="id"
           loading={docLoading || rowsLoading}
           pagination={{ defaultPageSize: 100, showSizeChanger: true }}
-          scroll={{ y: 'calc(100vh - 400px)', x: 'max-content' }}
+          scroll={{ y: 'calc(100vh - 400px)', x: 1590 }}
           locale={{ emptyText: 'Нет данных' }}
           rowSelection={
             mode === 'delete'

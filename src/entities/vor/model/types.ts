@@ -30,7 +30,22 @@ export interface VorWork {
   // Данные рабочего набора
   work_set_rate?: {
     id: string
-    work_set: string
+    base_rate: number
+    work_name_id: string
+    unit_id: string | null
+    work_set_id: string
+    units?: {
+      id: string
+      name: string
+    }
+    work_names?: {
+      id: string
+      name: string
+    }
+    work_sets?: {
+      id: string
+      name: string
+    }
   }
 }
 

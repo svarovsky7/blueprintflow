@@ -190,10 +190,18 @@ export interface WorkSetOption {
 
 export type NomenclatureMapping = {
   id: string
-  nomenclature_id: string
-  nomenclature: { id: string; name: string }
+  supplier_names_id: string
+  supplier_names: {
+    id: string
+    name: string
+    unit_id: string | null
+    units: { name: string } | null
+    nomenclature_supplier_mapping: Array<{
+      nomenclature_id: string
+      nomenclature: { id: string; name: string }
+    }>
+  } | null
   conversion_coefficient?: number | null
-  supplier_name?: string | null
 }
 
 export interface DbRow {

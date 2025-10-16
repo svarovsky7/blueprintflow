@@ -4,7 +4,9 @@
       "Bash(echo \"Exit code: $?\")",
       "Bash(cat:*)",
       "Bash(npx tsc:*)",
-      "Bash(npm run build)"
+      "Bash(npm run build)",
+      "Bash(npx playwright test:*)",
+      "Bash(npm run lint)"
     ],
     "deny": [],
     "ask": []

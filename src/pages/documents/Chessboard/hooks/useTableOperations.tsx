@@ -504,19 +504,31 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
             }
           }
 
-          // 4. Создаем связи с номенклатурой (аналогично редактированию)
-          if (row.nomenclatureId) {
-            const { error: nomError } = await supabase
-              .from('chessboard_nomenclature_mapping')
-              .insert({
-                chessboard_id: newRowId,
-                nomenclature_id: row.nomenclatureId,
-                supplier_name: row.supplier || null,
-                conversion_coefficient: row.conversionCoefficient ? Number(row.conversionCoefficient) : null
-              })
+          // 4. Создаем связи с номенклатурой через supplier_names_id
+          if (row.supplier && row.supplier.trim()) {
+            // Ищем supplier_names_id по названию поставщика
+            const { data: supplierData, error: supplierError } = await supabase
+              .from('supplier_names')
+              .select('id')
+              .eq('name', row.supplier.trim())
+              .maybeSingle()
 
-            if (nomError) {
-              throw nomError
+            if (supplierError) {
+              throw supplierError
+            }
+
+            if (supplierData) {
+              const { error: nomError } = await supabase
+                .from('chessboard_nomenclature_mapping')
+                .insert({
+                  chessboard_id: newRowId,
+                  supplier_names_id: supplierData.id,
+                  conversion_coefficient: row.conversionCoefficient ? Number(row.conversionCoefficient) : null
+                })
+
+              if (nomError) {
+                throw nomError
+              }
             }
           }
 
@@ -1011,8 +1023,8 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
           const nomenclatureId = updates.nomenclatureId
           const supplierName = updates.supplier
 
-          if (nomenclatureId) {
-            // Сначала удаляем старую связь, затем создаем новую (вместо upsert с неправильным onConflict)
+          if (supplierName) {
+            // Сначала удаляем старую связь, затем создаем новую с supplier_names_id
             const nomenclaturePromise = async () => {
               // Удаляем существующую связь
               await supabase
@@ -1020,20 +1032,30 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
                 .delete()
                 .eq('chessboard_id', rowId)
 
-              // Создаем новую связь
-              const { error } = await supabase
-                .from('chessboard_nomenclature_mapping')
-                .insert({
-                  chessboard_id: rowId,
-                  nomenclature_id: nomenclatureId,
-                  supplier_name: supplierName || null,
-                  conversion_coefficient: updates.conversionCoefficient ? Number(updates.conversionCoefficient) : null
-                })
+              // Ищем supplier_names_id по имени поставщика
+              const { data: supplierData, error: supplierError } = await supabase
+                .from('supplier_names')
+                .select('id')
+                .eq('name', supplierName.trim())
+                .maybeSingle()
 
-              if (error) throw error
+              if (supplierError) throw supplierError
+
+              if (supplierData) {
+                // Создаем новую связь
+                const { error } = await supabase
+                  .from('chessboard_nomenclature_mapping')
+                  .insert({
+                    chessboard_id: rowId,
+                    supplier_names_id: supplierData.id,
+                    conversion_coefficient: updates.conversionCoefficient ? Number(updates.conversionCoefficient) : null
+                  })
+
+                if (error) throw error
+              }
             }
             promises.push(nomenclaturePromise())
-          } else if (nomenclatureId === null || nomenclatureId === '') {
+          } else if (supplierName === null || supplierName === '') {
             // ТОЛЬКО если nomenclatureId явно установлен в null или пустую строку - удаляем связь
             promises.push(
               supabase.from('chessboard_nomenclature_mapping').delete().eq('chessboard_id', rowId)
@@ -1373,8 +1395,8 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
           const nomenclatureId = editedRowData.nomenclatureId
           const supplierName = editedRowData.supplier
 
-          if (nomenclatureId) {
-            // Сначала удаляем старую связь, затем создаем новую (вместо upsert с неправильным onConflict)
+          if (supplierName) {
+            // Сначала удаляем старую связь, затем создаем новую с supplier_names_id
             const nomenclaturePromise = async () => {
               // Удаляем существующую связь
               await supabase
@@ -1382,21 +1404,31 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
                 .delete()
                 .eq('chessboard_id', rowId)
 
-              // Создаем новую связь
-              const { error } = await supabase
-                .from('chessboard_nomenclature_mapping')
-                .insert({
-                  chessboard_id: rowId,
-                  nomenclature_id: nomenclatureId,
-                  supplier_name: supplierName || null,
-                  conversion_coefficient: editedRowData.conversionCoefficient ? Number(editedRowData.conversionCoefficient) : null
-                })
+              // Ищем supplier_names_id по имени поставщика
+              const { data: supplierData, error: supplierError } = await supabase
+                .from('supplier_names')
+                .select('id')
+                .eq('name', supplierName.trim())
+                .maybeSingle()
 
-              if (error) throw error
+              if (supplierError) throw supplierError
+
+              if (supplierData) {
+                // Создаем новую связь
+                const { error } = await supabase
+                  .from('chessboard_nomenclature_mapping')
+                  .insert({
+                    chessboard_id: rowId,
+                    supplier_names_id: supplierData.id,
+                    conversion_coefficient: editedRowData.conversionCoefficient ? Number(editedRowData.conversionCoefficient) : null
+                  })
+
+                if (error) throw error
+              }
             }
             promises.push(nomenclaturePromise())
-          } else if (nomenclatureId === null || nomenclatureId === '') {
-            // ТОЛЬКО если nomenclatureId явно установлен в null или пустую строку - удаляем связь
+          } else if (supplierName === null || supplierName === '') {
+            // ТОЛЬКО если supplierName явно установлен в null или пустую строку - удаляем связь
             promises.push(
               supabase.from('chessboard_nomenclature_mapping').delete().eq('chessboard_id', rowId)
             )

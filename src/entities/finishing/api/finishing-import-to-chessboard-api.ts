@@ -29,8 +29,7 @@ interface PreparedImportItem {
   work_name_id: string | null
   rate_id: string | null
   conversion_coefficient: number | null
-  nomenclature_id: string | null
-  supplier_name: string | null
+  supplier_names_id: string | null
   floors: Array<{
     floor_number: number
     quantityPd: number
@@ -212,8 +211,7 @@ async function prepareImportData(
       work_name_id: pieRow.work_name_id,
       rate_id: pieRow.rate_id,
       conversion_coefficient: pieRow.consumption ?? null,
-      nomenclature_id: pieRow.nomenclature_id,
-      supplier_name: pieRow.supplier_name,
+      supplier_names_id: pieRow.supplier_name_id,
       floors: Array.from(floorSums.entries()).map(([floor_number, sums]) => ({
         floor_number,
         quantityPd: 0,
@@ -269,15 +267,14 @@ async function createChessboardRecords(
       }
 
       // Вставка в chessboard_nomenclature_mapping только если:
-      // 1. Есть nomenclature_id или supplier_name
+      // 1. Есть supplier_names_id (ID наименования поставщика)
       // 2. Коэффициент не null (указан в исходных данных)
-      if ((item.nomenclature_id || item.supplier_name) && item.conversion_coefficient !== null) {
+      if (item.supplier_names_id && item.conversion_coefficient !== null) {
         const { error: nomenclatureError } = await supabase
           .from('chessboard_nomenclature_mapping')
           .insert({
             chessboard_id: chessboardId,
-            nomenclature_id: item.nomenclature_id,
-            supplier_name: item.supplier_name,
+            supplier_names_id: item.supplier_names_id,
             conversion_coefficient: item.conversion_coefficient,
           })
 

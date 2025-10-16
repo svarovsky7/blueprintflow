@@ -28,8 +28,8 @@ export const getVorTableData = async (vor_id: string): Promise<VorTableItem[]> =
     const workItem: VorTableItem = {
       id: work.id,
       type: 'work',
-      name: work.rates?.work_names?.name || '',
-      unit: work.rates?.units?.name || '',
+      name: work.work_set_rate?.work_names?.name || '',
+      unit: work.work_set_rate?.units?.name || '',
       quantity: work.quantity,
       coefficient: work.coefficient,
       work_price: workPrice,
@@ -37,7 +37,7 @@ export const getVorTableData = async (vor_id: string): Promise<VorTableItem[]> =
       base_rate: work.base_rate || 0,
       rate_id: work.rate_id,
       work_set_rate_id: work.work_set_rate_id,
-      work_set_name: work.work_set_rate?.work_set,
+      work_set_name: work.work_set_rate?.work_sets?.name,
       level: 1,
       sort_order: work.sort_order,
       is_modified: work.is_modified
@@ -152,7 +152,7 @@ export const calculateVorTotalFromChessboard = async (vorId: string): Promise<nu
       supabase.from('chessboard_rates_mapping').select('chessboard_id, rate_id, rates:rate_id(work_name_id, base_rate, unit_id, units:unit_id(id, name), work_names:work_name_id(id, name))').in('chessboard_id', chessboardIds),
       supabase.from('chessboard_mapping').select('chessboard_id, block_id, cost_category_id, cost_type_id, location_id').in('chessboard_id', chessboardIds),
       supabase.from('chessboard_floor_mapping').select('chessboard_id, "quantityRd"').in('chessboard_id', chessboardIds),
-      supabase.from('chessboard_nomenclature_mapping').select('chessboard_id, nomenclature_id, supplier_name, nomenclature:nomenclature_id(id, name)').in('chessboard_id', chessboardIds),
+      supabase.from('chessboard_nomenclature_mapping').select('chessboard_id, supplier_names_id, conversion_coefficient, supplier_names:supplier_names_id(id, name, unit_id, material_prices(price, purchase_date))').in('chessboard_id', chessboardIds),
     ])
 
     // 6. Создаем индексы для быстрого поиска
@@ -353,22 +353,30 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
       materials:material(name),
       units:unit_id(id, name),
       chessboard_rates_mapping(
-        rate_id,
-        rates:rate_id(
+        work_set_rate_id,
+        work_set_rate:work_set_rate_id(
           id,
           work_name_id,
-          work_set,
+          work_set_id,
           base_rate,
           unit_id,
           units:unit_id(name),
-          work_names:work_name_id(id, name)
+          work_names:work_name_id(id, name),
+          work_sets:work_set_id(id, name)
         )
       ),
       chessboard_nomenclature_mapping(
-        nomenclature_id,
-        supplier_name,
-        nomenclature:nomenclature_id(
-          name
+        supplier_names_id,
+        conversion_coefficient,
+        supplier_names:supplier_names_id(
+          id,
+          name,
+          unit_id,
+          material_prices(price, purchase_date),
+          nomenclature_supplier_mapping(
+            nomenclature_id,
+            nomenclature:nomenclature_id(name)
+          )
         )
       ),
       chessboard_floor_mapping("quantityRd"),
@@ -441,7 +449,8 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
       unit_id: string
       units: { name: string }
       work_names: { id: string; name: string }
-    }
+      work_sets: { id: string; name: string }
+    } | null
     materials: Array<{
       name: string
       quantity: number
@@ -452,29 +461,34 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
   }>()
 
   chessboardData.forEach((item: any) => {
-    if (!item.chessboard_rates_mapping || item.chessboard_rates_mapping.length === 0) {
-      return
-    }
+    // Проверяем наличие работы (расценки)
+    const hasRateMapping =
+      item.chessboard_rates_mapping?.length > 0 &&
+      item.chessboard_rates_mapping[0].work_set_rate_id &&
+      item.chessboard_rates_mapping[0].work_set_rate
 
-    const rateMapping = item.chessboard_rates_mapping[0]
-    if (!rateMapping.rates) {
-      return
-    }
+    // Определяем ключ группировки:
+    // - Если есть работа → используем work_set_rate_id
+    // - Если НЕТ работы → используем специальный ключ 'NO_WORK'
+    const rateId = hasRateMapping
+      ? item.chessboard_rates_mapping[0].work_set_rate_id
+      : 'NO_WORK'
 
-    const rateId = rateMapping.rate_id
-    const rateUnitId = rateMapping.rates.unit_id
-    const workName = rateMapping.rates.work_names?.name || 'Без названия'
+    // Получаем данные работы (если есть)
+    const rateMapping = hasRateMapping ? item.chessboard_rates_mapping[0] : null
+    const rateUnitId = rateMapping?.work_set_rate?.unit_id || null
 
     // Учитываем количество только для материалов типа "База" с совпадающей ед.изм.
     let quantity = 0
-    if (item.material_type === 'База' && item.unit_id === rateUnitId) {
+    if (hasRateMapping && item.material_type === 'База' && item.unit_id === rateUnitId) {
       quantity = item.chessboard_floor_mapping?.reduce((sum: number, floor: any) =>
         sum + (floor.quantityRd || 0), 0) || 0
     }
 
+    // Создаём группу работы, если её ещё нет
     if (!worksMap.has(rateId)) {
       worksMap.set(rateId, {
-        rate: rateMapping.rates,
+        rate: hasRateMapping ? rateMapping.work_set_rate : null,
         materials: [],
         totalQuantity: 0
       })
@@ -486,19 +500,27 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
     // Добавляем все материалы независимо от типа и ед.изм. (для номенклатуры)
     if (item.chessboard_nomenclature_mapping) {
       item.chessboard_nomenclature_mapping.forEach((nomenclatureMapping: any) => {
-        // Используем nomenclature.name если есть, иначе supplier_name
-        const materialName = nomenclatureMapping.nomenclature?.name || nomenclatureMapping.supplier_name || 'Материал не указан'
+        // Получаем название материала через supplier_names
+        const supplierNames = nomenclatureMapping.supplier_names
+        const nomenclatureName = supplierNames?.nomenclature_supplier_mapping?.[0]?.nomenclature?.name
+        const materialName = nomenclatureName || supplierNames?.name || 'Материал не указан'
 
         // Используем общее количество материала для номенклатуры
         const materialQuantity = item.chessboard_floor_mapping?.reduce((sum: number, floor: any) =>
           sum + (floor.quantityRd || 0), 0) || 0
 
-        // Цена будет получена через supplier_names позже или установлена в 0
-        // TODO: Реализовать получение цены через supplier_names.material_prices
+        // Получаем цену из material_prices (последняя по дате закупки)
+        const materialPrices = supplierNames?.material_prices || []
+        const latestPrice = materialPrices.length > 0
+          ? materialPrices.sort((a: any, b: any) =>
+              new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime()
+            )[0].price
+          : 0
+
         workData.materials.push({
           name: materialName,
           quantity: materialQuantity,
-          price: 0,
+          price: latestPrice,
           unit_id: item.unit_id
         })
       })
@@ -506,18 +528,22 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
   })
 
   // 4. Создаем работы в ВОР
+  // ВАЖНО: Сначала создаём работы с расценками, затем пустую работу (если есть)
+  const filledWorks = Array.from(worksMap.entries()).filter(([rateId]) => rateId !== 'NO_WORK')
+  const emptyWork = worksMap.get('NO_WORK')
+
   let workSortOrder = 1
-  for (const [rateId, workData] of worksMap) {
-    // Создаем работу
+
+  // 4.1. Создаём заполненные работы (с расценками)
+  for (const [rateId, workData] of filledWorks) {
     const { data: vorWork, error: workError } = await supabase
       .from('vor_works')
       .insert({
         vor_id: vorId,
-        rate_id: rateId,
-        work_set_rate_id: workData.rate.work_set ? rateId : null, // Если есть work_set, то сохраняем связь с рабочим набором
+        work_set_rate_id: rateId,
         quantity: workData.totalQuantity,
         coefficient: 1.0,
-        base_rate: workData.rate.base_rate,
+        base_rate: workData.rate!.base_rate,
         sort_order: workSortOrder,
         is_modified: false // Начальные данные не модифицированы
       })
@@ -552,6 +578,49 @@ export const populateVorFromChessboardSet = async (vorId: string, setId: string)
     }
 
     workSortOrder++
+  }
+
+  // 4.2. Создаём пустую работу (если есть материалы без расценки)
+  if (emptyWork) {
+    const { data: vorWork, error: workError } = await supabase
+      .from('vor_works')
+      .insert({
+        vor_id: vorId,
+        work_set_rate_id: null,
+        quantity: 0,
+        coefficient: 1.0,
+        base_rate: null,
+        sort_order: workSortOrder,
+        is_modified: false
+      })
+      .select('id')
+      .single()
+
+    if (workError) {
+      console.error('Ошибка создания пустой работы ВОР:', workError)
+    } else {
+      // Создаём материалы для пустой работы
+      let materialSortOrder = 1
+      for (const material of emptyWork.materials) {
+        const { error: materialError } = await supabase
+          .from('vor_materials')
+          .insert({
+            vor_work_id: vorWork.id,
+            supplier_material_name: material.name,
+            unit_id: material.unit_id,
+            quantity: material.quantity,
+            price: material.price,
+            sort_order: materialSortOrder,
+            is_modified: false
+          })
+
+        if (materialError) {
+          console.error('Ошибка создания материала для пустой работы:', materialError)
+        }
+
+        materialSortOrder++
+      }
+    }
   }
 }
 

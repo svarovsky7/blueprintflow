@@ -36,8 +36,8 @@ interface ChessboardItem {
     abbreviation: string | null
   } | null
   chessboard_rates_mapping?: Array<{
-    rate_id: string | null
-    rates?: { work_name_id: string | null; work_names?: { id: string; name: string } | null } | null
+    work_set_rate_id: string | null
+    work_set_rate?: { work_name_id: string | null; work_names?: { id: string; name: string } | null; base_rate?: number | null; units?: { id: string; name: string } | null } | null
   }> | null
   chessboard_mapping?: {
     block_id: string | null
@@ -52,9 +52,9 @@ interface ChessboardItem {
     } | null
   }> | null
   chessboard_nomenclature_mapping?: Array<{
-    nomenclature_id: string | null
-    supplier_name: string | null
-    nomenclature?: {
+    supplier_names_id: string | null
+    conversion_coefficient: number | null
+    supplier_names?: {
       id: string | null
       name: string | null
       material_prices?: Array<{
@@ -86,6 +86,7 @@ interface VorItem {
   level: number // Уровень вложенности (1 для работ, 2 для материалов)
   coefficient?: number // Коэффициент для строк работ
   base_rate?: number // Базовая расценка без коэффициента для пересчёта
+  work_set_rate?: { base_rate?: number } // Информация о расценке из work_set_rates
 }
 
 interface ProjectDocument {
@@ -528,8 +529,8 @@ const VorView = () => {
           .select(
             `
             chessboard_id,
-            rate_id,
-            rates:rate_id(work_name_id, base_rate, unit_id, units:unit_id(id, name), work_names:work_name_id(id, name))
+            work_set_rate_id,
+            work_set_rate:work_set_rate_id(work_name_id, base_rate, unit_id, units:unit_id(id, name), work_names:work_name_id(id, name))
           `,
           )
           .in('chessboard_id', chessboardIds),
@@ -552,9 +553,9 @@ const VorView = () => {
           .select(
             `
             chessboard_id,
-            nomenclature_id,
-            supplier_name,
-            nomenclature:nomenclature_id(id, name, material_prices(price, purchase_date))
+            supplier_names_id,
+            conversion_coefficient,
+            supplier_names:supplier_names_id(id, name, material_prices(price, purchase_date))
           `,
           )
           .in('chessboard_id', chessboardIds),
@@ -652,7 +653,7 @@ const VorView = () => {
       const workGroups = new Map<string, ChessboardItem[]>()
       filteredChessboardData.forEach((item) => {
         // Получаем наименование работы из связанных расценок
-        const workName = item.chessboard_rates_mapping?.[0]?.rates?.work_names?.name || 'Работа не указана'
+        const workName = item.chessboard_rates_mapping?.[0]?.work_set_rate?.work_names?.name || 'Работа не указана'
         if (!workGroups.has(workName)) {
           workGroups.set(workName, [])
         }
@@ -666,7 +667,7 @@ const VorView = () => {
       workGroups.forEach((materials: ChessboardItem[], workName: string) => {
         // Получаем информацию о расценке из первого материала в группе
         const firstMaterial = materials[0]
-        const rateInfo = firstMaterial?.chessboard_rates_mapping?.[0]?.rates
+        const rateInfo = firstMaterial?.chessboard_rates_mapping?.[0]?.work_set_rate
         const baseRate = rateInfo?.base_rate || 0
         const rateUnitName = rateInfo?.units?.name || ''
 
@@ -697,6 +698,7 @@ const VorView = () => {
           level: 1,
           coefficient: coefficient,
           base_rate: baseRate,
+          work_set_rate: { base_rate: baseRate },
         }
         result.push(workItem)
 
@@ -710,10 +712,10 @@ const VorView = () => {
             // Если есть номенклатура, используем её
             nomenclatureItems.forEach((nomenclatureItem) => {
               const nomenclatureName =
-                nomenclatureItem.nomenclature?.name || 'Номенклатура не указана'
+                nomenclatureItem.supplier_names?.name || 'Номенклатура не указана'
 
               // Получаем последнюю цену из справочника
-              const prices = nomenclatureItem.nomenclature?.material_prices || []
+              const prices = nomenclatureItem.supplier_names?.material_prices || []
               const latestPrice =
                 prices.length > 0
                   ? prices.sort(
@@ -970,7 +972,7 @@ const VorView = () => {
     setVorItemsData(prevData =>
       prevData.map(item => {
         if (item.id === itemId && item.type === 'work') {
-          const baseRateFromRates = item.rates?.base_rate
+          const baseRateFromRates = item.work_set_rate?.base_rate
 
           if (baseRateFromRates && baseRateFromRates > 0) {
             // Есть базовая цена в справочнике - пересчитываем коэффициент
@@ -1058,7 +1060,7 @@ const VorView = () => {
       prevData.map(item => {
         if (item.id === itemId && item.type === 'work') {
           // Логика пересчета согласно алгоритму
-          const ratesBaseRate = item.rates?.base_rate || 0
+          const ratesBaseRate = item.work_set_rate?.base_rate || 0
 
           if (ratesBaseRate > 0) {
             // Есть базовая цена в справочнике - пересчитываем коэффициент
@@ -1475,7 +1477,7 @@ const VorView = () => {
 
           // 4. Работа цена за ед - сложная логика
           if (editedData.work_price !== undefined) {
-            const ratesBaseRate = item.rates?.base_rate || 0
+            const ratesBaseRate = item.work_set_rate?.base_rate || 0
 
             if (ratesBaseRate > 0) {
               // Есть базовая цена в справочнике - пересчитываем коэффициент
