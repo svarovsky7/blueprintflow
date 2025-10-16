@@ -1192,109 +1192,115 @@ export default function FinishingPieType() {
     >
       <style>{`
         /* ЦВЕТОВАЯ СХЕМА СТРОК - Раскраска всей строки при выборе цвета */
-        .ant-table-tbody > tr.row-color-green > td {
+        .finishing-pie-table .ant-table-tbody > tr.row-color-green > td {
           background-color: #d9f7be !important;
         }
 
-        .ant-table-tbody > tr.row-color-yellow > td {
+        .finishing-pie-table .ant-table-tbody > tr.row-color-yellow > td {
           background-color: #fff1b8 !important;
         }
 
-        .ant-table-tbody > tr.row-color-blue > td {
+        .finishing-pie-table .ant-table-tbody > tr.row-color-blue > td {
           background-color: #e6f7ff !important;
         }
 
-        .ant-table-tbody > tr.row-color-red > td {
+        .finishing-pie-table .ant-table-tbody > tr.row-color-red > td {
           background-color: #ffa39e !important;
         }
 
         /* Hover эффект для цветных строк */
-        .ant-table-tbody > tr.row-color-green:hover > td {
+        .finishing-pie-table .ant-table-tbody > tr.row-color-green:hover > td {
           background-color: #b7eb8f !important;
         }
 
-        .ant-table-tbody > tr.row-color-yellow:hover > td {
+        .finishing-pie-table .ant-table-tbody > tr.row-color-yellow:hover > td {
           background-color: #ffe58f !important;
         }
 
-        .ant-table-tbody > tr.row-color-blue:hover > td {
+        .finishing-pie-table .ant-table-tbody > tr.row-color-blue:hover > td {
           background-color: #bae7ff !important;
         }
 
-        .ant-table-tbody > tr.row-color-red:hover > td {
+        .finishing-pie-table .ant-table-tbody > tr.row-color-red:hover > td {
           background-color: #ff7875 !important;
         }
 
         /* ЧЕРЕДУЮЩЕЕСЯ ВЫДЕЛЕНИЕ СТРОК - Для улучшения читаемости таблицы */
-        .ant-table-tbody > tr.row-striped-even > td {
+        .finishing-pie-table .ant-table-tbody > tr.row-striped-even > td {
           background-color: #f0f0f0;
         }
 
         /* Hover эффект для чередующихся строк */
-        .ant-table-tbody > tr.row-striped-even:hover > td {
+        .finishing-pie-table .ant-table-tbody > tr.row-striped-even:hover > td {
           background-color: #e8e8e8;
         }
 
         /* ФИКСАЦИЯ ШИРИНЫ СТОЛБЦОВ - Перенос текста и автоматическая высота строк */
-        .ant-table {
+        .finishing-pie-table table {
           table-layout: fixed !important;
         }
 
-        .ant-table-tbody > tr {
-          height: auto !important;
-        }
-
-        .ant-table-tbody > tr > td {
-          word-wrap: break-word;
-          word-break: break-word;
-          white-space: normal !important;
-          overflow: visible !important;
-          vertical-align: top !important;
-          height: auto !important;
-          padding: 8px !important;
-        }
-
-        /* Стили для Select компонентов внутри ячеек */
-        .ant-table-tbody > tr > td .ant-select {
-          width: 100% !important;
-          display: block !important;
-        }
-
-        .ant-table-tbody > tr > td .ant-select-selector {
-          white-space: normal !important;
+        .finishing-pie-table .ant-table-tbody > tr {
           height: auto !important;
           min-height: 32px !important;
-          padding: 4px 11px !important;
-          display: flex !important;
-          align-items: flex-start !important;
         }
 
-        .ant-table-tbody > tr > td .ant-select-selection-search {
+        .finishing-pie-table .ant-table-tbody > tr > td {
+          box-sizing: border-box !important;
+          flex: none !important;
+          word-wrap: break-word !important;
+          word-break: break-word !important;
+          white-space: normal !important;
+          overflow: hidden !important;
+          vertical-align: middle !important;
+          height: auto !important;
+          padding: 8px !important;
+          line-height: 1.2 !important;
+        }
+
+        /* Выравнивание полей ввода по центру ячеек с автоматической высотой */
+        .finishing-pie-table .ant-table-tbody > tr > td .ant-select,
+        .finishing-pie-table .ant-table-tbody > tr > td .ant-input,
+        .finishing-pie-table .ant-table-tbody > tr > td .ant-input-number {
+          display: flex !important;
+          align-items: center !important;
+          height: auto !important;
+          min-height: 24px !important;
+        }
+
+        .finishing-pie-table .ant-table-tbody > tr > td .ant-select-selector,
+        .finishing-pie-table .ant-table-tbody > tr > td .ant-input-number-input {
+          height: auto !important;
+          min-height: 24px !important;
+          display: flex !important;
+          align-items: center !important;
+          white-space: normal !important;
+          word-wrap: break-word !important;
+          overflow-wrap: break-word !important;
+        }
+
+        .finishing-pie-table .ant-table-tbody > tr > td .ant-select-selection-search {
           margin-inline-start: 0 !important;
         }
 
-        .ant-table-tbody > tr > td .ant-select-selection-item {
+        /* Автоматическая высота для выбранных значений в Select */
+        .finishing-pie-table .ant-table-tbody > tr > td .ant-select-selection-item {
           white-space: normal !important;
           word-wrap: break-word !important;
-          word-break: break-word !important;
-          line-height: 1.5 !important;
-        }
-
-        .ant-table-tbody > tr > td .ant-select-selection-placeholder {
-          white-space: normal !important;
-          line-height: 1.5 !important;
-        }
-
-        /* Стили для Input компонентов */
-        .ant-table-tbody > tr > td .ant-input,
-        .ant-table-tbody > tr > td .ant-input-number {
-          width: 100% !important;
-        }
-
-        /* Стили для InputNumber */
-        .ant-table-tbody > tr > td .ant-input-number-input {
+          overflow-wrap: break-word !important;
           height: auto !important;
-          min-height: 24px !important;
+          line-height: 1.2 !important;
+        }
+
+        .finishing-pie-table .ant-table-tbody > tr > td .ant-select-selection-placeholder {
+          white-space: normal !important;
+          line-height: 1.2 !important;
+        }
+
+        /* Автоматическая высота для множественного выбора */
+        .finishing-pie-table .ant-table-tbody > tr > td .ant-select-selection-overflow {
+          height: auto !important;
+          min-height: 20px !important;
         }
       `}</style>
       {/* Заголовок с кнопкой Назад */}
@@ -1375,6 +1381,8 @@ export default function FinishingPieType() {
       {/* Таблица - всегда видима */}
       <div style={{ flex: 1, overflow: 'hidden', padding: '0 24px 24px 24px' }}>
         <Table
+          className="finishing-pie-table"
+          tableLayout="fixed"
           columns={columns}
           dataSource={dataSource}
           rowKey="id"

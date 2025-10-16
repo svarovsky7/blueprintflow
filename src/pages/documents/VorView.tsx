@@ -1055,6 +1055,31 @@ const VorView = () => {
     }))
   }
 
+  const updateTableMaterialUnit = (itemId: string, newUnitId: string, itemType: 'work' | 'material') => {
+    setEditableVorData(prevData =>
+      prevData.map(item => {
+        if (item.id === itemId && item.type === itemType) {
+          const unitName = units.find(u => u.id === newUnitId)?.name || ''
+          return {
+            ...item,
+            unit: unitName
+          }
+        }
+        return item
+      })
+    )
+
+    // Отмечаем элемент как измененный
+    setEditedItems(prev => new Set([...prev, itemId]))
+    setEditedItemsData(prev => ({
+      ...prev,
+      [itemId]: {
+        ...prev[itemId],
+        unit_id: newUnitId
+      }
+    }))
+  }
+
   const updateTableWorkPrice = (itemId: string, newPrice: number) => {
     setEditableVorData(prevData =>
       prevData.map(item => {
@@ -2394,6 +2419,40 @@ const VorView = () => {
                 handleTempMaterialDataChange(record.id, 'unit_id', value)
               }}
               allowClear
+            >
+              {units.map(unit => (
+                <Select.Option key={unit.id} value={unit.id}>
+                  {unit.name}
+                </Select.Option>
+              ))}
+            </Select>
+          )
+        }
+
+        // В режиме редактирования показываем Select для всех строк (работ и материалов)
+        if (viewMode === 'edit') {
+          // Найти текущий unit_id из VorTableItem
+          const currentUnitId = editableVorData.length > 0
+            ? units.find(u => u.name === text)?.id
+            : undefined
+
+          return (
+            <Select
+              placeholder="Ед.изм."
+              style={{ width: '100%' }}
+              size="small"
+              value={currentUnitId}
+              onChange={(value) => {
+                if (isEditingEnabled && editableVorData.length > 0) {
+                  updateTableMaterialUnit(record.id, value, record.type)
+                }
+              }}
+              showSearch
+              allowClear
+              filterOption={(input, option) => {
+                const optionText = option?.children?.toString().toLowerCase() || ''
+                return optionText.includes(input.toLowerCase())
+              }}
             >
               {units.map(unit => (
                 <Select.Option key={unit.id} value={unit.id}>
