@@ -1,0 +1,92 @@
+# BlueprintFlow - Cursor AI Rules
+
+## Language & Communication
+- All responses, comments, and dialogs in Russian
+- Code and technical terms in English
+- Use automated mode with `-dangerously-skip-permissions` flag
+
+## CRITICAL RULES (MUST DO)
+- **ALWAYS** check database schema via MCP before any DB work
+- **ALWAYS** use batching for arrays >50 elements in `.in()` queries
+- **ALWAYS** limit files to 600 lines maximum
+- **ALWAYS** save SQL files in `sql/` directory only
+- **ALWAYS** mark logging code with `// LOG:` comments
+- Run `npm run lint` and `npm run build` before commits
+- Use absolute imports with path aliases (@/)
+- Include error handling in all Supabase queries
+
+## NEVER DO
+- Use RLS (Row Level Security) - handle auth in application layer
+- Pass arrays 100+ elements directly to `.in()` without batching
+- Use `any` type in TypeScript
+- Create files unless absolutely necessary
+- Use relative imports (../../../)
+- Store SQL files outside `sql/` directory
+
+## Tech Stack
+- React 18.3 + TypeScript 5.8.3 (strict mode)
+- Vite 7.0, Ant Design 5.20+, TanStack Query 5.59+
+- Supabase 2.47+ (PostgreSQL, Auth, Storage)
+- Zustand 5.0+ for auth state only
+
+## Project Structure (FSD)
+```
+src/
+├── entities/     # Business entities (chessboard, users, rates, etc.)
+├── features/     # User interactions (auth)
+├── pages/        # Route pages
+├── shared/       # Shared utilities, components, contexts
+└── components/   # Legacy UI components
+```
+
+## Key Commands
+```bash
+npm run dev          # http://192.168.8.75:5173 (network)
+npm run dev:local    # http://localhost:5173 (localhost)
+npm run build        # TypeScript check + Vite build
+npm run lint         # ESLint check
+npx playwright test  # E2E tests
+```
+
+## Database Rules
+- All tables MUST have `created_at` and `updated_at` fields
+- Use UUID for primary keys (id field)
+- Mapping tables MUST have `_mapping` suffix
+- NEVER use RLS - handle auth in application layer
+- Use optimistic locking via `updated_at` timestamp
+
+## API Pattern
+```typescript
+const { data, error } = await supabase
+  .from('table')
+  .select('*, relation:table(*)')
+  .order('created_at', { ascending: false });
+
+if (error) {
+  console.error('Operation failed:', error);
+  throw error;
+}
+```
+
+## Batching Pattern (CRITICAL)
+```typescript
+// For arrays >50 elements
+const batches = batchArray(ids, 100);
+for (const batch of batches) {
+  const { data, error } = await supabase
+    .from('table')
+    .select('*')
+    .in('column', batch);
+}
+```
+
+## File Size Management
+- Maximum 600 lines per file
+- Break large files into components, hooks, utilities
+- Extract constants and configuration to separate files
+
+## UI Guidelines
+- Mobile-first design approach
+- All tables MUST have sorting and filters in column headers
+- Control elements in table rows should be icon-only (no text)
+- Use Russian labels for user-facing elements
