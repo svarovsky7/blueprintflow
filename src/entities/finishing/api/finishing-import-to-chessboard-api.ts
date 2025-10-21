@@ -27,9 +27,10 @@ interface PreparedImportItem {
   unit_id: string
   detail_cost_category_id: number
   work_name_id: string | null
-  rate_id: string | null
+  work_set_rate_id: string | null
   conversion_coefficient: number | null
   supplier_names_id: string | null
+  finishing_pie_type_id: string | null
   floors: Array<{
     floor_number: number
     quantityPd: number
@@ -209,9 +210,10 @@ async function prepareImportData(
       unit_id: pieRow.unit_id!,
       detail_cost_category_id: pieRow.detail_cost_category_id!,
       work_name_id: pieRow.work_name_id,
-      rate_id: pieRow.rate_id,
+      work_set_rate_id: pieRow.work_set_rate_id,
       conversion_coefficient: pieRow.consumption ?? null,
       supplier_names_id: pieRow.supplier_name_id,
+      finishing_pie_type_id: pieRow.pie_type_id,
       floors: Array.from(floorSums.entries()).map(([floor_number, sums]) => ({
         floor_number,
         quantityPd: 0,
@@ -235,15 +237,46 @@ async function createChessboardRecords(
 
   for (const item of importData) {
     try {
+      let chessboardTypeId: string | null = null
+      if (item.finishing_pie_type_id) {
+        const { data: pieTypeData } = await supabase
+          .from('finishing_pie_types')
+          .select('name')
+          .eq('id', item.finishing_pie_type_id)
+          .maybeSingle()
+
+        if (pieTypeData?.name) {
+          const { data: existingType } = await supabase
+            .from('chessboard_types')
+            .select('id')
+            .eq('name', pieTypeData.name)
+            .maybeSingle()
+
+          if (existingType) {
+            chessboardTypeId = existingType.id
+          } else {
+            const { data: newType } = await supabase
+              .from('chessboard_types')
+              .insert({ name: pieTypeData.name })
+              .select('id')
+              .single()
+            chessboardTypeId = newType?.id || null
+          }
+        }
+      }
+
+      const insertPayload = {
+        project_id: item.project_id,
+        material: item.material_id,
+        unit_id: item.unit_id,
+        material_type: 'База' as const,
+        type_id: chessboardTypeId,
+      }
+
       const { data: chessboardRow, error: cbError } = await supabase
         .from('chessboard')
-        .insert({
-          project_id: item.project_id,
-          material: item.material_id,
-          unit_id: item.unit_id,
-          material_type: 'База',
-        })
-        .select()
+        .insert(insertPayload)
+        .select('id')
         .single()
 
       if (cbError) {
@@ -315,31 +348,12 @@ async function createChessboardRecords(
         }
       }
 
-      if (item.rate_id) {
-        const { data: rateData } = await supabase
-          .from('rates')
-          .select('work_set')
-          .eq('id', item.rate_id)
-          .maybeSingle()
-
-        let workSetRateId = null
-        if (rateData?.work_set) {
-          const { data: workSetRate } = await supabase
-            .from('rates')
-            .select('id')
-            .eq('work_set', rateData.work_set)
-            .limit(1)
-            .maybeSingle()
-
-          workSetRateId = workSetRate?.id || null
-        }
-
+      if (item.work_set_rate_id) {
         const { error: ratesError } = await supabase
           .from('chessboard_rates_mapping')
           .insert({
             chessboard_id: chessboardId,
-            rate_id: item.rate_id,
-            work_set: workSetRateId,
+            work_set_rate_id: item.work_set_rate_id,
           })
 
         if (ratesError && !ratesError.message.includes('duplicate')) {
