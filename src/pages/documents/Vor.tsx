@@ -16,11 +16,12 @@ import {
   Form,
   Tooltip,
 } from 'antd'
-import { EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { EditOutlined, DeleteOutlined, CheckCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { getVorTableData, calculateVorTotals, calculateVorTotalFromChessboard } from '@/entities/vor'
+import { getVorTableData, calculateVorTotals, calculateVorTotalFromChessboard, VOR_TYPE_LABELS, type VorType } from '@/entities/vor'
+import { checkSetChanges, type SetChangeStatus } from '@/entities/chessboard'
 import { parseNumberWithSeparators } from '@/shared/lib'
 
 const { Text } = Typography
@@ -35,6 +36,11 @@ interface VorRecord {
   total_amount: number
   project_id: string
   rate_coefficient: number
+  vor_type?: VorType
+  // Новые поля для отслеживания изменений
+  set_version?: number
+  has_changes?: boolean
+  changes_count?: number
 }
 
 const Vor = () => {
@@ -124,6 +130,7 @@ const Vor = () => {
             name,
             project_id,
             rate_coefficient,
+            vor_type,
             created_at,
             updated_at
           `,
@@ -228,7 +235,19 @@ const Vor = () => {
           }
         }
 
-        // Шаг 6: Собираем финальные данные
+        // Шаг 6: Получаем информацию о версиях и изменениях для каждого ВОР
+        const changeStatusMap = new Map<string, SetChangeStatus>()
+
+        for (const vorId of vorIds) {
+          try {
+            const changeStatus = await checkSetChanges(vorId)
+            changeStatusMap.set(vorId, changeStatus)
+          } catch (error) {
+            console.warn(`Ошибка проверки изменений для ВОР ${vorId}:`, error)
+          }
+        }
+
+        // Шаг 7: Собираем финальные данные
         return vorData.map((vor) => {
           const relatedSetIds = vorSetMap.get(vor.id) || []
 
@@ -245,6 +264,9 @@ const Vor = () => {
           // Получаем сумму из таблицы расчетов
           const totalAmount = calculationMap.get(vor.id) || 0
 
+          // Получаем информацию об изменениях
+          const changeStatus = changeStatusMap.get(vor.id)
+
           return {
             id: vor.id,
             name: vor.name,
@@ -255,6 +277,10 @@ const Vor = () => {
             total_amount: totalAmount,
             project_id: vor.project_id,
             rate_coefficient: vor.rate_coefficient,
+            vor_type: vor.vor_type,
+            set_version: changeStatus?.currentVersion,
+            has_changes: changeStatus?.hasChanges,
+            changes_count: changeStatus?.changesCount,
           } as VorRecord
         })
       } catch (error) {
@@ -415,6 +441,71 @@ const Vor = () => {
       render: (date: string) => new Date(date).toLocaleDateString('ru-RU'),
       sorter: (a: VorRecord, b: VorRecord) =>
         new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    },
+    {
+      title: 'Версия',
+      dataIndex: 'set_version',
+      key: 'set_version',
+      width: 100,
+      align: 'center' as const,
+      render: (version?: number) => version ? `v${version}` : '-',
+      sorter: (a: VorRecord, b: VorRecord) => (a.set_version || 0) - (b.set_version || 0),
+    },
+    {
+      title: 'Изменения в шахматке',
+      key: 'changes_status',
+      width: 180,
+      align: 'center' as const,
+      render: (_: unknown, record: VorRecord) => {
+        if (record.has_changes === undefined) {
+          return <Text type="secondary">-</Text>
+        }
+
+        if (record.has_changes) {
+          return (
+            <Tooltip title={`Комплект изменился (${record.changes_count || 0} изменений)`}>
+              <Space>
+                <WarningOutlined style={{ color: '#ff4d4f', fontSize: '16px' }} />
+                <Text type="danger">Есть изменения</Text>
+              </Space>
+            </Tooltip>
+          )
+        }
+
+        return (
+          <Tooltip title="Данные актуальны">
+            <Space>
+              <CheckCircleOutlined style={{ color: '#52c41a', fontSize: '16px' }} />
+              <Text type="success">Актуально</Text>
+            </Space>
+          </Tooltip>
+        )
+      },
+      filters: [
+        { text: 'Актуально', value: 'no_changes' },
+        { text: 'Есть изменения', value: 'has_changes' },
+      ],
+      onFilter: (value, record) => {
+        if (value === 'no_changes') {
+          return !record.has_changes
+        }
+        if (value === 'has_changes') {
+          return !!record.has_changes
+        }
+        return true
+      },
+    },
+    {
+      title: 'Тип',
+      dataIndex: 'vor_type',
+      key: 'vor_type',
+      width: 120,
+      render: (vorType?: VorType) => vorType ? VOR_TYPE_LABELS[vorType] : '-',
+      sorter: (a: VorRecord, b: VorRecord) => {
+        const typeA = a.vor_type || ''
+        const typeB = b.vor_type || ''
+        return typeA.localeCompare(typeB)
+      },
     },
     {
       title: 'Шифр проектов',
