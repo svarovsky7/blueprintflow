@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Form, Input, Button, Alert } from 'antd'
+import { Form, Input, Button, Alert, Row, Col, message } from 'antd'
 import { UserOutlined, LockOutlined, MailOutlined, PhoneOutlined } from '@ant-design/icons'
 import { createUser } from '@/entities/users'
 import type { CreateUserDto } from '@/entities/users'
@@ -51,28 +51,33 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
   }
 
   return (
-    <Form form={form} onFinish={handleSubmit} layout="vertical" size="large">
+    <Form form={form} onFinish={handleSubmit} layout="vertical" size="middle">
       {error && (
         <Form.Item>
           <Alert message={error} type="error" showIcon closable onClose={() => setError(null)} />
         </Form.Item>
       )}
 
-      <Form.Item
-        name="last_name"
-        label="Фамилия"
-        rules={[{ required: true, message: 'Введите фамилию' }]}
-      >
-        <Input placeholder="Иванов" />
-      </Form.Item>
-
-      <Form.Item
-        name="first_name"
-        label="Имя"
-        rules={[{ required: true, message: 'Введите имя' }]}
-      >
-        <Input placeholder="Иван" />
-      </Form.Item>
+      <Row gutter={12}>
+        <Col span={12}>
+          <Form.Item
+            name="last_name"
+            label="Фамилия"
+            rules={[{ required: true, message: 'Введите фамилию' }]}
+          >
+            <Input placeholder="Иванов" />
+          </Form.Item>
+        </Col>
+        <Col span={12}>
+          <Form.Item
+            name="first_name"
+            label="Имя"
+            rules={[{ required: true, message: 'Введите имя' }]}
+          >
+            <Input placeholder="Иван" />
+          </Form.Item>
+        </Col>
+      </Row>
 
       <Form.Item name="middle_name" label="Отчество">
         <Input placeholder="Иванович" />
@@ -89,43 +94,53 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
         <Input prefix={<MailOutlined />} placeholder="your@email.com" />
       </Form.Item>
 
-      <Form.Item
-        name="password"
-        label="Пароль"
-        rules={[
-          { required: true, message: 'Введите пароль' },
-          { min: 6, message: 'Минимум 6 символов' },
-        ]}
-      >
-        <Input.Password prefix={<LockOutlined />} placeholder="Пароль" />
-      </Form.Item>
+      <Row gutter={12}>
+        <Col span={12}>
+          <Form.Item
+            name="password"
+            label="Пароль"
+            rules={[
+              { required: true, message: 'Введите пароль' },
+              { min: 6, message: 'Минимум 6 символов' },
+            ]}
+          >
+            <Input.Password prefix={<LockOutlined />} placeholder="Пароль" />
+          </Form.Item>
+        </Col>
+        <Col span={12}>
+          <Form.Item
+            name="confirm_password"
+            label="Подтверждение"
+            dependencies={['password']}
+            rules={[
+              { required: true, message: 'Подтвердите пароль' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('password') === value) {
+                    return Promise.resolve()
+                  }
+                  return Promise.reject(new Error('Пароли не совпадают'))
+                },
+              }),
+            ]}
+          >
+            <Input.Password prefix={<LockOutlined />} placeholder="Подтверждение" />
+          </Form.Item>
+        </Col>
+      </Row>
 
-      <Form.Item
-        name="confirm_password"
-        label="Подтверждение пароля"
-        dependencies={['password']}
-        rules={[
-          { required: true, message: 'Подтвердите пароль' },
-          ({ getFieldValue }) => ({
-            validator(_, value) {
-              if (!value || getFieldValue('password') === value) {
-                return Promise.resolve()
-              }
-              return Promise.reject(new Error('Пароли не совпадают'))
-            },
-          }),
-        ]}
-      >
-        <Input.Password prefix={<LockOutlined />} placeholder="Подтверждение пароля" />
-      </Form.Item>
-
-      <Form.Item name="position" label="Должность">
-        <Input prefix={<UserOutlined />} placeholder="Инженер" />
-      </Form.Item>
-
-      <Form.Item name="department" label="Отдел">
-        <Input placeholder="ПТО" />
-      </Form.Item>
+      <Row gutter={12}>
+        <Col span={12}>
+          <Form.Item name="position" label="Должность">
+            <Input prefix={<UserOutlined />} placeholder="Инженер" />
+          </Form.Item>
+        </Col>
+        <Col span={12}>
+          <Form.Item name="department" label="Отдел">
+            <Input placeholder="ПТО" />
+          </Form.Item>
+        </Col>
+      </Row>
 
       <Form.Item name="phone" label="Телефон">
         <Input prefix={<PhoneOutlined />} placeholder="+7 (___) ___-__-__" />

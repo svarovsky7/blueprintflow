@@ -26,7 +26,7 @@ export default function Login() {
       }}
     >
       <Card
-        style={{ width: 500, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
+        style={{ width: 600, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
         title={
           <div style={{ textAlign: 'center', fontSize: 24, fontWeight: 600 }}>BlueprintFlow</div>
         }
