@@ -11,4 +11,6 @@ export interface ChessboardRow extends BaseEntity {
   locationId: string
   floors: string
   color: 'green' | 'yellow' | 'blue' | 'red' | 'purple' | ''
+  created_by?: string | null
+  updated_by?: string | null
 }

@@ -9,12 +9,12 @@ import {
   Input,
   message,
   Tag,
-  Popconfirm,
   Select,
   ColorPicker,
 } from 'antd'
 import type { Color } from 'antd/es/color-picker'
 import { EditOutlined, DeleteOutlined, PlusOutlined, TeamOutlined } from '@ant-design/icons'
+import { DeleteConfirmModal } from '@/shared/components'
 import {
   getUserGroups,
   createUserGroup,
@@ -29,6 +29,10 @@ export default function GroupsTab() {
   const [editingGroup, setEditingGroup] = useState<UserGroup | null>(null)
   const [form] = Form.useForm()
   const queryClient = useQueryClient()
+  
+  // Состояние для модального окна удаления
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [groupToDelete, setGroupToDelete] = useState<UserGroup | null>(null)
 
   const { data: groups = [], isLoading } = useQuery({
     queryKey: ['user-groups'],
@@ -88,6 +92,24 @@ export default function GroupsTab() {
     setIsModalOpen(false)
     setEditingGroup(null)
     form.resetFields()
+  }
+
+  const handleDeleteClick = (group: UserGroup) => {
+    setGroupToDelete(group)
+    setDeleteModalOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (groupToDelete) {
+      deleteMutation.mutate(groupToDelete.id)
+      setDeleteModalOpen(false)
+      setGroupToDelete(null)
+    }
+  }
+
+  const handleDeleteCancel = () => {
+    setDeleteModalOpen(false)
+    setGroupToDelete(null)
   }
 
   const handleSubmit = async () => {
@@ -150,22 +172,14 @@ export default function GroupsTab() {
             disabled={record.is_system}
             title="Редактировать"
           />
-          <Popconfirm
-            title="Удалить группу?"
-            description="Это действие нельзя отменить"
-            onConfirm={() => deleteMutation.mutate(record.id)}
-            okText="Да"
-            cancelText="Нет"
+          <Button
+            type="text"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => handleDeleteClick(record)}
             disabled={record.is_system}
-          >
-            <Button
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              disabled={record.is_system}
-              title="Удалить"
-            />
-          </Popconfirm>
+            title="Удалить"
+          />
         </Space>
       ),
     },
@@ -250,6 +264,16 @@ export default function GroupsTab() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <DeleteConfirmModal
+        open={deleteModalOpen}
+        onCancel={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Удаление группы"
+        description="Это действие нельзя отменить"
+        itemName={groupToDelete?.name}
+        loading={deleteMutation.isPending}
+      />
     </>
   )
 }

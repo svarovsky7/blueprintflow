@@ -10,11 +10,11 @@ import {
   Switch,
   App,
   Badge,
-  Popconfirm,
   Tag,
   Select,
 } from 'antd'
 import { EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { DeleteConfirmModal } from '@/shared/components'
 import { getUsers, updateUser, deleteUser, deactivateUser, activateUser } from '@/entities/users'
 import {
   assignRoleToUser,
@@ -45,6 +45,10 @@ export default function UsersTab() {
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [form] = Form.useForm()
   const queryClient = useQueryClient()
+  
+  // Состояние для модального окна удаления
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [userToDelete, setUserToDelete] = useState<User | null>(null)
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
@@ -194,6 +198,24 @@ export default function UsersTab() {
     form.resetFields()
   }
 
+  const handleDeleteClick = (user: User) => {
+    setUserToDelete(user)
+    setDeleteModalOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (userToDelete) {
+      deleteMutation.mutate(userToDelete.id)
+      setDeleteModalOpen(false)
+      setUserToDelete(null)
+    }
+  }
+
+  const handleDeleteCancel = () => {
+    setDeleteModalOpen(false)
+    setUserToDelete(null)
+  }
+
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields()
@@ -315,15 +337,13 @@ export default function UsersTab() {
             onClick={() => handleEdit(record)}
             title="Редактировать"
           />
-          <Popconfirm
-            title="Удалить пользователя?"
-            description="Это действие нельзя отменить"
-            onConfirm={() => deleteMutation.mutate(record.id)}
-            okText="Да"
-            cancelText="Нет"
-          >
-            <Button type="text" danger icon={<DeleteOutlined />} title="Удалить" />
-          </Popconfirm>
+          <Button
+            type="text"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => handleDeleteClick(record)}
+            title="Удалить"
+          />
         </Space>
       ),
     },
@@ -378,6 +398,16 @@ export default function UsersTab() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <DeleteConfirmModal
+        open={deleteModalOpen}
+        onCancel={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Удаление пользователя"
+        description="Это действие нельзя отменить"
+        itemName={userToDelete ? `${userToDelete.last_name} ${userToDelete.first_name}` : undefined}
+        loading={deleteMutation.isPending}
+      />
     </>
   )
 }

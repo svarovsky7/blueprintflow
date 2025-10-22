@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Table, Button, Space, Modal, Form, Select, message, Tag, Popconfirm, Badge } from 'antd'
+import { Table, Button, Space, Modal, Form, Select, message, Tag, Badge } from 'antd'
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
+import { DeleteConfirmModal } from '@/shared/components'
 import {
   getAllUserRolesMappings,
   assignRoleToUser,
@@ -16,6 +17,10 @@ export default function UserRolesTab() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [form] = Form.useForm()
   const queryClient = useQueryClient()
+  
+  // Состояние для модального окна удаления
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [mappingToDelete, setMappingToDelete] = useState<UserRoleMapping | null>(null)
 
   const { data: mappings = [], isLoading } = useQuery({
     queryKey: ['user-roles-mappings'],
@@ -65,6 +70,24 @@ export default function UserRolesTab() {
   const handleCloseModal = () => {
     setIsModalOpen(false)
     form.resetFields()
+  }
+
+  const handleDeleteClick = (mapping: UserRoleMapping) => {
+    setMappingToDelete(mapping)
+    setDeleteModalOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (mappingToDelete) {
+      removeMutation.mutate({ userId: mappingToDelete.user_id, roleId: mappingToDelete.role_id })
+      setDeleteModalOpen(false)
+      setMappingToDelete(null)
+    }
+  }
+
+  const handleDeleteCancel = () => {
+    setDeleteModalOpen(false)
+    setMappingToDelete(null)
   }
 
   const handleSubmit = async () => {
@@ -127,16 +150,13 @@ export default function UserRolesTab() {
       key: 'actions',
       width: 100,
       render: (_, record) => (
-        <Popconfirm
-          title="Удалить роль у пользователя?"
-          onConfirm={() =>
-            removeMutation.mutate({ userId: record.user_id, roleId: record.role_id })
-          }
-          okText="Да"
-          cancelText="Нет"
-        >
-          <Button type="text" danger icon={<DeleteOutlined />} title="Удалить" />
-        </Popconfirm>
+        <Button
+          type="text"
+          danger
+          icon={<DeleteOutlined />}
+          onClick={() => handleDeleteClick(record)}
+          title="Удалить"
+        />
       ),
     },
   ]
@@ -204,6 +224,16 @@ export default function UserRolesTab() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <DeleteConfirmModal
+        open={deleteModalOpen}
+        onCancel={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Удаление роли у пользователя"
+        description="Это действие нельзя отменить"
+        itemName={mappingToDelete ? `${mappingToDelete.user?.last_name} ${mappingToDelete.user?.first_name} - ${mappingToDelete.role?.name}` : undefined}
+        loading={removeMutation.isPending}
+      />
     </>
   )
 }

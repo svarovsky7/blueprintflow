@@ -9,12 +9,12 @@ import {
   Input,
   message,
   Tag,
-  Popconfirm,
   ColorPicker,
   InputNumber,
 } from 'antd'
 import type { Color } from 'antd/es/color-picker'
 import { EditOutlined, DeleteOutlined, PlusOutlined, SafetyOutlined } from '@ant-design/icons'
+import { DeleteConfirmModal } from '@/shared/components'
 import { getRoles, createRole, updateRole, deleteRole } from '@/entities/roles'
 import { createPermissionsForAllObjects } from '@/entities/permissions/api/permissions-api'
 import type { Role, CreateRoleDto, UpdateRoleDto } from '@/entities/roles'
@@ -26,6 +26,10 @@ export default function RolesTab() {
   const [editingRole, setEditingRole] = useState<Role | null>(null)
   const [form] = Form.useForm()
   const queryClient = useQueryClient()
+  
+  // Состояние для модального окна удаления
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [roleToDelete, setRoleToDelete] = useState<Role | null>(null)
 
   const { data: roles = [], isLoading } = useQuery({
     queryKey: ['roles'],
@@ -89,6 +93,24 @@ export default function RolesTab() {
     setIsModalOpen(false)
     setEditingRole(null)
     form.resetFields()
+  }
+
+  const handleDeleteClick = (role: Role) => {
+    setRoleToDelete(role)
+    setDeleteModalOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (roleToDelete) {
+      deleteMutation.mutate(roleToDelete.id)
+      setDeleteModalOpen(false)
+      setRoleToDelete(null)
+    }
+  }
+
+  const handleDeleteCancel = () => {
+    setDeleteModalOpen(false)
+    setRoleToDelete(null)
   }
 
   const handleSubmit = async () => {
@@ -160,22 +182,14 @@ export default function RolesTab() {
             disabled={record.is_system}
             title="Редактировать"
           />
-          <Popconfirm
-            title="Удалить роль?"
-            description="Это действие нельзя отменить"
-            onConfirm={() => deleteMutation.mutate(record.id)}
-            okText="Да"
-            cancelText="Нет"
+          <Button
+            type="text"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => handleDeleteClick(record)}
             disabled={record.is_system}
-          >
-            <Button
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              disabled={record.is_system}
-              title="Удалить"
-            />
-          </Popconfirm>
+            title="Удалить"
+          />
         </Space>
       ),
     },
@@ -255,6 +269,16 @@ export default function RolesTab() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <DeleteConfirmModal
+        open={deleteModalOpen}
+        onCancel={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Удаление роли"
+        description="Это действие нельзя отменить"
+        itemName={roleToDelete?.name}
+        loading={deleteMutation.isPending}
+      />
     </>
   )
 }

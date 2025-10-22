@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Table, Button, Space, Modal, Form, Select, message, Tag, Popconfirm, Badge } from 'antd'
+import { Table, Button, Space, Modal, Form, Select, message, Tag, Badge } from 'antd'
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
+import { DeleteConfirmModal } from '@/shared/components'
 import {
   getAllUserGroupsMemberships,
   addUserToGroup,
@@ -16,6 +17,10 @@ export default function UserGroupsTab() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [form] = Form.useForm()
   const queryClient = useQueryClient()
+  
+  // Состояние для модального окна удаления
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [membershipToDelete, setMembershipToDelete] = useState<UserGroupMembership | null>(null)
 
   const { data: memberships = [], isLoading } = useQuery({
     queryKey: ['user-groups-memberships'],
@@ -65,6 +70,24 @@ export default function UserGroupsTab() {
   const handleCloseModal = () => {
     setIsModalOpen(false)
     form.resetFields()
+  }
+
+  const handleDeleteClick = (membership: UserGroupMembership) => {
+    setMembershipToDelete(membership)
+    setDeleteModalOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (membershipToDelete) {
+      removeMutation.mutate({ userId: membershipToDelete.user_id, groupId: membershipToDelete.group_id })
+      setDeleteModalOpen(false)
+      setMembershipToDelete(null)
+    }
+  }
+
+  const handleDeleteCancel = () => {
+    setDeleteModalOpen(false)
+    setMembershipToDelete(null)
   }
 
   const handleSubmit = async () => {
@@ -117,16 +140,13 @@ export default function UserGroupsTab() {
       key: 'actions',
       width: 100,
       render: (_, record) => (
-        <Popconfirm
-          title="Удалить пользователя из группы?"
-          onConfirm={() =>
-            removeMutation.mutate({ userId: record.user_id, groupId: record.group_id })
-          }
-          okText="Да"
-          cancelText="Нет"
-        >
-          <Button type="text" danger icon={<DeleteOutlined />} title="Удалить" />
-        </Popconfirm>
+        <Button
+          type="text"
+          danger
+          icon={<DeleteOutlined />}
+          onClick={() => handleDeleteClick(record)}
+          title="Удалить"
+        />
       ),
     },
   ]
@@ -194,6 +214,16 @@ export default function UserGroupsTab() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <DeleteConfirmModal
+        open={deleteModalOpen}
+        onCancel={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Удаление пользователя из группы"
+        description="Это действие нельзя отменить"
+        itemName={membershipToDelete ? `${membershipToDelete.user?.last_name} ${membershipToDelete.user?.first_name} из группы ${membershipToDelete.group?.name}` : undefined}
+        loading={removeMutation.isPending}
+      />
     </>
   )
 }

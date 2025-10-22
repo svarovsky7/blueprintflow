@@ -24,6 +24,11 @@ export const chessboardApi = {
   async create(row: Partial<ChessboardRow>) {
     if (!supabase) throw new Error('Supabase is not configured')
 
+    // Получаем текущего пользователя
+    const { data: { user } } = await supabase.auth.getUser()
+    const currentUserId = user?.id
+
+
     const {
       quantityPd: _quantityPd,
       quantitySpec: _quantitySpec,
@@ -33,10 +38,18 @@ export const chessboardApi = {
     void _quantityPd
     void _quantitySpec
     void _quantityRd
-    const { data, error } = await supabase.from('chessboard').insert(rest).select()
+
+    // Добавляем поля авторов в данные для вставки
+    const dataToInsert = {
+      ...rest,
+      created_by: currentUserId,
+      updated_by: currentUserId,
+    }
+
+
+    const { data, error } = await supabase.from('chessboard').insert(dataToInsert).select()
 
     if (error) {
-      console.error('Failed to create chessboard row:', error)
       throw error
     }
 
@@ -46,7 +59,10 @@ export const chessboardApi = {
   async update(id: string, updates: Partial<ChessboardRow>) {
     if (!supabase) throw new Error('Supabase is not configured')
 
-    console.log('🔍 chessboardApi.update - входные данные:', { id, updates })
+    // Получаем текущего пользователя
+    const { data: { user } } = await supabase.auth.getUser()
+    const currentUserId = user?.id
+
 
     const {
       quantityPd: _quantityPd,
@@ -60,18 +76,16 @@ export const chessboardApi = {
     void _quantityRd
     void _workName
 
-    console.log('📊 chessboardApi.update - данные для отправки:', rest)
+    // Добавляем поле updated_by в данные для обновления
+    const dataToUpdate = {
+      ...rest,
+      updated_by: currentUserId,
+    }
 
-    const { data, error } = await supabase.from('chessboard').update(rest).eq('id', id).select()
+
+    const { data, error } = await supabase.from('chessboard').update(dataToUpdate).eq('id', id).select()
 
     if (error) {
-      console.error('❌ Failed to update chessboard row:', error)
-      console.error('📊 Детали ошибки:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-      })
       throw error
     }
 

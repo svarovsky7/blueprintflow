@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Table, Button, Space, Modal, Form, Select, message, Tag, Popconfirm } from 'antd'
+import { Table, Button, Space, Modal, Form, Select, message, Tag } from 'antd'
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
+import { DeleteConfirmModal } from '@/shared/components'
 import { getAllGroupRolesMappings, assignRoleToGroup, removeRoleFromGroup } from '@/entities/roles/api/roles-mapping-api'
 import { getRoles } from '@/entities/roles'
 import { getUserGroups } from '@/entities/user-groups'
@@ -12,6 +13,10 @@ export default function GroupRolesTab() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [form] = Form.useForm()
   const queryClient = useQueryClient()
+  
+  // Состояние для модального окна удаления
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [mappingToDelete, setMappingToDelete] = useState<GroupRoleMapping | null>(null)
 
   const { data: mappings = [], isLoading } = useQuery({
     queryKey: ['group-roles-mappings'],
@@ -63,6 +68,24 @@ export default function GroupRolesTab() {
     form.resetFields()
   }
 
+  const handleDeleteClick = (mapping: GroupRoleMapping) => {
+    setMappingToDelete(mapping)
+    setDeleteModalOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (mappingToDelete) {
+      removeMutation.mutate({ groupId: mappingToDelete.group_id, roleId: mappingToDelete.role_id })
+      setDeleteModalOpen(false)
+      setMappingToDelete(null)
+    }
+  }
+
+  const handleDeleteCancel = () => {
+    setDeleteModalOpen(false)
+    setMappingToDelete(null)
+  }
+
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields()
@@ -98,16 +121,13 @@ export default function GroupRolesTab() {
       key: 'actions',
       width: 100,
       render: (_, record) => (
-        <Popconfirm
-          title="Удалить роль из группы?"
-          onConfirm={() =>
-            removeMutation.mutate({ groupId: record.group_id, roleId: record.role_id })
-          }
-          okText="Да"
-          cancelText="Нет"
-        >
-          <Button type="text" danger icon={<DeleteOutlined />} title="Удалить" />
-        </Popconfirm>
+        <Button
+          type="text"
+          danger
+          icon={<DeleteOutlined />}
+          onClick={() => handleDeleteClick(record)}
+          title="Удалить"
+        />
       ),
     },
   ]
@@ -169,6 +189,16 @@ export default function GroupRolesTab() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <DeleteConfirmModal
+        open={deleteModalOpen}
+        onCancel={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Удаление роли из группы"
+        description="Это действие нельзя отменить"
+        itemName={mappingToDelete ? `${mappingToDelete.group?.name} - ${mappingToDelete.role?.name}` : undefined}
+        loading={removeMutation.isPending}
+      />
     </>
   )
 }

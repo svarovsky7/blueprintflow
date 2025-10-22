@@ -46,7 +46,7 @@ export const chessboardSetsApi = {
   },
 
   // Создание нового комплекта
-  async createSet(request: CreateChessboardSetRequest): Promise<ChessboardSet> {
+  async createSet(request: CreateChessboardSetRequest, skipUniquenessCheck = false): Promise<ChessboardSet> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     // Получить текущего пользователя
@@ -55,12 +55,14 @@ export const chessboardSetsApi = {
     } = await supabase.auth.getUser()
     const currentUserId = user?.id || null
 
-    // Проверяем, существует ли уже комплект с такими же фильтрами
-    const existingSet = await this.findSetByFilters(request.filters)
-    if (existingSet) {
-      throw new Error(
-        `Комплект с таким набором фильтров уже существует (№${existingSet.set_number})`,
-      )
+    // Проверяем, существует ли уже комплект с такими же фильтрами (только если не копируем)
+    if (!skipUniquenessCheck) {
+      const existingSet = await this.findSetByFilters(request.filters)
+      if (existingSet) {
+        throw new Error(
+          `Комплект с таким набором фильтров уже существует (№${existingSet.set_number})`,
+        )
+      }
     }
 
     // Генерируем уникальный номер комплекта

@@ -367,6 +367,7 @@ export default function ChessboardSetsModal({
         }
 
         // Создаем новый комплект с правильной структурой данных
+        // Пропускаем проверку уникальности для копий
         await chessboardSetsApi.createSet({
           name: values.name,
           filters: {
@@ -378,7 +379,7 @@ export default function ChessboardSetsModal({
             cost_type_ids: values.cost_type_ids || [],
           },
           status_id: inProgressStatusId, // Статус "В работе" найден динамически
-        })
+        }, true) // Пропускаем проверку уникальности для копий
 
         message.success('Комплект скопирован')
         setCopyModalOpen(false)

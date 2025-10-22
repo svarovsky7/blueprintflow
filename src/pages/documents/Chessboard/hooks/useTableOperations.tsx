@@ -305,14 +305,19 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
       } else if (tableMode.mode === 'view') {
         // ИСПРАВЛЕНИЕ: В режиме просмотра сразу сохраняем цвет в БД без перевода в режим редактирования
         try {
-          // Устанавливаем текущего пользователя перед UPDATE chessboard
-          if (currentUserId) {
-            await setCurrentUser(currentUserId)
+          // Получаем текущего пользователя напрямую, если currentUserId не загружен
+          let userId = currentUserId
+          if (!userId) {
+            const { data: { user } } = await supabase.auth.getUser()
+            userId = user?.id || null
           }
 
           const { error } = await supabase
             .from('chessboard')
-            .update({ color })
+            .update({ 
+              color,
+              updated_by: userId 
+            })
             .eq('id', rowId)
 
           if (error) {
@@ -475,14 +480,17 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
             }
           }
 
-          // Устанавливаем текущего пользователя перед INSERT в chessboard
-          if (currentUserId) {
-            await setCurrentUser(currentUserId)
+          // Добавляем поля авторов в данные для вставки
+          const dataWithAuthors = {
+            ...chessboardData,
+            created_by: currentUserId,
+            updated_by: currentUserId,
           }
+
 
           const { data: newChessboardRow, error: insertError } = await supabase
             .from('chessboard')
-            .insert(chessboardData)
+            .insert(dataWithAuthors)
             .select('id')
             .single()
 
@@ -706,26 +714,39 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
         // Обновляем updated_at
         chessboardUpdateData.updated_at = new Date().toISOString()
 
-        // Обновляем основную таблицу только если есть что обновлять
-        if (Object.keys(chessboardUpdateData).length > 1) { // > 1 потому что updated_at всегда есть
-          const chessboardPromise = async () => {
-            // Устанавливаем текущего пользователя перед UPDATE chessboard
-            if (currentUserId) {
-              await setCurrentUser(currentUserId)
-            }
 
-            const { data, error } = await supabase
-              .from('chessboard')
-              .update(chessboardUpdateData)
-              .eq('id', rowId)
-
-            if (error) {
-              throw error
-            }
-            return { data, error }
-          }
-          promises.push(chessboardPromise())
+        // Получаем текущего пользователя напрямую, если currentUserId не загружен
+        let userId = currentUserId
+        if (!userId) {
+          const { data: { user } } = await supabase.auth.getUser()
+          userId = user?.id || null
         }
+
+        // Примечание: setCurrentUser больше не нужен, так как триггер удален
+
+        // Всегда обновляем основную таблицу, чтобы обновить updated_by и updated_at
+        const chessboardPromise = async () => {
+          // Добавляем поле updated_by в данные для обновления
+          // Исключаем created_by из обновления (оно должно оставаться неизменным)
+          const { created_by, ...dataWithoutCreatedBy } = chessboardUpdateData
+          const dataWithAuthor = {
+            ...dataWithoutCreatedBy,
+            updated_by: userId,
+          }
+
+
+          const { data, error } = await supabase
+            .from('chessboard')
+            .update(dataWithAuthor)
+            .eq('id', rowId)
+            .select('id, created_by, updated_by, updated_at')
+
+          if (error) {
+            throw error
+          }
+          return { data, error }
+        }
+        promises.push(chessboardPromise())
 
         // Обновляем mapping таблицу для остальных полей (с правильными типами данных)
         const mappingUpdateData: any = {}
@@ -1163,25 +1184,39 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
 
         chessboardUpdateData.updated_at = new Date().toISOString()
 
-        if (Object.keys(chessboardUpdateData).length > 1) {
-          const chessboardBackupPromise = async () => {
-            // Устанавливаем текущего пользователя перед UPDATE chessboard (backup режим)
-            if (currentUserId) {
-              await setCurrentUser(currentUserId)
-            }
 
-            const { data, error } = await supabase
-              .from('chessboard')
-              .update(chessboardUpdateData)
-              .eq('id', rowId)
-
-            if (error) {
-              throw error
-            }
-            return { data, error }
-          }
-          promises.push(chessboardBackupPromise())
+        // Получаем текущего пользователя напрямую, если currentUserId не загружен (backup режим)
+        let userId = currentUserId
+        if (!userId) {
+          const { data: { user } } = await supabase.auth.getUser()
+          userId = user?.id || null
         }
+
+        // Примечание: setCurrentUser больше не нужен, так как триггер удален (backup режим)
+
+        // Всегда обновляем основную таблицу, чтобы обновить updated_by и updated_at (backup режим)
+        const chessboardBackupPromise = async () => {
+          // Добавляем поле updated_by в данные для обновления (backup режим)
+          // Исключаем created_by из обновления (оно должно оставаться неизменным)
+          const { created_by, ...dataWithoutCreatedBy } = chessboardUpdateData
+          const dataWithAuthor = {
+            ...dataWithoutCreatedBy,
+            updated_by: userId,
+          }
+
+
+          const { data, error } = await supabase
+            .from('chessboard')
+            .update(dataWithAuthor)
+            .eq('id', rowId)
+            .select('id, created_by, updated_by, updated_at')
+
+          if (error) {
+            throw error
+          }
+          return { data, error }
+        }
+        promises.push(chessboardBackupPromise())
 
         // Обновляем mapping таблицу для backup строки
         const mappingUpdateData: any = {}

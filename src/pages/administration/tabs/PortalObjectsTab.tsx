@@ -9,12 +9,12 @@ import {
   Input,
   Select,
   message,
-  Popconfirm,
   Tag,
   Switch,
   InputNumber,
 } from 'antd'
 import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons'
+import { DeleteConfirmModal } from '@/shared/components'
 import {
   getPortalObjects,
   createPortalObject,
@@ -49,6 +49,10 @@ export default function PortalObjectsTab() {
   const [editingObject, setEditingObject] = useState<PortalObject | null>(null)
   const [form] = Form.useForm()
   const queryClient = useQueryClient()
+  
+  // Состояние для модального окна удаления
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [objectToDelete, setObjectToDelete] = useState<PortalObject | null>(null)
 
   const { data: objects = [], isLoading } = useQuery({
     queryKey: ['portal-objects'],
@@ -111,6 +115,24 @@ export default function PortalObjectsTab() {
     setIsModalOpen(false)
     setEditingObject(null)
     form.resetFields()
+  }
+
+  const handleDeleteClick = (object: PortalObject) => {
+    setObjectToDelete(object)
+    setDeleteModalOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (objectToDelete) {
+      deleteMutation.mutate(objectToDelete.id)
+      setDeleteModalOpen(false)
+      setObjectToDelete(null)
+    }
+  }
+
+  const handleDeleteCancel = () => {
+    setDeleteModalOpen(false)
+    setObjectToDelete(null)
   }
 
   const handleSubmit = async () => {
@@ -215,21 +237,14 @@ export default function PortalObjectsTab() {
             disabled={record.is_system}
             title="Редактировать"
           />
-          <Popconfirm
-            title="Удалить объект?"
-            description="Это действие нельзя отменить"
-            onConfirm={() => deleteMutation.mutate(record.id)}
-            okText="Да"
-            cancelText="Нет"
-          >
-            <Button
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              disabled={record.is_system}
-              title="Удалить"
-            />
-          </Popconfirm>
+          <Button
+            type="text"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => handleDeleteClick(record)}
+            disabled={record.is_system}
+            title="Удалить"
+          />
         </Space>
       ),
     },
@@ -326,6 +341,16 @@ export default function PortalObjectsTab() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <DeleteConfirmModal
+        open={deleteModalOpen}
+        onCancel={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Удаление объекта портала"
+        description="Это действие нельзя отменить"
+        itemName={objectToDelete?.name}
+        loading={deleteMutation.isPending}
+      />
     </>
   )
 }

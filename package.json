@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 192.168.8.75",
-    "dev:local": "vite",
+    "dev": "vite",
+    "dev:network": "vite --host 192.168.8.75",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
