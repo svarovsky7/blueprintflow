@@ -106,7 +106,7 @@ const increaseColumnWidth = (baseWidth: number, percentage: number): number => {
  * - increaseColumnWidth(120, 30) = 156px (+30%)
  */
 const COLUMN_WIDTH_CONFIG_BASE: Record<string, { width?: number; minWidth?: number; maxWidth?: number }> = {
-  [COLUMN_KEYS.ACTIONS]: { width: 80 }, // Служебный столбец 80px
+  [COLUMN_KEYS.ACTIONS]: { width: 90 }, // Служебный столбец 90px (+10px)
   [COLUMN_KEYS.DOCUMENTATION_SECTION]: { minWidth: 40, maxWidth: 80 }, // "Раздел" динамический 40-80px
   [COLUMN_KEYS.DOCUMENTATION_CODE]: { width: 100 }, // "Шифр проекта" 100px
   [COLUMN_KEYS.DOCUMENTATION_PROJECT_NAME]: { width: 150, minWidth: 150, maxWidth: 150 }, // Наименование проекта 150px
@@ -3313,14 +3313,14 @@ export const ChessboardTable = memo(({
       <style>{`
         /* Действия - 1-й столбец */
         .chessboard-table .ant-table-thead > tr > th:nth-child(1) {
-          width: 80px !important;
-          min-width: 80px !important;
-          max-width: 80px !important;
+          width: 90px !important;
+          min-width: 90px !important;
+          max-width: 90px !important;
         }
         .chessboard-table .ant-table-tbody > tr > td:nth-child(1) {
-          width: 80px !important;
-          min-width: 80px !important;
-          max-width: 80px !important;
+          width: 90px !important;
+          min-width: 90px !important;
+          max-width: 90px !important;
         }
         /* Раздел - 2-й столбец */
         .chessboard-table .ant-table-thead > tr > th:nth-child(2) {

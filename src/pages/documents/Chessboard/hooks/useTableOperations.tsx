@@ -66,7 +66,8 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
     projectId: string,
     appliedFilters: AppliedFilters,
     insertPosition: 'first' | 'after' = 'first',
-    afterRowIndex?: number
+    afterRowIndex?: number,
+    selectedVersions?: Record<string, string>
   ) => {
     if (!projectId) {
       message.warning('Выберите проект для добавления строки')
@@ -109,6 +110,42 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
       }
     }
 
+    // Получаем версию документа
+    let docVersionId = ''
+    let docVersionNumber = ''
+    
+    if (firstDocCodeId) {
+      // Сначала проверяем selectedVersions (выбор пользователя из модального окна)
+      if (selectedVersions && selectedVersions[firstDocCodeId]) {
+        docVersionId = selectedVersions[firstDocCodeId]
+        
+        // Получаем номер версии
+        const { data: versionData } = await supabase
+          .from('documentation_versions')
+          .select('version_number')
+          .eq('id', docVersionId)
+          .maybeSingle()
+        
+        if (versionData) {
+          docVersionNumber = versionData.version_number.toString()
+        }
+      } else {
+        // Если версия не выбрана в модальном окне, загружаем последнюю версию
+        const { data: latestVersion } = await supabase
+          .from('documentation_versions')
+          .select('id, version_number')
+          .eq('documentation_id', firstDocCodeId)
+          .order('version_number', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        
+        if (latestVersion) {
+          docVersionId = latestVersion.id
+          docVersionNumber = latestVersion.version_number.toString()
+        }
+      }
+    }
+
     if (firstBlockId) {
       const { data: blockData } = await supabase
         .from('blocks')
@@ -144,8 +181,8 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
       documentationSection: docSectionName,
       documentationCode: docCode,
       documentationProjectName: docProjectName,
-      documentationVersion: '',
-      documentationVersionId: '',
+      documentationVersion: docVersionNumber,
+      documentationVersionId: docVersionId,
       documentationCodeId: firstDocCodeId,
       // Данные из маппингов (заполняем из фильтров)
       block: blockName,

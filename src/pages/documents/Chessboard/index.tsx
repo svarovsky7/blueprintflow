@@ -224,16 +224,16 @@ export default function Chessboard() {
   // Обработчики событий
   const handleAddRow = useCallback(() => {
     if (appliedFilters.project_id) {
-      addNewRow(appliedFilters.project_id, appliedFilters, 'first')
+      addNewRow(appliedFilters.project_id, appliedFilters, 'first', undefined, selectedVersions)
     }
-  }, [appliedFilters, addNewRow])
+  }, [appliedFilters, addNewRow, selectedVersions])
 
   const handleAddRowAfter = useCallback((rowIndex: number) => {
     if (appliedFilters.project_id) {
-      addNewRow(appliedFilters.project_id, appliedFilters, 'after', rowIndex)
+      addNewRow(appliedFilters.project_id, appliedFilters, 'after', rowIndex, selectedVersions)
     } else {
     }
-  }, [appliedFilters, addNewRow])
+  }, [appliedFilters, addNewRow, selectedVersions])
 
   const handleCopyRowAfter = useCallback((rowData: any, rowIndex: number) => {
     copyRow(rowData, 'after', rowIndex)
@@ -585,19 +585,6 @@ export default function Chessboard() {
         overflow: 'hidden',
       }}
     >
-      {/* Заголовок */}
-      <div style={{ flexShrink: 0, padding: '16px 24px 0 24px' }}>
-        <Title level={2} style={{ margin: 0, fontSize: Math.round(24 * scale) }}>
-          Шахматка
-          {statistics.totalRows > 0 && (
-            <span style={{ fontSize: Math.round(14 * scale), fontWeight: 'normal', color: '#666' }}>
-              {' '}
-              ({statistics.totalRows} записей, материалов: {statistics.uniqueMaterials},
-              номенклатур: {statistics.uniqueNomenclature})
-            </span>
-          )}
-        </Title>
-      </div>
 
       {/* Фильтры */}
       <div style={{ flexShrink: 0, padding: '16px 24px 0 24px' }}>
