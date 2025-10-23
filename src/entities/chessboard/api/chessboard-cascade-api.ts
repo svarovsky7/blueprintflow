@@ -21,8 +21,6 @@ export const chessboardCascadeApi = {
     if (!supabase) throw new Error('Supabase is not configured')
     if (!nomenclatureId) return []
 
-    console.log('🔗 Cascade API: Получаем поставщиков для номенклатуры:', nomenclatureId) // LOG: получение поставщиков по номенклатуре
-
     const { data, error } = await supabase
       .from('nomenclature_supplier_mapping')
       .select(
@@ -53,8 +51,6 @@ export const chessboardCascadeApi = {
           return acc
         }, [] as SupplierOption[])
         .sort((a, b) => a.name.localeCompare(b.name)) || []
-
-    console.log('🔗 Cascade API: Найдено поставщиков:', suppliers.length) // LOG: количество найденных поставщиков
 
     return suppliers
   },
@@ -231,22 +227,16 @@ export const chessboardCascadeApi = {
   ): Promise<boolean> {
     if (!supabase) throw new Error('Supabase is not configured')
     if (!nomenclatureId || !supplierId) {
-      console.error('🔗 Cascade API: Некорректные параметры для создания связи:', {
+      console.error('Cascade API: Некорректные параметры для создания связи:', {
         nomenclatureId,
         supplierId,
       })
       return false
     }
 
-    console.log('🔗 Cascade API: Создаем связь номенклатура-поставщик:', {
-      nomenclatureId,
-      supplierId,
-    }) // LOG: создание связи номенклатура-поставщик
-
     // Сначала проверим, не существует ли уже такая связь
     const existingLink = await this.isNomenclatureSupplierLinked(nomenclatureId, supplierId)
     if (existingLink) {
-      console.log('🔗 Cascade API: Связь уже существует, пропускаем создание') // LOG: связь уже существует
       return true
     }
 
@@ -259,14 +249,13 @@ export const chessboardCascadeApi = {
       ])
 
       if (error) {
-        console.error('🔗 Cascade API: Ошибка создания связи номенклатуры и поставщика:', error)
+        console.error('Cascade API: Ошибка создания связи номенклатуры и поставщика:', error)
         return false
       }
 
-      console.log('✅ Cascade API: Связь номенклатура-поставщик успешно создана') // LOG: связь создана
       return true
     } catch (error) {
-      console.error('🔗 Cascade API: Исключение при создании связи:', error)
+      console.error('Cascade API: Исключение при создании связи:', error)
       return false
     }
   },

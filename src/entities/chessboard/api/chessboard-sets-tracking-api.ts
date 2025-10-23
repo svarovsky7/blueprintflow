@@ -42,20 +42,16 @@ export async function setCurrentUser(userId: string): Promise<void> {
     return
   }
 
-  console.log('🔧 setCurrentUser: setting user_id =', userId)
-
   try {
     const { error } = await supabase.rpc('exec_sql', {
       sql: `SET LOCAL app.current_user_id = '${userId}'`,
     })
 
     if (error) {
-      console.error('❌ Failed to set current user:', error)
-    } else {
-      console.log('✅ setCurrentUser: successfully set app.current_user_id')
+      console.error('Failed to set current user:', error)
     }
   } catch (err) {
-    console.error('❌ Unexpected error in setCurrentUser:', err)
+    console.error('Unexpected error in setCurrentUser:', err)
   }
 }
 
