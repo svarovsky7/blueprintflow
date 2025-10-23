@@ -270,6 +270,9 @@ export interface AppliedFilters {
 
   // Дополнительные фильтры
   material_search: string // Поиск по материалам
+
+  // Информация о комплекте
+  set_ids?: string[] // ID выбранных комплектов (обычно массив с одним элементом)
 }
 
 export interface ColumnSettings {

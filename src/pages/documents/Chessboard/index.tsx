@@ -92,7 +92,7 @@ export default function Chessboard() {
     deleteSelectedRows,
     deleteSingleRow,
     getDisplayData,
-  } = useTableOperations(refetch, data || [])
+  } = useTableOperations(refetch, data || [], appliedFilters)
 
   // Хук для управления версиями документов
   const {
@@ -152,10 +152,22 @@ export default function Chessboard() {
           setCurrentStatus(matchedSet.status.id)
           setCurrentSetName(matchedSet.name)
           statusSetManuallyRef.current = false // Это автоматическое определение
+          
+          // Обновляем appliedFilters с set_ids
+          setAppliedFilters(prev => ({
+            ...prev,
+            set_ids: [matchedSet.id]
+          }))
         } else {
           setCurrentStatus(undefined)
           setCurrentSetName(undefined)
           statusSetManuallyRef.current = false
+          
+          // Сбрасываем set_ids, если комплект не найден
+          setAppliedFilters(prev => ({
+            ...prev,
+            set_ids: undefined
+          }))
         }
       } catch (error) {
         setCurrentStatus(undefined)
@@ -432,6 +444,9 @@ export default function Chessboard() {
 
         // Дополнительные фильтры
         material_search: '',
+
+        // Добавляем ID комплекта в примененные фильтры
+        set_ids: [setId],
       }
 
       setAppliedFilters(directAppliedFilters)
@@ -471,9 +486,9 @@ export default function Chessboard() {
   }, [resetFilters])
 
   // Обработчик создания комплекта из модального окна
-  const handleCreateSetFromModal = useCallback(async (formData: any) => {
+  const handleCreateSetFromModal = useCallback(async (formData: any, currentRowIds: string[]) => {
     try {
-      const createdSet = await chessboardSetsApi.createSet(formData)
+      const createdSet = await chessboardSetsApi.createSet(formData, false, currentRowIds)
       setCurrentSetName(createdSet.name)
       setCreateSetModalOpen(false)
       setPendingStatusId(undefined)
@@ -725,6 +740,7 @@ export default function Chessboard() {
           detail_cost_category_ids: appliedFilters.detail_cost_category_ids,
         }}
         initialStatusId={pendingStatusId || ''}
+        currentRowIds={allDisplayData.map(row => row.id)} // Передаем ID всех отфильтрованных строк
       />
     </div>
   )

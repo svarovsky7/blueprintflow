@@ -46,7 +46,11 @@ export const chessboardSetsApi = {
   },
 
   // Создание нового комплекта
-  async createSet(request: CreateChessboardSetRequest, skipUniquenessCheck = false): Promise<ChessboardSet> {
+  async createSet(
+    request: CreateChessboardSetRequest,
+    skipUniquenessCheck = false,
+    currentRowIds: string[] = [], // Добавляем ID текущих строк
+  ): Promise<ChessboardSet> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
     // Получить текущего пользователя
@@ -68,21 +72,15 @@ export const chessboardSetsApi = {
     // Генерируем уникальный номер комплекта
     const setNumber = await this.generateSetNumber()
 
-    // Определяем первичный документ из массива documents для обратной совместимости
-    const primaryDocument =
-      request.filters.documents && request.filters.documents.length > 0
-        ? request.filters.documents[0]
-        : null
-
     // Создаем комплект без поля status_id (теперь статус хранится в таблице маппинга)
     const newSet = {
       set_number: setNumber,
       name: request.name || null,
       project_id: request.filters.project_id,
-      // Используем первичный документ для обратной совместимости
-      documentation_id:
-        primaryDocument?.documentation_id || request.filters.documentation_id || null,
-      version_id: primaryDocument?.version_id || request.filters.version_id || null,
+      // Устаревшие поля, больше не заполняем напрямую, т.к. есть таблица chessboard_sets_documents_mapping
+      // documentation_id:
+      //   primaryDocument?.documentation_id || request.filters.documentation_id || null,
+      // version_id: primaryDocument?.version_id || request.filters.version_id || null,
       tag_id: request.filters.tag_id || null,
       block_ids: request.filters.block_ids || null,
       cost_category_ids: request.filters.cost_category_ids || null,
@@ -107,6 +105,25 @@ export const chessboardSetsApi = {
     if (error) {
       console.error('Failed to create chessboard set:', error)
       throw error
+    }
+
+    // После создания комплекта, сохраняем строки, которые в него вошли
+    if (data && currentRowIds.length > 0) {
+      const rowsToMap = currentRowIds.map(rowId => ({
+        set_id: data.id,
+        chessboard_id: rowId,
+        added_by: currentUserId,
+        added_at: new Date().toISOString(), // Используем added_at
+      }))
+
+      const { error: mappingError } = await supabase
+        .from('chessboard_sets_rows_mapping')
+        .insert(rowsToMap)
+
+      if (mappingError) {
+        console.error('Failed to map rows to the new set:', mappingError)
+        // Не прерываем процесс, но логируем ошибку
+      }
     }
 
     // Если передан массив документов, создаем записи в таблице маппинга

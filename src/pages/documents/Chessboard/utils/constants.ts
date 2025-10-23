@@ -39,6 +39,9 @@ export const DEFAULT_APPLIED_FILTERS = {
 
   // Дополнительные фильтры
   material_search: '',
+
+  // Информация о комплекте
+  set_ids: undefined as string[] | undefined,
 }
 
 export const PAGINATION_OPTIONS = [10, 20, 50, 100, 200, 500]

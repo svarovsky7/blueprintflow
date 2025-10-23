@@ -57,7 +57,8 @@ export const useFiltersState = () => {
     // Применяем сброшенные фильтры, сохраняя только проект
     const resetAppliedFilters = {
       ...DEFAULT_APPLIED_FILTERS,
-      project_id: filters.project // Сохраняем примененный проект
+      project_id: filters.project, // Сохраняем примененный проект
+      set_ids: undefined, // Сбрасываем комплект при сбросе фильтров
     }
     setAppliedFilters(resetAppliedFilters)
   }, [saveFilters, filters.project])
@@ -87,24 +88,28 @@ export const useFiltersState = () => {
 
   // Применение фильтров (преобразование UI фильтров в API фильтры)
   const applyFilters = useCallback(() => {
-    const applied: AppliedFilters = {
-      // Постоянные фильтры
-      project_id: filters.project,
-      documentation_section_ids: filters.documentationSection,
-      documentation_code_ids: filters.documentationCode,
-      documentation_version_ids: appliedFilters.documentation_version_ids, // Сохраняем выбранные версии
+    setAppliedFilters((prevAppliedFilters) => {
+      const newApplied: AppliedFilters = {
+        // Постоянные фильтры
+        project_id: filters.project,
+        documentation_section_ids: filters.documentationSection,
+        documentation_code_ids: filters.documentationCode,
+        documentation_version_ids: prevAppliedFilters.documentation_version_ids, // Сохраняем выбранные версии
 
-      // Сворачиваемые фильтры
-      block_ids: filters.block,
-      cost_category_ids: filters.costCategory,
-      detail_cost_category_ids: filters.costType,
+        // Сворачиваемые фильтры
+        block_ids: filters.block,
+        cost_category_ids: filters.costCategory,
+        detail_cost_category_ids: filters.costType,
 
-      // Дополнительные фильтры
-      material_search: filters.material.trim(),
-    }
+        // Дополнительные фильтры
+        material_search: filters.material.trim(),
 
-    setAppliedFilters(applied)
-  }, [filters, appliedFilters.documentation_version_ids])
+        // Сохраняем ID комплекта, если он был установлен
+        set_ids: prevAppliedFilters.set_ids,
+      }
+      return newApplied
+    })
+  }, [filters])
 
   // Обновление выбранных версий документов
   const updateDocumentVersions = useCallback((versions: Record<string, string>) => {

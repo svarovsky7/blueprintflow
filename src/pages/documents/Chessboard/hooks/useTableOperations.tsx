@@ -8,7 +8,7 @@ import { setCurrentUser } from '@/entities/chessboard'
 import type { TableMode, RowData, RowColor, AppliedFilters } from '../types'
 import { parseFloorsFromString } from '../utils/floors'
 
-export const useTableOperations = (refetch?: () => void, data: RowData[] = []) => {
+export const useTableOperations = (refetch?: () => void, data: RowData[] = [], appliedFilters?: AppliedFilters) => {
   const queryClient = useQueryClient()
   const { message } = App.useApp()
 
@@ -536,6 +536,24 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
           }
 
           const newRowId = newChessboardRow.id
+          
+          // Если мы работаем в контексте активного комплекта, добавляем новую строку в него
+          if (appliedFilters?.set_ids && appliedFilters.set_ids.length > 0) {
+            const mappingData = {
+              set_id: appliedFilters.set_ids[0], // Берем первый (и единственный) активный комплект
+              chessboard_id: newRowId,
+              added_by: currentUserId,
+              added_at: new Date().toISOString(),
+            }
+
+            const { error: mappingSetError } = await supabase.from('chessboard_sets_rows_mapping').insert(mappingData)
+            
+            if (mappingSetError) {
+                console.error('Failed to map new row to the active set:', mappingSetError)
+                message.warning(`Не удалось добавить строку в комплект: ${mappingSetError.message}`)
+            }
+          }
+
 
           // 2. Создаем запись в mapping таблице (аналогично редактированию)
           const mappingData: any = {}
@@ -854,30 +872,23 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
             supabase.from('chessboard_documentation_mapping').delete().eq('chessboard_id', rowId)
           )
 
-          // Добавляем новую связь - используется documentationVersionId как version_id
-          // В таблице chessboard_documentation_mapping есть только поле version_id
+          // Создаем новые связи
           if (updates.documentationVersionId) {
             promises.push(
-              supabase.from('chessboard_documentation_mapping').insert({
-                chessboard_id: rowId,
-                version_id: updates.documentationVersionId
-              })
+              supabase
+                .from('chessboard_documentation_mapping')
+                .insert({
+                  chessboard_id: rowId,
+                  version_id: updates.documentationVersionId
+                })
             )
-          } else if (updates.documentationCodeId) {
-            // Fallback: если версия не выбрана, но выбран документ, используем documentationCodeId
-            promises.push(
-              supabase.from('chessboard_documentation_mapping').insert({
-                chessboard_id: rowId,
-                version_id: updates.documentationCodeId
-              })
-            )
-          } else {
           }
         }
 
+
         // Обновляем floors mapping для этажей и количеств
         if (updates.floors !== undefined || updates.floorQuantities !== undefined ||
-            updates.quantityPd !== undefined || updates.quantitySpec !== undefined || updates.quantityRd !== undefined) {
+          updates.quantityPd !== undefined || updates.quantitySpec !== undefined || updates.quantityRd !== undefined) {
 
           // Создаем функцию обновления этажей и количеств
           const updateFloorsPromise = async () => {
@@ -888,45 +899,43 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
                 .select('*')
                 .eq('chessboard_id', rowId)
 
-
               // 2. Проверяем, есть ли этажи или количества для обработки
               const floorsString = updates.floors !== undefined ? updates.floors : ''
               const floorQuantities = updates.floorQuantities || {}
 
               // Проверяем, есть ли прямые изменения количеств (без этажей)
               const hasDirectQuantityUpdates = updates.quantityPd !== undefined ||
-                                               updates.quantitySpec !== undefined ||
-                                               updates.quantityRd !== undefined
+                updates.quantitySpec !== undefined ||
+                updates.quantityRd !== undefined
 
               // Проверяем, есть ли существующие этажи в БД (кроме записей с floor_number = null)
               const existingFloorsWithNumbers = existingFloors?.filter(floor => floor.floor_number !== null) || []
               const hasExistingFloors = existingFloorsWithNumbers.length > 0
 
 
+              // Сценарий 1: Указаны новые этажи (строка с этажами)
               if (floorsString && floorsString.trim()) {
-                // Обработка с указанными этажами
+
                 const floors = parseFloorsFromString(floorsString)
 
                 if (floors.length > 0) {
-                  // КРИТИЧНО: При указании этажей удаляем ВСЕ существующие записи для данной строки
-                  // (включая записи с floor_number = null - количества без этажей)
+                  // При указании этажей удаляем ВСЕ существующие записи для данной строки
                   const { error: deleteError } = await supabase
                     .from('chessboard_floor_mapping')
                     .delete()
-                    .eq('chessboard_id', rowId) // Удаляем все записи для данной строки
+                    .eq('chessboard_id', rowId)
 
                   if (deleteError) {
                     throw deleteError
                   }
 
-                  // Теперь создаем новые записи для указанных этажей
+                  // Создаем новые записи для указанных этажей
                   const totalFloors = floors.length
                   const newFloorRecords = floors.map(floor => {
-                    // Находим существующую запись для этого этажа для сохранения неизменных значений
                     const existingFloorRecord = existingFloors?.find(f => f.floor_number === floor)
 
+                    // Определяем количества для каждого нового этажа
                     const floorQuantityData = {
-                      // ПРИОРИТЕТ: прямые изменения количеств (с равномерным распределением), затем floorQuantities, затем существующие значения
                       quantityPd: hasDirectQuantityUpdates && updates.quantityPd !== undefined
                         ? (updates.quantityPd ? Number(updates.quantityPd) / totalFloors : null)
                         : (floorQuantities?.[floor]?.quantityPd
@@ -944,14 +953,12 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
                           : (existingFloorRecord?.quantityRd || null)),
                     }
 
-
                     return {
                       chessboard_id: rowId,
                       floor_number: floor,
                       ...floorQuantityData
                     }
                   })
-
 
                   const { error: insertError } = await supabase
                     .from('chessboard_floor_mapping')
@@ -960,30 +967,25 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
                   if (insertError) {
                     throw insertError
                   }
-
                 }
               } else if (hasExistingFloors && hasDirectQuantityUpdates) {
-                // НОВАЯ СЕКЦИЯ: Есть существующие этажи в БД, но поле floors не передано
-                // Обновляем количества для существующих этажей
-
-                // Удаляем все существующие записи
+                // Сценарий 2: Этажи не указаны, но есть существующие этажи в БД и обновлены количества
+                // Удаляем старые записи
                 const { error: deleteError } = await supabase
                   .from('chessboard_floor_mapping')
                   .delete()
-                  .eq('chessboard_id', rowId) // Удаляем все записи для данной строки
+                  .eq('chessboard_id', rowId)
 
                 if (deleteError) {
-                                    throw deleteError
+                  throw deleteError
                 }
 
-                // Создаем новые записи для существующих этажей с обновленными количествами
+                // Перераспределяем новые количества по существующим этажам
                 const totalFloors = existingFloorsWithNumbers.length
-                
                 const updatedFloorRecords = existingFloorsWithNumbers.map(existingFloor => {
                   return {
                     chessboard_id: rowId,
                     floor_number: existingFloor.floor_number,
-                    // РАСПРЕДЕЛЯЕМ количества равномерно между всеми этажами или сохраняем существующие значения
                     quantityPd: hasDirectQuantityUpdates && updates.quantityPd !== undefined
                       ? (updates.quantityPd ? Number(updates.quantityPd) / totalFloors : null)
                       : (existingFloor.quantityPd || null),
@@ -996,23 +998,20 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
                   }
                 })
 
-
                 const { error: insertError } = await supabase
                   .from('chessboard_floor_mapping')
                   .insert(updatedFloorRecords)
 
                 if (insertError) {
-                                    throw insertError
+                  throw insertError
                 }
 
-                              } else if (hasDirectQuantityUpdates && (!floorsString || !floorsString.trim()) && !hasExistingFloors) {
-                // Обработка количеств БЕЗ указания этажей - только если этажи НЕ указаны
-
-                // Ищем существующую запись с floor_number = null
+              } else if (hasDirectQuantityUpdates && (!floorsString || !floorsString.trim()) && !hasExistingFloors) {
+                // Сценарий 3: Нет этажей (ни в updates, ни в БД), но обновлены количества
                 const existingRecord = existingFloors?.find(floor => floor.floor_number === null)
 
                 if (existingRecord) {
-                  // Обновляем существующую запись, сохраняя неизменные поля
+                  // Обновляем существующую запись без этажей
                   const updateData: any = {}
 
                   if (updates.quantityPd !== undefined) {
@@ -1025,7 +1024,6 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
                     updateData.quantityRd = updates.quantityRd ? Number(updates.quantityRd) : null
                   }
 
-
                   const { error: updateError } = await supabase
                     .from('chessboard_floor_mapping')
                     .update(updateData)
@@ -1035,10 +1033,10 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
                     throw updateError
                   }
                 } else {
-                  // Создаем новую запись
+                  // Создаем новую запись без этажей
                   const quantityMapping = {
                     chessboard_id: rowId,
-                    floor_number: null, // Этаж не указан
+                    floor_number: null,
                     quantityPd: updates.quantityPd !== undefined
                       ? (updates.quantityPd ? Number(updates.quantityPd) : null)
                       : null,
@@ -1050,7 +1048,6 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
                       : null,
                   }
 
-
                   const { error: insertError } = await supabase
                     .from('chessboard_floor_mapping')
                     .insert(quantityMapping)
@@ -1059,11 +1056,9 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
                     throw insertError
                   }
                 }
-
               } else if (hasExistingFloors && updates.floors !== undefined && (!floorsString || !floorsString.trim())) {
-                // НОВАЯ СЕКЦИЯ: Удаление этажей - переход от этажей к количествам без этажей
-                                
-                // Суммируем количества со всех существующих этажей
+                // Сценарий 4: Существующие этажи удалены (переход от этажей к количествам без этажей)
+                // Суммируем количества по существующим этажам
                 const totalQuantities = existingFloorsWithNumbers.reduce((totals, floor) => {
                   return {
                     quantityPd: (totals.quantityPd || 0) + (floor.quantityPd || 0),
@@ -1072,7 +1067,7 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
                   }
                 }, { quantityPd: 0, quantitySpec: 0, quantityRd: 0 })
 
-                // Удаляем все существующие записи
+                // Удаляем ВСЕ существующие записи
                 const { error: deleteError } = await supabase
                   .from('chessboard_floor_mapping')
                   .delete()
@@ -1632,11 +1627,11 @@ export const useTableOperations = (refetch?: () => void, data: RowData[] = []) =
       setMode('view')
 
       message.success('Изменения сохранены')
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving changes:', error)
-      message.error('Ошибка при сохранении изменений')
+      message.error(`Ошибка при сохранении изменений: ${error.message}`)
     }
-  }, [newRows, editedRows, editingRows, queryClient, setMode, message, data, currentUserId])
+  }, [newRows, editedRows, editingRows, queryClient, setMode, message, data, currentUserId, appliedFilters])
 
   // Отмена всех изменений
   const cancelChanges = useCallback(() => {

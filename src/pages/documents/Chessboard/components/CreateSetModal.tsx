@@ -9,7 +9,7 @@ const { Text } = Typography
 interface CreateSetModalProps {
   open: boolean
   onCancel: () => void
-  onOk: (data: CreateSetFormData) => void
+  onOk: (data: CreateSetFormData, currentRowIds: string[]) => void // Обновляем onOk
   initialFilters: {
     project_id: string
     project_name: string
@@ -21,6 +21,7 @@ interface CreateSetModalProps {
     detail_cost_category_ids: string[]
   }
   initialStatusId: string
+  currentRowIds: string[] // Добавляем ID текущих строк
 }
 
 export interface CreateSetFormData {
@@ -35,6 +36,7 @@ export const CreateSetModal = ({
   onOk,
   initialFilters,
   initialStatusId,
+  currentRowIds, // Принимаем ID
 }: CreateSetModalProps) => {
   const [form] = Form.useForm()
 
@@ -145,6 +147,28 @@ export const CreateSetModal = ({
     },
     enabled: selectedDocuments.length > 0 && open,
   })
+
+  // Эффект для автоматического выбора последней версии для новых документов
+  useEffect(() => {
+    if (allDocumentVersions.length > 0) {
+      setDocumentVersions(prevVersions => {
+        const newVersions = { ...prevVersions }
+        let needsUpdate = false
+        selectedDocuments.forEach(docId => {
+          if (!newVersions[docId]) {
+            // allDocumentVersions уже отсортированы по убыванию версии
+            const latestVersion = allDocumentVersions.find(v => v.documentation_id === docId)
+            if (latestVersion) {
+              newVersions[docId] = latestVersion.id
+              needsUpdate = true
+            }
+          }
+        })
+        // Обновляем состояние, только если были изменения, чтобы избежать лишних ререндеров
+        return needsUpdate ? newVersions : prevVersions
+      })
+    }
+  }, [allDocumentVersions, selectedDocuments])
 
   // Загрузка корпусов
   const { data: blocks = [] } = useQuery({
@@ -260,13 +284,13 @@ export const CreateSetModal = ({
       // Формируем массив документов с версиями
       const documents: ChessboardSetDocument[] = selectedDocuments.map(docId => ({
         documentation_id: docId,
-        version_id: documentVersions[docId] || '',
+        version_id: documentVersions[docId] || null, // ИСПРАВЛЕНИЕ: '' -> null
       }))
 
       const filters: ChessboardSetFilters = {
         project_id: initialFilters.project_id,
         documents: documents.length > 0 ? documents : undefined,
-        documentation_ids: selectedDocuments.length > 0 ? selectedDocuments : undefined,
+        // documentation_ids: selectedDocuments.length > 0 ? selectedDocuments : undefined, // УДАЛЯЕМ ЭТУ СТРОКУ
         tag_id: selectedSections.length > 0 ? Number(selectedSections[0]) : undefined,
         block_ids: values.block_ids?.length > 0 ? values.block_ids : undefined,
         cost_category_ids: values.cost_category_ids?.length > 0
@@ -283,12 +307,12 @@ export const CreateSetModal = ({
         status_id: initialStatusId,
       }
 
-      onOk(formData)
+      onOk(formData, currentRowIds) // Передаем ID строк в обработчик
       form.resetFields()
     } catch (error) {
       console.error('Validation failed:', error)
     }
-  }, [form, selectedDocuments, selectedSections, documentVersions, initialFilters, initialStatusId, onOk])
+  }, [form, selectedDocuments, selectedSections, documentVersions, initialFilters, initialStatusId, onOk, currentRowIds])
 
   // Обработчик отмены
   const handleCancel = useCallback(() => {
