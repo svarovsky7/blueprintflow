@@ -16,6 +16,7 @@ import { CreateSetModal } from './components/CreateSetModal'
 import ChessboardSetsModal from '../ChessboardSetsModal'
 import { chessboardSetsApi } from '@/entities/chessboard/api/chessboard-sets-api'
 import type { ChessboardFilters } from './types'
+import { useTableHeight } from '@/hooks/useTableHeight'
 
 const { Title } = Typography
 
@@ -576,16 +577,21 @@ export default function Chessboard() {
     )
   }
 
+  const paginationRef = useRef<HTMLDivElement>(null)
+  const { tableHeight, containerRef } = useTableHeight({
+    paginationRef,
+    extraHeight: 8, // Дополнительный отступ между таблицей и пагинацией
+  })
+
   return (
     <div
       style={{
-        height: 'calc(100vh - 96px)',
+        height: 'calc(100vh - 96px)', // Общая высота страницы за вычетом хедера
         display: 'flex',
         flexDirection: 'column',
-        overflow: 'hidden',
+        overflow: 'hidden', // Предотвращаем двойной скролл
       }}
     >
-
       {/* Фильтры */}
       <div style={{ flexShrink: 0, padding: '16px 24px 0 24px' }}>
         <ChessboardFiltersComponent
@@ -595,7 +601,6 @@ export default function Chessboard() {
           hasActiveFilters={hasActiveFilters}
           hasAppliedFilters={hasAppliedFilters}
           isLoading={isLoading}
-          statistics={statistics}
           onFilterChange={handleUpdateFilter}
           onCascadingFilterChange={handleUpdateCascadingFilter}
           onApplyFilters={handleApplyFilters}
@@ -622,28 +627,21 @@ export default function Chessboard() {
         />
       </div>
 
-      {/* Контейнер таблицы с правильной структурой прокрутки */}
+      {/* Контейнер для таблицы и пагинации, который займет все оставшееся место */}
       <div
+        ref={containerRef}
         style={{
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          overflow: 'hidden',
-          minHeight: 0,
-          padding: '0 24px 24px 24px',
+          minHeight: 0, // Важно для flex-контейнеров внутри
+          padding: '0 24px',
         }}
       >
-        <div
-          style={{
-            flex: 1,
-            overflow: 'hidden', // Контейнер без прокрутки
-            minHeight: 0,
-            position: 'relative', // Для корректной работы sticky
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
+        {/* Контейнер, который будет скроллироваться */}
+        <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
           <ChessboardTable
+            height={tableHeight}
             data={displayData}
             originalData={data}
             loading={isLoading}
@@ -664,12 +662,8 @@ export default function Chessboard() {
           />
         </div>
 
-        {/* Пагинация под таблицей */}
-        <div style={{
-          padding: '16px 0',
-          textAlign: 'center',
-          borderTop: '1px solid #f0f0f0'
-        }}>
+        {/* Пагинация, прижатая к низу */}
+        <div ref={paginationRef}>
           <Pagination
             size="small"
             current={currentPage}
@@ -685,7 +679,7 @@ export default function Chessboard() {
         </div>
       </div>
 
-      {/* Настройки столбцов */}
+      {/* Модальные окна и Drawer */}
       <ColumnSettingsDrawer
         visible={drawerVisible}
         columns={allColumnsWithVisibility}
