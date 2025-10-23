@@ -274,7 +274,7 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
               batchQuery = applyServerSideFilters(batchQuery, appliedFilters)
 
               batchQuery = batchQuery
-                .limit(1000)
+                .limit(50000)
                 .order('created_at', { ascending: false })
                 .order('id', { ascending: false })
 
@@ -308,7 +308,7 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
             query = applyServerSideFilters(query, appliedFilters)
 
             query = query
-              .limit(1000)
+              .limit(50000)
               .order('created_at', { ascending: false })
               .order('id', { ascending: false })
 
@@ -329,26 +329,61 @@ export const useChessboardData = ({ appliedFilters, filters, enabled = true }: U
           return []
         }
       } else {
-        // Если нет фильтра по документации, выполняем обычный запрос
-        query = query
-          .limit(1000) // ОПТИМИЗАЦИЯ: увеличен с 500 до 1000 для лучшей производительности с большими данными
-          .order('created_at', { ascending: false })
-          .order('id', { ascending: false }) // Стабильная сортировка
+        // Если нет фильтра по документации, выполняем запрос в несколько этапов (батчинг)
 
-        const { data, error } = await query
+        // 1. Сначала получаем общее количество записей
+        const { count, error: countError } = await applyServerSideFilters(
+            supabase
+                .from('chessboard')
+                .select(buildSelectQuery(appliedFilters), { count: 'exact', head: true })
+                .eq('project_id', appliedFilters.project_id),
+            appliedFilters
+        );
 
-        if (error) {
-          throw error
+        if (countError) {
+          console.error('Error getting count for batching:', countError);
+          throw countError;
         }
+
+        if (!count) {
+          return [];
+        }
+
+        // 2. Выполняем запросы для каждой "страницы" данных параллельно
+        const BATCH_SIZE = 1000;
+        const promises = [];
+        for (let i = 0; i < count; i += BATCH_SIZE) {
+          const promise = applyServerSideFilters(
+            supabase
+              .from('chessboard')
+              .select(buildSelectQuery(appliedFilters))
+              .eq('project_id', appliedFilters.project_id),
+            appliedFilters
+          )
+            .range(i, i + BATCH_SIZE - 1)
+            .order('created_at', { ascending: false })
+            .order('id', { ascending: false });
+          promises.push(promise);
+        }
+
+        const results = await Promise.all(promises);
+
+        // 3. Собираем все данные вместе
+        const allData = results.flatMap(result => {
+          if (result.error) {
+            console.error("Error in batch query:", result.error);
+            return []; // Пропускаем неудавшийся батч
+          }
+          return result.data;
+        });
 
         const endTime = performance.now()
         const executionTime = Math.round(endTime - queryStartTime)
 
-
         if (executionTime > 3000) {
         }
         setFilteredRawData(null)
-        return data as DbRow[]
+        return allData as DbRow[]
       }
     },
     enabled: enabled && !!appliedFilters.project_id,
